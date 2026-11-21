@@ -1,9 +1,11 @@
 # تسليم مشروع M.Y. Business Hotel HR & Payroll — Version 2.2
 
 ## المستودع والنسخة
-- المستودع: https://github.com/ms1813678-bit/my-business-hotel-hr-payroll-v2
-- الفرع الجاري تسليمه للاختبار: `v2/integration-baseline-2026-11-20`
-- Commit الكود الذي اجتاز CI: `8a47fa4b93dc42afa5734669dec2c38a85e6da7c`
+- المستودع: https://github.com/ms1813678-bit/my-business-hotel-hr-payroll-v2-2
+- الفرع الأساسي الحالي: `main`
+- آخر Commit دمج تم التحقق منه: `998d064493a02e35851659666f2d94f73e453e8d`
+- فرع توثيق حالة المشروع: `docs/update-v22-project-status-2026-11-21`.
+- هذا الـ Commit لم يُثبت بعد اجتيازه CI في المستودع الجديد.
 - Package version: `2.2.0`
 - المستودع القديم مرجع للقراءة فقط؛ التطوير هنا في المستودع الجديد.
 
@@ -26,10 +28,10 @@
 - الإضافي والمكافآت والجزاءات تخضع لمراجعة واعتماد HR وفق السجلات.
 
 ## نتيجة الاختبارات على Commit الكود
-GitHub Actions Run [44811054829](https://github.com/ms1813678-bit/my-business-hotel-hr-payroll-v2/actions/runs/44811054829):
+نتائج CI التاريخية على Commit أقدم في المستودع السابق فقط: [Run 44811054829](https://github.com/ms1813678-bit/my-business-hotel-hr-payroll-v2/actions/runs/44811054829).
 - Linux + PostgreSQL 16: **346 passed, 17 warnings, 0 failures**.
 - Windows runner / Python 3.11: **338 passed, 1 warning, 0 failures**.
-- PowerShell syntax checks: setup, start, backup task scripts passed.
+- هذه النتائج لا تثبت اجتياز النسخة الحالية في المستودع الجديد؛ يجب تشغيل CI من جديد على `998d064`.
 
 ## طريقة التثبيت على Windows
 1. ثبّت Python 3.11 مع Python Launcher.
@@ -51,4 +53,4 @@ GitHub Actions Run [44811054829](https://github.com/ms1813678-bit/my-business-ho
 - النسخ الاحتياطي والاستعادة والتراجع على بيئة Windows المحلية.
 - قبول الاستخدام دون إنترنت، وتوافر نموذج Ollama محليًا إذا استُخدم.
 
-**الحالة:** اجتاز الاختبارات الآلية؛ ليس بعدُ مقبولًا للاستخدام الإنتاجي. لا تُدخل بيانات الموظفين الحقيقية حتى إنهاء القبول المحلي.
+**الحالة:** الدمج مكتمل؛ تحقق CI على Commit الدمج والقبول المحلي لم يكتملَا بعد. لا تُدخل بيانات الموظفين الحقيقية حتى إنهاء القبول.
