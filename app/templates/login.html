@@ -12,10 +12,11 @@
       <nav class="language-switch login-language" aria-label="Language"><a href="/language/ar">العربية</a><a href="/language/en">English</a><a href="/language/zh">中文</a></nav>
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <div class="login-brand">
-        <img class="brand-logo" src="/static/logo.png" alt="شعار فندق M.Y. Business">
-        <p class="eyebrow">فندق M.Y. Business</p>
+        <img class="brand-logo" src="/static/logo.png" alt="M.Y. BUSINESS HOTEL">
+        <p class="eyebrow" style="margin-bottom:0">M.Y. BUSINESS HOTEL</p>
+        <p class="brand-zh">米亚酒店</p>
       </div>
-      <h1 style="text-align:center">تسجيل دخول الإدارة</h1>
+      <h1 style="text-align:center">تسجيل الدخول</h1>
       {% if error %}<p class="error">{{ error }}</p>{% endif %}
       <label>اسم المستخدم
         <input name="username" autocomplete="username" required maxlength="80" placeholder="أدخل اسم المستخدم" dir="rtl">

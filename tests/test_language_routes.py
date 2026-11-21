@@ -28,7 +28,7 @@ def test_language_switch_persists_simplified_chinese_and_redirects_back():
         assert chinese_page.status_code == 200
         assert chinese_page.headers["content-language"] == "zh-CN"
         assert '<html lang="zh-CN" dir="ltr">' in chinese_page.text
-        assert "管理员登录" in chinese_page.text
+        assert "登录" in chinese_page.text
 
 
 def test_language_switch_persists_english_and_keeps_login_post_available():

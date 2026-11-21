@@ -34,7 +34,7 @@
         <label>تاريخ الطلب / Request date<input type="date" name="request_date" max="{{ today }}" required></label>
         <label>نوع السلفة / Advance type
           <select name="advance_type" required>
-            <option value="regular">سلفة شهرية عادية — حد 25% من الأساسي</option>
+            <option value="regular">سلفة شهرية (تُخصم من راتب الشهر) — حد 25% من الأساسي</option>
             <option value="installment">سلفة مقسطة — بدون حد 25%</option>
           </select>
         </label>
@@ -48,7 +48,7 @@
   <section class="notice">
     <h2>ملخص السلف لكل موظف / Employee advance summary</h2>
     <div class="table-wrap"><table><thead><tr>
-      <th>الموظف</th><th>آخر سلفة</th><th>إجمالي السلف التاريخي</th><th>المخصوم</th><th>قائم عادي</th><th>قائم مقسط</th><th>حد 25% للعادي</th><th>المتاح للعادي</th>
+      <th>الموظف</th><th>آخر سلفة</th><th>إجمالي السلف التاريخي</th><th>المخصوم</th><th>المتبقي من السلفة الشهرية</th><th>قائم مقسط</th><th>الحد الأقصى 25% من الأساسي</th><th>المتاح للسلفة الشهرية</th>
     </tr></thead><tbody>
     {% for e in employees %}
     {% set s = advance_summary.get(e.id) %}

@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{% block title %}نظام الموارد البشرية — فندق M.Y. Business{% endblock %}</title>
+  <title>{% block title %}نظام الموارد البشرية — M.Y. BUSINESS HOTEL{% endblock %}</title>
   <link rel="stylesheet" href="/static/app.css">
   {% block head %}{% endblock %}
 </head>
@@ -13,9 +13,10 @@
       <nav class="language-switch" aria-label="Language"><a href="/language/ar" {% if request.state.language == 'ar' %}class="active" aria-current="true"{% endif %}>العربية</a><a href="/language/en" {% if request.state.language == 'en' %}class="active" aria-current="true"{% endif %}>English</a><a href="/language/zh" {% if request.state.language == 'zh' %}class="active" aria-current="true"{% endif %}>中文</a></nav>
       <div class="sidebar-brand">
         <div class="brand-row">
-          <img class="brand-logo" src="/static/logo-badge.png" alt="شعار فندق M.Y. Business">
+          <img class="brand-logo" src="/static/logo-badge.png" alt="M.Y. BUSINESS HOTEL">
           <div>
-            <strong>فندق M.Y. Business</strong>
+            <strong>M.Y. BUSINESS HOTEL</strong>
+            <span class="brand-zh">米亚酒店</span>
             <span>نظام الموارد البشرية والرواتب</span>
           </div>
         </div>

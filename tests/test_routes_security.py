@@ -1733,7 +1733,7 @@ def test_language_switch_persists_and_renders_chinese_ltr(client):
     assert page.status_code == 200
     assert page.headers["content-language"] == "zh-CN"
     assert '<html lang="zh-CN" dir="ltr">' in page.text
-    assert "管理员登录" in page.text
+    assert "登录" in page.text
 
 
 def test_language_switch_supports_english_and_arabic_default(client):
@@ -1742,13 +1742,13 @@ def test_language_switch_supports_english_and_arabic_default(client):
     page = client.get("/login")
     assert page.headers["content-language"] == "en"
     assert '<html lang="en" dir="ltr">' in page.text
-    assert "Administrator Sign In" in page.text
+    assert "Sign In" in page.text
 
     client.cookies.delete("my_hr_language")
     arabic = client.get("/login")
     assert arabic.headers["content-language"] == "ar"
     assert '<html lang="ar" dir="rtl">' in arabic.text
-    assert "تسجيل دخول الإدارة" in arabic.text
+    assert "تسجيل الدخول" in arabic.text
 
 
 def test_language_switch_rejects_unsupported_locale(client):
