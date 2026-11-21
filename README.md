@@ -36,10 +36,9 @@ A local-first HR and payroll application for Windows 10/11, using PostgreSQL on 
 
 **Project control:** [`docs/MASTER_PROJECT_NOTE_V2_2.md`](docs/MASTER_PROJECT_NOTE_V2_2.md) is the single source of truth for instructions, phases, decisions, completed work, test evidence, blockers, and the next task. Read it before every task and update it after every task. Do not use chat history as the project ledger.
 
+**Verified CI baseline:** Commit `83d1079d2edbdf4639a0c5bfcd9f42d731e9a752` passed two GitHub Actions runs: [44886369474](https://github.com/ms1813678-bit/my-business-hotel-hr-payroll-v2-2/actions/runs/44886369474) and [44886430837](https://github.com/ms1813678-bit/my-business-hotel-hr-payroll-v2-2/actions/runs/44886430837). Linux + PostgreSQL 16, Windows / Python 3.11, and source ZIP packaging completed successfully. The source artifact (`14700078216`) was downloaded and inspected for archive integrity, checksum, and sensitive/local files.
 
-The initial V2 repository was a small foundation. The current integration branch imports the broader HR/payroll implementation and tests from the latest reviewed source branch as a starting baseline. This is not a production release. The imported test suite and Windows installation must be rerun on the V2 commit; no test is claimed successful until its result is observed.
-
-Use synthetic data only until all V2 acceptance checks pass. See:
+**Release status:** Not production-ready. CI and source-package checks do not prove installation or end-to-end operation on the hotel's Windows 10 computer. Local installation, synthetic HR-to-payroll acceptance, and backup/restore testing remain pending. Use synthetic data only until all V2 acceptance checks pass. See:
 - `docs/PROJECT_SPEC.md`
 - `docs/AI_ASSISTANT_ARCHITECTURE.md`
 - `docs/ACCEPTANCE_CHECKLIST_AR.md`
