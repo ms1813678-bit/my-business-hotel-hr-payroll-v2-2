@@ -2274,6 +2274,8 @@ def create_employee(
     request: Request,
     full_name: str = Form(...),
     national_id: str = Form(""),
+    nationality: str = Form("egyptian"),
+    passport_number: str = Form(""),
     phone: str = Form(""),
     address: str = Form(""),
     department_id: int = Form(...),
@@ -2296,6 +2298,14 @@ def create_employee(
     position = position.strip()
     national_id = national_id.strip() or None
     fingerprint_id = fingerprint_id.strip() or None
+    nationality = nationality.strip() or "egyptian"
+    if nationality not in ("egyptian", "foreign"):
+        raise HTTPException(status_code=400, detail="الجنسية يجب أن تكون مصري أو أجنبي.")
+    passport_number = passport_number.strip() or None
+    if nationality == "foreign" and not passport_number:
+        raise HTTPException(status_code=400, detail="رقم الباسبور مطلوب للموظف الأجنبي.")
+    if nationality == "egyptian":
+        passport_number = None
     if not full_name or not position:
         raise HTTPException(status_code=400, detail="اسم الموظف والمسمى الوظيفي مطلوبان.")
     with SessionLocal.begin() as db:
@@ -2305,7 +2315,7 @@ def create_employee(
         branch = db.get(Branch, branch_id) if branch_id is not None else None
         if branch_id is not None and (branch is None or not branch.active or branch.department_id != department_id):
             raise HTTPException(status_code=400, detail="الفرع المحدد غير تابع للقسم المختار أو غير متاح.")
-        for field_name, value in (("national_id", national_id), ("fingerprint_id", fingerprint_id)):
+        for field_name, value in (("national_id", national_id), ("fingerprint_id", fingerprint_id), ("passport_number", passport_number)):
             if value is not None and db.scalar(
                 select(Employee.id).where(getattr(Employee, field_name) == value).limit(1)
             ) is not None:
@@ -2313,7 +2323,8 @@ def create_employee(
         photo_path = _store_employee_photo(photo)
         employee = Employee(
             code=allocate_employee_code(db), full_name=full_name,
-            national_id=national_id, phone=phone.strip() or None,
+            national_id=national_id, nationality=nationality, passport_number=passport_number,
+            phone=phone.strip() or None,
             address=address.strip() or None, department_id=department_id,
             branch_id=branch_id, position=position, hire_date=hire_date,
             probation_start_date=probation_start_date, probation_end_date=probation_end_date,
@@ -2337,6 +2348,8 @@ def edit_employee(
     employee_id: int,
     full_name: str = Form(...),
     national_id: str = Form(""),
+    nationality: str = Form("egyptian"),
+    passport_number: str = Form(""),
     phone: str = Form(""),
     address: str = Form(""),
     department_id: int = Form(...),
@@ -2378,9 +2391,19 @@ def edit_employee(
             if branch is None or not branch.active or branch.department_id != department_id:
                 raise HTTPException(status_code=400, detail="الفرع المحدد غير تابع للقسم المختار أو غير متاح.")
 
+        nationality = nationality.strip() or "egyptian"
+        if nationality not in ("egyptian", "foreign"):
+            raise HTTPException(status_code=400, detail="الجنسية يجب أن تكون مصري أو أجنبي.")
+        passport_number = passport_number.strip() or None
+        if nationality == "foreign" and not passport_number:
+            raise HTTPException(status_code=400, detail="رقم الباسبور مطلوب للموظف الأجنبي.")
+        if nationality == "egyptian":
+            passport_number = None
         normalized = {
             "full_name": full_name,
             "national_id": national_id.strip() or None,
+            "nationality": nationality,
+            "passport_number": passport_number,
             "phone": phone.strip() or None,
             "address": address.strip() or None,
             "department_id": department_id,
@@ -2392,7 +2415,7 @@ def edit_employee(
             "probation_start_date": probation_start_date,
             "probation_end_date": probation_end_date,
         }
-        for field_name in ("national_id", "fingerprint_id"):
+        for field_name in ("national_id", "fingerprint_id", "passport_number"):
             value = normalized[field_name]
             if value is None:
                 continue

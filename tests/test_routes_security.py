@@ -246,6 +246,63 @@ def test_employee_creation_requires_auth_and_valid_csrf(client):
         assert employee.code == "MY-0001"
 
 
+def test_employee_nationality_and_passport_rules(client):
+    assert login(client).status_code == 303
+    page = client.get("/employees")
+    token = csrf_from(page)
+
+    base = {
+        "csrf_token": token,
+        "full_name": "Synthetic Foreign Employee",
+        "national_id": "",
+        "phone": "",
+        "department_id": str(client.test_department_id),
+        "position": "Test Position",
+        "hire_date": date.today().isoformat(),
+        "basic_salary": str(Decimal("1000.00")),
+        "daily_hours": "8",
+        "fingerprint_id": "",
+    }
+    missing_passport = client.post(
+        "/employees",
+        data={**base, "nationality": "foreign", "passport_number": ""},
+        follow_redirects=False,
+    )
+    assert missing_passport.status_code == 400
+
+    created = client.post(
+        "/employees",
+        data={**base, "nationality": "foreign", "passport_number": "A12345678"},
+        follow_redirects=False,
+    )
+    assert created.status_code == 303
+
+    duplicate_passport = client.post(
+        "/employees",
+        data={**base, "full_name": "Synthetic Foreign Employee 2", "nationality": "foreign", "passport_number": "A12345678"},
+        follow_redirects=False,
+    )
+    assert duplicate_passport.status_code == 409
+
+    egyptian_with_passport = client.post(
+        "/employees",
+        data={**base, "full_name": "Synthetic Egyptian Employee", "nationality": "egyptian", "national_id": "29803100201134", "passport_number": "B999"},
+        follow_redirects=False,
+    )
+    assert egyptian_with_passport.status_code == 303
+
+    from app.main import SessionLocal
+
+    with SessionLocal() as db:
+        foreign = db.query(Employee).filter_by(full_name="Synthetic Foreign Employee").one()
+        assert foreign.nationality == "foreign"
+        assert foreign.passport_number == "A12345678"
+        egyptian = db.query(Employee).filter_by(full_name="Synthetic Egyptian Employee").one()
+        assert egyptian.nationality == "egyptian"
+        assert egyptian.national_id == "29803100201134"
+        assert egyptian.passport_number is None
+
+
 def test_attendance_review_page_is_paginated(client):
     assert login(client).status_code == 303
     from app.main import SessionLocal

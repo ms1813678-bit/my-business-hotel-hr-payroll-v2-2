@@ -31,6 +31,8 @@ class Employee(Base):
     code: Mapped[str] = mapped_column(String(20), unique=True, index=True)
     full_name: Mapped[str] = mapped_column(String(200), index=True)
     national_id: Mapped[str | None] = mapped_column(String(20), unique=True)
+    nationality: Mapped[str | None] = mapped_column(String(10), default="egyptian")
+    passport_number: Mapped[str | None] = mapped_column(String(20), unique=True)
     phone: Mapped[str | None] = mapped_column(String(30))
     address: Mapped[str | None] = mapped_column(Text)
     photo_path: Mapped[str | None] = mapped_column(String(255))

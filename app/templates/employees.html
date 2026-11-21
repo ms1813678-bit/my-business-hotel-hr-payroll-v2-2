@@ -19,7 +19,9 @@
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     <div class="form-grid">
       <label>الاسم بالكامل<input name="full_name" required maxlength="200"></label>
+      <label>الجنسية<select name="nationality"><option value="egyptian" selected>مصري</option><option value="foreign">أجنبي</option></select></label>
       <label>الرقم القومي<input name="national_id" maxlength="20"></label>
+      <label>رقم الباسبور (للأجانب)<input name="passport_number" maxlength="20"></label>
       <label>رقم الهاتف<input name="phone" maxlength="30"></label>
       <label>العنوان<input name="address" maxlength="2000"></label>
       <label>القسم<select name="department_id" required>{% for d in departments %}<option value="{{ d.id }}">{{ d.name }}</option>{% endfor %}</select></label>
@@ -97,7 +99,9 @@
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <div class="form-grid">
               <label>الاسم بالكامل<input name="full_name" required maxlength="200" value="{{ e.full_name }}"></label>
+              <label>الجنسية<select name="nationality"><option value="egyptian" {% if (e.nationality or 'egyptian') == 'egyptian' %}selected{% endif %}>مصري</option><option value="foreign" {% if e.nationality == 'foreign' %}selected{% endif %}>أجنبي</option></select></label>
               <label>الرقم القومي<input name="national_id" maxlength="20" value="{{ e.national_id or '' }}"></label>
+              <label>رقم الباسبور (للأجانب)<input name="passport_number" maxlength="20" value="{{ e.passport_number or '' }}"></label>
               <label>رقم الهاتف<input name="phone" maxlength="30" value="{{ e.phone or '' }}"></label>
               <label>العنوان<input name="address" maxlength="2000" value="{{ e.address or '' }}"></label>
               <label>القسم<select name="department_id" required>{% for d in departments %}<option value="{{ d.id }}" {% if d.id == e.department_id %}selected{% endif %}>{{ d.name }}</option>{% endfor %}</select></label>
