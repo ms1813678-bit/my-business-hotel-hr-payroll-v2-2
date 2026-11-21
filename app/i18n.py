@@ -16,9 +16,7 @@ EN = {
 "الإجازات":"Leave","الجزاءات والمكافآت":"Sanctions & Rewards","جدول الأمن":"Security Roster",
 "الرواتب والمالية":"Payroll & Finance","مسيرات الرواتب":"Payroll Runs","السلف":"Advances",
 "التقارير":"Reports","النظام":"System","النسخ الاحتياطي":"Backup",
-"التطبيق يعمل محليًا على Windows 10 و 11. البيانات لا تُرفع إلى الإنترنت.":"This application runs locally on Windows 10 and 11. Data is not uploaded to the internet.",
 "تسجيل الدخول — نظام الموارد البشرية":"Sign in — HR System","تسجيل دخول الإدارة":"Administrator Sign In",
-"نظام الموارد البشرية والرواتب المحلي — حساب مسؤول واحد فقط.":"Local HR and payroll system — one administrator account only.",
 "اسم المستخدم":"Username","أدخل اسم المستخدم":"Enter your username","كلمة المرور":"Password",
 "أدخل كلمة المرور":"Enter your password","دخول إلى النظام":"Sign In",
 "يعمل محليًا على Windows 10 و 11 — ولا يُعرض على الإنترنت.":"Runs locally on Windows 10 and 11 — not exposed to the internet.",
@@ -233,7 +231,6 @@ EN = {
 "اعتمد الإجازة رقم 12 — للمعاينة.": "Preview approval of leave request 12.",
 "نفذ: اعتمد الإجازة رقم 12.": "Execute: approve leave request 12.",
 "نفذ: اعتمد مسير الرواتب رقم 3.": "Execute: approve payroll run 3.",
-"المساعد لا يملك SQL أو Shell أو وصولًا حرًا للملفات أو الإنترنت. كل عملية كتابة تمر عبر خطة محفوظة، وموافقة صريحة لمرة واحدة، وقواعد النظام وسجل التدقيق.": "The assistant has no SQL, shell, unrestricted file, or internet access. Every write operation must pass through a saved plan, explicit one-time approval, system rules, and the audit log.",
 "مساعد الموارد البشرية المحلي": "Local HR Assistant",
 "مساعد تحليلي يعمل محليًا فقط ولا ينفذ أي تعديل تلقائي.": "An analytical assistant that runs locally and never makes automatic changes.",
 "مثال: ما عدد الموظفين النشطين؟ ما الذي يحتاج مراجعة في الحضور؟": "Example: How many active employees are there? What attendance items need review?",
@@ -315,9 +312,7 @@ ZH = {
 "الموظفون":"员工","الحضور والانصراف":"考勤","الإجازات":"休假","الجزاءات والمكافآت":"奖惩管理",
 "جدول الأمن":"安保排班","الرواتب والمالية":"薪资与财务","مسيرات الرواتب":"工资批次","السلف":"预支工资",
 "التقارير":"报表","النظام":"系统","النسخ الاحتياطي":"备份",
-"التطبيق يعمل محليًا على Windows 10 و 11. البيانات لا تُرفع إلى الإنترنت.":"本应用在 Windows 10 和 11 本地运行，数据不会上传到互联网。",
 "تسجيل الدخول — نظام الموارد البشرية":"登录 — 人力资源系统","تسجيل دخول الإدارة":"管理员登录",
-"نظام الموارد البشرية والرواتب المحلي — حساب مسؤول واحد فقط.":"本地人力资源与薪资系统 — 仅设一个管理员账户。",
 "اسم المستخدم":"用户名","أدخل اسم المستخدم":"请输入用户名","كلمة المرور":"密码","أدخل كلمة المرور":"请输入密码",
 "دخول إلى النظام":"登录系统","يعمل محليًا على Windows 10 و 11 — ولا يُعرض على الإنترنت.":"在 Windows 10 和 11 本地运行，不对互联网开放。",
 "اسم المستخدم أو كلمة المرور غير صحيحة.":"用户名或密码不正确。",
@@ -494,7 +489,6 @@ ZH = {
 "اعتمد الإجازة رقم 12 — للمعاينة.": "预览批准休假申请12。",
 "نفذ: اعتمد الإجازة رقم 12.": "执行：批准休假申请12。",
 "نفذ: اعتمد مسير الرواتب رقم 3.": "执行：批准工资批次3。",
-"المساعد لا يملك SQL أو Shell أو وصولًا حرًا للملفات أو الإنترنت. كل عملية كتابة تمر عبر خطة محفوظة، وموافقة صريحة لمرة واحدة، وقواعد النظام وسجل التدقيق.": "助手无法访问 SQL、Shell、任意文件或互联网。每项写入操作都必须经过已保存计划、一次性明确批准、系统规则和审计日志。",
 "مساعد الموارد البشرية المحلي": "本地人力资源助手",
 "مساعد تحليلي يعمل محليًا فقط ولا ينفذ أي تعديل تلقائي.": "仅在本地运行的分析助手，不会自动执行任何更改。",
 "مثال: ما عدد الموظفين النشطين؟ ما الذي يحتاج مراجعة في الحضور؟": "示例：目前有多少名在职员工？哪些考勤事项需要审核？",
@@ -577,7 +571,7 @@ EN.update({
   "تنزيل ملف PDF / Download PDF": "Download PDF",
   "تعذر إكمال العملية:": "Operation could not be completed:",
   "التصنيف": "Category",
-  "تسجيل «تم إطلاع الموظف» هو توثيق إداري بواسطة مسؤول الموارد البشرية بعد إطلاع الموظف أو توقيعه على المستند الورقي. هذا الإجراء ليس توقيعًا إلكترونيًا من الموظف؛ لا توجد حسابات دخول للموظفين في النظام الحالي. القيم المالية المعتمدة ستُربط بالرواتب عند اكتمال وحدة الرواتب.": "Recording “Employee Informed” is an administrative record made by the HR administrator after informing the employee or obtaining a signature on the paper document. It is not an electronic signature by the employee; the current system has no employee login accounts. Approved financial amounts will be linked to payroll when the payroll module is complete.",
+  "تسجيل «تم إطلاع الموظف» هو توثيق إداري بواسطة مسؤول الموارد البشرية بعد إطلاع الموظف أو توقيعه على المستند الورقي. هذا الإجراء ليس توقيعًا إلكترونيًا من الموظف.": "Recording “Employee Informed” is an administrative record made by the HR administrator after informing the employee or obtaining a signature on the paper document. It is not an electronic signature by the employee.",
   "ارفع ملف .xlsx يحتوي على التاريخ وأسماء موظفي الأمن المسجلين. اكتب وقت بداية الوردية أو OFF. المعاينة لا تحفظ أي ورديات.": "Upload an .xlsx file containing the date and names of registered security staff. Enter each shift start time or OFF. Preview does not save any shifts."
 })
 
@@ -600,7 +594,7 @@ ZH.update({
   "ارفع ملف .xlsx يحتوي على التاريخ وأسماء موظفي الأمن المسجلين. اكتب وقت بداية الوردية أو OFF. المعاينة لا تحفظ أي ورديات.": "上传包含日期和已登记安保员工姓名的 .xlsx 文件。请填写每个班次的开始时间或 OFF。预览不会保存任何班次。",
   "القيم المالية يحددها مسؤول الموارد البشرية يدويًا. لا توجد معادلات تلقائية للمكافآت أو الجزاءات. يجب تحديد شهر الرواتب للإجراء المالي.": "财务金额由人力资源管理员手动输入。奖励和处罚金额不使用自动计算公式。财务操作必须指定薪资月份。",
   "التصنيف": "类别",
-  "تسجيل «تم إطلاع الموظف» هو توثيق إداري بواسطة مسؤول الموارد البشرية بعد إطلاع الموظف أو توقيعه على المستند الورقي. هذا الإجراء ليس توقيعًا إلكترونيًا من الموظف؛ لا توجد حسابات دخول للموظفين في النظام الحالي. القيم المالية المعتمدة ستُربط بالرواتب عند اكتمال وحدة الرواتب.": "记录“已告知员工”是人力资源管理员在告知员工相关事项或员工签署纸质文件后所做的管理记录。此操作不是员工的电子签名；当前系统不设员工登录账户。经批准的财务金额将在薪资模块完成后与工资关联。"
+  "تسجيل «تم إطلاع الموظف» هو توثيق إداري بواسطة مسؤول الموارد البشرية بعد إطلاع الموظف أو توقيعه على المستند الورقي. هذا الإجراء ليس توقيعًا إلكترونيًا من الموظف.": "记录“已告知员工”是人力资源管理员在告知员工相关事项或员工签署纸质文件后所做的管理记录。此操作不是员工的电子签名。"
 })
 
 EN.update({
@@ -681,6 +675,21 @@ EN.update({
 ZH.update({
   "مثال: E:\\M.Y. Business Hotel Backups": "示例：E:\\M.Y. Business Hotel Backups",
   "مثال: استعادة بعد تلف قاعدة البيانات": "示例：数据库损坏后恢复"
+})
+
+
+EN.update({
+  "إرشادات الاستخدام": "Usage Guidance",
+  "راجع الإجابة والبيانات المقترحة قبل الاعتماد عليها.": "Review the answer and suggested data before relying on them.",
+  "أي إجراء يؤثر في بيانات النظام يحتاج إلى مراجعتك وتأكيدك قبل التنفيذ.": "Any action that changes system data requires your review and confirmation before it is carried out.",
+  "إذا لم يكن المساعد متاحًا، يمكنك متابعة العمل من أقسام النظام الأساسية.": "If the assistant is unavailable, you can continue working in the system’s main sections."
+})
+
+ZH.update({
+  "إرشادات الاستخدام": "使用指南",
+  "راجع الإجابة والبيانات المقترحة قبل الاعتماد عليها.": "在采用回答和建议的数据之前，请先进行检查。",
+  "أي إجراء يؤثر في بيانات النظام يحتاج إلى مراجعتك وتأكيدك قبل التنفيذ.": "任何会更改系统数据的操作，都必须先由您审核并确认后才能执行。",
+  "إذا لم يكن المساعد متاحًا، يمكنك متابعة العمل من أقسام النظام الأساسية.": "如果助手暂时不可用，您仍可继续使用系统的主要功能模块。"
 })
 
 LANGUAGES = {"ar": "العربية", "en": "English", "zh": "中文"}
