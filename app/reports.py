@@ -335,7 +335,8 @@ def _pdf_cell(value, *, reshape_arabic: bool = True) -> str:
     if reshape_arabic and any("\u0600" <= char <= "\u06ff" for char in text):
         import arabic_reshaper
         from bidi.algorithm import get_display
-        text = get_display(arabic_reshaper.reshape(text))
+        reshaper = arabic_reshaper.ArabicReshaper(configuration={"support_ligatures": False})
+        text = get_display(reshaper.reshape(text))
     return escape(text).replace("\n", "<br/>")
 
 

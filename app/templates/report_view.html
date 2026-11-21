@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+{% set active_nav = "reports" %}
+{% block title %}{{ result.title }} | M.Y. Business Hotel{% endblock %}
+{% block content %}
+<div class="strip">
+  <div>
+    <h1><span>{{ result.title }}</span> — {% if period_month %}<span>{{ period_month[0] }}</span> <span>{{ period_month[1] }}</span>{% else %}<span>{{ result.period_label }}</span>{% endif %}</h1>
+    <div class="meta"><span>الفترة:</span> {{ result.start_date.strftime('%d/%m/%Y') }} – {{ result.end_date.strftime('%d/%m/%Y') }} · <span>{{ result.scope_label }}</span> · <span>{{ result.status_label }}</span> · {{ result.employee_count }} <span>موظف</span></div>
+  </div>
+  <div class="header-actions">
+    <a class="btn-primary" style="text-decoration:none; display:inline-block;" href="/reports/export.xlsx?{{ query_string }}">Excel</a>
+    <a class="btn-soft" style="text-decoration:none; display:inline-block; border-radius:999px; padding:10px 20px; font-weight:700;" href="/reports/export.pdf?{{ query_string }}">PDF</a>
+    <button type="button" onclick="window.print()">طباعة</button>
+    <a href="/reports?{{ query_string }}"><button type="button">تعديل الإعداد</button></a>
+  </div>
+</div>
+
+{% if result.warnings %}
+<div class="warn-box">
+  {% for warning in result.warnings %}<div>⚠ {% if warning.kind == 'no_payroll' %}{{ warning.count }} <span>موظف بدون راتب مسجل في الفترة:</span> {{ warning.details }}{% elif warning.kind == 'unreviewed_days' %}{{ warning.count }} <span>يوم حضور غير محسوم في الفترة لا يدخل في أيام العمل.</span>{% else %}{{ warning.count }} <span>يوم حضور بانتظار المراجعة؛ أيام الغياب والتأخير تُحسب من مسيرات الرواتب المعتمدة فقط.</span>{% endif %}</div>{% endfor %}
+</div>
+{% endif %}
+
+{% if result.empty %}
+<div class="card"><p class="muted" style="margin:0;">لا توجد بيانات مطابقة لهذا الاختيار في الفترة المحددة.</p></div>
+{% else %}
+<div class="split">
+  <div class="card" style="margin-bottom:0;">
+    <h2>التفاصيل مجمعة حسب القسم</h2>
+    <div class="table-wrap">
+      <table class="report-table">
+        <thead>
+          <tr>
+            {% for key, label, numeric in result.columns %}<th>{{ label }}</th>{% endfor %}
+            {% if result.report_type == 'payroll' %}<th></th>{% endif %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for group in result.groups %}
+          <tr class="dept-row"><td colspan="{{ result.columns|length + (1 if result.report_type == 'payroll' else 0) }}">{{ group.department }}</td></tr>
+          {% for row in group.rows %}
+          <tr>
+            {% for key, label, numeric in result.columns %}
+            <td>{% if numeric %}<strong>{{ row[key]|fmtnum }}</strong>{% else %}{{ row[key] }}{% endif %}</td>
+            {% endfor %}
+            {% if result.report_type == 'payroll' %}<td><span class="breakdown-toggle" data-breakdown="bd-{{ row.employee_id }}">إزاي اتجمع؟</span></td>{% endif %}
+          </tr>
+          {% if result.report_type == 'payroll' and row.breakdown %}
+          <tr class="breakdown-row" id="bd-{{ row.employee_id }}" style="display:none;">
+            <td colspan="{{ result.columns|length + 1 }}">
+              <table class="breakdown-table">
+                <thead><tr><th>البند</th><th>المبلغ</th></tr></thead>
+                <tbody>
+                  {% for label, value, is_deduction in row.breakdown %}
+                  {% if value != 0 or label == 'صافي المرتب' %}
+                  <tr>
+                    <td>{{ label }}</td>
+                    <td>{% if is_deduction %}− {{ value|fmtnum }}{% else %}{{ value|fmtnum }}{% endif %}</td>
+                  </tr>
+                  {% endif %}
+                  {% endfor %}
+                </tbody>
+              </table>
+            </td>
+          </tr>
+          {% endif %}
+          {% endfor %}
+          {% endfor %}
+          {% if result.totals %}
+          <tr class="totals-row">
+            {% set ns = namespace(first=true) %}
+            {% for key, label, numeric in result.columns %}
+            <td>{% if numeric and key in result.totals %}{{ result.totals[key]|fmtnum }}{% elif ns.first %}الإجمالي{% set ns.first = false %}{% endif %}</td>
+            {% endfor %}
+            {% if result.report_type == 'payroll' %}<td></td>{% endif %}
+          </tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div>
+    <div class="card" style="margin-bottom:16px;">
+      <h2>الملخص</h2>
+      {% for label, value in result.summary %}
+      <div class="sum-item"><span>{{ label }}</span><strong>{% if value is string and value.endswith(' ج.م') %}{{ value[:-4] }} <span>ج.م</span>{% else %}{{ value if value is string else value|fmtnum }}{% endif %}</strong></div>
+      {% endfor %}
+    </div>
+    {% if result.comparison %}
+    <div class="card" style="margin-bottom:0;">
+      <h2>مقارنة بالفترة السابقة</h2>
+      <p class="muted" style="font-size:12px; margin-top:0;"><span>{{ result.comparison.period_label }}</span> · <span>كل الموظفين</span></p>
+      <ul class="cmp">
+        {% for label, current, previous, pct in result.comparison['items'] %}
+        <li><span>{{ label }}</span><span>{{ current|fmtnum }}</span> <span>مقابل</span> <span>{{ previous|fmtnum }}
+          {% if pct %}<b class="{% if pct.startswith('+') %}up{% elif pct.startswith('-') %}down{% else %}flat{% endif %}">{% if pct.startswith('+') %}▲{% elif pct.startswith('-') %}▼{% endif %} {{ pct }}</b>{% else %}<b class="flat">—</b>{% endif %}
+        </span></li>
+        {% endfor %}
+      </ul>
+      {% if result.comparison['like_for_like'] and result.comparison['like_for_like']['enabled'] %}
+      {% set lfl = result.comparison['like_for_like'] %}
+      <p class="cmp-head"><span>مثل بمثل — المستمرون في الفترتين فقط (</span><span>{{ lfl.continuing_count }}</span><span>)</span></p>
+      <ul class="cmp">
+        <li><span>صافي المستمرين</span><span>{{ lfl.continuing_current_net|fmtnum }}</span> <span>مقابل</span> <span>{{ lfl.continuing_previous_net|fmtnum }}
+          {% if lfl.continuing_pct %}<b class="{% if lfl.continuing_pct.startswith('+') %}up{% elif lfl.continuing_pct.startswith('-') %}down{% else %}flat{% endif %}">{% if lfl.continuing_pct.startswith('+') %}▲{% elif lfl.continuing_pct.startswith('-') %}▼{% endif %} {{ lfl.continuing_pct }}</b>{% else %}<b class="flat">—</b>{% endif %}
+        </span></li>
+        <li><span>منضمون في الفترة الحالية</span><span>{{ lfl.joiners_count }}</span> · <span>صافي</span> <span>{{ lfl.joiners_net|fmtnum }}</span></li>
+        <li><span>غير موجودين في الفترة الحالية</span><span>{{ lfl.leavers_count }}</span> · <span>صافيهم السابق</span> <span>{{ lfl.leavers_previous_net|fmtnum }}</span></li>
+      </ul>
+      {% if lfl.still_active_leavers %}
+      <p class="muted" style="font-size:12px;"><span>تنبيه:</span> {{ lfl.still_active_leavers }} <span>ممن لا يظهرون في الفترة الحالية ما زالوا نشطين؛ قد يعني ذلك عدم إصدار مسير الفترة بعد وليس مغادرتهم.</span></p>
+      {% endif %}
+      {% endif %}
+    </div>
+    {% else %}
+    <div class="card" style="margin-bottom:0;">
+      <h2>مقارنة بالفترة السابقة</h2>
+      <p class="muted" style="font-size:13px;">لا توجد بيانات كافية للمقارنة في الفترة السابقة.</p>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
+<div class="print-meta">
+  <span>وقت الاستخراج: {{ result.generated_at.strftime('%d/%m/%Y %H:%M') if result.generated_at else '' }}</span>
+  <span>إعداد: ........................</span>
+  <span>مراجعة: ........................</span>
+</div>
+
+<script>
+document.querySelectorAll('.breakdown-toggle').forEach(function (toggle) {
+  toggle.addEventListener('click', function () {
+    var row = document.getElementById(toggle.dataset.breakdown);
+    if (!row) return;
+    var open = row.style.display !== 'none';
+    row.style.display = open ? 'none' : '';
+    toggle.textContent = open ? 'إزاي اتجمع؟' : 'إخفاء التفصيل';
+  });
+});
+</script>
+{% endblock %}

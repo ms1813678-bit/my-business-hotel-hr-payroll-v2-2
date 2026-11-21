@@ -1,0 +1,1301 @@
+"""Custom HR report builder: selectable content, department-grouped preview, matching exports.
+
+The approved reports redesign lets the HR administrator pick exactly which data appears
+in a report. This module resolves a report selection (type, period, scope, fields) into
+a department-grouped result with a summary, a comparison against the previous equivalent
+period, and data-gap warnings, then renders the same selection as Excel or PDF.
+"""
+from __future__ import annotations
+
+import json
+from dataclasses import dataclass, field
+from datetime import date, datetime, timedelta
+from decimal import Decimal
+from io import BytesIO
+
+from openpyxl import Workbook
+from openpyxl.styles import Alignment, Font, PatternFill
+from openpyxl.utils import get_column_letter
+from sqlalchemy import func, select
+from sqlalchemy.orm import Session
+
+from app.models import (
+    AdvanceRequest,
+    AttendanceDailyRecord,
+    Department,
+    Employee,
+    LeaveRecord,
+    LeaveType,
+    PayrollItem,
+    PayrollRun,
+    ReportPreset,
+    StaffAction,
+)
+
+REPORT_TYPE_PAYROLL = "payroll"
+REPORT_TYPE_ATTENDANCE = "attendance"
+REPORT_TYPE_ADVANCES = "advances"
+REPORT_TYPE_LEAVE = "leave"
+REPORT_TYPE_STAFF_ACTIONS = "staff_actions"
+REPORT_TYPE_COMPREHENSIVE = "comprehensive"
+REPORT_TYPES = [
+    REPORT_TYPE_PAYROLL,
+    REPORT_TYPE_ATTENDANCE,
+    REPORT_TYPE_ADVANCES,
+    REPORT_TYPE_LEAVE,
+    REPORT_TYPE_STAFF_ACTIONS,
+    REPORT_TYPE_COMPREHENSIVE,
+]
+REPORT_TYPE_LABELS = {
+    REPORT_TYPE_PAYROLL: "رواتب",
+    REPORT_TYPE_ATTENDANCE: "حضور وانصراف",
+    REPORT_TYPE_ADVANCES: "سلف",
+    REPORT_TYPE_LEAVE: "إجازات",
+    REPORT_TYPE_STAFF_ACTIONS: "جزاءات ومكافآت",
+    REPORT_TYPE_COMPREHENSIVE: "شامل",
+}
+
+EMPLOYEE_FIELD_DEFS = [
+    ("emp_name", "اسم الموظف"),
+    ("emp_code", "رقم الموظف"),
+    ("emp_department", "القسم"),
+    ("emp_nationality", "الجنسية (مصري / أجنبي)"),
+    ("emp_id_proof", "إثبات الهوية — الرقم القومي للمصري، الباسبور للأجنبي"),
+    ("emp_hire_date", "تاريخ التعيين"),
+]
+PAYROLL_FIELD_DEFS = [
+    ("pay_basic", "الأساسي"),
+    ("pay_allowances", "البدلات والحوافز"),
+    ("pay_deductions", "الخصومات والجزاءات"),
+    ("pay_advances", "السلف المخصومة"),
+    ("pay_net", "صافي المرتب"),
+    ("pay_work_days", "عدد أيام العمل"),
+]
+ATTENDANCE_FIELD_DEFS = [
+    ("att_present", "أيام الحضور"),
+    ("att_absent", "أيام الغياب"),
+    ("att_late", "التأخير (بالدقائق)"),
+    ("att_overtime", "الإضافي (بالساعات)"),
+]
+FIELD_LABELS = dict(EMPLOYEE_FIELD_DEFS + PAYROLL_FIELD_DEFS + ATTENDANCE_FIELD_DEFS)
+ALL_FIELD_KEYS = set(FIELD_LABELS)
+NUMERIC_FIELDS = {
+    "pay_basic",
+    "pay_allowances",
+    "pay_deductions",
+    "pay_advances",
+    "pay_net",
+    "pay_work_days",
+    "att_present",
+    "att_absent",
+    "att_late",
+    "att_overtime",
+}
+DEFAULT_FIELDS = {
+    "emp_name",
+    "emp_code",
+    "emp_department",
+    "emp_nationality",
+    "emp_id_proof",
+    "pay_basic",
+    "pay_allowances",
+    "pay_deductions",
+    "pay_advances",
+    "pay_net",
+}
+# Field groups offered per report type; the payroll report matches the approved design.
+FIELD_GROUPS_BY_TYPE = {
+    REPORT_TYPE_PAYROLL: ["employee", "payroll", "attendance"],
+    REPORT_TYPE_ATTENDANCE: ["employee", "attendance"],
+    REPORT_TYPE_ADVANCES: ["employee"],
+    REPORT_TYPE_LEAVE: ["employee"],
+    REPORT_TYPE_STAFF_ACTIONS: ["employee"],
+    REPORT_TYPE_COMPREHENSIVE: ["employee"],
+}
+FIELD_GROUP_DEFS = {
+    "employee": ("بيانات الموظف", EMPLOYEE_FIELD_DEFS),
+    "payroll": ("الرواتب", PAYROLL_FIELD_DEFS),
+    "attendance": ("الحضور", ATTENDANCE_FIELD_DEFS),
+}
+
+PERIOD_CHOICES = ["this_month", "last_month", "last_3_months", "custom"]
+STATUS_CHOICES = ["active", "all", "archived"]
+
+ADVANCE_STATUS_LABELS = {
+    "pending": "معلقة",
+    "approved": "معتمدة",
+    "paid": "مصروفة",
+    "rejected": "مرفوضة",
+    "deducted": "مخصومة",
+}
+LEAVE_STATUS_LABELS = {"draft": "مسودة", "confirmed": "مؤكدة", "cancelled": "ملغاة"}
+ACTION_STATUS_LABELS = {"draft": "مسودة", "approved": "معتمد", "cancelled": "ملغي"}
+ACTION_KIND_LABELS = {"sanction": "جزاء", "reward": "مكافأة"}
+
+_AR_MONTHS = [
+    "يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو",
+    "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر",
+]
+
+
+def month_label(value: date) -> str:
+    return f"{_AR_MONTHS[value.month - 1]} {value.year}"
+
+
+def _month_start(value: date) -> date:
+    return date(value.year, value.month, 1)
+
+
+def _add_months(value: date, months: int) -> date:
+    month_index = value.year * 12 + (value.month - 1) + months
+    return date(month_index // 12, month_index % 12 + 1, 1)
+
+
+@dataclass
+class ReportSelection:
+    report_type: str = REPORT_TYPE_PAYROLL
+    start_date: date | None = None
+    end_date: date | None = None
+    period_choice: str = "this_month"
+    department_id: int | None = None
+    employee_id: int | None = None
+    employee_status: str = "active"
+    compare_like_for_like: bool = True
+    fields: set[str] = field(default_factory=lambda: set(DEFAULT_FIELDS))
+
+    def to_config(self) -> dict:
+        return {
+            "report_type": self.report_type,
+            "period_choice": self.period_choice,
+            "start_date": self.start_date.isoformat() if self.start_date else None,
+            "end_date": self.end_date.isoformat() if self.end_date else None,
+            "department_id": self.department_id,
+            "employee_id": self.employee_id,
+            "employee_status": self.employee_status,
+            "compare_like_for_like": self.compare_like_for_like,
+            "fields": sorted(self.fields),
+        }
+
+    @classmethod
+    def from_config(cls, config: dict) -> "ReportSelection":
+        selection = cls()
+        apply_config(selection, config)
+        return selection
+
+
+def _parse_int(value) -> int | None:
+    try:
+        number = int(str(value).strip())
+    except (TypeError, ValueError):
+        return None
+    return number if number > 0 else None
+
+
+def _parse_date(value) -> date | None:
+    try:
+        return date.fromisoformat(str(value).strip())
+    except (TypeError, ValueError):
+        return None
+
+
+def apply_config(selection: ReportSelection, config: dict) -> None:
+    """Apply stored or submitted parameters onto a selection, validating every value."""
+    report_type = str(config.get("report_type") or "").strip()
+    if report_type in REPORT_TYPES:
+        selection.report_type = report_type
+    period_choice = str(config.get("period_choice") or "").strip()
+    if period_choice in PERIOD_CHOICES:
+        selection.period_choice = period_choice
+    start = _parse_date(config.get("start_date"))
+    end = _parse_date(config.get("end_date"))
+    if start is not None:
+        selection.start_date = start
+    if end is not None:
+        selection.end_date = end
+    if "department_id" in config:
+        selection.department_id = _parse_int(config.get("department_id"))
+    if "employee_id" in config:
+        selection.employee_id = _parse_int(config.get("employee_id"))
+    status = str(config.get("employee_status") or "").strip()
+    if status in STATUS_CHOICES:
+        selection.employee_status = status
+    if "compare_like_for_like" in config:
+        selection.compare_like_for_like = bool(config.get("compare_like_for_like"))
+    fields = config.get("fields")
+    if isinstance(fields, (list, tuple, set)) and fields:
+        chosen = {str(item) for item in fields} & ALL_FIELD_KEYS
+        if chosen:
+            selection.fields = chosen
+
+
+def resolve_period(selection: ReportSelection, today: date | None = None) -> tuple[date, date]:
+    today = today or date.today()
+    if selection.period_choice == "last_month":
+        first = _add_months(_month_start(today), -1)
+        return first, _month_start(today) - timedelta(days=1)
+    if selection.period_choice == "last_3_months":
+        return _add_months(_month_start(today), -2), today
+    if selection.period_choice == "custom":
+        start = selection.start_date or _month_start(today)
+        end = selection.end_date or today
+        if end < start:
+            raise ValueError("تاريخ النهاية قبل تاريخ البداية.")
+        return start, end
+    return _month_start(today), today
+
+
+def selection_from_params(params) -> ReportSelection:
+    """Build a selection from request query parameters."""
+    selection = ReportSelection()
+    config = {
+        "report_type": params.get("report_type"),
+        "period_choice": params.get("period"),
+        "start_date": params.get("start_date"),
+        "end_date": params.get("end_date"),
+        "department_id": params.get("department_id"),
+        "employee_id": params.get("employee_id"),
+        "employee_status": params.get("employee_status"),
+    }
+    if hasattr(params, "getlist"):
+        fields = params.getlist("fields")
+    else:
+        fields = params.get("fields")
+    config["fields"] = fields
+    apply_config(selection, config)
+    selection.compare_like_for_like = params.get("lfl") in ("1", "on", "true", "yes")
+    # Explicit dates without an explicit period choice mean a custom range.
+    if not params.get("period") and (params.get("start_date") or params.get("end_date")):
+        selection.period_choice = "custom"
+    return selection
+
+
+def preset_config_from_params(params) -> dict:
+    selection = selection_from_params(params)
+    return selection.to_config()
+
+
+def _previous_period(start: date, end: date) -> tuple[date, date]:
+    length = (end - start).days + 1
+    prev_end = start - timedelta(days=1)
+    return prev_end - timedelta(days=length - 1), prev_end
+
+
+def _scoped_employees(db: Session, selection: ReportSelection, *, apply_status: bool = True) -> list[Employee]:
+    query = select(Employee).order_by(Employee.code)
+    if apply_status:
+        if selection.employee_status == "active":
+            query = query.where(Employee.status == "active")
+        elif selection.employee_status == "archived":
+            query = query.where(Employee.status == "archived")
+    if selection.department_id is not None:
+        query = query.where(Employee.department_id == selection.department_id)
+    if selection.employee_id is not None:
+        query = query.where(Employee.id == selection.employee_id)
+    return list(db.scalars(query).all())
+
+
+def _id_proof(employee: Employee) -> str:
+    if (employee.nationality or "egyptian") == "foreign":
+        return f"باسبور {employee.passport_number}" if employee.passport_number else "—"
+    return employee.national_id or "—"
+
+
+def _nationality_label(employee: Employee) -> str:
+    return "أجنبي" if (employee.nationality or "egyptian") == "foreign" else "مصري"
+
+
+def _employee_cell(employee: Employee, key: str):
+    if key == "emp_name":
+        return employee.full_name
+    if key == "emp_code":
+        return employee.code
+    if key == "emp_department":
+        return employee.department.name if employee.department else "—"
+    if key == "emp_nationality":
+        return _nationality_label(employee)
+    if key == "emp_id_proof":
+        return _id_proof(employee)
+    if key == "emp_hire_date":
+        return employee.hire_date.isoformat()
+    return ""
+
+
+def _payroll_items(db: Session, employee_ids: list[int], start: date, end: date) -> list[PayrollItem]:
+    if not employee_ids:
+        return []
+    return list(
+        db.scalars(
+            select(PayrollItem)
+            .join(PayrollRun, PayrollItem.payroll_run_id == PayrollRun.id)
+            .where(PayrollRun.period_start <= end, PayrollRun.period_end >= start)
+            .where(PayrollItem.employee_id.in_(employee_ids))
+        ).all()
+    )
+
+
+def _item_earnings(item: PayrollItem) -> Decimal:
+    return (
+        item.base_salary
+        + item.attendance_bonus
+        + item.performance_bonus
+        + item.occupancy_bonus
+        + item.overtime_amount
+        + item.other_bonus
+        + item.staff_reward_amount
+    )
+
+
+def _item_deductions(item: PayrollItem, *, include_advances: bool = True) -> Decimal:
+    total = (
+        item.absence_deduction
+        + item.lateness_deduction
+        + item.insurance_share
+        + item.taxes
+        + item.other_deductions
+        + item.staff_sanction_amount
+    )
+    if include_advances:
+        total += item.advance_deduction
+    return total
+
+
+def _payroll_totals(db: Session, employee_ids: list[int], start: date, end: date) -> dict:
+    items = _payroll_items(db, employee_ids, start, end)
+    earnings = sum((_item_earnings(item) for item in items), Decimal(0))
+    deductions = sum((_item_deductions(item) for item in items), Decimal(0))
+    net = sum((item.net_pay for item in items), Decimal(0))
+    return {
+        "earnings": earnings,
+        "deductions": deductions,
+        "net": net,
+        "employees": len({item.employee_id for item in items}),
+    }
+
+
+def _attendance_stats(db: Session, employee_ids: list[int], start: date, end: date) -> dict[int, dict]:
+    stats = {emp_id: {"present": 0, "unreviewed": 0} for emp_id in employee_ids}
+    if not employee_ids:
+        return stats
+    records = db.scalars(
+        select(AttendanceDailyRecord)
+        .where(AttendanceDailyRecord.work_date >= start, AttendanceDailyRecord.work_date <= end)
+        .where(AttendanceDailyRecord.employee_id.in_(employee_ids))
+    ).all()
+    for record in records:
+        bucket = stats.setdefault(record.employee_id, {"present": 0, "unreviewed": 0})
+        if record.status == "approved" and (record.worked_minutes or 0) > 0:
+            bucket["present"] += 1
+        if record.status in ("needs_review", "ready_for_review"):
+            bucket["unreviewed"] += 1
+    return stats
+
+
+def _sum_items(items: list[PayrollItem], attribute: str) -> Decimal:
+    return sum((getattr(item, attribute) for item in items), Decimal(0))
+
+
+def _L(text, language: str):
+    """Translate an authored Arabic string for exports; data passes through unchanged."""
+    if not isinstance(text, str) or not text or language == "ar":
+        return text
+    from app.i18n import EN, ZH
+    table = EN if language == "en" else ZH
+    if text in table:
+        return table[text]
+    for source in sorted(table, key=len, reverse=True):
+        if source.endswith(":") and text.startswith(source + " "):
+            return table[source] + text[len(source):]
+    if " — " in text:
+        return " — ".join(_L(part, language) for part in text.split(" — "))
+    out = text
+    for month_ar in _AR_MONTHS:
+        translated = table.get(month_ar)
+        if translated and month_ar in out:
+            out = out.replace(month_ar, translated)
+    if out.endswith(" ج.م") and "ج.م" in table:
+        out = out[:-4] + " " + table["ج.م"]
+    return out
+
+
+def _warning_text_ar(warning, language: str = "ar") -> str:
+    if isinstance(warning, str):
+        return _L(warning, language)
+    if warning.get("kind") == "no_payroll":
+        return f"{warning['count']} {_L('موظف بدون راتب مسجل في الفترة:', language)} {warning['details']}"
+    if warning.get("kind") == "unreviewed_days":
+        return f"{warning['count']} {_L('يوم حضور غير محسوم في الفترة لا يدخل في أيام العمل.', language)}"
+    return f"{warning['count']} {_L('يوم حضور بانتظار المراجعة؛ أيام الغياب والتأخير تُحسب من مسيرات الرواتب المعتمدة فقط.', language)}"
+
+
+@dataclass
+class ReportResult:
+    report_type: str
+    title: str
+    period_label: str
+    start_date: date
+    end_date: date
+    scope_label: str
+    status_label: str
+    employee_count: int
+    columns: list[tuple[str, str, bool]]
+    groups: list[dict]
+    totals: dict
+    summary: list[tuple[str, object]]
+    comparison: dict | None
+    warnings: list[dict]
+    generated_at: datetime | None = None
+    empty: bool = False
+
+
+# Per-employee amount explanation: every component that builds the net pay,
+# in display order, as (key, Arabic label, is_deduction).
+PAYROLL_BREAKDOWN_DEFS = [
+    ("salary_basis", "أساس الاحتساب", False),
+    ("base_salary", "الأساسي بعد التناسب", False),
+    ("attendance_bonus", "بدل حضور", False),
+    ("performance_bonus", "بدل أداء", False),
+    ("occupancy_bonus", "بدل إشغال", False),
+    ("overtime_amount", "إضافي", False),
+    ("other_bonus", "مكافآت أخرى", False),
+    ("staff_reward_amount", "مكافأة مالية", False),
+    ("absence_deduction", "خصم غياب", True),
+    ("lateness_deduction", "خصم تأخير", True),
+    ("insurance_share", "تأمينات", True),
+    ("taxes", "ضرائب", True),
+    ("other_deductions", "خصومات أخرى", True),
+    ("advance_deduction", "خصم السلفة", True),
+    ("staff_sanction_amount", "جزاء مالي", True),
+    ("net_pay", "صافي المرتب", False),
+]
+
+
+def _payroll_breakdown(items: list[PayrollItem]) -> list[tuple[str, Decimal, bool]]:
+    """Sum every pay component across the period's runs for one employee."""
+    return [(label, _sum_items(items, key), is_deduction) for key, label, is_deduction in PAYROLL_BREAKDOWN_DEFS]
+
+
+def _ordered_columns(selection: ReportSelection, group_keys: list[str]) -> list[tuple[str, str, bool]]:
+    columns = []
+    for group_key in group_keys:
+        for key, label in FIELD_GROUP_DEFS[group_key][1]:
+            if key in selection.fields:
+                columns.append((key, label, key in NUMERIC_FIELDS))
+    return columns
+
+
+def _group_rows(rows: list[dict], employees: dict[int, Employee]) -> list[dict]:
+    grouped: dict[str, list[dict]] = {}
+    order: list[str] = []
+    for row in rows:
+        employee = employees[row["employee_id"]]
+        department = employee.department.name if employee.department else "بدون قسم"
+        if department not in grouped:
+            grouped[department] = []
+            order.append(department)
+        grouped[department].append(row)
+    return [{"department": name, "rows": grouped[name]} for name in sorted(order)]
+
+
+def _fmt_number(value) -> str:
+    if value is None:
+        return "—"
+    if isinstance(value, Decimal):
+        value = float(value)
+    if isinstance(value, float):
+        rounded = round(value, 2)
+        if rounded == int(rounded):
+            return f"{int(rounded):,}"
+        return f"{rounded:,.2f}"
+    if isinstance(value, int):
+        return f"{value:,}"
+    return str(value)
+
+
+def _pct_change(current: Decimal, previous: Decimal) -> str | None:
+    if previous == 0:
+        return None
+    change = (current - previous) / previous * 100
+    return f"{float(change):+.1f}%"
+
+
+def _build_payroll_result(db: Session, selection: ReportSelection, start: date, end: date) -> ReportResult:
+    employees = _scoped_employees(db, selection)
+    employee_map = {employee.id: employee for employee in employees}
+    items = _payroll_items(db, list(employee_map), start, end)
+    items_by_employee: dict[int, list[PayrollItem]] = {}
+    for item in items:
+        items_by_employee.setdefault(item.employee_id, []).append(item)
+
+    attendance = _attendance_stats(db, list(employee_map), start, end)
+    columns = _ordered_columns(selection, ["employee", "payroll", "attendance"])
+    rows = []
+    for employee_id, employee_items in sorted(items_by_employee.items(), key=lambda pair: employee_map[pair[0]].code):
+        employee = employee_map[employee_id]
+        row = {"employee_id": employee_id}
+        for key, _, _ in columns:
+            if key.startswith("emp_"):
+                row[key] = _employee_cell(employee, key)
+        row["pay_basic"] = _sum_items(employee_items, "base_salary")
+        row["pay_allowances"] = sum(
+            (
+                item.attendance_bonus + item.performance_bonus + item.occupancy_bonus
+                + item.overtime_amount + item.other_bonus + item.staff_reward_amount
+                for item in employee_items
+            ),
+            Decimal(0),
+        )
+        row["pay_deductions"] = sum((_item_deductions(item, include_advances=False) for item in employee_items), Decimal(0))
+        row["pay_advances"] = _sum_items(employee_items, "advance_deduction")
+        row["pay_net"] = _sum_items(employee_items, "net_pay")
+        row["pay_work_days"] = attendance[employee_id]["present"]
+        row["att_present"] = attendance[employee_id]["present"]
+        row["att_absent"] = _sum_items(employee_items, "absence_days")
+        row["att_late"] = _sum_items(employee_items, "late_minutes")
+        row["att_overtime"] = _sum_items(employee_items, "overtime_hours")
+        row["breakdown"] = _payroll_breakdown(employee_items)
+        rows.append(row)
+
+    totals = {}
+    for key, _, numeric in columns:
+        if numeric:
+            totals[key] = sum((row[key] for row in rows), Decimal(0)) if rows else Decimal(0)
+
+    totals_all = _payroll_totals(db, list(employee_map), start, end)
+    summary = [
+        ("إجمالي المستحقات", f"{_fmt_number(totals_all['earnings'])} ج.م"),
+        ("إجمالي الاستقطاعات", f"{_fmt_number(totals_all['deductions'])} ج.م"),
+        ("صافي المرتبات", f"{_fmt_number(totals_all['net'])} ج.م"),
+        ("عدد الموظفين", totals_all["employees"]),
+    ]
+
+    prev_start, prev_end = _previous_period(start, end)
+    # The previous period must reflect who was actually paid then, not today's status:
+    # include every employee in scope with payroll evidence in that period.
+    history_employees = _scoped_employees(db, selection, apply_status=False)
+    history_map = {employee.id: employee for employee in history_employees}
+    previous = _payroll_totals(db, list(history_map), prev_start, prev_end)
+    comparison = None
+    if previous["employees"] > 0:
+        # Membership in each period comes from payroll evidence, not current status.
+        prev_items = _payroll_items(db, list(history_map), prev_start, prev_end)
+        current_ids = set(items_by_employee)
+        previous_ids = {item.employee_id for item in prev_items}
+        continuing = current_ids & previous_ids
+        joiners = current_ids - previous_ids
+        leavers = previous_ids - current_ids
+        continuing_items_current = [item for item in items if item.employee_id in continuing]
+        continuing_items_previous = [item for item in prev_items if item.employee_id in continuing]
+        cont_cur_net = sum((item.net_pay for item in continuing_items_current), Decimal(0))
+        cont_prev_net = sum((item.net_pay for item in continuing_items_previous), Decimal(0))
+        joiner_net = sum((item.net_pay for item in items if item.employee_id in joiners), Decimal(0))
+        leaver_prev_net = sum((item.net_pay for item in prev_items if item.employee_id in leavers), Decimal(0))
+        # A "leaver" who is still active may simply lack a payroll run yet.
+        still_active_leavers = sum(1 for emp_id in leavers if history_map[emp_id].status == "active")
+        comparison = {
+            "period_label": f"{prev_start.strftime('%d/%m/%Y')} – {prev_end.strftime('%d/%m/%Y')}",
+            "items": [
+                ("المستحقات", totals_all["earnings"], previous["earnings"], _pct_change(totals_all["earnings"], previous["earnings"])),
+                ("الاستقطاعات", totals_all["deductions"], previous["deductions"], _pct_change(totals_all["deductions"], previous["deductions"])),
+                ("الصافي", totals_all["net"], previous["net"], _pct_change(totals_all["net"], previous["net"])),
+                ("الموظفون", totals_all["employees"], previous["employees"], _pct_change(Decimal(totals_all["employees"]), Decimal(previous["employees"]))),
+            ],
+            "like_for_like": {
+                "enabled": selection.compare_like_for_like,
+                "continuing_count": len(continuing),
+                "continuing_current_net": cont_cur_net,
+                "continuing_previous_net": cont_prev_net,
+                "continuing_pct": _pct_change(cont_cur_net, cont_prev_net),
+                "joiners_count": len(joiners),
+                "joiners_net": joiner_net,
+                "leavers_count": len(leavers),
+                "leavers_previous_net": leaver_prev_net,
+                "still_active_leavers": still_active_leavers,
+            },
+        }
+
+    warnings = []
+    without_payroll = [employee.code for employee in employees if employee.id not in items_by_employee]
+    if without_payroll and selection.employee_id is None:
+        warnings.append({"kind": "no_payroll", "count": len(without_payroll), "details": "، ".join(without_payroll[:8])})
+    unreviewed = sum(bucket["unreviewed"] for bucket in attendance.values())
+    if unreviewed:
+        warnings.append({"kind": "unreviewed_days", "count": unreviewed, "details": ""})
+
+    return ReportResult(
+        report_type=selection.report_type,
+        title="تقرير الرواتب",
+        period_label=month_label(start) if start.month == end.month and start.year == end.year else f"{start.strftime('%d/%m/%Y')} – {end.strftime('%d/%m/%Y')}",
+        start_date=start,
+        end_date=end,
+        scope_label="",
+        status_label="",
+        employee_count=totals_all["employees"],
+        columns=columns,
+        groups=_group_rows(rows, employee_map),
+        totals=totals,
+        summary=summary,
+        comparison=comparison,
+        warnings=warnings,
+        generated_at=datetime.now(),
+        empty=not rows,
+    )
+
+
+def _build_attendance_result(db: Session, selection: ReportSelection, start: date, end: date) -> ReportResult:
+    employees = _scoped_employees(db, selection)
+    employee_map = {employee.id: employee for employee in employees}
+    attendance = _attendance_stats(db, list(employee_map), start, end)
+    items = _payroll_items(db, list(employee_map), start, end)
+    items_by_employee: dict[int, list[PayrollItem]] = {}
+    for item in items:
+        items_by_employee.setdefault(item.employee_id, []).append(item)
+
+    columns = _ordered_columns(selection, ["employee", "attendance"])
+    rows = []
+    for employee in employees:
+        stats = attendance[employee.id]
+        employee_items = items_by_employee.get(employee.id, [])
+        if not stats["present"] and not stats["unreviewed"] and not employee_items:
+            continue
+        row = {"employee_id": employee.id}
+        for key, _, _ in columns:
+            if key.startswith("emp_"):
+                row[key] = _employee_cell(employee, key)
+        row["att_present"] = stats["present"]
+        row["att_absent"] = _sum_items(employee_items, "absence_days") if employee_items else None
+        row["att_late"] = _sum_items(employee_items, "late_minutes") if employee_items else None
+        row["att_overtime"] = _sum_items(employee_items, "overtime_hours") if employee_items else None
+        rows.append(row)
+
+    totals = {}
+    for key, _, numeric in columns:
+        if numeric:
+            totals[key] = sum((row[key] for row in rows if row[key] is not None), Decimal(0))
+
+    summary = [
+        ("أيام الحضور المعتمدة", sum(bucket["present"] for bucket in attendance.values())),
+        ("أيام غير محسومة", sum(bucket["unreviewed"] for bucket in attendance.values())),
+        ("عدد الموظفين", len(rows)),
+    ]
+
+    prev_start, prev_end = _previous_period(start, end)
+    prev_attendance = _attendance_stats(db, list(employee_map), prev_start, prev_end)
+    prev_present = sum(bucket["present"] for bucket in prev_attendance.values())
+    cur_present = sum(bucket["present"] for bucket in attendance.values())
+    comparison = None
+    if prev_present:
+        comparison = {
+            "period_label": f"{prev_start.strftime('%d/%m/%Y')} – {prev_end.strftime('%d/%m/%Y')}",
+            "items": [
+                ("أيام الحضور", Decimal(cur_present), Decimal(prev_present), _pct_change(Decimal(cur_present), Decimal(prev_present))),
+            ],
+        }
+
+    warnings = []
+    unreviewed = sum(bucket["unreviewed"] for bucket in attendance.values())
+    if unreviewed:
+        warnings.append({"kind": "unreviewed_attendance", "count": unreviewed, "details": ""})
+
+    return ReportResult(
+        report_type=selection.report_type,
+        title="تقرير الحضور والانصراف",
+        period_label=month_label(start) if start.month == end.month and start.year == end.year else f"{start.strftime('%d/%m/%Y')} – {end.strftime('%d/%m/%Y')}",
+        start_date=start,
+        end_date=end,
+        scope_label="",
+        status_label="",
+        employee_count=len(rows),
+        columns=columns,
+        groups=_group_rows(rows, employee_map),
+        totals=totals,
+        summary=summary,
+        comparison=comparison,
+        warnings=warnings,
+        generated_at=datetime.now(),
+        empty=not rows,
+    )
+
+
+def _record_rows(employees: dict[int, Employee], records, employee_columns, record_columns) -> list[dict]:
+    rows = []
+    for record in records:
+        employee = employees.get(record.employee_id)
+        if employee is None:
+            continue
+        row = {"employee_id": record.employee_id}
+        for key in employee_columns:
+            row[key] = _employee_cell(employee, key)
+        for key, getter in record_columns:
+            row[key] = getter(record)
+        rows.append(row)
+    return rows
+
+
+def _build_advances_result(db: Session, selection: ReportSelection, start: date, end: date) -> ReportResult:
+    employees = _scoped_employees(db, selection)
+    employee_map = {employee.id: employee for employee in employees}
+    records = list(
+        db.scalars(
+            select(AdvanceRequest)
+            .where(AdvanceRequest.request_date >= start, AdvanceRequest.request_date <= end)
+            .where(AdvanceRequest.employee_id.in_(list(employee_map) or [0]))
+            .order_by(AdvanceRequest.request_date, AdvanceRequest.id)
+        ).all()
+    )
+    employee_columns = [key for key, _, _ in _ordered_columns(selection, ["employee"])]
+    record_columns = [
+        ("request_date", lambda r: r.request_date.strftime("%d/%m/%Y")),
+        ("amount", lambda r: r.amount),
+        ("advance_type", lambda r: "مقسطة" if r.advance_type == "installment" else "شهرية"),
+        ("status", lambda r: ADVANCE_STATUS_LABELS.get(r.status, r.status)),
+        ("payroll_month", lambda r: r.payroll_month.strftime("%m/%Y") if r.payroll_month else "—"),
+    ]
+    columns = [(k, FIELD_LABELS[k], False) for k in employee_columns] + [
+        ("request_date", "تاريخ الطلب", False),
+        ("amount", "المبلغ", True),
+        ("advance_type", "النوع", False),
+        ("status", "الحالة", False),
+        ("payroll_month", "شهر الخصم", False),
+    ]
+    rows = _record_rows(employee_map, records, employee_columns, record_columns)
+    total_amount = sum((row["amount"] for row in rows), Decimal(0))
+    summary = [
+        ("عدد الطلبات", len(rows)),
+        ("إجمالي المبالغ", f"{_fmt_number(total_amount)} ج.م"),
+        ("مصروفة أو مخصومة", sum(1 for r in records if r.status in ("paid", "deducted"))),
+    ]
+    return ReportResult(
+        report_type=selection.report_type,
+        title="تقرير السلف",
+        period_label=month_label(start) if start.month == end.month and start.year == end.year else f"{start.strftime('%d/%m/%Y')} – {end.strftime('%d/%m/%Y')}",
+        start_date=start,
+        end_date=end,
+        scope_label="", status_label="", employee_count=len({r.employee_id for r in records}),
+        columns=columns,
+        groups=_group_rows(rows, employee_map),
+        totals={"amount": total_amount},
+        summary=summary,
+        comparison=None,
+        warnings=[],
+        generated_at=datetime.now(),
+        empty=not rows,
+    )
+
+
+def _build_leave_result(db: Session, selection: ReportSelection, start: date, end: date) -> ReportResult:
+    employees = _scoped_employees(db, selection)
+    employee_map = {employee.id: employee for employee in employees}
+    records = list(
+        db.scalars(
+            select(LeaveRecord)
+            .where(LeaveRecord.start_date <= end, LeaveRecord.end_date >= start)
+            .where(LeaveRecord.employee_id.in_(list(employee_map) or [0]))
+            .order_by(LeaveRecord.start_date, LeaveRecord.id)
+        ).all()
+    )
+    leave_types = {item.id: item.name_ar for item in db.scalars(select(LeaveType)).all()}
+    employee_columns = [key for key, _, _ in _ordered_columns(selection, ["employee"])]
+    record_columns = [
+        ("leave_type", lambda r: leave_types.get(r.leave_type_id, "—")),
+        ("leave_start", lambda r: r.start_date.strftime("%d/%m/%Y")),
+        ("leave_end", lambda r: r.end_date.strftime("%d/%m/%Y")),
+        ("calendar_days", lambda r: r.calendar_days),
+        ("charged_days", lambda r: r.charged_days),
+        ("status", lambda r: LEAVE_STATUS_LABELS.get(r.status, r.status)),
+    ]
+    columns = [(k, FIELD_LABELS[k], False) for k in employee_columns] + [
+        ("leave_type", "نوع الإجازة", False),
+        ("leave_start", "من", False),
+        ("leave_end", "إلى", False),
+        ("calendar_days", "الأيام", True),
+        ("charged_days", "الخصم من الرصيد", True),
+        ("status", "الحالة", False),
+    ]
+    rows = _record_rows(employee_map, records, employee_columns, record_columns)
+    summary = [
+        ("عدد الإجازات", len(rows)),
+        ("مؤكدة", sum(1 for r in records if r.status == "confirmed")),
+        ("إجمالي الأيام", sum(r.calendar_days for r in records)),
+    ]
+    return ReportResult(
+        report_type=selection.report_type,
+        title="تقرير الإجازات",
+        period_label=month_label(start) if start.month == end.month and start.year == end.year else f"{start.strftime('%d/%m/%Y')} – {end.strftime('%d/%m/%Y')}",
+        start_date=start,
+        end_date=end,
+        scope_label="", status_label="", employee_count=len({r.employee_id for r in records}),
+        columns=columns,
+        groups=_group_rows(rows, employee_map),
+        totals={"calendar_days": sum(r.calendar_days for r in records), "charged_days": sum(float(r.charged_days) for r in records)},
+        summary=summary,
+        comparison=None,
+        warnings=[],
+        generated_at=datetime.now(),
+        empty=not rows,
+    )
+
+
+def _build_staff_actions_result(db: Session, selection: ReportSelection, start: date, end: date) -> ReportResult:
+    employees = _scoped_employees(db, selection)
+    employee_map = {employee.id: employee for employee in employees}
+    from datetime import datetime, time as dtime
+
+    records = list(
+        db.scalars(
+            select(StaffAction)
+            .where(
+                StaffAction.created_at >= datetime.combine(start, dtime.min),
+                StaffAction.created_at < datetime.combine(end + timedelta(days=1), dtime.min),
+            )
+            .where(StaffAction.employee_id.in_(list(employee_map) or [0]))
+            .order_by(StaffAction.created_at, StaffAction.id)
+        ).all()
+    )
+    employee_columns = [key for key, _, _ in _ordered_columns(selection, ["employee"])]
+    record_columns = [
+        ("action_date", lambda r: r.created_at.strftime("%d/%m/%Y")),
+        ("kind", lambda r: ACTION_KIND_LABELS.get(r.kind, r.kind)),
+        ("title", lambda r: r.title),
+        ("amount", lambda r: r.amount),
+        ("status", lambda r: ACTION_STATUS_LABELS.get(r.status, r.status)),
+    ]
+    columns = [(k, FIELD_LABELS[k], False) for k in employee_columns] + [
+        ("action_date", "التاريخ", False),
+        ("kind", "النوع", False),
+        ("title", "البيان", False),
+        ("amount", "المبلغ", True),
+        ("status", "الحالة", False),
+    ]
+    rows = _record_rows(employee_map, records, employee_columns, record_columns)
+    rewards = sum((r.amount or 0 for r in records if r.kind == "reward" and r.status == "approved"), Decimal(0))
+    sanctions = sum((r.amount or 0 for r in records if r.kind == "sanction" and r.status == "approved"), Decimal(0))
+    summary = [
+        ("عدد الإجراءات", len(rows)),
+        ("مكافآت مالية معتمدة", f"{_fmt_number(rewards)} ج.م"),
+        ("جزاءات مالية معتمدة", f"{_fmt_number(sanctions)} ج.م"),
+    ]
+    return ReportResult(
+        report_type=selection.report_type,
+        title="تقرير الجزاءات والمكافآت",
+        period_label=month_label(start) if start.month == end.month and start.year == end.year else f"{start.strftime('%d/%m/%Y')} – {end.strftime('%d/%m/%Y')}",
+        start_date=start,
+        end_date=end,
+        scope_label="", status_label="", employee_count=len({r.employee_id for r in records}),
+        columns=columns,
+        groups=_group_rows(rows, employee_map),
+        totals={"amount": sum((row["amount"] or 0 for row in rows), Decimal(0))},
+        summary=summary,
+        comparison=None,
+        warnings=[],
+        generated_at=datetime.now(),
+        empty=not rows,
+    )
+
+
+_BUILDERS = {
+    REPORT_TYPE_PAYROLL: _build_payroll_result,
+    REPORT_TYPE_ATTENDANCE: _build_attendance_result,
+    REPORT_TYPE_ADVANCES: _build_advances_result,
+    REPORT_TYPE_LEAVE: _build_leave_result,
+    REPORT_TYPE_STAFF_ACTIONS: _build_staff_actions_result,
+}
+
+
+def build_report(db: Session, selection: ReportSelection, today: date | None = None) -> ReportResult:
+    if selection.report_type == REPORT_TYPE_COMPREHENSIVE:
+        raise ValueError("التقرير الشامل يُصدَّر مباشرة دون معاينة مفصلة.")
+    start, end = resolve_period(selection, today)
+    result = _BUILDERS[selection.report_type](db, selection, start, end)
+    # Fill scope labels now that departments/employees are known.
+    departments = {d.id: d.name for d in db.scalars(select(Department)).all()}
+    if selection.employee_id is not None:
+        employee = db.get(Employee, selection.employee_id)
+        result.scope_label = employee.full_name if employee else "موظف محدد"
+    elif selection.department_id is not None:
+        result.scope_label = departments.get(selection.department_id, "قسم محدد")
+    else:
+        result.scope_label = "كل الأقسام"
+    result.status_label = {"active": "النشطون", "all": "الكل", "archived": "المؤرشفون"}[selection.employee_status]
+    return result
+
+
+def build_custom_workbook(db: Session, selection: ReportSelection, language: str = "ar") -> bytes:
+    """Render the selected report as an Excel workbook mirroring the on-screen preview."""
+    result = build_report(db, selection)
+
+    def L(text):
+        return _L(text, language)
+
+    rtl = language == "ar"
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = L("التقرير")
+    sheet.sheet_view.rightToLeft = rtl
+
+    headers = [L(label) for _, label, _ in result.columns]
+    title_font = Font(bold=True, size=14)
+    sheet.append([f"{L(result.title)} — {L(result.period_label)}"])
+    sheet["A1"].font = title_font
+    sheet.append([f"{L('الفترة:')} {result.start_date.strftime('%d/%m/%Y')} {L('إلى')} {result.end_date.strftime('%d/%m/%Y')} · {L(result.scope_label)} · {L(result.status_label)}"])
+    sheet.append([])
+    sheet.append(headers)
+    header_row = sheet.max_row
+    for cell in sheet[header_row]:
+        cell.font = Font(bold=True, color="FFFFFF")
+        cell.fill = PatternFill("solid", fgColor="24415E")
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+
+    for group in result.groups:
+        dept_cell = [group["department"]] + [""] * (len(headers) - 1)
+        sheet.append(dept_cell)
+        for cell in sheet[sheet.max_row]:
+            cell.font = Font(bold=True)
+            cell.fill = PatternFill("solid", fgColor="FAF3E3")
+        for row in group["rows"]:
+            sheet.append([
+                float(row[key]) if isinstance(row.get(key), Decimal) else L(row.get(key, ""))
+                for key, _, _ in result.columns
+            ])
+    if result.totals:
+        totals_row = []
+        for key, _, numeric in result.columns:
+            if numeric and key in result.totals:
+                value = result.totals[key]
+                totals_row.append(float(value) if isinstance(value, Decimal) else value)
+            elif not any(totals_row):
+                totals_row.append(L("الإجمالي"))
+            else:
+                totals_row.append("")
+        sheet.append(totals_row)
+        for cell in sheet[sheet.max_row]:
+            cell.font = Font(bold=True)
+            cell.fill = PatternFill("solid", fgColor="FDF6E4")
+
+    for column_cells in sheet.columns:
+        max_length = max((len(str(cell.value or "")) for cell in column_cells), default=10)
+        sheet.column_dimensions[get_column_letter(column_cells[0].column)].width = min(max(max_length + 4, 12), 36)
+
+    summary_sheet = workbook.create_sheet(L("الملخص"))
+    summary_sheet.sheet_view.rightToLeft = rtl
+    summary_sheet.append([L("البند"), L("القيمة")])
+    for label, value in result.summary:
+        summary_sheet.append([L(label), L(str(value))])
+    for cell in summary_sheet[1]:
+        cell.font = Font(bold=True)
+    summary_sheet.column_dimensions["A"].width = 28
+    summary_sheet.column_dimensions["B"].width = 24
+
+    if result.comparison:
+        cmp_sheet = workbook.create_sheet(L("المقارنة"))
+        cmp_sheet.sheet_view.rightToLeft = rtl
+        cmp_sheet.append([L("البند"), L("الفترة الحالية"), f"{L('الفترة السابقة')} ({result.comparison['period_label']})", L("التغير")])
+        for label, current, previous, pct in result.comparison["items"]:
+            cmp_sheet.append([
+                L(label),
+                float(current) if isinstance(current, Decimal) else current,
+                float(previous) if isinstance(previous, Decimal) else previous,
+                pct or "—",
+            ])
+        lfl = result.comparison.get("like_for_like")
+        if lfl:
+            cmp_sheet.append([])
+            cmp_sheet.append([L("مقارنة مثل بمثل (المستمرون في الفترتين)")])
+            cmp_sheet[cmp_sheet.max_row][0].font = Font(bold=True)
+            cmp_sheet.append([L("عدد المستمرين"), lfl["continuing_count"]])
+            cmp_sheet.append([L("صافي المستمرين — حالية"), float(lfl["continuing_current_net"])])
+            cmp_sheet.append([L("صافي المستمرين — سابقة"), float(lfl["continuing_previous_net"])])
+            cmp_sheet.append([L("التغير مثل بمثل"), lfl["continuing_pct"] or "—"])
+            cmp_sheet.append([L("منضمون في الفترة الحالية (عدد / صافي)"), f"{lfl['joiners_count']} / {_fmt_number(lfl['joiners_net'])}"])
+            cmp_sheet.append([L("غير موجودين في الفترة الحالية (عدد / صافيهم السابق)"), f"{lfl['leavers_count']} / {_fmt_number(lfl['leavers_previous_net'])}"])
+            if lfl["still_active_leavers"]:
+                cmp_sheet.append([L("تنبيه"), f"{lfl['still_active_leavers']} {L('منهم ما زالوا نشطين؛ قد يعني غيابهم عدم إصدار مسير الفترة بعد.')}"])
+        for cell in cmp_sheet[1]:
+            cell.font = Font(bold=True)
+        for letter in ("A", "B", "C", "D"):
+            cmp_sheet.column_dimensions[letter].width = 34
+
+    breakdown_rows = [
+        (group["department"], row)
+        for group in result.groups
+        for row in group["rows"]
+        if row.get("breakdown")
+    ]
+    if breakdown_rows:
+        detail_sheet = workbook.create_sheet(L("تفصيل الحساب"))
+        detail_sheet.sheet_view.rightToLeft = rtl
+        detail_sheet.append([L("القسم"), L("رقم الموظف"), L("اسم الموظف")] + [L(label) for _, label, _ in PAYROLL_BREAKDOWN_DEFS])
+        for cell in detail_sheet[1]:
+            cell.font = Font(bold=True, color="FFFFFF")
+            cell.fill = PatternFill("solid", fgColor="24415E")
+        for department, row in breakdown_rows:
+            detail_sheet.append(
+                [department, row.get("emp_code", ""), row.get("emp_name", "")]
+                + [float(value) for _, value, _ in row["breakdown"]]
+            )
+        detail_sheet.freeze_panes = "D2"
+        for column_cells in detail_sheet.columns:
+            max_length = max((len(str(cell.value or "")) for cell in column_cells), default=10)
+            detail_sheet.column_dimensions[get_column_letter(column_cells[0].column)].width = min(max(max_length + 4, 12), 30)
+
+    if result.warnings:
+        warn_sheet = workbook.create_sheet(L("تنبيهات"))
+        warn_sheet.sheet_view.rightToLeft = rtl
+        for warning in result.warnings:
+            warn_sheet.append([_warning_text_ar(warning, language)])
+        warn_sheet.column_dimensions["A"].width = 80
+
+    meta_sheet = workbook.create_sheet(L("بيانات الاستخراج"))
+    meta_sheet.sheet_view.rightToLeft = rtl
+    generated = result.generated_at.strftime('%d/%m/%Y %H:%M') if result.generated_at else ""
+    meta_sheet.append([L("وقت استخراج التقرير"), generated])
+    meta_sheet.append([L("إعداد"), ""])
+    meta_sheet.append([L("مراجعة"), ""])
+    meta_sheet.column_dimensions["A"].width = 28
+    meta_sheet.column_dimensions["B"].width = 30
+
+    output = BytesIO()
+    workbook.save(output)
+    return output.getvalue()
+
+
+class _NumberedCanvas:
+    """Canvas wrapper adding «page X of Y», extraction time, and hotel name to every page."""
+
+    @staticmethod
+    def build(font_name: str, footer_text: str, language: str = "ar"):
+        from reportlab.lib.units import mm
+        from reportlab.pdfgen import canvas as pdf_canvas
+
+        class NumberedCanvas(pdf_canvas.Canvas):
+            def __init__(self, *args, **kwargs):
+                super().__init__(*args, **kwargs)
+                self._saved_pages = []
+
+            def showPage(self):
+                self._saved_pages.append(dict(self.__dict__))
+                self._startPage()
+
+            def save(self):
+                total = len(self._saved_pages)
+                for state in self._saved_pages:
+                    self.__dict__.update(state)
+                    self.setFont(font_name, 7)
+                    self.setFillGray(0.35)
+                    from app.reports import _pdf_cell as cell
+
+                    if language == "en":
+                        page_text = f"Page {self._pageNumber} of {total}"
+                    elif language == "zh":
+                        page_text = f"第 {self._pageNumber} 页，共 {total} 页"
+                    else:
+                        page_text = f"صفحة {self._pageNumber} من {total}"
+                    self.drawRightString(self._pagesize[0] - 10 * mm, 7 * mm, cell(page_text))
+                    self.drawString(10 * mm, 7 * mm, cell(footer_text))
+                    super().showPage()
+                super().save()
+
+        return NumberedCanvas
+
+
+def build_custom_pdf(db: Session, selection: ReportSelection, language: str = "ar") -> bytes:
+    """Render the selected report as a printable PDF matching the preview."""
+    from reportlab.lib import colors
+    from reportlab.lib.enums import TA_CENTER, TA_RIGHT
+    from reportlab.lib.pagesizes import A3, A4, landscape
+    from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+    from reportlab.lib.units import mm
+    from reportlab.platypus import LongTable, Paragraph, SimpleDocTemplate, Spacer, TableStyle
+
+    from app.reports import _pdf_cell, _pdf_font_name
+
+    result = build_report(db, selection)
+
+    def L(text):
+        return _L(text, language)
+
+    if language == "zh":
+        from reportlab.pdfbase import pdfmetrics
+        from reportlab.pdfbase.cidfonts import UnicodeCIDFont
+        if "STSong-Light" not in pdfmetrics.getRegisteredFontNames():
+            pdfmetrics.registerFont(UnicodeCIDFont("STSong-Light"))
+        font_name = "STSong-Light"
+    else:
+        font_name = _pdf_font_name()
+    base_styles = getSampleStyleSheet()
+    title_style = ParagraphStyle("RPTitle", parent=base_styles["Title"], fontName=font_name, fontSize=15, leading=19, alignment=TA_RIGHT, spaceAfter=3 * mm)
+    meta_style = ParagraphStyle("RPMeta", parent=base_styles["BodyText"], fontName=font_name, fontSize=9, leading=12, alignment=TA_RIGHT)
+    cell_style = ParagraphStyle("RPCell", parent=base_styles["BodyText"], fontName=font_name, fontSize=7.5, leading=9.5, alignment=TA_RIGHT, wordWrap="CJK")
+    header_style = ParagraphStyle("RPHeader", parent=cell_style, fontSize=8, leading=10, alignment=TA_CENTER, textColor=colors.white)
+
+    column_count = max(1, len(result.columns))
+    page_size = landscape(A4) if column_count <= 7 else landscape(A3)
+    output = BytesIO()
+    document = SimpleDocTemplate(
+        output,
+        pagesize=page_size,
+        rightMargin=10 * mm,
+        leftMargin=10 * mm,
+        topMargin=10 * mm,
+        bottomMargin=10 * mm,
+        title=f"{L(result.title)} {L(result.period_label)}",
+        author="M.Y. Business Hotel HR System",
+    )
+    story = [
+        Paragraph(_pdf_cell(f"{L(result.title)} — {L(result.period_label)}"), title_style),
+        Paragraph(_pdf_cell(f"{L('الفترة:')} {result.start_date.strftime('%d/%m/%Y')} {L('إلى')} {result.end_date.strftime('%d/%m/%Y')} · {L(result.scope_label)} · {L(result.status_label)} · {result.employee_count} {L('موظف')}"), meta_style),
+        Spacer(1, 3 * mm),
+    ]
+
+    table_rows = [[Paragraph(_pdf_cell(L(label)), header_style) for _, label, _ in result.columns]]
+    for group in result.groups:
+        dept_row = [Paragraph(_pdf_cell(group["department"]), cell_style)] + [Paragraph("", cell_style)] * (column_count - 1)
+        table_rows.append(dept_row)
+        for row in group["rows"]:
+            table_rows.append([
+                Paragraph(_pdf_cell(_fmt_number(row.get(key)) if numeric else L(row.get(key, ""))), cell_style)
+                for key, _, numeric in result.columns
+            ])
+    if result.totals:
+        totals_cells = []
+        first = True
+        for key, _, numeric in result.columns:
+            if numeric and key in result.totals:
+                totals_cells.append(Paragraph(_pdf_cell(_fmt_number(result.totals[key])), cell_style))
+            elif first:
+                totals_cells.append(Paragraph(_pdf_cell(L("الإجمالي")), cell_style))
+                first = False
+            else:
+                totals_cells.append(Paragraph("", cell_style))
+        table_rows.append(totals_cells)
+
+    available_width = page_size[0] - document.leftMargin - document.rightMargin
+    table = LongTable(table_rows, colWidths=[available_width / column_count] * column_count, repeatRows=1, hAlign="RIGHT")
+    style = TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#24415E")),
+        ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#AAB4BE")),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 2),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 2),
+        ("TOPPADDING", (0, 0), (-1, -1), 2),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
+    ])
+    table.setStyle(style)
+    story.append(table)
+
+    if result.summary:
+        story.append(Spacer(1, 4 * mm))
+        story.append(Paragraph(_pdf_cell(L("الملخص")), meta_style))
+        summary_rows = [[Paragraph(_pdf_cell(L(label)), cell_style), Paragraph(_pdf_cell(L(str(value))), cell_style)] for label, value in result.summary]
+        summary_table = LongTable(summary_rows, colWidths=[available_width * 0.3, available_width * 0.2], hAlign="RIGHT")
+        summary_table.setStyle(TableStyle([
+            ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#AAB4BE")),
+            ("BACKGROUND", (0, 0), (0, -1), colors.HexColor("#FAF3E3")),
+        ]))
+        story.append(summary_table)
+
+    if result.comparison and result.comparison.get("like_for_like"):
+        lfl = result.comparison["like_for_like"]
+        story.append(Spacer(1, 4 * mm))
+        story.append(Paragraph(_pdf_cell(f"{L('مقارنة مثل بمثل مع الفترة السابقة')} ({result.comparison['period_label']})"), meta_style))
+        lfl_rows = [
+            [Paragraph(_pdf_cell(L("المستمرون في الفترتين")), cell_style), Paragraph(_pdf_cell(str(lfl["continuing_count"])), cell_style)],
+            [Paragraph(_pdf_cell(L("صافي المستمرين — الفترة الحالية")), cell_style), Paragraph(_pdf_cell(_fmt_number(lfl["continuing_current_net"])), cell_style)],
+            [Paragraph(_pdf_cell(L("صافي المستمرين — الفترة السابقة")), cell_style), Paragraph(_pdf_cell(_fmt_number(lfl["continuing_previous_net"])), cell_style)],
+            [Paragraph(_pdf_cell(L("التغير مثل بمثل")), cell_style), Paragraph(_pdf_cell(lfl["continuing_pct"] or "—"), cell_style)],
+            [Paragraph(_pdf_cell(L("منضمون في الفترة الحالية")), cell_style), Paragraph(_pdf_cell(f"{lfl['joiners_count']} · {L('صافي')} {_fmt_number(lfl['joiners_net'])}"), cell_style)],
+            [Paragraph(_pdf_cell(L("غير موجودين في الفترة الحالية")), cell_style), Paragraph(_pdf_cell(f"{lfl['leavers_count']} · {L('صافيهم السابق')} {_fmt_number(lfl['leavers_previous_net'])}"), cell_style)],
+        ]
+        lfl_table = LongTable(lfl_rows, colWidths=[available_width * 0.3, available_width * 0.25], hAlign="RIGHT")
+        lfl_table.setStyle(TableStyle([
+            ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#AAB4BE")),
+            ("BACKGROUND", (0, 0), (0, -1), colors.HexColor("#FAF3E3")),
+        ]))
+        story.append(lfl_table)
+        if lfl["still_active_leavers"]:
+            story.append(Paragraph(_pdf_cell(f"{L('تنبيه:')} {lfl['still_active_leavers']} {L('ممن لا يظهرون في الفترة الحالية ما زالوا نشطين؛ قد يعني ذلك عدم إصدار مسير الفترة بعد وليس مغادرتهم.')}"), meta_style))
+
+    breakdown_rows = [
+        (group["department"], row)
+        for group in result.groups
+        for row in group["rows"]
+        if row.get("breakdown")
+    ]
+    if breakdown_rows:
+        story.append(Spacer(1, 4 * mm))
+        story.append(Paragraph(_pdf_cell(L("تفصيل حساب كل موظف — كيف تكوّن الصافي")), meta_style))
+        breakdown_header = [L("الموظف")] + [L(label) for _, label, _ in PAYROLL_BREAKDOWN_DEFS]
+        breakdown_table_rows = [[Paragraph(_pdf_cell(label), header_style) for label in breakdown_header]]
+        for _, row in breakdown_rows:
+            breakdown_table_rows.append(
+                [Paragraph(_pdf_cell(f"{row.get('emp_name', '')} ({row.get('emp_code', '')})"), cell_style)]
+                + [Paragraph(_pdf_cell(_fmt_number(value)), cell_style) for _, value, _ in row["breakdown"]]
+            )
+        column_count_b = len(breakdown_header)
+        breakdown_table = LongTable(
+            breakdown_table_rows,
+            colWidths=[available_width * 0.16] + [(available_width * 0.84) / (column_count_b - 1)] * (column_count_b - 1),
+            repeatRows=1,
+            hAlign="RIGHT",
+        )
+        breakdown_table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#24415E")),
+            ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#AAB4BE")),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("LEFTPADDING", (0, 0), (-1, -1), 1.5),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 1.5),
+            ("TOPPADDING", (0, 0), (-1, -1), 1.5),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 1.5),
+        ]))
+        story.append(breakdown_table)
+
+    if result.warnings:
+        story.append(Spacer(1, 3 * mm))
+        for warning in result.warnings:
+            story.append(Paragraph(_pdf_cell(f"{L('تنبيه:')} {_warning_text_ar(warning, language)}"), meta_style))
+
+    story.append(Spacer(1, 10 * mm))
+    signature_rows = [[
+        Paragraph(_pdf_cell(L("إعداد: ..............................")), meta_style),
+        Paragraph(_pdf_cell(L("مراجعة: ..............................")), meta_style),
+        Paragraph(_pdf_cell(L("اعتماد: ..............................")), meta_style),
+    ]]
+    signature_table = LongTable(signature_rows, colWidths=[available_width / 3] * 3, hAlign="RIGHT")
+    signature_table.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "BOTTOM")]))
+    story.append(signature_table)
+
+    generated = result.generated_at.strftime("%d/%m/%Y %H:%M") if result.generated_at else ""
+    footer_text = f"M.Y. Business Hotel — {L('استُخرج في:')} {generated}"
+    document.build(story, canvasmaker=_NumberedCanvas.build(font_name, footer_text, language))
+    return output.getvalue()
+
+
+def list_presets(db: Session) -> list[ReportPreset]:
+    return list(db.scalars(select(ReportPreset).order_by(ReportPreset.name)).all())
+
+
+def save_preset(db: Session, name: str, config: dict, created_by: str) -> ReportPreset:
+    name = name.strip()
+    if not name:
+        raise ValueError("اسم الاختيار مطلوب.")
+    if len(name) > 120:
+        raise ValueError("اسم الاختيار طويل جدًا.")
+    existing = db.scalar(select(ReportPreset).where(ReportPreset.name == name))
+    if existing is not None:
+        existing.config = json.dumps(config, ensure_ascii=False)
+        existing.created_by = created_by
+        return existing
+    preset = ReportPreset(name=name, config=json.dumps(config, ensure_ascii=False), created_by=created_by)
+    db.add(preset)
+    return preset
+
+
+def load_preset(db: Session, preset_id: int) -> ReportPreset | None:
+    return db.get(ReportPreset, preset_id)
+
+
+def preset_config(preset: ReportPreset) -> dict:
+    try:
+        config = json.loads(preset.config or "{}")
+    except (TypeError, ValueError):
+        return {}
+    return config if isinstance(config, dict) else {}

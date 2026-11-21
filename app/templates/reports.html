@@ -2,63 +2,176 @@
 {% set active_nav = "reports" %}
 {% block title %}التقارير | M.Y. Business Hotel{% endblock %}
 {% block content %}
-<header class="topbar">
-    <div><p class="eyebrow">M.Y. BUSINESS HOTEL</p><h1>التقارير</h1>
-      <p class="muted">تقارير الموارد البشرية · HR reports</p></div>
-    <nav><a href="/">الرئيسية</a> · <a href="/employees">الموظفون</a> · <a href="/payroll">الرواتب</a></nav>
-  </header>
-  <section class="notice">
-    <h2>تصدير تقرير Excel شامل / Export workbook</h2>
-    <p>اختر الفترة والموظف المطلوب يدويًا. سيحتوي الملف على أوراق منفصلة للموظفين، والحضور، والإجازات، وحركات الأرصدة، والجزاءات والمكافآت، والسلف، والرواتب، ومقارنة الأقسام.</p>
-    {% if error %}<p class="error">تعذر إنشاء التقرير. راجع التاريخين وحاول مرة أخرى.</p>{% endif %}
-    <form method="get" action="/reports/export.xlsx">
-      <div class="form-grid">
-        <label>من تاريخ / Start date<input type="date" name="start_date" value="{{ start_date }}" required></label>
-        <label>إلى تاريخ / End date<input type="date" name="end_date" value="{{ end_date }}" required></label>
-        <label>الموظف / Employee
-          <select name="employee_id">
-            <option value="">كل الموظفين / All employees</option>
-            {% for employee in employees %}
-            <option value="{{ employee.id }}" {% if request.query_params.get("employee_id") == (employee.id|string) %}selected{% endif %}>{{ employee.code }} — {{ employee.full_name }}</option>
-            {% endfor %}
-          </select>
-        </label>
+<div class="page-header">
+  <div>
+    <p class="eyebrow">التقارير</p>
+    <h1>إعداد تقرير جديد</h1>
+    <p class="muted">اختر نوع التقرير والفترة والنطاق، ثم حدد البيانات اللي عايزها بالظبط — اللي تختاره بس هو اللي هيظهر في العرض والتصدير.</p>
+  </div>
+</div>
+
+{% if error == "dates" %}<p class="error">تعذر إنشاء التقرير. راجع التاريخين وحاول مرة أخرى.</p>{% endif %}
+{% if error == "report" %}<p class="error">تعذر إنشاء التقرير بسبب خطأ في قاعدة البيانات.</p>{% endif %}
+{% if error == "preset" %}<p class="error">تعذر حفظ الاختيار. راجع الاسم وحاول مرة أخرى.</p>{% endif %}
+{% if error == "comprehensive" %}<p class="error">التقرير الشامل يُصدَّر مباشرة بصيغة Excel أو PDF دون معاينة.</p>{% endif %}
+{% if saved %}<p class="success-note">تم حفظ الاختيار.</p>{% endif %}
+{% if deleted %}<p class="success-note">تم حذف الاختيار.</p>{% endif %}
+
+<form method="get" action="/reports/view" id="report-form">
+  <div class="card">
+    <h2>نوع التقرير والفترة</h2>
+    <div class="chip-row" role="radiogroup" aria-label="نوع التقرير">
+      {% for report_type in report_types %}
+      <label class="chip"><input type="radio" name="report_type" value="{{ report_type }}" {% if selection.report_type == report_type %}checked{% endif %}> {{ report_type_labels[report_type] }}</label>
+      {% endfor %}
+    </div>
+    <div class="chip-row" style="margin-top:12px;" role="radiogroup" aria-label="الفترة">
+      <label class="chip"><input type="radio" name="period" value="this_month" {% if selection.period_choice == 'this_month' %}checked{% endif %}> هذا الشهر</label>
+      <label class="chip"><input type="radio" name="period" value="last_month" {% if selection.period_choice == 'last_month' %}checked{% endif %}> الشهر الماضي</label>
+      <label class="chip"><input type="radio" name="period" value="last_3_months" {% if selection.period_choice == 'last_3_months' %}checked{% endif %}> آخر 3 شهور</label>
+      <label class="chip"><input type="radio" name="period" value="custom" {% if selection.period_choice == 'custom' %}checked{% endif %}> فترة مخصصة</label>
+    </div>
+    <div class="period-row">
+      <label>من <input type="date" name="start_date" value="{{ start_date }}"></label>
+      <label>إلى <input type="date" name="end_date" value="{{ end_date }}"></label>
+    </div>
+    <p class="muted" style="font-size:12px; margin-bottom:0;">التاريخان يُستخدمان مع «فترة مخصصة» فقط.</p>
+  </div>
+
+  <div class="card">
+    <h2>نطاق التقرير</h2>
+    <div class="scope-grid">
+      <label>القسم
+        <select name="department_id">
+          <option value="">كل الأقسام</option>
+          {% for department in departments %}
+          <option value="{{ department.id }}" {% if selection.department_id == department.id %}selected{% endif %}>{{ department.name }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>الموظف
+        <select name="employee_id">
+          <option value="">كل الموظفين</option>
+          {% for employee in employees %}
+          <option value="{{ employee.id }}" {% if selection.employee_id == employee.id %}selected{% endif %}>{{ employee.code }} — {{ employee.full_name }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>حالة الموظف
+        <select name="employee_status">
+          <option value="active" {% if selection.employee_status == 'active' %}selected{% endif %}>النشطون فقط</option>
+          <option value="all" {% if selection.employee_status == 'all' %}selected{% endif %}>الكل</option>
+          <option value="archived" {% if selection.employee_status == 'archived' %}selected{% endif %}>المؤرشفون</option>
+        </select>
+      </label>
+    </div>
+    <label class="lfl-row"><input type="checkbox" name="lfl" value="1" {% if selection.compare_like_for_like %}checked{% endif %}> فصل المنضمين والمغادرين في المقارنة (مقارنة مثل بمثل للمستمرين فقط)</label>
+  </div>
+
+  <div class="card" id="fields-card">
+    <h2>محتوى التقرير</h2>
+    <p class="muted" style="margin-top:0;">علّم على البيانات اللي عايزها تظهر في التقرير.</p>
+    <p class="muted" id="comprehensive-note" style="margin-top:0; display:none;">التقرير الشامل يحتوي كل الأقسام والبيانات في ملف واحد، ولا يتأثر بهذه الاختيارات.</p>
+    <div class="fld-grid">
+      {% for group_key in ["employee", "payroll", "attendance"] %}
+      <div class="fld-group" data-group="{{ group_key }}">
+        <div class="fld-group-head"><strong>{{ field_group_defs[group_key][0] }}</strong><a data-select-all="{{ group_key }}">تحديد الكل</a></div>
+        {% for field_key, field_label in field_group_defs[group_key][1] %}
+        <label><input type="checkbox" name="fields" value="{{ field_key }}" {% if field_key in selection.fields %}checked{% endif %}> {{ field_label }}</label>
+        {% endfor %}
       </div>
-      <button type="submit">تنزيل ملف Excel / Download Excel</button>
-      <button type="submit" formaction="/reports/export.pdf">تنزيل تقرير PDF / Download PDF</button>
-    </form>
-  </section>
-  <section class="notice">
-    <h2>تصدير تقرير PDF / Export PDF</h2>
-    <p>نسخة للطباعة بنفس الفترة وبنفس بيانات تقرير Excel، مع دعم الخط العربي.</p>
-    <form method="get" action="/reports/export.pdf">
-      <div class="form-grid">
-        <label>من تاريخ / Start date<input type="date" name="start_date" value="{{ start_date }}" required></label>
-        <label>إلى تاريخ / End date<input type="date" name="end_date" value="{{ end_date }}" required></label>
-        <label>الموظف / Employee
-          <select name="employee_id">
-            <option value="">كل الموظفين / All employees</option>
-            {% for employee in employees %}
-            <option value="{{ employee.id }}" {% if request.query_params.get("employee_id") == (employee.id|string) %}selected{% endif %}>{{ employee.code }} — {{ employee.full_name }}</option>
-            {% endfor %}
-          </select>
-        </label>
-      </div>
-      <button type="submit">تنزيل ملف PDF / Download PDF</button>
-    </form>
-  </section>
-  <section class="notice">
-    <h2>محتويات التقرير</h2>
-    <ul>
-      <li>بيانات الموظفين الحالية والمؤرشفة.</li>
-      <li>الحضور وحالات المراجعة كما هي مسجلة؛ لا يتم تحويل السجلات غير المحسومة إلى غياب.</li>
-      <li>الإجازات وحركات أرصدتها.</li>
-      <li>الجزاءات والمكافآت والسلف وحالاتها.</li>
-      <li>مسيرات الرواتب وحالة الصرف والمبالغ المدفوعة والمتبقية.</li>
-      <li>عدد الموظفين النشطين وإجمالي رواتبهم الأساسية حسب القسم.</li>
-    </ul>
-    <details class="hint"><summary>تعليمات</summary>
-      <p class="muted">التقرير قراءة فقط ولا يغيّر أي بيانات داخل النظام. التقرير بصيغة Excel يحتوي جميع الحقول، ونسخة PDF مناسبة للطباعة. التقرير يُنشأ يدويًا حسب الفترة والموظف المحددين ولا يتم تشغيله تلقائيًا.</p>
-    </details>
-  </section>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="header-actions" style="margin-top:6px;">
+    <button class="btn-primary" type="submit" formaction="/reports/view">عرض التقرير</button>
+    <button type="submit" formaction="/reports/export.xlsx">تصدير Excel مباشر</button>
+    <button type="submit" formaction="/reports/export.pdf">تصدير PDF</button>
+  </div>
+</form>
+
+<div class="card">
+  <h2>اختيارات جاهزة</h2>
+  <div class="saved-row">
+    {% for preset in presets %}
+    <span class="chip preset-chip">
+      <a href="/reports?preset_id={{ preset.id }}" style="color:inherit;">{{ preset.name }}</a>
+      <form method="post" action="/reports/presets/{{ preset.id }}/delete" onsubmit="return confirm('حذف هذا الاختيار؟');">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit" title="حذف">×</button>
+      </form>
+    </span>
+    {% else %}
+    <span class="muted" style="font-size:13px; font-weight:700;">لا توجد اختيارات محفوظة بعد.</span>
+    {% endfor %}
+  </div>
+  <form method="post" action="/reports/presets" id="preset-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div class="saved-row">
+      <input type="text" name="preset_name" placeholder="اسم الاختيار…" required>
+      <button type="submit">حفظ الاختيار الحالي</button>
+    </div>
+  </form>
+</div>
+
+<details class="hint"><summary>تعليمات</summary>
+  <p class="muted">التقرير قراءة فقط ولا يغيّر أي بيانات داخل النظام. «عرض التقرير» يعرض النتيجة مجمعة حسب القسم مع ملخص ومقارنة بالفترة السابقة، والتصدير يطابق ما اخترته بالضبط. المقارنة مثل بمثل تفصل الموظفين المستمرين عن المنضمين والمغادرين عند تفعيلها.</p>
+</details>
+
+<script>
+(function () {
+  var form = document.getElementById('report-form');
+  var groups = {
+    payroll: ['employee', 'payroll', 'attendance'],
+    attendance: ['employee', 'attendance'],
+    advances: ['employee'],
+    leave: ['employee'],
+    staff_actions: ['employee'],
+    comprehensive: []
+  };
+
+  function currentType() {
+    var checked = form.querySelector('input[name="report_type"]:checked');
+    return checked ? checked.value : 'payroll';
+  }
+
+  function syncGroups() {
+    var type = currentType();
+    var visible = groups[type] || ['employee'];
+    document.querySelectorAll('.fld-group').forEach(function (el) {
+      el.style.display = visible.indexOf(el.dataset.group) >= 0 ? '' : 'none';
+    });
+    document.getElementById('comprehensive-note').style.display = type === 'comprehensive' ? '' : 'none';
+  }
+
+  form.querySelectorAll('input[name="report_type"]').forEach(function (radio) {
+    radio.addEventListener('change', syncGroups);
+  });
+  syncGroups();
+
+  document.querySelectorAll('[data-select-all]').forEach(function (link) {
+    link.addEventListener('click', function () {
+      var group = document.querySelector('.fld-group[data-group="' + link.dataset.selectAll + '"]');
+      var boxes = group.querySelectorAll('input[type="checkbox"]');
+      var allChecked = Array.prototype.every.call(boxes, function (b) { return b.checked; });
+      boxes.forEach(function (b) { b.checked = !allChecked; });
+    });
+  });
+
+  document.getElementById('preset-form').addEventListener('submit', function (event) {
+    var target = event.target;
+    target.querySelectorAll('input[data-copied]').forEach(function (el) { el.remove(); });
+    var data = new FormData(form);
+    data.forEach(function (value, key) {
+      var input = document.createElement('input');
+      input.type = 'hidden';
+      input.name = key;
+      input.value = value;
+      input.setAttribute('data-copied', '1');
+      target.appendChild(input);
+    });
+  });
+})();
+</script>
 {% endblock %}

@@ -29,6 +29,28 @@ from app.advance_workflow import approve_advance, create_advance, mark_advance_p
 from app.models import AdvanceInstallment
 from app.staff_actions_workflow import approve_staff_action, cancel_staff_action, create_staff_action, record_employee_acknowledgement
 from app.reports import build_hr_pdf, build_hr_workbook
+from app.report_builder import (
+    DEFAULT_FIELDS,
+    FIELD_GROUP_DEFS,
+    FIELD_GROUPS_BY_TYPE,
+    PAYROLL_BREAKDOWN_DEFS,
+    REPORT_TYPE_COMPREHENSIVE,
+    REPORT_TYPE_LABELS,
+    REPORT_TYPES,
+    ReportSelection,
+    apply_config,
+    build_custom_pdf,
+    build_custom_workbook,
+    build_report,
+    list_presets,
+    load_preset,
+    month_label,
+    preset_config,
+    preset_config_from_params,
+    resolve_period,
+    save_preset,
+    selection_from_params,
+)
 from app.backup_workflow import create_backup, get_backup_root, restore_backup, save_backup_root
 from app.payroll_workflow import (
     add_payroll_payment,
@@ -168,6 +190,10 @@ app.add_middleware(
 )
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 templates = Jinja2Templates(directory="app/templates")
+
+from app.report_builder import _fmt_number as _report_fmt_number
+
+templates.env.filters["fmtnum"] = _report_fmt_number
 
 from app.i18n import translate_html
 
@@ -2107,32 +2133,135 @@ def reports_page(
     request: Request,
     admin: AdminAccount = Depends(get_current_admin),
 ):
-    today = date.today()
-    default_start = date(today.year, today.month, 1)
+    params = request.query_params
+    selection = ReportSelection()
+    active_preset = None
     with SessionLocal() as db:
-        employees = db.scalars(select(Employee).where(Employee.status == "active").order_by(Employee.code)).all()
+        preset_id = None
+        try:
+            preset_id = int(params.get("preset_id", "") or 0) or None
+        except ValueError:
+            preset_id = None
+        if preset_id is not None:
+            active_preset = load_preset(db, preset_id)
+        if params.get("report_type") or params.get("period") or params.get("start_date"):
+            # A submitted request form (or the view page's edit link) repopulates everything.
+            selection = selection_from_params(params)
+        elif active_preset is not None:
+            selection = ReportSelection.from_config(preset_config(active_preset))
+        start, end = resolve_period(selection)
+        employees = db.scalars(select(Employee).order_by(Employee.code)).all()
+        departments = db.scalars(select(Department).order_by(Department.name)).all()
+        presets = list_presets(db)
     return templates.TemplateResponse(
         request=request,
         name="reports.html",
         context={
-            "start_date": request.query_params.get("start_date", default_start.isoformat()),
-            "end_date": request.query_params.get("end_date", today.isoformat()),
+            "selection": selection,
+            "start_date": start.isoformat(),
+            "end_date": end.isoformat(),
             "employees": employees,
-            "error": request.query_params.get("error"),
+            "departments": departments,
+            "presets": presets,
+            "active_preset": active_preset,
+            "field_group_defs": FIELD_GROUP_DEFS,
+            "field_groups_by_type": FIELD_GROUPS_BY_TYPE,
+            "report_types": REPORT_TYPES,
+            "report_type_labels": REPORT_TYPE_LABELS,
+            "csrf_token": get_csrf_token(request),
+            "error": params.get("error"),
+            "saved": params.get("saved"),
+            "deleted": params.get("deleted"),
         },
     )
 
 
+@app.get("/reports/view", response_class=HTMLResponse)
+def view_hr_report(
+    request: Request,
+    admin: AdminAccount = Depends(get_current_admin),
+):
+    selection = selection_from_params(request.query_params)
+    if selection.report_type == REPORT_TYPE_COMPREHENSIVE:
+        return RedirectResponse(f"/reports?error=comprehensive&{request.url.query}", status_code=303)
+    try:
+        with SessionLocal() as db:
+            result = build_report(db, selection)
+    except ValueError:
+        return RedirectResponse(f"/reports?error=dates&{request.url.query}", status_code=303)
+    except SQLAlchemyError:
+        return RedirectResponse(f"/reports?error=report&{request.url.query}", status_code=303)
+    return templates.TemplateResponse(
+        request=request,
+        name="report_view.html",
+        context={
+            "result": result,
+            "query_string": request.url.query,
+            "breakdown_defs": PAYROLL_BREAKDOWN_DEFS,
+            "period_month": (
+                (month_label(result.start_date).rsplit(" ", 1)[0], str(result.start_date.year))
+                if result.start_date.month == result.end_date.month
+                and result.start_date.year == result.end_date.year
+                else None
+            ),
+        },
+    )
+
+
+@app.post("/reports/presets", dependencies=[Depends(csrf_protect)])
+async def save_report_preset_route(
+    request: Request,
+    admin: AdminAccount = Depends(get_current_admin),
+):
+    form = await request.form()
+    name = str(form.get("preset_name", "")).strip()
+    config = preset_config_from_params(form)
+    try:
+        with SessionLocal() as db:
+            preset = save_preset(db, name, config, admin.username)
+            db.commit()
+            preset_id = preset.id
+    except ValueError:
+        return RedirectResponse("/reports?error=preset", status_code=303)
+    return RedirectResponse(f"/reports?saved=1&preset_id={preset_id}", status_code=303)
+
+
+@app.post("/reports/presets/{preset_id}/delete", dependencies=[Depends(csrf_protect)])
+def delete_report_preset_route(
+    preset_id: int,
+    admin: AdminAccount = Depends(get_current_admin),
+):
+    with SessionLocal() as db:
+        preset = load_preset(db, preset_id)
+        if preset is not None:
+            db.delete(preset)
+            db.commit()
+    return RedirectResponse("/reports?deleted=1", status_code=303)
+
+
+def _custom_report_requested(params) -> bool:
+    return bool(params.get("report_type") or params.get("fields"))
+
+
 @app.get("/reports/export.xlsx")
 def export_hr_reports(
+    request: Request,
     start_date: date,
     end_date: date,
     employee_id: int | None = None,
     admin: AdminAccount = Depends(get_current_admin),
 ):
+    params = request.query_params
     try:
         with SessionLocal() as db:
-            content = build_hr_workbook(db, start_date, end_date, employee_id=employee_id)
+            if _custom_report_requested(params):
+                selection = selection_from_params(params)
+                if selection.report_type == REPORT_TYPE_COMPREHENSIVE:
+                    content = build_hr_workbook(db, start_date, end_date, employee_id=selection.employee_id)
+                else:
+                    content = build_custom_workbook(db, selection, language=request.state.language)
+            else:
+                content = build_hr_workbook(db, start_date, end_date, employee_id=employee_id)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     except SQLAlchemyError:
@@ -2150,14 +2279,23 @@ def export_hr_reports(
 
 @app.get("/reports/export.pdf")
 def export_hr_reports_pdf(
+    request: Request,
     start_date: date,
     end_date: date,
     employee_id: int | None = None,
     admin: AdminAccount = Depends(get_current_admin),
 ):
+    params = request.query_params
     try:
         with SessionLocal() as db:
-            content = build_hr_pdf(db, start_date, end_date, employee_id=employee_id)
+            if _custom_report_requested(params):
+                selection = selection_from_params(params)
+                if selection.report_type == REPORT_TYPE_COMPREHENSIVE:
+                    content = build_hr_pdf(db, start_date, end_date, employee_id=selection.employee_id)
+                else:
+                    content = build_custom_pdf(db, selection, language=request.state.language)
+            else:
+                content = build_hr_pdf(db, start_date, end_date, employee_id=employee_id)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     except RuntimeError as exc:
