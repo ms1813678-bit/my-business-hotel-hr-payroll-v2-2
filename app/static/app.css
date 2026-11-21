@@ -505,8 +505,8 @@ tbody tr:hover td { background: #f8fafc; }
   min-height: 100vh; display: grid; place-items: center; padding: 24px;
   background:
     radial-gradient(1200px 600px at 80% -10%, rgba(201,162,39,.16), transparent 60%),
-    radial-gradient(900px 500px at 10% 110%, rgba(16,24,38,.10), transparent 55%),
-    var(--bg);
+    radial-gradient(900px 500px at 10% 110%, rgba(201,162,39,.09), transparent 55%),
+    linear-gradient(160deg, #0b1220 0%, #131c2e 100%);
 }
 .login-card {
   width: min(420px, 100%); background: var(--surface); border: 1px solid var(--border);
