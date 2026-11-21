@@ -24,7 +24,9 @@
 
   <section class="notice">
     <h2>مكان حفظ النسخ / External backup location</h2>
-    <p class="muted">يجب اختيار مجلد على قرص خارجي منفصل عن قرص تشغيل النظام. لا تحفظ النسخ على قرص C: إذا كان النظام مثبتًا عليه.</p>
+    <details class="hint"><summary>تعليمات</summary>
+      <p class="muted">يجب اختيار مجلد على قرص خارجي منفصل عن قرص تشغيل النظام. لا تحفظ النسخ على قرص C: إذا كان النظام مثبتًا عليه.</p>
+    </details>
     <form method="post" action="/settings/backup/root">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <label>مسار القرص الخارجي / External drive folder
@@ -59,7 +61,9 @@
       <li>النسخ اليدوية ونسخ ما قبل الاستعادة لا تُحذف تلقائيًا.</li>
     </ul>
     <p>المواعيد الافتراضية: يوميًا 02:00، الأحد 02:30، وأول يوم من كل ربع سنة 03:00. يمكن تعديلها من برنامج جدولة مهام Windows.</p>
-    <p class="muted">بعد تحديد مسار القرص الخارجي، يثبت مسؤول النظام مهام Windows مرة واحدة باستخدام ملف <code>scripts/windows/install_backup_tasks.ps1</code>.</p>
+    <details class="hint"><summary>تعليمات</summary>
+      <p class="muted">بعد تحديد مسار القرص الخارجي، يثبت مسؤول النظام مهام Windows مرة واحدة باستخدام ملف <code>scripts/windows/install_backup_tasks.ps1</code>.</p>
+    </details>
   </section>
 
   <section class="notice">

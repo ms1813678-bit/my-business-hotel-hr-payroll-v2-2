@@ -95,12 +95,40 @@
 {% endif %}
 
 <section class="card">
+  <h2>ماذا يستطيع المساعد؟</h2>
+  <div class="ai-caps">
+    <div class="ai-cap">
+      <strong>يسأل ويجيب</strong>
+      <p class="muted">أرقام وحالات مباشرة من قاعدة البيانات: الموظفون، الحضور، الإجازات، الرواتب.</p>
+    </div>
+    <div class="ai-cap">
+      <strong>ينفذ بأمان</strong>
+      <p class="muted">أوامر التعديل تتحول إلى خطة واضحة معروضة عليك، ولا يتم أي تنفيذ قبل موافقتك الصريحة.</p>
+    </div>
+    <div class="ai-cap">
+      <strong>خصوصية كاملة</strong>
+      <p class="muted">كل المعالجة تتم على جهازك المحلي، ولا تغادر بيانات الفندق إلى أي خدمة خارجية.</p>
+    </div>
+  </div>
+</section>
+
+<section class="card">
   <h2>أمثلة سريعة</h2>
-  <ul class="muted">
+  <p class="muted">اضغط على أي مثال لنسخه في مربع السؤال.</p>
+  <ul class="ai-examples">
     <li>كم عدد الموظفين النشطين؟</li>
+    <li>ما الذي يحتاج مراجعة في الحضور هذا الشهر؟</li>
     <li>اعتمد الإجازة رقم 12 — للمعاينة فقط.</li>
     <li>نفذ: اعتمد مسير الرواتب رقم 3.</li>
     <li>أضف سلفة تقسيط للموظف MY-0004 بمبلغ 3000 على 6 أشهر.</li>
   </ul>
 </section>
+<script>
+document.querySelectorAll('.ai-examples li').forEach(function (li) {
+  li.addEventListener('click', function () {
+    var t = document.querySelector('textarea[name="question"]');
+    if (t) { t.value = li.textContent.trim(); t.focus(); }
+  });
+});
+</script>
 {% endblock %}

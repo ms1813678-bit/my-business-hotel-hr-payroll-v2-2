@@ -20,7 +20,9 @@
 
   <section class="notice">
     <h2>تسجيل جزاء أو مكافأة / New staff action</h2>
-    <p class="muted">القيم المالية يحددها مسؤول الموارد البشرية يدويًا. لا توجد معادلات تلقائية للمكافآت أو الجزاءات. يجب تحديد شهر الرواتب للإجراء المالي.</p>
+    <details class="hint"><summary>تعليمات</summary>
+      <p class="muted">القيم المالية يحددها مسؤول الموارد البشرية يدويًا. لا توجد معادلات تلقائية للمكافآت أو الجزاءات. يجب تحديد شهر الرواتب للإجراء المالي.</p>
+    </details>
     <form method="post" action="/staff-actions">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <div class="form-grid">

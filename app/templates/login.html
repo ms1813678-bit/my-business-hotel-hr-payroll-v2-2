@@ -11,8 +11,11 @@
     <form class="login-card" method="post" action="/login">
       <nav class="language-switch login-language" aria-label="Language"><a href="/language/ar">العربية</a><a href="/language/en">English</a><a href="/language/zh">中文</a></nav>
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-      <p class="eyebrow">فندق M.Y. Business</p>
-      <h1>تسجيل دخول الإدارة</h1>
+      <div class="login-brand">
+        <img class="brand-logo" src="/static/logo.png" alt="شعار فندق M.Y. Business">
+        <p class="eyebrow">فندق M.Y. Business</p>
+      </div>
+      <h1 style="text-align:center">تسجيل دخول الإدارة</h1>
       {% if error %}<p class="error">{{ error }}</p>{% endif %}
       <label>اسم المستخدم
         <input name="username" autocomplete="username" required maxlength="80" placeholder="أدخل اسم المستخدم" dir="rtl">
@@ -20,8 +23,8 @@
       <label>كلمة المرور
         <input name="password" type="password" autocomplete="current-password" required placeholder="أدخل كلمة المرور" dir="rtl">
       </label>
-      <button type="submit" class="btn-primary">دخول إلى النظام</button>
-      <p class="muted small" style="margin-top:14px">Developed by Abu Younes</p>
+      <button type="submit" class="btn-primary">دخول</button>
+      <p class="muted small" style="margin-top:16px; text-align:center"><span class="dev-credit">Developed by Abu Younes · 2026</span></p>
     </form>
   </main>
 </body>

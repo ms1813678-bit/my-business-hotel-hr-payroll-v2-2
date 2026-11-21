@@ -15,7 +15,9 @@
   {% endif %}
   <section class="notice">
     <h2>إنشاء مسير شهر جديد / Create payroll run</h2>
-    <p class="muted">لا يمكن إنشاء المسير قبل اعتماد الحضور والانصراف للشهر نفسه بعد مراجعة ملف البرنامج وملف البصمة.</p>
+    <details class="hint"><summary>تعليمات</summary>
+      <p class="muted">لا يمكن إنشاء المسير قبل اعتماد الحضور والانصراف للشهر نفسه بعد مراجعة ملف البرنامج وملف البصمة.</p>
+    </details>
     <form method="post" action="/payroll">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <div class="form-grid">

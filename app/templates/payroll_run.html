@@ -20,7 +20,9 @@
 
   <section class="notice">
     <h2>مراحل اعتماد المسير / Payroll workflow</h2>
-    <p class="muted">المسودة ← اعتماد الموارد البشرية ← إغلاق الشهر ← تسجيل الصرف النقدي أو التحويل البنكي. إعادة فتح مسير مغلق تتطلب سببًا مسجلًا في سجل المراجعة.</p>
+    <details class="hint"><summary>تعليمات</summary>
+      <p class="muted">المسودة ← اعتماد الموارد البشرية ← إغلاق الشهر ← تسجيل الصرف النقدي أو التحويل البنكي. إعادة فتح مسير مغلق تتطلب سببًا مسجلًا في سجل المراجعة.</p>
+    </details>
     {% if run.status in ["draft", "reopened"] %}
     <form method="post" action="/payroll/runs/{{ run.id }}/approve" class="inline-form">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button type="submit">اعتماد المسير</button>

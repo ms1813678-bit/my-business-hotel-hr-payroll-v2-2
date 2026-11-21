@@ -10,10 +10,10 @@
 <body>
   <div class="app-layout">
     <aside class="sidebar">
-      <nav class="language-switch" aria-label="Language"><a href="/language/ar">العربية</a><a href="/language/en">English</a><a href="/language/zh">中文</a></nav>
+      <nav class="language-switch" aria-label="Language"><a href="/language/ar" {% if request.state.language == 'ar' %}class="active" aria-current="true"{% endif %}>العربية</a><a href="/language/en" {% if request.state.language == 'en' %}class="active" aria-current="true"{% endif %}>English</a><a href="/language/zh" {% if request.state.language == 'zh' %}class="active" aria-current="true"{% endif %}>中文</a></nav>
       <div class="sidebar-brand">
         <div class="brand-row">
-          <span class="mark">MY</span>
+          <img class="brand-logo" src="/static/logo-badge.png" alt="شعار فندق M.Y. Business">
           <div>
             <strong>فندق M.Y. Business</strong>
             <span>نظام الموارد البشرية والرواتب</span>
@@ -51,7 +51,7 @@
 
     <main class="content">
       {% block content %}{% endblock %}
-      <footer>{% block footer %}{% if request.url.path == '/' or request.url.path.startswith(('/ai', '/employees', '/leave', '/advances', '/reports')) %}Developed by Abu Younes{% else %}Developed by Abu Dalida{% endif %}{% endblock %}</footer>
+      <footer>{% block footer %}<span class="dev-credit">{% if request.url.path == '/' or request.url.path.startswith(('/ai', '/employees', '/leave', '/advances', '/reports')) %}Developed by Abu Younes · 2026{% else %}Developed by Abu Dalida · 2026{% endif %}</span>{% endblock %}</footer>
     </main>
   </div>
 </body>

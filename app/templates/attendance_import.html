@@ -26,7 +26,9 @@
         <input id="file" type="file" name="file" accept=".csv,.xls,.xlsx" required>
         <button type="submit">استيراد وحفظ الأدلة للمراجعة</button>
       </form>
-      <p class="muted">الحد الأقصى لحجم الملف 5 ميجابايت. لا يتم تخمين هوية موظف غير معروف.</p>
+      <details class="hint"><summary>تعليمات</summary>
+        <p class="muted">الحد الأقصى لحجم الملف 5 ميجابايت. لا يتم تخمين هوية موظف غير معروف.</p>
+      </details>
     </section>
 
     {% if error %}
