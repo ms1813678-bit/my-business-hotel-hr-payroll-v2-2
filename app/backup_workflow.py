@@ -656,7 +656,9 @@ def restore_backup(
             actor=actor,
             action="backup_restored",
             entity_type="backup_archive",
-            entity_id=str(selected),
+            # entity_id is VARCHAR(80): the filename identifies the archive; the
+            # full path can exceed the column on real backup-drive locations.
+            entity_id=str(selected.name)[:80],
             old_value=None,
             new_value=str(manifest.get("created_at")),
             reason=reason.strip(),

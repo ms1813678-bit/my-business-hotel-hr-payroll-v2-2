@@ -35,6 +35,14 @@ Reports are generated manually by the administrator and saved locally as Excel o
 
 The application binds only to 127.0.0.1. Do not expose it publicly.
 
+## Automatic backup schedule (separate step)
+Setup does NOT schedule automatic backups. After the first installation, and after the backup folder is set inside the app (Backup & Restore page), run once in PowerShell:
+   .\scripts\windows\install_backup_tasks.ps1
+This installs the Windows scheduled tasks (daily 02:00, weekly Sunday 02:30, quarterly 03:00). Verify afterwards: open Task Scheduler and confirm the M.Y. Business Hotel backup tasks exist and are enabled, then create one manual backup from the app and confirm it appears as a verified success in the backup history. Until these tasks are installed and verified, backups are manual only.
+
+## Backup encryption
+Set the backup encryption passphrase from the app's Backup & Restore page before relying on backups. New backups are then stored encrypted (.zip.enc) and restore asks for the passphrase. Keep the passphrase safe: losing it makes encrypted backups unrecoverable. The recovery key file backup_encryption_key.json written beside the backups lets a fresh reinstall unlock them with the passphrase; do not delete it.
+
 ## Backup and restore acceptance
 Before production use, verify backup creation, SHA-256/integrity validation, retention behavior, restore confirmation and audit, automatic pre-restore backup, successful restore verification, and rollback after an intentionally failed restore in a disposable test database.
 
