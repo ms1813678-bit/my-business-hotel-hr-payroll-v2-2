@@ -3114,6 +3114,12 @@ def password_page(request: Request, admin: AdminAccount = Depends(get_current_ad
     )
 
 
+def _telegram_reauthenticated(admin: AdminAccount, current_password: str) -> bool:
+    """Telegram alert settings redirect where login alerts go, so changing them
+    requires the administrator's own password, not just an unlocked session."""
+    return bool(current_password) and verify_password(current_password, admin.password_hash)
+
+
 @app.post("/settings/telegram", dependencies=[Depends(csrf_protect)])
 def telegram_settings_save(
     request: Request,
@@ -3121,8 +3127,11 @@ def telegram_settings_save(
     chat_id: str = Form(""),
     language: str = Form("ar"),
     enabled: str = Form(""),
+    current_password: str = Form(""),
     admin: AdminAccount = Depends(require_system_admin),
 ):
+    if not _telegram_reauthenticated(admin, current_password):
+        return RedirectResponse("/settings/password?tg=auth", status_code=303)
     with SessionLocal.begin() as db:
         current = telegram_get_config(db)
         token = bot_token.strip() or current["bot_token"]
@@ -3155,7 +3164,9 @@ def telegram_settings_save(
 
 
 @app.post("/settings/telegram/bind-link", dependencies=[Depends(csrf_protect)])
-def telegram_bind_link(request: Request, admin: AdminAccount = Depends(require_system_admin)):
+def telegram_bind_link(request: Request, current_password: str = Form(""), admin: AdminAccount = Depends(require_system_admin)):
+    if not _telegram_reauthenticated(admin, current_password):
+        return RedirectResponse("/settings/password?tg=auth", status_code=303)
     with SessionLocal.begin() as db:
         nonce = generate_telegram_bind_nonce(db, actor=admin.username)
         if nonce is None:
@@ -3173,7 +3184,9 @@ def telegram_bind_link(request: Request, admin: AdminAccount = Depends(require_s
 
 
 @app.post("/settings/telegram/bind-confirm", dependencies=[Depends(csrf_protect)])
-def telegram_bind_confirm(request: Request, admin: AdminAccount = Depends(require_system_admin)):
+def telegram_bind_confirm(request: Request, current_password: str = Form(""), admin: AdminAccount = Depends(require_system_admin)):
+    if not _telegram_reauthenticated(admin, current_password):
+        return RedirectResponse("/settings/password?tg=auth", status_code=303)
     with SessionLocal.begin() as db:
         status = bind_telegram_chat_from_nonce(db, actor=admin.username)
         if status == "bound":
@@ -3194,7 +3207,9 @@ def telegram_bind_confirm(request: Request, admin: AdminAccount = Depends(requir
 
 
 @app.post("/settings/telegram/test", dependencies=[Depends(csrf_protect)])
-def telegram_test_message(request: Request, admin: AdminAccount = Depends(require_system_admin)):
+def telegram_test_message(request: Request, current_password: str = Form(""), admin: AdminAccount = Depends(require_system_admin)):
+    if not _telegram_reauthenticated(admin, current_password):
+        return RedirectResponse("/settings/password?tg=auth", status_code=303)
     with SessionLocal() as db:
         sent = send_telegram_test_message(db)
     return RedirectResponse(f"/settings/password?tg={'test_ok' if sent else 'test_failed'}", status_code=303)
