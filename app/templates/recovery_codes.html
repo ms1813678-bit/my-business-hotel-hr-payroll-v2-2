@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block content %}
+  <section class="alert-panel">
+    <h1>رموز الاستعادة الجديدة</h1>
+    <p>هذه الرموز تظهر مرة واحدة فقط ولا يمكن إعادة عرضها، ولا تُحفظ مقروءة في النظام. احفظها الآن في مكان آمن منفصل عن جهاز الفندق — كل رمز يعمل مرة واحدة لاستعادة دخول مدير النظام إذا نسي كلمة المرور. إنشاء هذه الرموز أبطل كل الرموز السابقة.</p>
+    <ol class="recovery-codes" dir="ltr" style="font-size:1.2em; line-height:2">
+      {% for code in codes %}<li><bdi><code>{{ code }}</code></bdi></li>{% endfor %}
+    </ol>
+    <p><a class="btn-primary" href="/settings/accounts">حفظت الرموز — العودة للحسابات</a></p>
+  </section>
+{% endblock %}

@@ -26,12 +26,21 @@ _SETTING_KEY = "login_security"
 _WEBHOOK_TIMEOUT_SECONDS = 3
 
 
+# The forgotten-password recovery flow has its own independent counter so an
+# attacker engaging the login lockout cannot also block legitimate recovery,
+# and recovery probing does not consume login attempts.
+RECOVERY_FAILED_LIMIT = 5
+RECOVERY_LOCKOUT_DURATION = timedelta(minutes=30)
+RECOVERY_LOCKOUT_MINUTES = int(RECOVERY_LOCKOUT_DURATION.total_seconds() // 60)
+_RECOVERY_SETTING_KEY = "recovery_security"
+
+
 def _now() -> datetime:
     return datetime.now(timezone.utc)
 
 
-def _read_state(db: Session) -> dict:
-    setting = db.get(SystemSetting, _SETTING_KEY)
+def _read_state(db: Session, key: str = _SETTING_KEY) -> dict:
+    setting = db.get(SystemSetting, key)
     if setting is None:
         return {"failed_attempts": 0, "locked_until": None}
     try:
@@ -42,10 +51,10 @@ def _read_state(db: Session) -> dict:
     return {"failed_attempts": int(failed), "locked_until": data.get("locked_until")}
 
 
-def _write_state(db: Session, state: dict, actor: str) -> None:
-    setting = db.get(SystemSetting, _SETTING_KEY)
+def _write_state(db: Session, state: dict, actor: str, key: str = _SETTING_KEY) -> None:
+    setting = db.get(SystemSetting, key)
     if setting is None:
-        setting = SystemSetting(key=_SETTING_KEY, value="", updated_by=actor)
+        setting = SystemSetting(key=key, value="", updated_by=actor)
         db.add(setting)
     setting.value = json.dumps(state)
     setting.updated_by = actor
@@ -125,3 +134,48 @@ def send_login_alert(event: str, username: str, *, failed_attempts: int | None =
             return 200 <= response.status < 300
     except Exception:
         return False
+
+
+def recovery_lockout_remaining(db: Session, *, now: datetime | None = None) -> timedelta | None:
+    """Remaining recovery lockout, or None when recovery attempts are allowed."""
+    now = now or _now()
+    raw = _read_state(db, _RECOVERY_SETTING_KEY)["locked_until"]
+    if not raw:
+        return None
+    try:
+        locked_until = datetime.fromisoformat(raw)
+    except (ValueError, TypeError):
+        return None
+    if locked_until.tzinfo is None:
+        locked_until = locked_until.replace(tzinfo=timezone.utc)
+    remaining = locked_until - now
+    return remaining if remaining.total_seconds() > 0 else None
+
+
+def record_failed_recovery(db: Session, *, actor: str = "system", now: datetime | None = None) -> bool:
+    """Count one failed recovery attempt. Returns True when the lockout engages."""
+    now = now or _now()
+    state = _read_state(db, _RECOVERY_SETTING_KEY)
+    state["failed_attempts"] += 1
+    engaged = False
+    if state["failed_attempts"] >= RECOVERY_FAILED_LIMIT:
+        state["locked_until"] = (now + RECOVERY_LOCKOUT_DURATION).isoformat()
+        engaged = True
+        db.add(AuditLog(
+            actor=actor,
+            action="recovery_lockout",
+            entity_type="admin_account",
+            entity_id="admin",
+            reason=f"{state['failed_attempts']} failed recovery attempts",
+        ))
+    _write_state(db, state, actor, _RECOVERY_SETTING_KEY)
+    db.commit()
+    return engaged
+
+
+def clear_recovery_attempts(db: Session, *, actor: str = "system") -> None:
+    """Reset the recovery failure counter after a successful recovery."""
+    state = _read_state(db, _RECOVERY_SETTING_KEY)
+    if state["failed_attempts"] or state["locked_until"]:
+        _write_state(db, {"failed_attempts": 0, "locked_until": None}, actor, _RECOVERY_SETTING_KEY)
+        db.commit()

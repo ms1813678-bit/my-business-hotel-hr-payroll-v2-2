@@ -173,6 +173,21 @@ class AuditLog(Base):
     reason: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
+class RecoveryCode(Base):
+    """One-use forgotten-password recovery code for the system administrator.
+
+    Only the Argon2 hash is stored; the readable code is shown to the owner
+    exactly once at generation. Used or regenerated codes can never recover
+    the account again."""
+
+    __tablename__ = "recovery_codes"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    admin_account_id: Mapped[int] = mapped_column(ForeignKey("admin_accounts.id"), nullable=False)
+    code_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
 @event.listens_for(AuditLog, "before_update")
 def prevent_audit_log_update(mapper, connection, target):
     raise ValueError("Audit log records are immutable.")

@@ -67,6 +67,14 @@
 </section>
 
 <section class="panel">
+  <h2>رموز استعادة مدير النظام</h2>
+  <p class="muted">لو نسيت كلمة مرورك، تستعيد الدخول من صفحة تسجيل الدخول برمز من رموز الاستعادة؛ كل رمز يعمل مرة واحدة. الرموز غير المستخدمة حاليًا: <bdi>{{ unused_recovery_codes }}</bdi>. إنشاء رموز جديدة يبطل كل الرموز السابقة.</p>
+  <form method="post" action="/settings/accounts/recovery-codes" class="inline-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input name="current_password" type="password" placeholder="كلمة مرورك أنت" required autocomplete="off">
+    <button type="submit" class="btn-soft">إنشاء رموز استعادة جديدة</button>
+  </form>
+
   <h2>إنشاء حساب جديد</h2>
   <p class="muted">يسلَّم الشخص كلمة المرور الأولية ويغيّرها بنفسه من صفحة «تغيير كلمة المرور» بعد أول دخول.</p>
   <form method="post" action="/settings/accounts" class="form-grid" style="max-width:520px">

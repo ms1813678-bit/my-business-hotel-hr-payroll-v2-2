@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>استعادة كلمة المرور — نظام الموارد البشرية</title>
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+  <main class="login-shell">
+    <form class="login-card" method="post" action="/login/recover">
+      <nav class="language-switch login-language" aria-label="اللغة"><a href="/language/ar" {% if request.state.language == 'ar' %}class="active" aria-current="true"{% endif %}>العربية</a><a href="/language/en" {% if request.state.language == 'en' %}class="active" aria-current="true"{% endif %}>الإنجليزية</a><a href="/language/zh" {% if request.state.language == 'zh' %}class="active" aria-current="true"{% endif %}>الصينية</a></nav>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <h1 style="text-align:center">استعادة كلمة المرور</h1>
+      <p class="muted">لمدير النظام فقط: أدخل اسم المستخدم وأحد رموز الاستعادة المحفوظة وكلمة مرور جديدة. كل رمز يعمل مرة واحدة.</p>
+      {% if error %}<p class="error">{{ error }}{% if lockout_minutes %} <span class="lockout-minutes">{{ lockout_minutes }}</span> <span>دقيقة.</span>{% endif %}</p>{% endif %}
+      <label>اسم المستخدم
+        <input name="username" autocomplete="username" required maxlength="80" dir="rtl">
+      </label>
+      <label>رمز الاستعادة
+        <input name="recovery_code" autocomplete="off" required maxlength="40" dir="ltr">
+      </label>
+      <label>كلمة المرور الجديدة
+        <input name="new_password" type="password" autocomplete="new-password" required minlength="12" dir="rtl">
+      </label>
+      <label>تأكيد كلمة المرور الجديدة
+        <input name="confirm_password" type="password" autocomplete="new-password" required minlength="12" dir="rtl">
+      </label>
+      <button type="submit" class="btn-primary">استعادة الدخول</button>
+      <p class="muted small" style="text-align:center"><a href="/login">العودة لتسجيل الدخول</a></p>
+    </form>
+  </main>
+</body>
+</html>

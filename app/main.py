@@ -14,7 +14,7 @@ from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, Upload
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from sqlalchemy import select, text, func, or_
+from sqlalchemy import func, or_, select, text, update
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
 from PIL import Image, ImageOps, UnidentifiedImageError
@@ -40,7 +40,11 @@ from app.dependencies import (
 from app.login_security import (
     FAILED_ATTEMPTS_LIMIT,
     LOCKOUT_MINUTES,
+    RECOVERY_LOCKOUT_MINUTES,
     clear_attempts,
+    clear_recovery_attempts,
+    record_failed_recovery,
+    recovery_lockout_remaining,
     lockout_remaining,
     record_failed_attempt,
     send_login_alert,
@@ -55,7 +59,7 @@ from app.telegram_alerts import (
     send_test_message as send_telegram_test_message,
     verify_token as verify_telegram_token,
 )
-from app.security import hash_password, verify_password
+from app.security import _MIN_PASSWORD_LENGTH, hash_password, verify_password
 from app.employee_codes import allocate_employee_code
 from app.leave_workflow import add_balance_entry, cancel_leave, confirm_leave, leave_balance
 from app.advance_workflow import approve_advance, create_advance, mark_advance_paid, reject_advance
@@ -121,7 +125,7 @@ from app.payroll_workflow import (
     review_absence_leave_conflict,
     update_payroll_item,
 )
-from app.models import AdvanceRequest, BackupRun, SystemSetting, StaffAction, PayrollRun, PayrollItem, PayrollPayment, AdminAccount, AttendanceDailyRecord, AttendanceImportBatch, AttendanceImportIssue, AttendancePunch, AttendanceMonth, AuditLog, Branch, Department, Employee, EmployeeChange, EmployeeDataChangeRequest, EmployeeServicePeriod, LeaveBalanceTransaction, LeaveRecord, LeaveType
+from app.models import AdvanceRequest, BackupRun, SystemSetting, StaffAction, PayrollRun, PayrollItem, PayrollPayment, AdminAccount, AttendanceDailyRecord, AttendanceImportBatch, AttendanceImportIssue, AttendancePunch, AttendanceMonth, AuditLog, Branch, RecoveryCode, Department, Employee, EmployeeChange, EmployeeDataChangeRequest, EmployeeServicePeriod, LeaveBalanceTransaction, LeaveRecord, LeaveType
 from app.security_roster_import import parse_security_roster_xlsx
 from app.attendance_import import parse_attendance_workbook, normalize as normalize_attendance_alias
 from app.attendance_workflow import persist_attendance_import, prepare_and_persist_monthly_reconciliation, approve_attendance_day, approve_attendance_month, add_manual_attendance, resolve_unknown_attendance_employee, summarize_attendance_month_coverage
@@ -615,7 +619,11 @@ def health():
 
 @app.get("/login", response_class=HTMLResponse)
 def login_page(request: Request):
-    context = {"error": None, "csrf_token": get_csrf_token(request)}
+    context = {
+        "error": None,
+        "recovered": request.query_params.get("recovered") == "1",
+        "csrf_token": get_csrf_token(request),
+    }
     with SessionLocal() as db:
         remaining = lockout_remaining(db)
     if remaining is not None:
@@ -3240,30 +3248,7 @@ def change_password_route(
 
 @app.get("/settings/accounts", response_class=HTMLResponse)
 def accounts_page(request: Request, admin: AdminAccount = Depends(require_system_admin)):
-    with SessionLocal() as db:
-        accounts = db.scalars(select(AdminAccount).order_by(AdminAccount.id)).all()
-        rows = [
-            {
-                "id": account.id,
-                "username": account.username,
-                "display_name": account.display_name or account.username,
-                "role": account.role,
-                "role_label": ROLE_LABELS.get(account.role, account.role),
-                "active": account.active,
-                "created_at": account.created_at,
-            }
-            for account in accounts
-        ]
-    return templates.TemplateResponse(
-        request=request,
-        name="accounts.html",
-        context={
-            "accounts": rows,
-            "csrf_token": get_csrf_token(request),
-            "error": request.query_params.get("error"),
-            "saved": request.query_params.get("saved"),
-        },
-    )
+    return _accounts_page_response(request)
 
 
 @app.post("/settings/accounts", dependencies=[Depends(csrf_protect)])
@@ -3405,6 +3390,12 @@ def _accounts_page_response(request: Request, reset_reveal: dict | None = None):
             }
             for account in accounts
         ]
+    with SessionLocal() as db:
+        unused_codes = db.scalar(
+            select(func.count())
+            .select_from(RecoveryCode)
+            .where(RecoveryCode.used_at.is_(None))
+        ) or 0
     return templates.TemplateResponse(
         request=request,
         name="accounts.html",
@@ -3414,6 +3405,7 @@ def _accounts_page_response(request: Request, reset_reveal: dict | None = None):
             "error": request.query_params.get("error"),
             "saved": request.query_params.get("saved"),
             "reset_reveal": reset_reveal,
+            "unused_recovery_codes": unused_codes,
         },
     )
 
@@ -3461,6 +3453,157 @@ def reset_account_password(
     response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
     response.headers["Pragma"] = "no-cache"
     return response
+
+
+RECOVERY_CODE_COUNT = 10
+
+
+def _generate_recovery_codes() -> list[str]:
+    """Ten readable one-use codes, four groups of four unambiguous characters."""
+    return [
+        "-".join(
+            "".join(secrets.choice(_RESET_PASSWORD_ALPHABET) for _ in range(4))
+            for _ in range(4)
+        )
+        for _ in range(RECOVERY_CODE_COUNT)
+    ]
+
+
+@app.post("/settings/accounts/recovery-codes", dependencies=[Depends(csrf_protect)])
+def generate_recovery_codes(
+    request: Request,
+    current_password: str = Form(...),
+    admin: AdminAccount = Depends(require_system_admin),
+):
+    """Regenerate the system administrator's one-use recovery codes. Requires
+    the administrator's own password; all previous codes die immediately."""
+    if not verify_password(current_password, admin.password_hash):
+        return RedirectResponse("/settings/accounts?error=auth", status_code=303)
+    codes = _generate_recovery_codes()
+    with SessionLocal.begin() as db:
+        db.query(RecoveryCode).filter(
+            RecoveryCode.admin_account_id == admin.id
+        ).delete(synchronize_session=False)
+        for code in codes:
+            db.add(RecoveryCode(admin_account_id=admin.id, code_hash=hash_password(code)))
+        db.add(AuditLog(
+            actor=admin.username,
+            action="recovery_codes_generated",
+            entity_type="admin_account",
+            entity_id=str(admin.id),
+            old_value=None,
+            new_value=f"{RECOVERY_CODE_COUNT} one-use codes",
+            reason=None,
+        ))
+    # The codes exist in readable form only in this response; it must never
+    # be cached, and the hashes alone are stored.
+    response = templates.TemplateResponse(
+        request=request,
+        name="recovery_codes.html",
+        context={"codes": codes, "csrf_token": get_csrf_token(request)},
+    )
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
+    response.headers["Pragma"] = "no-cache"
+    return response
+
+
+_RECOVERY_GENERIC_ERROR = "بيانات الاستعادة غير صحيحة."
+_RECOVERY_LOCKED_ERROR = "تم إيقاف الاستعادة مؤقتًا بعد كثرة المحاولات. حاول مرة أخرى بعد"
+
+
+def _render_recover(request: Request, error: str | None, status_code: int = 200,
+                    lockout_minutes: int | None = None):
+    with SessionLocal() as db:
+        remaining = recovery_lockout_remaining(db)
+    if remaining is not None:
+        error = _RECOVERY_LOCKED_ERROR
+        lockout_minutes = max(1, math.ceil(remaining.total_seconds() / 60))
+    return templates.TemplateResponse(
+        request=request,
+        name="recover.html",
+        context={
+            "error": error,
+            "lockout_minutes": lockout_minutes,
+            "csrf_token": get_csrf_token(request),
+        },
+        status_code=status_code,
+    )
+
+
+@app.get("/login/recover", response_class=HTMLResponse)
+def recover_page(request: Request):
+    return _render_recover(request, None)
+
+
+@app.post("/login/recover", dependencies=[Depends(csrf_protect)])
+def recover_account(
+    request: Request,
+    username: str = Form(...),
+    recovery_code: str = Form(...),
+    new_password: str = Form(...),
+    confirm_password: str = Form(...),
+):
+    """Offline forgotten-password recovery for the system administrator:
+    username + one unused recovery code + a new password. Every failure —
+    unknown user, wrong code, inactive account — returns the same generic
+    error so the flow cannot enumerate accounts or codes."""
+    with SessionLocal() as db:
+        if recovery_lockout_remaining(db) is not None:
+            return _render_recover(request, _RECOVERY_LOCKED_ERROR, status_code=429)
+
+    if new_password != confirm_password or len(new_password) < _MIN_PASSWORD_LENGTH:
+        return _render_recover(request, _RECOVERY_GENERIC_ERROR, status_code=400)
+
+    with SessionLocal() as db:
+        account = db.scalar(
+            select(AdminAccount).where(
+                AdminAccount.username == username.strip(),
+                AdminAccount.role == ROLE_SYSTEM_ADMIN,
+                AdminAccount.active == True,  # noqa: E712
+            )
+        )
+        matched_id = None
+        if account is not None:
+            unused = db.scalars(
+                select(RecoveryCode).where(
+                    RecoveryCode.admin_account_id == account.id,
+                    RecoveryCode.used_at.is_(None),
+                )
+            ).all()
+            for candidate in unused:
+                if verify_password(recovery_code.strip(), candidate.code_hash):
+                    matched_id = candidate.id
+                    break
+
+        if account is None or matched_id is None:
+            record_failed_recovery(db, actor="recovery")
+            return _render_recover(request, _RECOVERY_GENERIC_ERROR, status_code=401)
+
+        # Consume the code atomically: only the first concurrent request wins.
+        consumed = db.execute(
+            update(RecoveryCode)
+            .where(RecoveryCode.id == matched_id, RecoveryCode.used_at.is_(None))
+            .values(used_at=datetime.now(timezone.utc))
+        ).rowcount
+        if consumed != 1:
+            record_failed_recovery(db, actor="recovery")
+            return _render_recover(request, _RECOVERY_GENERIC_ERROR, status_code=401)
+
+        account.password_hash = hash_password(new_password)
+        account.session_version += 1
+        account.must_change_password = False
+        db.add(AuditLog(
+            actor=account.username,
+            action="admin_password_recovered",
+            entity_type="admin_account",
+            entity_id=str(account.id),
+            old_value=None,
+            new_value="recovered with one-use code",
+            reason=None,
+        ))
+        clear_recovery_attempts(db, actor="recovery")
+        db.commit()
+    return RedirectResponse("/login?recovered=1", status_code=303)
 
 
 AUDIT_PAGE_SIZE = 50
