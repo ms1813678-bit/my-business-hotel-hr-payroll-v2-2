@@ -16,6 +16,7 @@ from sqlalchemy import select
 
 from app.ai_assistant import ask_local_model_json, local_model_status
 from app.employee_codes import allocate_employee_code
+from app.national_id import ERROR_MESSAGE as NATIONAL_ID_ERROR, is_valid_egyptian_national_id
 from app.advance_workflow import approve_advance, create_advance, mark_advance_paid, reject_advance
 from app.db import SessionLocal
 from app.leave_workflow import add_balance_entry, cancel_leave, confirm_leave, leave_balance
@@ -227,6 +228,8 @@ def execute_plan(plan: dict[str, Any], actor: str) -> str:
             if branch_id is not None and (branch is None or not branch.active or branch.department_id != department_id):
                 raise ValueError("الفرع غير تابع للقسم.")
             national_id = str(plan.get("national_id") or "").strip() or None
+            if national_id and not is_valid_egyptian_national_id(national_id):
+                raise ValueError(NATIONAL_ID_ERROR)
             fingerprint_id = str(plan.get("fingerprint_id") or "").strip() or None
             for field, value in (("national_id", national_id), ("fingerprint_id", fingerprint_id)):
                 if value and db.scalar(select(Employee.id).where(getattr(Employee, field) == value).limit(1)):
@@ -273,6 +276,15 @@ def execute_plan(plan: dict[str, Any], actor: str) -> str:
                         new_value < 0 or (field == "daily_hours" and not (0 < new_value <= 24))
                     ):
                         raise ValueError("بيانات الراتب أو ساعات العمل غير صحيحة.")
+                    if field == "national_id":
+                        new_value = str(new_value).strip() or None
+                        if (
+                            new_value is not None
+                            and new_value != employee.national_id
+                            and (employee.nationality or "egyptian") == "egyptian"
+                            and not is_valid_egyptian_national_id(new_value)
+                        ):
+                            raise ValueError(NATIONAL_ID_ERROR)
                     old_value = getattr(employee, field)
                     if old_value != new_value:
                         setattr(employee, field, new_value)

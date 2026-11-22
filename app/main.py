@@ -47,6 +47,7 @@ from app.employee_codes import allocate_employee_code
 from app.leave_workflow import add_balance_entry, cancel_leave, confirm_leave, leave_balance
 from app.advance_workflow import approve_advance, create_advance, mark_advance_paid, reject_advance
 from app.models import AdvanceInstallment, CAIRO_TZ
+from app.national_id import ERROR_MESSAGE as NATIONAL_ID_ERROR, is_valid_egyptian_national_id
 from app.staff_actions_workflow import approve_staff_action, cancel_staff_action, create_staff_action, record_employee_acknowledgement
 from app.reports import build_hr_pdf, build_hr_workbook
 from app.report_builder import (
@@ -2914,6 +2915,8 @@ def create_employee(
         raise HTTPException(status_code=400, detail="رقم الباسبور مطلوب للموظف الأجنبي.")
     if nationality == "egyptian":
         passport_number = None
+        if national_id and not is_valid_egyptian_national_id(national_id):
+            raise HTTPException(status_code=400, detail=NATIONAL_ID_ERROR)
     if not full_name or not position:
         raise HTTPException(status_code=400, detail="اسم الموظف والمسمى الوظيفي مطلوبان.")
     with SessionLocal.begin() as db:
@@ -3007,9 +3010,19 @@ def edit_employee(
             raise HTTPException(status_code=400, detail="رقم الباسبور مطلوب للموظف الأجنبي.")
         if nationality == "egyptian":
             passport_number = None
+        normalized_national_id = national_id.strip() or None
+        # Validate only when the Egyptian ID is actually changing; stored
+        # legacy values are never revalidated.
+        if (
+            nationality == "egyptian"
+            and normalized_national_id is not None
+            and normalized_national_id != employee.national_id
+            and not is_valid_egyptian_national_id(normalized_national_id)
+        ):
+            raise HTTPException(status_code=400, detail=NATIONAL_ID_ERROR)
         normalized = {
             "full_name": full_name,
-            "national_id": national_id.strip() or None,
+            "national_id": normalized_national_id,
             "nationality": nationality,
             "passport_number": passport_number,
             "phone": phone.strip() or None,
@@ -3133,6 +3146,12 @@ def review_employee_data_change_request(
                 ).limit(1))
                 if duplicate is not None:
                     raise HTTPException(status_code=409, detail="الرقم القومي مستخدم لموظف آخر.")
+                if (
+                    employee.nationality == "egyptian"
+                    and new_value
+                    and not is_valid_egyptian_national_id(new_value)
+                ):
+                    raise HTTPException(status_code=400, detail=NATIONAL_ID_ERROR)
             setattr(employee, change_request.field_name, new_value)
             db.add(EmployeeChange(
                 employee_id=employee.id, field_name=change_request.field_name,

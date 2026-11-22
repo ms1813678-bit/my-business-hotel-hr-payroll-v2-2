@@ -618,7 +618,7 @@ def test_employee_profile_edit_records_effective_dated_history_and_audit(client)
     create_data = {
         "csrf_token": token,
         "full_name": "Profile Edit Test",
-        "national_id": "TEST-NID-1001",
+        "national_id": "29001011501101",
         "phone": "01000000000",
         "address": "Old address",
         "department_id": str(client.test_department_id),
@@ -639,7 +639,7 @@ def test_employee_profile_edit_records_effective_dated_history_and_audit(client)
     edit_data = {
         "csrf_token": token,
         "full_name": "Profile Edit Test Updated",
-        "national_id": "TEST-NID-1001",
+        "national_id": "29001011501101",
         "phone": "01111111111",
         "address": "New address",
         "department_id": str(client.test_department_id),
@@ -913,7 +913,7 @@ def test_employee_creation_audits_record_and_rejects_duplicate_identifiers(clien
     data = {
         "csrf_token": token,
         "full_name": "Unique Employee",
-        "national_id": "UNIQUE-NID-2001",
+        "national_id": "29001011502001",
         "phone": "01000000001",
         "address": "Hotel address",
         "department_id": str(client.test_department_id),
@@ -926,7 +926,7 @@ def test_employee_creation_audits_record_and_rejects_duplicate_identifiers(clien
     created = client.post("/employees", data=data, follow_redirects=False)
     assert created.status_code == 303
     with SessionLocal() as db:
-        employee = db.query(Employee).filter_by(national_id="UNIQUE-NID-2001").one()
+        employee = db.query(Employee).filter_by(national_id="29001011502001").one()
         employee_id = employee.id
         code = employee.code
         audit = db.query(AuditLog).filter_by(
@@ -939,7 +939,7 @@ def test_employee_creation_audits_record_and_rejects_duplicate_identifiers(clien
     response = client.post("/employees", data=duplicate, follow_redirects=False)
     assert response.status_code == 409
 
-    duplicate_fp = dict(data, full_name="Duplicate Fingerprint", national_id="UNIQUE-NID-2002")
+    duplicate_fp = dict(data, full_name="Duplicate Fingerprint", national_id="29001011502002")
     response = client.post("/employees", data=duplicate_fp, follow_redirects=False)
     assert response.status_code == 409
 
@@ -1196,6 +1196,134 @@ def test_employee_photo_exif_orientation_is_applied(client, monkeypatch, tmp_pat
     with Image.open(stored) as saved:
         assert saved.size == (100, 200)  # pixels physically rotated
         assert not saved.getexif() or saved.getexif().get(0x0112) in (None, 1)
+
+
+def _employee_form(token, **overrides):
+    data = {
+        "csrf_token": token,
+        "full_name": "ID Test Employee",
+        "national_id": "",
+        "nationality": "egyptian",
+        "passport_number": "",
+        "phone": "",
+        "address": "",
+        "department_id": "1",
+        "branch_id": "",
+        "position": "Test Position",
+        "hire_date": "2025-01-01",
+        "probation_start_date": "",
+        "probation_end_date": "",
+        "basic_salary": "1000",
+        "daily_hours": "8",
+        "fingerprint_id": "",
+    }
+    data.update(overrides)
+    return data
+
+
+def test_national_id_structure_validation_rules():
+    from app.national_id import is_valid_egyptian_national_id as valid
+
+    assert valid("29001011501234")  # 1990-01-01, Kafr El Sheikh (15)
+    assert valid("30101010123456")  # 2001-01-01, Cairo (01)
+    assert valid("28802298801234")  # 1988-02-29 leap day, Luxor (29)
+    assert valid("30005018801234")  # born-abroad code 88
+    assert not valid("2900101150123")   # too short
+    assert not valid("2900101150123a")  # non-digit
+    assert not valid("49001011501234")  # century digit must be 2 or 3
+    assert not valid("29013011501234")  # month 13
+    assert not valid("29002301501234")  # Feb 30 is not a real date
+    assert not valid("29001010501234")  # governorate 05 is unassigned
+    assert not valid("29001019901234")  # governorate 99 unknown
+
+
+def test_employee_national_id_enforced_on_create_and_edit(client):
+    import app.main as main_module
+
+    assert login(client).status_code == 303
+    token = csrf_from(client.get("/employees"))
+
+    # Empty stays allowed (field optional).
+    created = client.post("/employees", data=_employee_form(token), follow_redirects=False)
+    assert created.status_code == 303
+
+    # Structurally valid value accepted.
+    ok = client.post("/employees", data=_employee_form(token, full_name="Valid ID", national_id="29001011501234"), follow_redirects=False)
+    assert ok.status_code == 303
+
+    # Malformed value blocked.
+    bad = client.post("/employees", data=_employee_form(token, full_name="Bad ID", national_id="12345"), follow_redirects=False)
+    assert bad.status_code == 400
+    assert "الرقم القومي" in bad.text
+
+    # Foreign employees are validated by passport, not the Egyptian format.
+    foreign = client.post("/employees", data=_employee_form(token, full_name="Foreign Worker", nationality="foreign", passport_number="A123456", national_id="X-1234"), follow_redirects=False)
+    assert foreign.status_code == 303
+
+    # Legacy stored value is never revalidated: give an employee a malformed
+    # stored ID directly, then edit an unrelated field.
+    with main_module.SessionLocal.begin() as db:
+        legacy = Employee(
+            code="LEG-1", full_name="Legacy ID Employee",
+            department_id=client.test_department_id, position="Test Position",
+            hire_date=date(2025, 1, 1), basic_salary=1000, daily_hours=8,
+            national_id="12345",
+        )
+        db.add(legacy)
+        db.flush()
+        legacy_id = legacy.id
+    token = csrf_from(client.get("/employees"))
+    edit_data = _employee_form(token, full_name="Legacy ID Employee", national_id="12345", effective_date="2025-06-01", reason="phone update")
+    edit_data["phone"] = "01099999999"
+    keep = client.post(f"/employees/{legacy_id}/edit", data=edit_data, follow_redirects=False)
+    assert keep.status_code == 303
+
+    # Changing the stored ID to a malformed value is blocked.
+    edit_data["national_id"] = "99999999999999"
+    block = client.post(f"/employees/{legacy_id}/edit", data=edit_data, follow_redirects=False)
+    assert block.status_code == 400
+
+    # Changing it to a valid value passes.
+    edit_data["national_id"] = "30101010123456"
+    fix = client.post(f"/employees/{legacy_id}/edit", data=edit_data, follow_redirects=False)
+    assert fix.status_code == 303
+
+
+def test_data_change_request_national_id_validated_on_apply(client):
+    import app.main as main_module
+    from app.models import EmployeeDataChangeRequest
+
+    assert login(client).status_code == 303
+    _add_employee(client, "EMP-301", "Request Employee")
+    with main_module.SessionLocal.begin() as db:
+        emp = db.query(Employee).filter_by(code="EMP-301").one()
+        db.add(EmployeeDataChangeRequest(employee_id=emp.id, field_name="national_id", requested_value="111", request_reason="fix"))
+        db.flush()
+        bad_request_id = db.query(EmployeeDataChangeRequest).filter_by(employee_id=emp.id).one().id
+    token = csrf_from(client.get("/employees"))
+    blocked = client.post(
+        f"/employee-data-change-requests/{bad_request_id}/review",
+        data={"csrf_token": token, "decision": "apply", "decision_reason": "ok", "effective_date": "2025-06-01"},
+        follow_redirects=False,
+    )
+    assert blocked.status_code == 400
+    assert "الرقم القومي" in blocked.text
+    with main_module.SessionLocal() as db:
+        assert db.query(Employee).filter_by(code="EMP-301").one().national_id is None
+
+    with main_module.SessionLocal.begin() as db:
+        emp = db.query(Employee).filter_by(code="EMP-301").one()
+        db.add(EmployeeDataChangeRequest(employee_id=emp.id, field_name="national_id", requested_value="29001011501234", request_reason="fix"))
+        db.flush()
+        good_request_id = db.query(EmployeeDataChangeRequest).filter_by(employee_id=emp.id, status="pending").order_by(EmployeeDataChangeRequest.id.desc()).first().id
+    applied = client.post(
+        f"/employee-data-change-requests/{good_request_id}/review",
+        data={"csrf_token": token, "decision": "apply", "decision_reason": "ok", "effective_date": "2025-06-01"},
+        follow_redirects=False,
+    )
+    assert applied.status_code == 303
+    with main_module.SessionLocal() as db:
+        assert db.query(Employee).filter_by(code="EMP-301").one().national_id == "29001011501234"
 
 
 def test_security_roster_upload_preview_and_explicit_day_approval(client, monkeypatch, tmp_path):
