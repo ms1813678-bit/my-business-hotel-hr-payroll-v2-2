@@ -97,6 +97,7 @@ ACTION_LABELS = {
     "account_activated": "إعادة تفعيل حساب دخول",
     "account_created": "إنشاء حساب دخول",
     "account_deactivated": "تعطيل حساب دخول",
+    "account_password_reset": "إعادة تعيين كلمة مرور حساب دخول",
     "payroll_run_approved": "اعتماد مسير رواتب",
     "payroll_run_closed": "إغلاق مسير رواتب",
     "payroll_run_created": "إنشاء مسير رواتب",

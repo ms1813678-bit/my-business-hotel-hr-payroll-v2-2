@@ -22,6 +22,14 @@
   {% if saved == "deactivated" %}<p class="success-note">تم تعطيل الحساب وإغلاق جلساته وتسجيل الإجراء.</p>{% endif %}
   {% if saved == "activated" %}<p class="success-note">تمت إعادة تفعيل الحساب وتسجيل الإجراء.</p>{% endif %}
 
+  {% if reset_reveal %}
+  <section class="alert-panel">
+    <h2><span>كلمة مرور جديدة لحساب</span> <bdi>{{ reset_reveal.name }}</bdi></h2>
+    <p>تظهر هذه الكلمة مرة واحدة فقط ولا تُحفظ مقروءة. سلّمها لصاحب الحساب، وسيغيّرها بنفسه من صفحة «تغيير كلمة المرور» بعد أول دخول.</p>
+    <p style="font-size:1.3em"><bdi><code>{{ reset_reveal.password }}</code></bdi></p>
+  </section>
+  {% endif %}
+
   <h2>الحسابات الحالية</h2>
   <div class="table-scroll">
     <table class="data-table">
@@ -43,6 +51,11 @@
               <button type="submit" class="{{ 'btn-danger' if account.active else 'btn-primary' }}">{{ "تعطيل" if account.active else "إعادة تفعيل" }}</button>
             </form>
             {% endif %}
+            <form method="post" action="/settings/accounts/{{ account.id }}/reset-password" class="inline-form">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <input name="reason" type="text" placeholder="سبب الإجراء" required maxlength="200" style="max-width:180px">
+              <button type="submit" class="btn-soft">إعادة تعيين كلمة المرور</button>
+            </form>
           </td>
         </tr>
         {% endfor %}

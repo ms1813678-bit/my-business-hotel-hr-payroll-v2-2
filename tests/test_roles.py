@@ -346,3 +346,117 @@ def test_account_audit_actions_have_display_labels():
     from app.audit_display import ACTION_LABELS
     for action in ("account_created", "account_deactivated", "account_activated"):
         assert ACTION_LABELS.get(action, action) != action
+
+
+def reset_account(client, account_id, reason="إعادة تعيين تجريبية"):
+    page = client.get("/settings/accounts")
+    return client.post(
+        f"/settings/accounts/{account_id}/reset-password",
+        data={"csrf_token": csrf(page), "reason": reason},
+    )
+
+
+def test_admin_reset_issues_one_time_password_and_closes_old_sessions(three_clients):
+    admin, finance, _ = three_clients
+    assert finance.get("/payroll").status_code == 200, "finance session works before reset"
+
+    with admin.test_session_factory() as db:
+        target = db.scalar(select(AdminAccount).where(AdminAccount.username == "finance-user"))
+        target_id = target.id
+    response = reset_account(admin, target_id)
+    assert response.status_code == 200, response.text
+    match = re.search(r"<code>([^<]+)</code>", response.text)
+    assert match, "the one-time password is revealed once in the response"
+    new_password = match.group(1)
+    assert len(new_password.replace("-", "")) >= 12
+
+    with admin.test_session_factory() as db:
+        account = db.scalar(select(AdminAccount).where(AdminAccount.id == target_id))
+        assert account.password_hash != new_password, "stored only as a hash"
+        audit = db.scalar(select(AuditLog).where(
+            AuditLog.action == "account_password_reset").order_by(AuditLog.id.desc()))
+        assert audit is not None and audit.actor == "guard-admin"
+        assert audit.reason == "إعادة تعيين تجريبية"
+        assert new_password not in (audit.new_value or "")
+
+    assert finance.get("/payroll", follow_redirects=False).status_code in (303, 401), \
+        "the old session is closed immediately"
+    login(finance, "finance-user", new_password)
+    page = finance.get("/settings/password")
+    changed = finance.post(
+        "/settings/password",
+        data={
+            "csrf_token": csrf(page),
+            "current_password": new_password,
+            "new_password": "Finance-Own-Password-456!",
+            "confirm_password": "Finance-Own-Password-456!",
+        },
+    )
+    assert changed.status_code == 200, changed.text
+    assert finance.get("/payroll").status_code == 200, \
+        "the one-time password works, and work resumes after the forced change"
+
+
+def test_account_password_reset_needs_reason_and_admin(three_clients):
+    admin, finance, assistant = three_clients
+    with admin.test_session_factory() as db:
+        target_id = db.scalar(
+            select(AdminAccount.id).where(AdminAccount.username == "finance-user"))
+
+    page = admin.get("/settings/accounts")
+    missing = admin.post(
+        f"/settings/accounts/{target_id}/reset-password",
+        data={"csrf_token": csrf(page), "reason": "   "},
+        follow_redirects=False,
+    )
+    assert missing.status_code == 303
+    assert missing.headers["location"] == "/settings/accounts?error=missing"
+
+    forbidden = assistant.post(
+        f"/settings/accounts/{target_id}/reset-password",
+        data={"csrf_token": csrf(assistant.get("/settings/password")), "reason": "محاولة"},
+        follow_redirects=False,
+    )
+    assert forbidden.status_code == 403, "non-admin cannot reset passwords even with valid CSRF"
+
+
+def test_reset_password_must_be_changed_before_anything_else(three_clients):
+    admin, finance, _ = three_clients
+    with admin.test_session_factory() as db:
+        target_id = db.scalar(
+            select(AdminAccount.id).where(AdminAccount.username == "finance-user"))
+    response = reset_account(admin, target_id)
+    new_password = re.search(r"<code>([^<]+)</code>", response.text).group(1)
+
+    with admin.test_session_factory() as db:
+        assert db.get(AdminAccount, target_id).must_change_password is True
+
+    login_page = finance.get("/login")
+    landing = finance.post(
+        "/login",
+        data={"username": "finance-user", "password": new_password,
+              "csrf_token": csrf(login_page)},
+        follow_redirects=False,
+    )
+    assert landing.status_code == 303
+    assert landing.headers["location"] == "/settings/password?forced=1"
+
+    blocked = finance.get("/payroll", headers={"accept": "text/html"}, follow_redirects=False)
+    assert blocked.status_code == 303
+    assert blocked.headers["location"] == "/settings/password?forced=1"
+
+    page = finance.get("/settings/password")
+    assert page.status_code == 200, "the password page itself stays reachable"
+    changed = finance.post(
+        "/settings/password",
+        data={
+            "csrf_token": csrf(page),
+            "current_password": new_password,
+            "new_password": "Finance-Own-New-Password-99!",
+            "confirm_password": "Finance-Own-New-Password-99!",
+        },
+    )
+    assert changed.status_code == 200, changed.text
+    with admin.test_session_factory() as db:
+        assert db.get(AdminAccount, target_id).must_change_password is False
+    assert finance.get("/payroll").status_code == 200, "normal work resumes after the change"

@@ -49,6 +49,23 @@ def get_current_admin(
             headers={"WWW-Authenticate": "Session"},
         )
 
+    # An account holding a one-time reset password may only open the
+    # password page (and logout) until it sets a personal password.
+    if getattr(admin, "must_change_password", False):
+        path = request.url.path
+        allowed = path in ("/settings/password", "/logout") or path.startswith(("/static/", "/i18n/"))
+        if not allowed:
+            if "text/html" in request.headers.get("accept", ""):
+                raise HTTPException(
+                    status_code=status.HTTP_303_SEE_OTHER,
+                    detail="forced-password-change",
+                    headers={"Location": "/settings/password?forced=1"},
+                )
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="يجب تغيير كلمة المرور المؤقتة قبل المتابعة.",
+            )
+
     # Expose identity to templates without threading it through every context.
     request.state.admin_role = admin.role
     request.state.admin_name = admin.display_name or admin.username

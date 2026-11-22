@@ -3532,3 +3532,25 @@ ZH.update({
 "إنشاء حساب دخول": "创建登录账户",
 "تعطيل حساب دخول": "停用登录账户",
 })
+
+# Account password reset (per-account, by the system administrator)
+EN.update({
+"كلمة مرور جديدة لحساب": "New password for the account",
+"تظهر هذه الكلمة مرة واحدة فقط ولا تُحفظ مقروءة. سلّمها لصاحب الحساب، وسيغيّرها بنفسه من صفحة «تغيير كلمة المرور» بعد أول دخول.": "This password is shown once only and is never stored readable. Hand it to the account owner; they change it themselves from the \"Change password\" page after first login.",
+"إعادة تعيين كلمة المرور": "Reset password",
+"إعادة تعيين كلمة مرور حساب دخول": "Login account password reset",
+})
+ZH.update({
+"كلمة مرور جديدة لحساب": "账户的新密码",
+"تظهر هذه الكلمة مرة واحدة فقط ولا تُحفظ مقروءة. سلّمها لصاحب الحساب، وسيغيّرها بنفسه من صفحة «تغيير كلمة المرور» بعد أول دخول.": "此密码仅显示一次，不会以可读形式保存。请将其告知账户本人；首次登录后由本人在“修改密码”页面自行更改。",
+"إعادة تعيين كلمة المرور": "重置密码",
+"إعادة تعيين كلمة مرور حساب دخول": "登录账户密码重置",
+})
+
+# Forced password change after a reset
+EN.update({
+"مدير النظام أعاد تعيين كلمة مرورك. غيّرها الآن بكلمة خاصة بك قبل متابعة العمل.": "The system administrator reset your password. Change it now to a password of your own before continuing.",
+})
+ZH.update({
+"مدير النظام أعاد تعيين كلمة مرورك. غيّرها الآن بكلمة خاصة بك قبل متابعة العمل.": "系统管理员已重置您的密码。请先设置您自己的新密码，然后再继续操作。",
+})

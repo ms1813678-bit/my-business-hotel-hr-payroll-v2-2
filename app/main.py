@@ -677,7 +677,10 @@ def login(request: Request, username: str = Form(...), password: str = Form(...)
         get_csrf_token(request)
     send_login_alert("login_success", admin.username)
     send_telegram_login_event("login_success", admin.username, app_name=settings.app_name)
-    destination = "/attendance/import" if admin.role == ROLE_ASSISTANT else "/"
+    if admin.must_change_password:
+        destination = "/settings/password?forced=1"
+    else:
+        destination = "/attendance/import" if admin.role == ROLE_ASSISTANT else "/"
     return RedirectResponse(destination, status_code=303)
 
 
@@ -3090,7 +3093,13 @@ def password_page(request: Request, admin: AdminAccount = Depends(get_current_ad
     return templates.TemplateResponse(
         request=request,
         name="password.html",
-        context={"error": None, "success": False, "csrf_token": get_csrf_token(request), **_telegram_context(request)},
+        context={
+            "error": None,
+            "success": False,
+            "forced": request.query_params.get("forced") == "1" or admin.must_change_password,
+            "csrf_token": get_csrf_token(request),
+            **_telegram_context(request),
+        },
     )
 
 
@@ -3192,7 +3201,12 @@ def change_password_route(
         return templates.TemplateResponse(
             request=request,
             name="password.html",
-            context={"error": error, "success": success, "csrf_token": get_csrf_token(request)},
+            context={
+                "error": error,
+                "success": success,
+                "forced": admin.must_change_password and not success,
+                "csrf_token": get_csrf_token(request),
+            },
             status_code=status_code,
         )
 
@@ -3208,6 +3222,7 @@ def change_password_route(
             change_admin_password(db, db_admin, new_password)
         except ValueError:
             return render("too_short", status_code=400)
+        db_admin.must_change_password = False
         db.add(AuditLog(
             actor=admin.username,
             action="admin_password_changed",
@@ -3359,6 +3374,80 @@ def activate_account(
             reason=reason,
         ))
     return RedirectResponse("/settings/accounts?saved=activated", status_code=303)
+
+
+_RESET_PASSWORD_ALPHABET = "abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789"
+
+
+def _generate_temporary_password() -> str:
+    """Readable one-time password, three groups of five unambiguous characters."""
+    return "-".join(
+        "".join(secrets.choice(_RESET_PASSWORD_ALPHABET) for _ in range(5))
+        for _ in range(3)
+    )
+
+
+def _accounts_page_response(request: Request, reset_reveal: dict | None = None):
+    with SessionLocal() as db:
+        accounts = db.scalars(select(AdminAccount).order_by(AdminAccount.id)).all()
+        rows = [
+            {
+                "id": account.id,
+                "username": account.username,
+                "display_name": account.display_name or account.username,
+                "role": account.role,
+                "role_label": ROLE_LABELS.get(account.role, account.role),
+                "active": account.active,
+                "created_at": account.created_at,
+            }
+            for account in accounts
+        ]
+    return templates.TemplateResponse(
+        request=request,
+        name="accounts.html",
+        context={
+            "accounts": rows,
+            "csrf_token": get_csrf_token(request),
+            "error": request.query_params.get("error"),
+            "saved": request.query_params.get("saved"),
+            "reset_reveal": reset_reveal,
+        },
+    )
+
+
+@app.post("/settings/accounts/{account_id}/reset-password", dependencies=[Depends(csrf_protect)])
+def reset_account_password(
+    request: Request,
+    account_id: int,
+    reason: str = Form(...),
+    admin: AdminAccount = Depends(require_system_admin),
+):
+    """The system administrator issues a new one-time password for one account;
+    it is shown once, never stored readable, and old sessions are closed."""
+    reason = reason.strip()
+    if not reason:
+        return RedirectResponse("/settings/accounts?error=missing", status_code=303)
+    temporary_password = _generate_temporary_password()
+    with SessionLocal.begin() as db:
+        target = db.get(AdminAccount, account_id)
+        if target is None:
+            return RedirectResponse("/settings/accounts?error=exists", status_code=303)
+        target.password_hash = hash_password(temporary_password)
+        target.session_version += 1
+        target.must_change_password = True
+        db.add(AuditLog(
+            actor=admin.username,
+            action="account_password_reset",
+            entity_type="admin_account",
+            entity_id=str(target.id),
+            old_value=None,
+            new_value=f"{target.display_name or target.username}",
+            reason=reason,
+        ))
+        reveal = {"name": target.display_name or target.username, "password": temporary_password}
+    # Rendered directly (never through a redirect) so the one-time password
+    # does not appear in URLs, browser history or server logs.
+    return _accounts_page_response(request, reset_reveal=reveal)
 
 
 AUDIT_PAGE_SIZE = 50

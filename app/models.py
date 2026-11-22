@@ -211,6 +211,7 @@ class AdminAccount(Base):
     active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true", nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     session_version: Mapped[int] = mapped_column(Integer, default=0, server_default="0", nullable=False)
+    must_change_password: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)
 
 
 @event.listens_for(AdminAccount, "before_delete")
