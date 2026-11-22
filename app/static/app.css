@@ -705,6 +705,7 @@ html[dir="ltr"] textarea {
   /* Never clip report columns on paper: landscape page, table takes the full width. */
   body.report-print { page: report-landscape; }
   body.report-print .split { grid-template-columns: minmax(0, 1fr); }
+  body.report-print .report-details-card { break-inside: auto; }
   body.report-print .table-wrap { overflow: visible !important; border: none; }
   body.report-print .report-table { width: 100% !important; font-size: 9.5px; }
   body.report-print .report-table thead th, body.report-print .report-table tbody td {
