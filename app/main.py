@@ -2974,7 +2974,7 @@ def reports_page(
             ],
             "report_type_labels": REPORT_TYPE_LABELS,
             "monthly_option_labels": MONTHLY_OPTION_LABELS,
-            "monthly_allowed_options": sorted(monthly_options_for_types(_REPORT_TYPES_BY_ROLE.get(admin.role))),
+            "monthly_allowed_options": sorted(monthly_options_for_types(_monthly_allowed_types(admin))),
             "csrf_token": get_csrf_token(request),
             "error": params.get("error"),
             "saved": params.get("saved"),
@@ -3179,6 +3179,12 @@ def export_hr_reports_pdf(
         headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(filename)}"},
     )
 
+def _monthly_allowed_types(admin: AdminAccount) -> set[str] | None:
+    if admin.role == ROLE_ASSISTANT:
+        return {REPORT_TYPE_ATTENDANCE, REPORT_TYPE_LEAVE}
+    return _REPORT_TYPES_BY_ROLE.get(admin.role)
+
+
 @app.get("/reports/monthly.pdf")
 def reports_monthly_pdf(
     request: Request,
@@ -3200,7 +3206,7 @@ def reports_monthly_pdf(
     requested = set(opt)
     if not requested or requested - MONTHLY_ALL_OPTIONS:
         raise HTTPException(status_code=400, detail="خيارات التقرير الشهري غير صالحة.")
-    allowed_types = _REPORT_TYPES_BY_ROLE.get(admin.role)
+    allowed_types = _monthly_allowed_types(admin)
     allowed_options = monthly_options_for_types(allowed_types)
     options = requested & allowed_options
     data_options = options - {10, 11}
@@ -3789,6 +3795,7 @@ def _render_recover(request: Request, error: str | None, status_code: int = 200,
                     lockout_minutes: int | None = None):
     with SessionLocal() as db:
         remaining = recovery_lockout_remaining(db)
+        backup_passphrase_required = _post_restore_passphrase_armed(db)
     if remaining is not None:
         error = _RECOVERY_LOCKED_ERROR
         lockout_minutes = max(1, math.ceil(remaining.total_seconds() / 60))
@@ -3798,6 +3805,7 @@ def _render_recover(request: Request, error: str | None, status_code: int = 200,
         context={
             "error": error,
             "lockout_minutes": lockout_minutes,
+            "backup_passphrase_required": backup_passphrase_required,
             "csrf_token": get_csrf_token(request),
         },
         status_code=status_code,
@@ -3816,6 +3824,7 @@ def recover_account(
     recovery_code: str = Form(...),
     new_password: str = Form(...),
     confirm_password: str = Form(...),
+    backup_passphrase: str = Form(""),
 ):
     """Offline forgotten-password recovery for the system administrator:
     username + one unused recovery code + a new password. Every failure —
@@ -3829,6 +3838,17 @@ def recover_account(
         return _render_recover(request, _RECOVERY_GENERIC_ERROR, status_code=400)
 
     with SessionLocal() as db:
+        passphrase_armed = _post_restore_passphrase_armed(db)
+        if passphrase_armed:
+            # Guesses share the sensitive-action throttle, as on the login gate.
+            if reauth_lockout_remaining(db) is not None:
+                return _render_recover(request, "أُوقفت هذه العملية مؤقتًا بعد كثرة المحاولات. حاول لاحقًا.", status_code=429)
+            from app.backup_crypto import unwrap_data_key_for_restore
+            try:
+                unwrap_data_key_for_restore(db, backup_passphrase)
+            except Exception:
+                record_failed_reauth(db, actor="post_restore_recover")
+                return _render_recover(request, "كلمة مرور النسخ الاحتياطية غير صحيحة.", status_code=401)
         account = db.scalar(
             select(AdminAccount).where(
                 AdminAccount.username == username.strip(),
@@ -3895,6 +3915,16 @@ def recover_account(
         account.session_version += 1
         account.must_change_password = False
         db.execute(delete(AdminSession).where(AdminSession.admin_account_id == account.id))
+        if passphrase_armed:
+            clear_reauth_attempts(db, actor="post_restore_recover")
+            db.merge(SystemSetting(key="post_restore_passphrase_required", value="", updated_by=account.username))
+            db.add(AuditLog(
+                actor=account.username,
+                action="post_restore_passphrase_verified",
+                entity_type="admin_account",
+                entity_id=account.username,
+                reason="Backup passphrase presented during post-restore account recovery.",
+            ))
         db.add(AuditLog(
             actor=account.username,
             action="admin_password_recovered",

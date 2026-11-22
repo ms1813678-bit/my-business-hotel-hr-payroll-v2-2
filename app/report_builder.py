@@ -1411,11 +1411,17 @@ def _monthly_chart_drawing(series: list[tuple[str, float]], bar_color_hex: str):
     bar_w = min(48, slot * 0.6)
     for index, (label, value) in enumerate(series):
         x = width - (index + 1) * slot + (slot - bar_w) / 2  # RTL: newest left
-        bar_h = max(1.0, (value / maximum) * chart_h)
+        bar_h = (value / maximum) * chart_h if value > 0 else 0.0
         drawing.add(Rect(x, base_y, bar_w, bar_h, fillColor=_colors.HexColor(bar_color_hex), strokeColor=None))
         drawing.add(String(x + bar_w / 2, base_y - 12, label, fontName="Helvetica", fontSize=8, textAnchor="middle"))
         drawing.add(String(x + bar_w / 2, base_y + bar_h + 4, ("%0.0f" % value), fontName="Helvetica", fontSize=7, textAnchor="middle"))
     return drawing
+
+
+def _flatten_groups(groups: list[dict]) -> list[dict]:
+    """Grouping modifier off: merge department groups into one 'الكل' table."""
+    merged_rows = [row for group in groups for row in group["rows"]]
+    return [{"department": "الكل", "rows": merged_rows}] if merged_rows else []
 
 
 def build_monthly_pdf(db: Session, month_start: date, options: set[int], language: str = "ar") -> bytes:
@@ -1497,10 +1503,7 @@ def build_monthly_pdf(db: Session, month_start: date, options: set[int], languag
         story.append(Paragraph(cell_(L(result.title)), section_style))
         story.append(Paragraph(cell_(f"{L(result.period_label)} · {L(result.scope_label)} · {L(result.status_label)} · {result.employee_count} {L('موظف')}"), meta_style))
         story.append(Spacer(1, 2 * mm))
-        groups = result.groups
-        if not grouped:
-            merged_rows = [row for group in groups for row in group["rows"]]
-            groups = [{"department": "الكل", "rows": merged_rows}] if merged_rows else []
+        groups = result.groups if grouped else _flatten_groups(result.groups)
         column_count = max(1, len(result.columns))
         table_rows = [[Paragraph(cell_(L(label)), header_style) for _, label, _ in result.columns]]
         for group in groups:

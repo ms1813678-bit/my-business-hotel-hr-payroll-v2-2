@@ -103,7 +103,7 @@ ACTION_LABELS = {
     "recovery_lockout": "إيقاف الاستعادة مؤقتًا بعد كثرة المحاولات",
     "session_ended": "إنهاء جلسة دخول",
     "restore_credentials_carried_over": "الاحتفاظ ببيانات الاعتماد الحالية بعد الاسترجاع",
-    "post_restore_passphrase_verified": "تأكيد هوية المالك بعد الاسترجاع",
+    "post_restore_passphrase_verified": "التحقق من كلمة مرور النسخ الاحتياطية بعد الاسترجاع",
     "reauth_lockout": "إيقاف إثبات الهوية مؤقتًا بعد كثرة المحاولات",
     "payroll_run_approved": "اعتماد مسير رواتب",
     "payroll_run_closed": "إغلاق مسير رواتب",

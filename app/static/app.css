@@ -898,3 +898,4 @@ a.metric-card .metric-link { color: var(--brand, #b8860b); font-size: 12px; font
 .mini-bar-fill.attendance { background: linear-gradient(180deg, #1f6f8b, #14495c); }
 .mini-bar-label { margin-top: 6px; font-size: 11px; color: var(--text-muted); }
 @media (max-width: 900px) { .chart-grid { grid-template-columns: minmax(0, 1fr); } }
+.mini-bar-value { font-size: 10px; font-weight: 700; color: var(--text-muted); margin-bottom: 2px; }

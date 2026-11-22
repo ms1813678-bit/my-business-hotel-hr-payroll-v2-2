@@ -67,7 +67,8 @@
       <div class="mini-chart" role="img" aria-label="إجمالي صافي الرواتب المعتمدة خلال آخر ستة أشهر">
         {% for c in charts.payroll %}
         <div class="mini-bar" title="{{ c.label }}: {{ '%0.0f'|format(c.value) }}">
-          <span class="mini-bar-fill" style="height: {{ (c.value / charts.payroll_max * 100)|round(1) }}%"></span>
+          <span class="mini-bar-value">{{ '%0.0f'|format(c.value) }}</span>
+          <span class="mini-bar-fill" style="height: {% if c.value > 0 %}{{ [2, (c.value / charts.payroll_max * 100)|round(1)]|max }}%{% else %}0{% endif %}"></span>
           <span class="mini-bar-label">{{ c.label[5:] }}</span>
         </div>
         {% endfor %}
@@ -78,7 +79,8 @@
       <div class="mini-chart" role="img" aria-label="أيام الحضور المعتمدة خلال آخر ستة أشهر">
         {% for c in charts.attendance %}
         <div class="mini-bar" title="{{ c.label }}: {{ c.value }}">
-          <span class="mini-bar-fill attendance" style="height: {{ (c.value / charts.attendance_max * 100)|round(1) }}%"></span>
+          <span class="mini-bar-value">{{ c.value }}</span>
+          <span class="mini-bar-fill attendance" style="height: {% if c.value > 0 %}{{ [2, (c.value / charts.attendance_max * 100)|round(1)]|max }}%{% else %}0{% endif %}"></span>
           <span class="mini-bar-label">{{ c.label[5:] }}</span>
         </div>
         {% endfor %}

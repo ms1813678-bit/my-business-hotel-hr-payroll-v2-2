@@ -20,6 +20,12 @@
       <label>رمز الاستعادة
         <input name="recovery_code" autocomplete="off" required maxlength="40" dir="ltr">
       </label>
+      {% if backup_passphrase_required %}
+      <div class="alert-panel"><p>تم استرجاع نسخة احتياطية. لتأكيد هويتك، أدخل كلمة مرور النسخ الاحتياطية مع بيانات الاستعادة في أول استخدام بعد الاسترجاع.</p></div>
+      <label>كلمة مرور النسخ الاحتياطية
+        <input name="backup_passphrase" type="password" required autocomplete="off">
+      </label>
+      {% endif %}
       <label>كلمة المرور الجديدة
         <input name="new_password" type="password" autocomplete="new-password" required minlength="12" dir="rtl">
       </label>
