@@ -63,3 +63,42 @@ def test_cairo_boundary_comparisons_are_session_independent():
 def test_cairo_offsets_winter_and_summer():
     assert datetime(2026, 1, 15, tzinfo=CAIRO_TZ).utcoffset().total_seconds() == 2 * 3600
     assert datetime(2026, 7, 15, tzinfo=CAIRO_TZ).utcoffset().total_seconds() == 3 * 3600
+
+
+def test_local_elapsed_minutes_dst_transition_nights():
+    """Overnight worked hours reflect actual elapsed time across DST changes.
+
+    Transition instants from zoneinfo (not recall): Africa/Cairo springs
+    forward 2026-04-24 00:00 (+02 to +03, local hour 00:00-01:00 skipped) and
+    falls back 2026-10-29 24:00 (+03 to +02, local hour 23:00-24:00 repeated).
+    """
+    from app.time_semantics import local_elapsed_minutes
+
+    # Spring night: wall clock shows 12h, real elapsed is 11h.
+    assert local_elapsed_minutes(datetime(2026, 4, 23, 20, 0), datetime(2026, 4, 24, 8, 0)) == 660
+    # Fall night: wall clock shows 12h, real elapsed is 13h.
+    assert local_elapsed_minutes(datetime(2026, 10, 29, 20, 0), datetime(2026, 10, 30, 8, 0)) == 780
+    # Ordinary night: identical to wall clock.
+    assert local_elapsed_minutes(datetime(2026, 3, 10, 20, 0), datetime(2026, 3, 11, 8, 0)) == 720
+
+
+def test_local_elapsed_minutes_unmappable_endpoints_fall_back_to_wall_clock():
+    """Ambiguous/nonexistent stored times must not be silently remapped."""
+    from app.time_semantics import local_elapsed_minutes
+
+    # Endpoint inside the skipped spring hour (00:30 on 2026-04-24 does not
+    # exist): keep the plain wall-clock difference instead of inventing one.
+    assert local_elapsed_minutes(datetime(2026, 4, 23, 22, 0), datetime(2026, 4, 24, 0, 30)) == 150
+    # Endpoint inside the repeated fall hour (23:30 on 2026-10-29 occurs
+    # twice): the naive value cannot say which occurrence was intended.
+    assert local_elapsed_minutes(datetime(2026, 10, 29, 20, 0), datetime(2026, 10, 29, 23, 30)) == 210
+
+
+def test_local_elapsed_minutes_aware_is_instant_based():
+    """Aware inputs convert to UTC explicitly: same-zone subtraction of aware
+    datetimes would otherwise ignore the offset change and return wall time."""
+    from app.time_semantics import local_elapsed_minutes
+
+    start = datetime(2026, 4, 23, 20, 0, tzinfo=CAIRO_TZ)
+    end = datetime(2026, 4, 24, 8, 0, tzinfo=CAIRO_TZ)
+    assert local_elapsed_minutes(start, end) == 660

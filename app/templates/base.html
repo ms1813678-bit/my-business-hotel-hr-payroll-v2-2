@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}نظام الموارد البشرية — M.Y. BUSINESS HOTEL{% endblock %}</title>
+  <link rel="stylesheet" href="/static/vendor/flatpickr.min.css">
   <link rel="stylesheet" href="/static/app.css">
   {% block head %}{% endblock %}
 </head>
@@ -57,5 +58,9 @@
       <footer>{% block footer %}<span class="dev-credit"><img class="dev-credit-logo" src="/static/hony-logo.svg" alt="HOnY">{% if request.url.path == '/' or request.url.path.startswith(('/ai', '/employees', '/leave', '/advances', '/reports')) %}Developed by Abu Younes · 2026{% else %}Developed by Abu Dalida · 2026{% endif %}</span>{% endblock %}</footer>
     </main>
   </div>
+  <script src="/static/vendor/flatpickr.min.js" defer></script>
+  <script src="/static/vendor/ar.js" defer></script>
+  <script src="/static/vendor/zh.js" defer></script>
+  <script src="/static/date-picker.js" defer></script>
 </body>
 </html>

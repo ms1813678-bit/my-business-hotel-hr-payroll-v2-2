@@ -535,3 +535,53 @@ def test_installment_advance_exceeds_regular_cap_and_uses_request_month_schedule
         assert sum((Decimal(item.amount) for item in schedule), Decimal("0.00")) == Decimal("6000.00")
         assert all(Decimal(item.amount) == Decimal("1000.00") for item in schedule)
 
+
+
+def test_custom_leave_type_chinese_name_and_fallback(leave_client):
+    """A custom type with a Chinese name shows it on the ZH page; without one
+    the ZH page falls back to the stored English name, never to Arabic."""
+    client = leave_client
+    login(client)
+    token = csrf(client.get("/leave"))
+    created = client.post(
+        "/leave/types",
+        data={
+            "code": "study",
+            "name_ar": "دراسة",
+            "name_en": "Study",
+            "name_zh": "学习假",
+            "is_paid": "yes",
+            "csrf_token": token,
+        },
+        follow_redirects=False,
+    )
+    assert created.status_code == 303
+    token = csrf(client.get("/leave"))
+    created = client.post(
+        "/leave/types",
+        data={
+            "code": "hajj",
+            "name_ar": "حج",
+            "name_en": "Hajj",
+            "is_paid": "yes",
+            "csrf_token": token,
+        },
+        follow_redirects=False,
+    )
+    assert created.status_code == 303
+
+    client.get("/language/zh", follow_redirects=False)
+    page = client.get("/leave")
+    assert "学习假" in page.text
+    assert "Hajj" in page.text  # English fallback, Arabic must not leak
+    assert "حج" not in page.text
+    assert "Chinese Name (optional)" not in page.text  # label is localized
+    assert "中文名称（可选）" in page.text
+
+    client.get("/language/en", follow_redirects=False)
+    page = client.get("/leave")
+    assert "Study" in page.text and "Hajj" in page.text
+
+    client.get("/language/ar", follow_redirects=False)
+    page = client.get("/leave")
+    assert "دراسة" in page.text and "حج" in page.text

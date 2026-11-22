@@ -4,6 +4,7 @@ from __future__ import annotations
 from datetime import date, datetime, time, timedelta
 
 from app.shift_matching import match_shift_by_clock
+from app.time_semantics import local_elapsed_minutes
 
 
 def shift_window(work_date: date, pattern: dict) -> tuple[datetime, datetime]:
@@ -94,7 +95,7 @@ def reconcile_attendance_day(
 
     worked_minutes = None
     if selected_in is not None and selected_out is not None and selected_out > selected_in:
-        worked_minutes = int((selected_out - selected_in).total_seconds() // 60)
+        worked_minutes = local_elapsed_minutes(selected_in, selected_out)
     else:
         issues.append("incomplete_attendance_endpoints")
 

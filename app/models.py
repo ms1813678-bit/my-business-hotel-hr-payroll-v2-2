@@ -378,6 +378,7 @@ class LeaveType(Base):
     code: Mapped[str] = mapped_column(String(40), nullable=False)
     name_ar: Mapped[str] = mapped_column(String(100), nullable=False)
     name_en: Mapped[str] = mapped_column(String(100), nullable=False)
+    name_zh: Mapped[str | None] = mapped_column(String(100))
     is_paid: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     tracks_balance: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
@@ -456,6 +457,7 @@ class AdvanceRequest(Base):
             "status IN ('pending', 'approved', 'rejected', 'paid', 'deducted')",
             name="ck_advance_requests_status",
         ),
+        Index("ix_advance_requests_payroll_run_id", "payroll_run_id"),
     )
     id: Mapped[int] = mapped_column(primary_key=True)
     employee_id: Mapped[int] = mapped_column(
@@ -522,6 +524,7 @@ class StaffAction(Base):
             "OR (is_financial = FALSE AND amount IS NULL AND payroll_month IS NULL)",
             name="ck_staff_actions_financial_fields",
         ),
+        Index("ix_staff_actions_payroll_run_id", "payroll_run_id"),
     )
     id: Mapped[int] = mapped_column(primary_key=True)
     employee_id: Mapped[int] = mapped_column(
@@ -696,6 +699,9 @@ class BackupRun(Base):
 
 class AICommandApproval(Base):
     __tablename__ = "ai_command_approvals"
+    __table_args__ = (
+        Index("ix_ai_command_approvals_status_expires_at", "status", "expires_at"),
+    )
     id: Mapped[int] = mapped_column(primary_key=True)
     token_hash: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
     actor: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
@@ -713,6 +719,9 @@ class AICommandApproval(Base):
 
 class AIConversationMessage(Base):
     __tablename__ = "ai_conversation_messages"
+    __table_args__ = (
+        Index("ix_ai_conversation_messages_actor_id", "actor", "id"),
+    )
     id: Mapped[int] = mapped_column(primary_key=True)
     actor: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
     role: Mapped[str] = mapped_column(String(20), nullable=False)

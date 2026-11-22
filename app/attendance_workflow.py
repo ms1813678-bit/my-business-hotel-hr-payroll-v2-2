@@ -8,6 +8,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError
 
 from app.models import (AttendanceDailyRecord, AttendanceImportBatch, AttendanceImportIssue, AttendanceMonth, AttendancePunch, AuditLog, Department, Employee, EmployeeChange, EmployeeServicePeriod, LeaveRecord, SecurityShiftAssignment, ShiftPattern)
+from app.time_semantics import local_elapsed_minutes
 
 
 def _department_history_by_date(db, employees, period_start: date, period_end: date):
@@ -741,7 +742,7 @@ def add_manual_attendance(
     record.review_notes = (
         f"{record.review_notes}; " if record.review_notes else ""
     ) + "Manual HR attendance entered and awaiting approval."
-    record.worked_minutes = int((clock_out - clock_in).total_seconds() // 60)
+    record.worked_minutes = local_elapsed_minutes(clock_in, clock_out)
 
     db.add(AuditLog(
         actor=actor.strip(),
@@ -803,7 +804,7 @@ def approve_attendance_day(
     record.review_notes = (
         f"{record.review_notes}; " if record.review_notes else ""
     ) + f"HR decision: {reason.strip()}"
-    record.worked_minutes = int((clock_out - clock_in).total_seconds() // 60)
+    record.worked_minutes = local_elapsed_minutes(clock_in, clock_out)
 
     db.add(AuditLog(
         actor=actor,

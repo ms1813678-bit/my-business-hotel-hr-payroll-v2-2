@@ -93,11 +93,12 @@
 
 <div class="card">
   <h2>اختيارات جاهزة</h2>
+  <span id="preset-confirm-msg" hidden>حذف هذا الاختيار؟</span>
   <div class="saved-row">
     {% for preset in presets %}
     <span class="chip preset-chip">
       <a href="/reports?preset_id={{ preset.id }}" style="color:inherit;">{{ preset.name }}</a>
-      <form method="post" action="/reports/presets/{{ preset.id }}/delete" onsubmit="return confirm('حذف هذا الاختيار؟');">
+      <form method="post" action="/reports/presets/{{ preset.id }}/delete" onsubmit="return confirm(document.getElementById('preset-confirm-msg').textContent);">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <button type="submit" title="حذف">×</button>
       </form>

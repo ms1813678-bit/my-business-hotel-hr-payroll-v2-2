@@ -307,6 +307,9 @@ def _leave_type_name(item, language: str) -> str:
         return item.name_ar
     if language == "en":
         return item.name_en or item.name_ar
+    stored_zh = getattr(item, "name_zh", None)
+    if stored_zh and stored_zh.strip():
+        return stored_zh.strip()
     translated = _translate_text(item.name_ar, "zh")
     if translated != item.name_ar:
         return translated
@@ -1682,6 +1685,7 @@ def create_leave_type(
     code: str = Form(...),
     name_ar: str = Form(...),
     name_en: str = Form(...),
+    name_zh: str | None = Form(None),
     is_paid: str | None = Form(None),
     tracks_balance: str | None = Form(None),
     admin: AdminAccount = Depends(get_current_admin),
@@ -1698,6 +1702,7 @@ def create_leave_type(
             code=normalized_code,
             name_ar=name_ar.strip(),
             name_en=name_en.strip(),
+            name_zh=(name_zh or "").strip() or None,
             is_paid=is_paid == "yes",
             tracks_balance=tracks_balance == "yes",
             active=True,
