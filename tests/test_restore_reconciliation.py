@@ -344,3 +344,64 @@ def test_disaster_restore_without_backup_passphrase_keeps_legacy_gate(factory, m
         flag = db.get(SystemSetting, "post_restore_passphrase_required")
         assert flag is None or not flag.value, "no passphrase record: passphrase gate must not arm"
         assert all(a.must_change_password for a in db.scalars(select(AdminAccount)).all())
+
+
+def test_live_restore_locks_archive_resurrected_accounts(factory, monkeypatch, tmp_path):
+    """Owner-approved (2026-11-23): accounts that exist only in the archive —
+    deleted after the backup, or restored onto a fresh install with just its
+    bootstrap admin — come back LOCKED (inactive + forced rotation, no codes)
+    until the current admin re-enables and resets them. Snapshot accounts are
+    untouched."""
+    from app.models import RecoveryCode
+
+    monkeypatch.setattr(backup_workflow, "verify_backup_archive", lambda *a, **k: {"created_at": "2026-11-23T00:00:00+00:00"})
+
+    def fake_restore(*a, **k):
+        with factory.begin() as db:
+            # The archive resurrects a deleted account with a live old password
+            # and a previously consumed code re-usable again.
+            old = AdminAccount(username="deleted-old-account", password_hash="archive-stolen-hash",
+                               display_name="حساب قديم", role="finance", active=True,
+                               must_change_password=False)
+            db.add(old)
+            db.flush()
+            db.add(RecoveryCode(admin_account_id=old.id, code_hash="archive-code-hash",
+                                code_lookup="lk-old", created_at=datetime.now(timezone.utc)))
+
+    monkeypatch.setattr(backup_workflow, "_restore_archive_contents", fake_restore)
+
+    class _Run:
+        status = "success"
+        id = 1
+        sha256 = "0" * 64
+
+    def _fake_backup(db, t, a):
+        (tmp_path / "pre.zip").write_bytes(b"pre")
+        run = _Run()
+        run.archive_path = str(tmp_path / "pre.zip")
+        return run
+
+    monkeypatch.setattr(backup_workflow, "create_backup", _fake_backup)
+    archive = tmp_path / "backup.zip"
+    archive.write_bytes(b"zip")
+    with factory() as db:
+        db.merge(SystemSetting(key="backup_root", value=str(tmp_path), updated_by="test"))
+        db.commit()
+
+    log = backup_workflow.restore_backup(archive, "ab" * 32, actor="guard-admin", reason="اختبار")
+    assert log["restored_at"]
+
+    with factory() as db:
+        old = db.scalar(select(AdminAccount).where(AdminAccount.username == "deleted-old-account"))
+        assert old.active is False, "archive-only account must come back locked"
+        assert old.must_change_password is True, "and must rotate on re-enable"
+        assert db.scalars(select(RecoveryCode).where(RecoveryCode.admin_account_id == old.id)).all() == [], \
+            "archive codes must not resurrect"
+        current = db.scalar(select(AdminAccount).where(AdminAccount.username == "guard-admin"))
+        assert current.active is True and current.must_change_password is False
+        finance = db.scalar(select(AdminAccount).where(AdminAccount.username == "finance-demo"))
+        assert finance.active is True, "snapshot accounts are not locked"
+        actions = [a.action for a in db.scalars(select(AuditLog)).all()]
+        assert "restore_resurrected_accounts_locked" in actions
+        row = db.scalar(select(AuditLog).where(AuditLog.action == "restore_resurrected_accounts_locked"))
+        assert "deleted-old-account" in (row.new_value or "")

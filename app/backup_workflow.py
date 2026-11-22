@@ -701,7 +701,7 @@ def restore_backup(
         # would otherwise resurrect sessions terminated after the backup (the
         # signing secret is unchanged). Drop every live session record so all
         # accounts sign in again on the restored state.
-        from app.models import AdminAccount, AdminSession, SystemSetting
+        from app.models import AdminAccount, AdminSession, RecoveryCode, SystemSetting
 
         db.execute(delete(AdminSession))
         if security_snapshot["accounts"]:
@@ -710,6 +710,37 @@ def restore_backup(
             # counters and the lookup pepper do NOT roll back to archive time
             # and nothing that was revoked or consumed can be replayed.
             _reapply_security_state(db, security_snapshot, actor=actor)
+            # Archive-resurrected accounts — present in the archive but absent
+            # from the pre-restore state (deleted after the backup, or restored
+            # onto a fresh install that only has its bootstrap admin) — must
+            # NOT authenticate with archive-time credentials: a stolen old
+            # password would walk straight in, and must_change alone only
+            # confines AFTER login. Owner-approved (2026-11-23): they stay
+            # locked (active=False) until the current admin re-enables each
+            # one and resets its password through the existing audited flows.
+            # Their recovery codes are already gone: the reapply above wipes
+            # the table and recreates only the snapshot's codes; the delete
+            # below is explicit defense in depth.
+            snapshot_usernames = set(security_snapshot["accounts"])
+            resurrected = [
+                account
+                for account in db.scalars(select(AdminAccount)).all()
+                if account.username not in snapshot_usernames
+            ]
+            if resurrected:
+                resurrected_ids = [account.id for account in resurrected]
+                for account in resurrected:
+                    account.active = False
+                    account.must_change_password = True
+                db.execute(delete(RecoveryCode).where(RecoveryCode.admin_account_id.in_(resurrected_ids)))
+                db.add(AuditLog(
+                    actor=actor,
+                    action="restore_resurrected_accounts_locked",
+                    entity_type="backup_archive",
+                    entity_id=str(selected.name)[:80],
+                    new_value=", ".join(sorted(account.username for account in resurrected))[:4000],
+                    reason="Archive-only accounts locked pending current-admin re-enable and password reset.",
+                ))
             db.add(AuditLog(
                 actor=actor,
                 action="restore_credentials_carried_over",
