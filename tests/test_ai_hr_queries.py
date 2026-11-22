@@ -1,4 +1,5 @@
 from datetime import date, datetime
+from types import SimpleNamespace
 from decimal import Decimal
 
 from sqlalchemy import create_engine
@@ -215,3 +216,57 @@ def test_employee_filter_detector_distinguishes_singular_from_plural():
     assert queries._employee_filter_requested("سلف الموظف أحمد")
     assert not queries._employee_filter_requested("سلف الموظفين")
     assert not queries._employee_filter_requested("جزاءات الموظفين لشهر 2026-11")
+
+
+def _record(**kwargs):
+    defaults = {column.name: None for column in AttendanceDailyRecord.__table__.columns}
+    defaults.update(kwargs)
+    return SimpleNamespace(**defaults)
+
+
+def test_dst_spring_forward_shift_not_false_flagged():
+    # Cairo 2026 spring forward: 2026-04-24 00:00-01:00 is skipped, so the
+    # 23:00-07:00 wall-clock shift is 7 elapsed hours, not 8.
+    record = _record(
+        status="approved",
+        work_date=date(2026, 4, 23),
+        scheduled_start_at=datetime(2026, 4, 23, 23, 0),
+        scheduled_end_at=datetime(2026, 4, 24, 7, 0),
+        first_clock_in=datetime(2026, 4, 23, 23, 0),
+        last_clock_out=datetime(2026, 4, 24, 7, 0),
+        worked_minutes=420,
+    )
+    keys = [key for key, _ in queries._classify_attendance_row(record)]
+    assert "unexpected_duration" not in keys
+    assert "late_in" not in keys and "early_out" not in keys
+
+
+def test_genuinely_short_shift_still_flagged_on_dst_night():
+    record = _record(
+        status="approved",
+        work_date=date(2026, 4, 23),
+        scheduled_start_at=datetime(2026, 4, 23, 23, 0),
+        scheduled_end_at=datetime(2026, 4, 24, 7, 0),
+        first_clock_in=datetime(2026, 4, 23, 23, 0),
+        last_clock_out=datetime(2026, 4, 24, 5, 30),
+        worked_minutes=330,
+    )
+    flags = dict(queries._classify_attendance_row(record))
+    assert "unexpected_duration" in flags
+    assert flags["early_out"] == 90
+
+
+def test_dst_fall_back_shift_not_false_flagged():
+    # Fall back 2026-10-29: 23:00-24:00 repeats, so 21:00-06:00 wall is
+    # 10 elapsed hours when endpoints are unambiguous.
+    record = _record(
+        status="approved",
+        work_date=date(2026, 10, 29),
+        scheduled_start_at=datetime(2026, 10, 29, 21, 0),
+        scheduled_end_at=datetime(2026, 10, 30, 6, 0),
+        first_clock_in=datetime(2026, 10, 29, 21, 0),
+        last_clock_out=datetime(2026, 10, 30, 6, 0),
+        worked_minutes=600,
+    )
+    keys = [key for key, _ in queries._classify_attendance_row(record)]
+    assert "unexpected_duration" not in keys

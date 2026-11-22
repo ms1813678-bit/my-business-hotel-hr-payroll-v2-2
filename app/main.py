@@ -290,6 +290,42 @@ def _field_label(value):
     return _FIELD_LABELS.get(value, value)
 
 
+# Stored attendance review_notes are "; "-joined system tokens (issue codes
+# and fixed system sentences) plus free user text. Display maps each known
+# token to an authored Arabic label that _translate_text localizes; unknown
+# tokens and user text pass through byte-identical. Stored values never change.
+_ATTENDANCE_NOTES_AR = {
+    "security_roster_shift_pattern_missing": "لا يوجد نمط وردية مطابق في جدول الأمن",
+    "conflicting_first_punch_shift_proposals": "أول بصمة تطابق أكثر من وردية؛ راجع الوردية المقصودة",
+    "multiple_program_clock_in_events": "أحداث حضور متعددة في جدول البرنامج",
+    "multiple_program_clock_out_events": "أحداث انصراف متعددة في جدول البرنامج",
+    "duplicate_program_events": "أحداث مكررة في جدول البرنامج",
+    "duplicate_fingerprint_events": "بصمات مكررة في هذا اليوم",
+    "only_one_fingerprint_event": "بصمة واحدة فقط في هذا اليوم",
+    "missing_fingerprint_evidence": "لا توجد بصمة مثبتة لهذا اليوم",
+    "program_fingerprint_clock_in_mismatch": "فرق بين وقت الحضور في البرنامج والبصمة",
+    "program_fingerprint_clock_out_mismatch": "فرق بين وقت الانصراف في البرنامج والبصمة",
+    "clock_out_not_after_clock_in": "وقت الانصراف ليس بعد وقت الحضور",
+    "incomplete_attendance_endpoints": "أوقات الحضور أو الانصراف غير مكتملة",
+    "dst_wall_clock_duration_uncertain": "المدة غير مؤكدة بسبب ساعة تغيير التوقيت الصيفي",
+    "Manual HR attendance entered and awaiting approval.": "إدخال حضور يدوي من الموارد البشرية في انتظار الاعتماد.",
+}
+
+
+def _attendance_notes_display(value, language):
+    if not value:
+        return value
+    parts = []
+    for part in str(value).split("; "):
+        if part in _ATTENDANCE_NOTES_AR:
+            parts.append(_translate_text(_ATTENDANCE_NOTES_AR[part], language))
+        elif part.startswith("HR decision: "):
+            parts.append(_translate_text("قرار الموارد البشرية", language) + ": " + part[len("HR decision: "):])
+        else:
+            parts.append(part)
+    return "; ".join(parts)
+
+
 templates.env.filters["fmt_dt"] = _fmt_dt
 templates.env.filters["fmt_d"] = _fmt_d
 templates.env.filters["fmt_m"] = _fmt_m
@@ -1195,6 +1231,7 @@ def attendance_review_page(
                 "suggested_clock_out": suggested_out,
                 "worked_minutes": record.worked_minutes,
                 "status": record.status, "review_notes": record.review_notes,
+                "review_notes_display": _attendance_notes_display(record.review_notes, request.state.language),
             })
     employees = db.scalars(
         select(Employee).where(Employee.status == "active").order_by(Employee.full_name, Employee.id)

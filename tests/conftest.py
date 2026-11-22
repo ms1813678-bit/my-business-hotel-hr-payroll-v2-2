@@ -50,3 +50,30 @@ def require_migrated_database():
             "before running the suite. See docs/TESTING.md.",
             pytrace=False,
         )
+    # A matching version stamp is not proof of a real migration: a
+    # create_all-built database can be stamped with the head revision while
+    # missing everything the migrations create beyond tables. Verify the
+    # actual objects the suite depends on.
+    with engine.connect() as connection:
+        triggers = {
+            row[0]
+            for row in connection.execute(text(
+                "SELECT tgname FROM pg_trigger WHERE tgrelid = to_regclass('audit_logs')"
+            ))
+        }
+    required = (
+        {"trg_audit_logs_immutable"}
+        if engine.dialect.name == "postgresql"
+        else {"trg_audit_logs_no_update", "trg_audit_logs_no_delete"}
+    )
+    missing = required - triggers
+    if missing:
+        pytest.fail(
+            "The test database is stamped at the alembic head but is missing "
+            f"database objects the real migration chain creates: {sorted(missing)}. "
+            "It was likely built with create_all and stamped manually, so tests "
+            "would miss real-install behavior. Rebuild it with "
+            "`python -m scripts.initialize_database` or `alembic upgrade head`. "
+            "See docs/TESTING.md.",
+            pytrace=False,
+        )

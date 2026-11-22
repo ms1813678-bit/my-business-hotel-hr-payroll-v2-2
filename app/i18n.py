@@ -3216,3 +3216,39 @@ ZH.update({
     "سبب الإلغاء": "取消原因",
     "السبب:": "原因：",
 })
+
+# Attendance review note codes (stored review_notes tokens shown to HR)
+EN.update({
+"لا يوجد نمط وردية مطابق في جدول الأمن": "No matching shift pattern in the security roster",
+"أول بصمة تطابق أكثر من وردية؛ راجع الوردية المقصودة": "The first punch matches more than one shift; review the intended shift",
+"أحداث حضور متعددة في جدول البرنامج": "Multiple clock-in events in the program schedule",
+"أحداث انصراف متعددة في جدول البرنامج": "Multiple clock-out events in the program schedule",
+"أحداث مكررة في جدول البرنامج": "Duplicate events in the program schedule",
+"بصمات مكررة في هذا اليوم": "Duplicate fingerprint punches on this day",
+"بصمة واحدة فقط في هذا اليوم": "Only one fingerprint punch on this day",
+"لا توجد بصمة مثبتة لهذا اليوم": "No fingerprint evidence for this day",
+"فرق بين وقت الحضور في البرنامج والبصمة": "Clock-in differs between the program schedule and the fingerprint",
+"فرق بين وقت الانصراف في البرنامج والبصمة": "Clock-out differs between the program schedule and the fingerprint",
+"وقت الانصراف ليس بعد وقت الحضور": "Clock-out is not after clock-in",
+"أوقات الحضور أو الانصراف غير مكتملة": "Incomplete clock-in or clock-out times",
+"المدة غير مؤكدة بسبب ساعة تغيير التوقيت الصيفي": "Duration uncertain because of the daylight-saving change hour",
+"إدخال حضور يدوي من الموارد البشرية في انتظار الاعتماد.": "Manual HR attendance entered and awaiting approval.",
+"قرار الموارد البشرية": "HR decision",
+})
+ZH.update({
+"لا يوجد نمط وردية مطابق في جدول الأمن": "保安排班表中没有匹配的班次模式",
+"أول بصمة تطابق أكثر من وردية؛ راجع الوردية المقصودة": "第一次打卡匹配多个班次，请核对目标班次",
+"أحداث حضور متعددة في جدول البرنامج": "排班表中有多条上班打卡记录",
+"أحداث انصراف متعددة في جدول البرنامج": "排班表中有多条下班打卡记录",
+"أحداث مكررة في جدول البرنامج": "排班表中有重复记录",
+"بصمات مكررة في هذا اليوم": "当天有重复指纹打卡",
+"بصمة واحدة فقط في هذا اليوم": "当天仅有一次指纹打卡",
+"لا توجد بصمة مثبتة لهذا اليوم": "当天没有指纹打卡记录",
+"فرق بين وقت الحضور في البرنامج والبصمة": "排班表与指纹的上班时间不一致",
+"فرق بين وقت الانصراف في البرنامج والبصمة": "排班表与指纹的下班时间不一致",
+"وقت الانصراف ليس بعد وقت الحضور": "下班时间不在上班时间之后",
+"أوقات الحضور أو الانصراف غير مكتملة": "上下班时间不完整",
+"المدة غير مؤكدة بسبب ساعة تغيير التوقيت الصيفي": "因夏令时切换小时，时长无法确定",
+"إدخال حضور يدوي من الموارد البشرية في انتظار الاعتماد.": "人工录入的考勤，等待批准。",
+"قرار الموارد البشرية": "人事决定",
+})

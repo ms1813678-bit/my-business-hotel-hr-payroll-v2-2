@@ -64,7 +64,7 @@
       {% endif %}
       <p>الدقائق المقترحة: {{ record.worked_minutes if record.worked_minutes is not none else "غير محسوبة" }}</p>
       {% if record.review_notes and 'dst_wall_clock_duration_uncertain' in record.review_notes %}<p class="error">أحد وقتَي الحضور يقع داخل ساعة تغيير التوقيت الصيفي، لذلك لا يمكن تحديد اللحظة الفعلية؛ المدة معروضة بفرق الساعة المحلية الظاهرة وليست الزمن الفعلي المؤكد. راجع الوقتين قبل الاعتماد.</p>{% endif %}
-      {% if record.review_notes %}<p>ملاحظات: {{ record.review_notes }}</p>{% endif %}
+      {% if record.review_notes %}<p><span>ملاحظات:</span> {{ record.review_notes_display }}</p>{% endif %}
       <form method="post" action="/attendance/{{ record.id }}/approve">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <label for="in-{{ record.id }}">وقت الدخول المعتمد بعد المراجعة</label>
