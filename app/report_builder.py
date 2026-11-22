@@ -1435,6 +1435,37 @@ def _monthly_chart_drawing(series: list[tuple[str, float]], bar_color_hex: str):
     return drawing
 
 
+def _monthly_leave_aggregate(db: Session, start: date, end: date) -> list[dict]:
+    """Confirmed-leave totals per leave type, without employee identity.
+
+    The assistant scope covers leave/balances visibility only; per-employee
+    leave records stay with the roles that already have the custom leave report.
+    """
+    from .models import LeaveRecord as _LeaveRecord, LeaveType as _LeaveType
+
+    records = list(
+        db.scalars(
+            select(_LeaveRecord)
+            .where(
+                _LeaveRecord.status == "confirmed",
+                _LeaveRecord.start_date <= end,
+                _LeaveRecord.end_date >= start,
+            )
+        ).all()
+    )
+    type_names = {item.id: item.name_ar for item in db.scalars(select(_LeaveType)).all()}
+    buckets: dict[int, dict] = {}
+    for record in records:
+        bucket = buckets.setdefault(
+            record.leave_type_id,
+            {"leave_type": type_names.get(record.leave_type_id, "—"), "count": 0, "days": Decimal(0), "charged": Decimal(0)},
+        )
+        bucket["count"] += 1
+        bucket["days"] += Decimal(record.calendar_days or 0)
+        bucket["charged"] += Decimal(record.charged_days or 0)
+    return sorted(buckets.values(), key=lambda row: row["leave_type"])
+
+
 def _payroll_month_summary(db: Session, start: date, end: date) -> dict:
     """Totals-only payroll summary for one month (summary option, not detail)."""
     from sqlalchemy import select as _select
@@ -1517,7 +1548,7 @@ def _flatten_groups(groups: list[dict]) -> list[dict]:
     return [{"department": "الكل", "rows": merged_rows}] if merged_rows else []
 
 
-def build_monthly_pdf(db: Session, month_start: date, options: set[int], language: str = "ar") -> bytes:
+def build_monthly_pdf(db: Session, month_start: date, options: set[int], language: str = "ar", aggregate_leave: bool = False) -> bytes:
     """Render the approved monthly report: one PDF with the chosen sections.
 
     Options outside 1-11 are rejected by the caller. The month is explicit —
@@ -1685,6 +1716,33 @@ def build_monthly_pdf(db: Session, month_start: date, options: set[int], languag
                 story.append(_monthly_chart_drawing(series, color))
                 if all(value == 0 for _, value in series):
                     story.append(Paragraph(cell_(L("لا توجد بيانات معتمدة في هذه الفترة بعد.")), meta_style))
+            continue
+        if option == 7 and aggregate_leave:
+            if not first_section:
+                story.append(PageBreak())
+            first_section = False
+            story.append(Paragraph(cell_(L(MONTHLY_OPTION_LABELS[7])), section_style))
+            story.append(Paragraph(cell_(L("إجمالي الإجازات المؤكدة حسب النوع — بدون بيانات الموظفين")), meta_style))
+            story.append(Spacer(1, 2 * mm))
+            rows = _monthly_leave_aggregate(db, month_start, month_end)
+            header = [L("نوع الإجازة"), L("عدد الإجازات"), L("إجمالي الأيام"), L("الخصم من الرصيد")]
+            table_rows = [[Paragraph(cell_(h), header_style) for h in header]]
+            for row in rows:
+                table_rows.append([
+                    Paragraph(cell_(row["leave_type"]), cell_style),
+                    Paragraph(cell_(str(row["count"])), cell_style),
+                    Paragraph(cell_(_fmt_number(row["days"])), cell_style),
+                    Paragraph(cell_(_fmt_number(row["charged"])), cell_style),
+                ])
+            if len(table_rows) == 1:
+                table_rows.append([Paragraph(cell_(L("لا توجد إجازات مؤكدة في هذا الشهر.")), cell_style)] + [Paragraph("", cell_style)] * 3)
+            table = LongTable(table_rows, colWidths=[available_width * 0.4] + [available_width * 0.2] * 3, hAlign="RIGHT")
+            table.setStyle(TableStyle([
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#24415E")),
+                ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#AAB4BE")),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ]))
+            story.append(table)
             continue
         if option == 1:
             if not first_section:

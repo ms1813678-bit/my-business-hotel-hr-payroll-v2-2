@@ -3208,13 +3208,23 @@ def reports_monthly_pdf(
         raise HTTPException(status_code=400, detail="خيارات التقرير الشهري غير صالحة.")
     allowed_types = _monthly_allowed_types(admin)
     allowed_options = monthly_options_for_types(allowed_types)
-    options = requested & allowed_options
+    rejected = requested - allowed_options
+    if rejected:
+        # Never silently drop options: a partial report with unannounced
+        # omissions misleads. Name what the role cannot see and refuse.
+        names = "، ".join(sorted(MONTHLY_OPTION_LABELS[o] for o in rejected if o in MONTHLY_OPTION_LABELS))
+        raise HTTPException(status_code=403, detail=f"خيارات غير متاحة لصلاحية حسابك: {names}")
+    options = requested
     data_options = options - {10, 11}
     if not data_options:
         raise HTTPException(status_code=403, detail="هذا الجزء غير متاح لصلاحية حسابك.")
     try:
         with SessionLocal() as db:
-            content = build_monthly_pdf(db, month_start, options, language=request.state.language)
+            content = build_monthly_pdf(
+                db, month_start, options,
+                language=request.state.language,
+                aggregate_leave=(admin.role == ROLE_ASSISTANT),
+            )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     except SQLAlchemyError:

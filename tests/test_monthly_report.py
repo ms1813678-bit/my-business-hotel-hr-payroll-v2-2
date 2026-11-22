@@ -285,3 +285,36 @@ def test_absence_series_counts_approved_run_absence_days(db_session):
     run.status = "draft"  # unapproved runs never enter the chart
     db_session.commit()
     assert dict(_monthly_six_month_series(db_session, date(2026, 10, 1), "absence"))["10/2026"] == 0.0
+
+
+def test_mixed_forbidden_and_allowed_options_refused(client_factory):
+    client = client_factory("assistant_manager")
+    response = client.get("/reports/monthly.pdf", params=[("month", "2026-10"), ("opt", "1"), ("opt", "3")])
+    assert response.status_code == 403
+    assert "ملخص الرواتب" in response.json()["detail"]  # names the rejected option, no silent partial report
+
+
+def test_leave_aggregate_totals_only(db_session):
+    from app.models import LeaveRecord, LeaveType
+    from app.report_builder import _monthly_leave_aggregate
+    leave_type = LeaveType(code="ANNUAL", name_ar="سنوية", name_en="Annual")
+    db_session.add(leave_type)
+    db_session.flush()
+    emp = db_session.scalars(select(Employee).where(Employee.code == "MY-M1")).one()
+    db_session.add(LeaveRecord(employee_id=emp.id, leave_type_id=leave_type.id,
+                               start_date=date(2026, 10, 5), end_date=date(2026, 10, 7),
+                               calendar_days=3, charged_days=Decimal("3"), status="confirmed",
+                               reason="اختبار", created_by="test"))
+    db_session.add(LeaveRecord(employee_id=emp.id, leave_type_id=leave_type.id,
+                               start_date=date(2026, 10, 10), end_date=date(2026, 10, 10),
+                               calendar_days=1, charged_days=Decimal("1"), status="draft",
+                               reason="اختبار", created_by="test"))
+    db_session.commit()
+    rows = _monthly_leave_aggregate(db_session, date(2026, 10, 1), date(2026, 10, 31))
+    assert rows == [{"leave_type": "سنوية", "count": 1, "days": Decimal(3), "charged": Decimal(3)}]
+    assert "موظف" not in str(rows) and "MY-M1" not in str(rows)
+
+
+def test_monthly_pdf_assistant_aggregate_leave_builds(db_session):
+    content = build_monthly_pdf(db_session, date(2026, 10, 1), {7}, aggregate_leave=True)
+    assert content.startswith(b"%PDF")
