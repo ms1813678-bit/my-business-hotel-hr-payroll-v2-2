@@ -44,16 +44,30 @@ def _is_unambiguous_real_local(value: datetime) -> bool:
     return round_tripped == value  # skipped spring-forward hour fails this
 
 
-def local_elapsed_minutes(start: datetime, end: datetime) -> int:
-    """Actual elapsed minutes between two attendance datetimes (see module doc)."""
+def local_elapsed_minutes_detail(start: datetime, end: datetime) -> tuple[int, str]:
+    """(minutes, basis): basis is "exact" for true elapsed time and
+    "wall_fallback" when a stored endpoint cannot be mapped to one real
+    instant, so callers can mark the value as uncertain instead of claiming
+    exact elapsed time."""
     if start.tzinfo is not None and end.tzinfo is not None:
         # Same-tzinfo subtraction ignores offsets, so convert to UTC first to
         # keep the result instant-based.
-        return int((end.astimezone(timezone.utc) - start.astimezone(timezone.utc)).total_seconds() // 60)
+        return (
+            int((end.astimezone(timezone.utc) - start.astimezone(timezone.utc)).total_seconds() // 60),
+            "exact",
+        )
     naive_start = start.replace(tzinfo=None)
     naive_end = end.replace(tzinfo=None)
     if _is_unambiguous_real_local(naive_start) and _is_unambiguous_real_local(naive_end):
         instant_start = naive_start.replace(tzinfo=CAIRO_TZ).astimezone(timezone.utc)
         instant_end = naive_end.replace(tzinfo=CAIRO_TZ).astimezone(timezone.utc)
-        return int((instant_end - instant_start).total_seconds() // 60)
-    return int((naive_end - naive_start).total_seconds() // 60)
+        return int((instant_end - instant_start).total_seconds() // 60), "exact"
+    return int((naive_end - naive_start).total_seconds() // 60), "wall_fallback"
+
+
+def local_elapsed_minutes(start: datetime, end: datetime) -> int:
+    """Actual elapsed minutes between two attendance datetimes (see module doc)."""
+    return local_elapsed_minutes_detail(start, end)[0]
+
+
+DST_WALL_FALLBACK_ISSUE = "dst_wall_clock_duration_uncertain"

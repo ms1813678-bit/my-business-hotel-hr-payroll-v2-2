@@ -10,7 +10,7 @@ data rewrite was needed.
 | ix_ai_command_approvals_status_expires_at | DB had it, model did not | Aligned: index added to the model |
 | ix_ai_conversation_messages_actor_id | DB had it, model did not | Aligned: index added to the model |
 | ix_staff_actions_payroll_run_id | DB had it, model did not | Aligned: index added to the model |
-| report_presets.created_at nullable | DB: nullable; model: NOT NULL | Aligned: migration 0029 backfills any NULL to NOW() then SET NOT NULL |
+| report_presets.created_at nullable | DB: nullable; model: NOT NULL | Aligned: migration 0029 SET NOT NULL; refuses and reports instead of inventing a timestamp if any hand-edited NULL exists |
 | employees.code uniqueness | DB: separate UNIQUE constraint + non-unique index; model: one unique index | Left as-is: functionally identical enforcement; aligning it would churn constraints for zero benefit |
 
 The migration history remains the install source of truth; no historical

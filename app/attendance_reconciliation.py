@@ -4,7 +4,7 @@ from __future__ import annotations
 from datetime import date, datetime, time, timedelta
 
 from app.shift_matching import match_shift_by_clock
-from app.time_semantics import local_elapsed_minutes
+from app.time_semantics import DST_WALL_FALLBACK_ISSUE, local_elapsed_minutes_detail
 
 
 def shift_window(work_date: date, pattern: dict) -> tuple[datetime, datetime]:
@@ -95,7 +95,9 @@ def reconcile_attendance_day(
 
     worked_minutes = None
     if selected_in is not None and selected_out is not None and selected_out > selected_in:
-        worked_minutes = local_elapsed_minutes(selected_in, selected_out)
+        worked_minutes, basis = local_elapsed_minutes_detail(selected_in, selected_out)
+        if basis == "wall_fallback":
+            issues.append(DST_WALL_FALLBACK_ISSUE)
     else:
         issues.append("incomplete_attendance_endpoints")
 

@@ -102,3 +102,13 @@ def test_local_elapsed_minutes_aware_is_instant_based():
     start = datetime(2026, 4, 23, 20, 0, tzinfo=CAIRO_TZ)
     end = datetime(2026, 4, 24, 8, 0, tzinfo=CAIRO_TZ)
     assert local_elapsed_minutes(start, end) == 660
+
+
+def test_local_elapsed_detail_marks_uncertain_fallback():
+    """The fallback path is identifiable so the UI can mark it as uncertain."""
+    from app.time_semantics import local_elapsed_minutes_detail
+
+    assert local_elapsed_minutes_detail(datetime(2026, 10, 29, 20, 0), datetime(2026, 10, 29, 23, 30)) == (210, "wall_fallback")
+    assert local_elapsed_minutes_detail(datetime(2026, 4, 23, 22, 0), datetime(2026, 4, 24, 0, 30)) == (150, "wall_fallback")
+    assert local_elapsed_minutes_detail(datetime(2026, 10, 29, 20, 0), datetime(2026, 10, 30, 8, 0)) == (780, "exact")
+    assert local_elapsed_minutes_detail(datetime(2026, 3, 10, 20, 0), datetime(2026, 3, 11, 8, 0)) == (720, "exact")
