@@ -101,6 +101,7 @@ def build_pre_payroll_review(
         items = db.scalars(
             select(PayrollItem).where(PayrollItem.payroll_run_id == run.id)
         ).all()
+        report["has_items"] = len(items) > 0
         start, end = _month_bounds(month)
         for item in items:
             unsettled = db.scalars(
@@ -171,9 +172,15 @@ def build_pre_payroll_review(
                     })
 
             current = _reviewable_deductions(item)
+            # Only finalized (approved) runs are comparable history; draft or
+            # reopened runs are unfinished and would distort the advisory.
             previous_runs = db.scalars(
                 select(PayrollRun)
-                .where(PayrollRun.period_start < month, PayrollRun.id != run.id)
+                .where(
+                    PayrollRun.period_start < month,
+                    PayrollRun.id != run.id,
+                    PayrollRun.status == "approved",
+                )
                 .order_by(PayrollRun.period_start.desc())
                 .limit(_BASELINE_RUNS)
             ).all()
@@ -213,6 +220,27 @@ def build_pre_payroll_review(
         return report
 
 
+_RUN_STATUS = {
+    "draft": ("مسودة", "draft", "草稿"),
+    "approved": ("معتمد", "approved", "已批准"),
+    "closed": ("مقفل", "closed", "已关闭"),
+    "reopened": ("معاد فتحه", "reopened", "已重新打开"),
+}
+_ATTENDANCE_STATUS = {
+    "needs_review": ("يحتاج مراجعة", "needs review", "需要审核"),
+    "ready_for_review": ("جاهز للمراجعة", "ready for review", "待审核"),
+    "approved": ("معتمد", "approved", "已批准"),
+    "rejected": ("مرفوض", "rejected", "已拒绝"),
+}
+
+
+def _status_label(mapping: dict, status: str, language: str) -> str:
+    labels = mapping.get(status)
+    if labels is None:
+        return status
+    return {"ar": labels[0], "en": labels[1], "zh": labels[2]}.get(language, labels[0])
+
+
 def _msg(language: str, ar: str, en: str, zh: str) -> str:
     return {"ar": ar, "en": en, "zh": zh}.get(language, ar)
 
@@ -228,9 +256,9 @@ def format_pre_payroll_review(report: dict[str, Any], language: str = "ar") -> s
              f"Pre-payroll review for {month} — review suggestions only; nothing is changed or approved.",
              f"{month} 工资批准前检查 — 仅供参考建议，不会更改或批准任何内容。"),
         _msg(language,
-             f"معايير الفحص المعلنة (إرشادات مراجعة قابلة للضبط، وليست سياسة موارد بشرية معتمدة): خصم يُعتبر غير معتاد إذا بلغ {ratio}× متوسط الموظف وفاقه بما لا يقل عن {floor} جنيه، مقارنة بآخر {heuristics.get('baseline_runs', 3)} مسيرات سابقة كحد أقصى.",
-             f"Stated check criteria (adjustable review heuristics, not adopted HR policy): a deduction is treated as unusual when it reaches {ratio}x the employee's average and exceeds it by at least {floor} EGP, compared against up to the last {heuristics.get('baseline_runs', 3)} runs.",
-             f"公示检查标准（可调整的审查参考值，并非既定人事政策）：扣款达到员工平均值的 {ratio} 倍且至少高出 {floor} 埃镑时视为异常，最多对比最近 {heuristics.get('baseline_runs', 3)} 个批次。"),
+             f"معايير الفحص المعلنة (إرشادات مراجعة قابلة للضبط، وليست سياسة موارد بشرية معتمدة): خصم يُعتبر غير معتاد إذا بلغ {ratio}× متوسط الموظف وفاقه بما لا يقل عن {floor} جنيه، مقارنة بآخر {heuristics.get('baseline_runs', 3)} مسيرات معتمدة فقط — المسيرات غير المعتمدة لا تُعد تاريخًا مكتملًا.",
+             f"Stated check criteria (adjustable review heuristics, not adopted HR policy): a deduction is treated as unusual when it reaches {ratio}x the employee's average and exceeds it by at least {floor} EGP, compared against up to the last {heuristics.get('baseline_runs', 3)} APPROVED runs only — unfinished runs are not finalized history.",
+             f"公示检查标准（可调整的审查参考值，并非既定人事政策）：扣款达到员工平均值的 {ratio} 倍且至少高出 {floor} 埃镑时视为异常，仅最多对比最近 {heuristics.get('baseline_runs', 3)} 个已批准批次 — 未完成的批次不算已定历史。"),
     ]
     run = report.get("run") or {}
     if run.get("status") == "not_created":
@@ -239,10 +267,21 @@ def format_pre_payroll_review(report: dict[str, Any], language: str = "ar") -> s
             "No payroll run exists for this month yet; create the run first, then re-run this review before approving.",
             "该月份尚未创建工资批次；请先创建批次，然后在批准前重新检查。"))
         return "\n".join(lines)
+    run_status = str(run.get("status"))
     lines.append(_msg(language,
-        f"حالة المسير: {run.get('status')}.",
-        f"Run status: {run.get('status')}.",
-        f"批次状态：{run.get('status')}。"))
+        f"حالة المسير: {_status_label(_RUN_STATUS, run_status, language)}.",
+        f"Run status: {_status_label(_RUN_STATUS, run_status, language)}.",
+        f"批次状态：{_status_label(_RUN_STATUS, run_status, language)}。"))
+    if not report.get("has_items", True):
+        lines.append(_msg(language,
+            "المسير لا يحتوي أي بنود موظفين بعد — لا توجد بيانات يمكن تقييمها؛ هذه ليست نتيجة فحص سليمة.",
+            "The run has no employee items yet — there is nothing to assess; this is not a clean review result.",
+            "该批次尚无员工条目 — 没有可评估的数据；这不代表检查通过。"))
+        lines.append(_msg(language,
+            "المصدر: مسير الرواتب وبنوده وسجلات الحضور اليومية المحلية. القرار النهائي لمسؤول الموارد البشرية.",
+            "Source: the local payroll run, its items, and daily attendance records. The final decision belongs to the HR administrator.",
+            "来源：本地工资批次、工资条目和每日考勤记录。最终决定权在人力资源管理员。"))
+        return "\n".join(lines)
 
     unsettled = report["unsettled_attendance"]
     if unsettled:
@@ -251,7 +290,10 @@ def format_pre_payroll_review(report: dict[str, Any], language: str = "ar") -> s
             f"Unsettled attendance to resolve before approval ({len(unsettled)} employees):",
             f"批准前需要处理的未结考勤（{len(unsettled)} 名员工）："))
         for entry in unsettled:
-            days = ", ".join(f"{r['work_date']} (#{r['id']}, {r['status']})" for r in entry["records"])
+            days = ", ".join(
+                f"{r['work_date']} (#{r['id']}, {_status_label(_ATTENDANCE_STATUS, r['status'], language)})"
+                for r in entry["records"]
+            )
             lines.append(f"- {entry['employee_code']} — {entry['employee_name']}: {days}")
     else:
         lines.append(_msg(language,

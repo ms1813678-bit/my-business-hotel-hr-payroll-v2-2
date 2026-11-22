@@ -323,17 +323,17 @@
       var year;
       var month;
       var day;
-      if (d) {
-        year = d.getFullYear();
-        month = d.getMonth() + 1;
-        day = d.getDate();
-      } else if (rejectedDate && (userTime.hour !== undefined || userTime.minute !== undefined)) {
-        /* The selection was cleared (e.g. outside click) after a rejection,
-         * and the user has entered new raw time values since: validate the
-         * correction against the rejected date. */
+      if (rejectedDate && (userTime.hour !== undefined || userTime.minute !== undefined)) {
+        /* A correction follows a rejection: it belongs to the rejected
+         * attempt's date, even if the selection was cleared or the picker
+         * re-anchored to today. */
         year = rejectedDate.year;
         month = rejectedDate.month;
         day = rejectedDate.day;
+      } else if (d) {
+        year = d.getFullYear();
+        month = d.getMonth() + 1;
+        day = d.getDate();
       } else {
         return;
       }
@@ -406,8 +406,13 @@
     }
     altInput.addEventListener("input", function () {
       lastText = altInput.value;
-      if (rejectedDisplay && altInput.value.trim() !== rejectedDisplay) {
+      if (altInput.value.trim() !== (rejectedDisplay || initialDisplay || "")) {
+        /* The user is typing their own text: every stale popup intent
+         * (raw time-control values, rejected attempt and its date) belongs
+         * to the abandoned popup interaction and must not shape this one. */
         rejectedDisplay = null;
+        rejectedDate = null;
+        userTime = {};
       }
       var text = altInput.value.trim();
       if (text !== "" && strictParse(text, withTime) === null && !isPreservedInitial(text)) {
@@ -438,9 +443,15 @@
       var parsed = strictParse(visible, withTime);
       if (parsed !== null) {
         /* Valid text (typed or produced by a valid popup selection): adopt
-         * it through the normal path so the hidden ISO value is set. The
-         * nested onValueUpdate may still reject the intended popup time, so
-         * only clear the error when a value actually survived. */
+         * it through the normal path so the hidden ISO value is set. An
+         * explicit typed correction abandons any stale popup intent first,
+         * otherwise the nested onValueUpdate would re-reject using raw time
+         * values captured for the old attempt. */
+        if (visible !== (rejectedDisplay || "") || rejectedDisplay === null) {
+          userTime = {};
+          rejectedDate = null;
+          rejectedDisplay = null;
+        }
         instance.setDate(parsed, true);
         if (!withTime || el.value !== "") {
           clearInvalid();

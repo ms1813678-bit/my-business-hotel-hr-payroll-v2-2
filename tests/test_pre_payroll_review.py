@@ -276,3 +276,50 @@ def test_heuristics_visible_and_configurable(monkeypatch):
         assert "does not mean the deductions are correct" in text
     finally:
         engine.dispose()
+
+
+def test_empty_run_is_explicit_insufficient(monkeypatch):
+    engine, factory = _session()
+    try:
+        with factory() as db:
+            _run(db, date(2026, 11, 1))
+            db.commit()
+        _patched(factory, monkeypatch)
+        report = review.build_pre_payroll_review(date(2026, 11, 1))
+        assert report["has_items"] is False
+        for lang, marker in (("ar", "لا توجد بيانات يمكن تقييمها"),
+                             ("en", "nothing to assess"),
+                             ("zh", "没有可评估的数据")):
+            text = review.format_pre_payroll_review(report, lang)
+            assert marker in text
+            assert "مسودة" in text if lang == "ar" else True
+    finally:
+        engine.dispose()
+
+
+def test_draft_runs_excluded_from_baseline_and_statuses_localized(monkeypatch):
+    engine, factory = _session()
+    try:
+        with factory() as db:
+            emp = _employee(db)
+            draft_prev = _run(db, date(2026, 10, 1), status="draft")
+            _item(db, draft_prev, emp, lateness="50")
+            approved_prev = _run(db, date(2026, 9, 1), status="approved")
+            _item(db, approved_prev, emp, lateness="50")
+            run = _run(db, date(2026, 11, 1))
+            _item(db, run, emp, lateness="400")
+            db.add(AttendanceDailyRecord(
+                employee_id=emp.id, work_date=date(2026, 11, 3), status="needs_review"))
+            db.commit()
+        _patched(factory, monkeypatch)
+        report = review.build_pre_payroll_review(date(2026, 11, 1))
+        flagged = report["unusual_deductions"][0]
+        # baseline from the approved September run only, not the nearer draft
+        assert flagged["baseline_months"] == ["2026-09-01"]
+        text = review.format_pre_payroll_review(report, "ar")
+        assert "يحتاج مراجعة" in text and "needs_review" not in text
+        assert "مسيرات معتمدة فقط" in text
+        text_zh = review.format_pre_payroll_review(report, "zh")
+        assert "需要审核" in text_zh and "needs_review" not in text_zh
+    finally:
+        engine.dispose()
