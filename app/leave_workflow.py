@@ -5,6 +5,7 @@ from decimal import Decimal
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.models import utcnow
 from app.models import (
     AuditLog,
     LeaveBalanceTransaction,
@@ -104,7 +105,7 @@ def confirm_leave(db: Session, record: LeaveRecord, actor: str) -> None:
         )
     record.status = "confirmed"
     record.confirmed_by = actor
-    record.confirmed_at = datetime.utcnow()
+    record.confirmed_at = utcnow()
     db.add(AuditLog(
         actor=actor,
         action="leave_confirmed",
@@ -135,7 +136,7 @@ def cancel_leave(db: Session, record: LeaveRecord, actor: str, reason: str) -> N
     old_status = record.status
     record.status = "cancelled"
     record.cancelled_by = actor
-    record.cancelled_at = datetime.utcnow()
+    record.cancelled_at = utcnow()
     record.cancellation_reason = reason.strip()
     db.add(AuditLog(
         actor=actor,

@@ -46,7 +46,7 @@ from app.security import verify_password
 from app.employee_codes import allocate_employee_code
 from app.leave_workflow import add_balance_entry, cancel_leave, confirm_leave, leave_balance
 from app.advance_workflow import approve_advance, create_advance, mark_advance_paid, reject_advance
-from app.models import AdvanceInstallment
+from app.models import AdvanceInstallment, CAIRO_TZ
 from app.staff_actions_workflow import approve_staff_action, cancel_staff_action, create_staff_action, record_employee_acknowledgement
 from app.reports import build_hr_pdf, build_hr_workbook
 from app.report_builder import (
@@ -1644,8 +1644,8 @@ def create_leave_record(
             return RedirectResponse("/leave?error=overlap", status_code=303)
         # Planned leave needs at least 72 hours' notice. Sick and emergency leave
         # are exceptions, but the administrator must still enter a reason.
-        starts_at = datetime.combine(start_date, datetime.min.time())
-        if leave_type.code not in {"sick", "casual"} and starts_at < datetime.now() + timedelta(hours=72):
+        starts_at = datetime.combine(start_date, datetime.min.time(), tzinfo=CAIRO_TZ)
+        if leave_type.code not in {"sick", "casual"} and starts_at < datetime.now(CAIRO_TZ) + timedelta(hours=72):
             return RedirectResponse("/leave?error=notice", status_code=303)
         record = LeaveRecord(
             employee_id=employee_id,
@@ -2653,10 +2653,10 @@ def audit_log_page(
             query = query.where(AuditLog.entity_type == entity_type.strip())
         parsed_from = _parse_date(from_date)
         if parsed_from is not None:
-            query = query.where(AuditLog.created_at >= datetime.combine(parsed_from, datetime.min.time(), tzinfo=timezone.utc))
+            query = query.where(AuditLog.created_at >= datetime.combine(parsed_from, datetime.min.time(), tzinfo=CAIRO_TZ))
         parsed_to = _parse_date(to_date)
         if parsed_to is not None:
-            query = query.where(AuditLog.created_at < datetime.combine(parsed_to + timedelta(days=1), datetime.min.time(), tzinfo=timezone.utc))
+            query = query.where(AuditLog.created_at < datetime.combine(parsed_to + timedelta(days=1), datetime.min.time(), tzinfo=CAIRO_TZ))
         total = db.scalar(select(func.count()).select_from(query.subquery())) or 0
         pages = max(1, math.ceil(total / AUDIT_PAGE_SIZE))
         page = min(page, pages)

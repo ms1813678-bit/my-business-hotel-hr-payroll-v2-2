@@ -29,7 +29,7 @@ from app.backup_crypto import (
     unwrap_data_key_from_record,
 )
 from app.config import settings
-from app.models import BackupRun, SystemSetting
+from app.models import utcnow, BackupRun, SystemSetting
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -116,7 +116,7 @@ def save_backup_root(db: Session, path_value: str, actor: str) -> Path:
     else:
         setting.value = str(path)
         setting.updated_by = actor
-        setting.updated_at = datetime.utcnow()
+        setting.updated_at = utcnow()
     db.flush()
     return path
 

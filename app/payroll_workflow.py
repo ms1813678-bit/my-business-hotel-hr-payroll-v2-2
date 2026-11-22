@@ -6,6 +6,7 @@ from decimal import Decimal
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
+from app.models import utcnow
 from app.models import (
     AdvanceInstallment,
     AdvanceRequest,
@@ -362,7 +363,7 @@ def approve_overtime(db: Session, item: PayrollItem, actor: str) -> None:
         raise ValueError("Positive overtime hours are required before approval.")
     item.overtime_approved = True
     item.overtime_approved_by = actor
-    item.overtime_approved_at = datetime.utcnow()
+    item.overtime_approved_at = utcnow()
     recompute_payroll_item(item, run)
     _audit(
         db, actor=actor, action="overtime_approved", entity_type="payroll_item",
@@ -435,7 +436,7 @@ def approve_payroll_run(db: Session, run: PayrollRun, actor: str) -> None:
     old = run.status
     run.status = "approved"
     run.approved_by = actor
-    run.approved_at = datetime.utcnow()
+    run.approved_at = utcnow()
     _audit(
         db, actor=actor, action="payroll_run_approved", entity_type="payroll_run",
         entity_id=str(run.id), old_value=old, new_value="approved",
@@ -450,7 +451,7 @@ def close_payroll_run(db: Session, run: PayrollRun, actor: str) -> None:
         select(PayrollItem).where(PayrollItem.payroll_run_id == run.id)
     ).all()
     employee_ids = {item.employee_id for item in items}
-    now = datetime.utcnow()
+    now = utcnow()
     run_installments = db.scalars(
         select(AdvanceInstallment)
         .join(AdvanceRequest, AdvanceRequest.id == AdvanceInstallment.advance_request_id)
@@ -530,7 +531,7 @@ def close_payroll_run(db: Session, run: PayrollRun, actor: str) -> None:
 
 
 def _reverse_advance_installments_for_run(db: Session, run: PayrollRun, actor: str) -> None:
-    now = datetime.utcnow()
+    now = utcnow()
     applied = db.scalars(
         select(AdvanceInstallment)
         .where(AdvanceInstallment.applied_payroll_run_id == run.id, AdvanceInstallment.status == "applied")
@@ -558,7 +559,7 @@ def reopen_payroll_run(db: Session, run: PayrollRun, actor: str, reason: str) ->
     _reverse_advance_installments_for_run(db, run, actor)
     run.status = "reopened"
     run.reopened_by = actor
-    run.reopened_at = datetime.utcnow()
+    run.reopened_at = utcnow()
     run.reopen_reason = reason.strip()
     _audit(
         db, actor=actor, action="payroll_run_reopened", entity_type="payroll_run",

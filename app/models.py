@@ -1,10 +1,20 @@
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timezone
+from zoneinfo import ZoneInfo
 from decimal import Decimal
 
 from sqlalchemy import Boolean, CheckConstraint, Date, DateTime, ForeignKey, Index, Integer, LargeBinary, Numeric, String, Text, Time, UniqueConstraint, event
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
+
+# Single hotel deployment: all business timestamps are interpreted in Cairo
+# local time (winter UTC+2, summer UTC+3), stored as absolute UTC instants.
+CAIRO_TZ = ZoneInfo("Africa/Cairo")
+
+
+def utcnow() -> datetime:
+    """Current UTC instant, timezone-aware, safe for DateTime(timezone=True) columns."""
+    return datetime.now(timezone.utc)
 
 
 class Department(Base):
@@ -46,7 +56,7 @@ class Employee(Base):
     status: Mapped[str] = mapped_column(String(20), default="active")
     basic_salary: Mapped[Decimal] = mapped_column(Numeric(12, 2))
     daily_hours: Mapped[Decimal] = mapped_column(Numeric(5, 2))
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     department: Mapped[Department] = relationship(back_populates="employees")
 
   
@@ -90,7 +100,7 @@ class SecurityShiftAssignment(Base):
     work_date: Mapped[date] = mapped_column(Date, index=True)
     shift_pattern_id: Mapped[int] = mapped_column(ForeignKey("shift_patterns.id"))
     notes: Mapped[str | None] = mapped_column(Text)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
 class EmployeeCodeCounter(Base):
@@ -132,7 +142,7 @@ class EmployeeChange(Base):
     old_value: Mapped[str | None] = mapped_column(Text)
     new_value: Mapped[str | None] = mapped_column(Text)
     effective_date: Mapped[date] = mapped_column(Date)
-    recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     reason: Mapped[str] = mapped_column(Text)
 
 
@@ -146,7 +156,7 @@ class EmployeeDataChangeRequest(Base):
     status: Mapped[str] = mapped_column(String(20), default="pending", nullable=False)
     decision_reason: Mapped[str | None] = mapped_column(Text)
     effective_date: Mapped[date | None] = mapped_column(Date)
-    recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     reviewed_by: Mapped[str | None] = mapped_column(String(80))
 
@@ -161,7 +171,7 @@ class AuditLog(Base):
     old_value: Mapped[str | None] = mapped_column(Text)
     new_value: Mapped[str | None] = mapped_column(Text)
     reason: Mapped[str | None] = mapped_column(Text)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 @event.listens_for(AuditLog, "before_update")
 def prevent_audit_log_update(mapper, connection, target):
@@ -185,7 +195,7 @@ class AdminAccount(Base):
     username: Mapped[str] = mapped_column(String(80), unique=True)
     password_hash: Mapped[str] = mapped_column(String(255))
     active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true", nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     session_version: Mapped[int] = mapped_column(Integer, default=0, server_default="0", nullable=False)
 
 
@@ -223,7 +233,7 @@ class AttendanceImportBatch(Base):
     issue_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     reviewed_by: Mapped[str | None] = mapped_column(String(80))
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
 class AttendancePunch(Base):
@@ -251,7 +261,7 @@ class AttendancePunch(Base):
     source_sheet: Mapped[str] = mapped_column(String(120), nullable=False)
     source_row: Mapped[int] = mapped_column(Integer, nullable=False)
     event_index: Mapped[int] = mapped_column(Integer, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
 class AttendanceMonth(Base):
@@ -276,7 +286,7 @@ class AttendanceMonth(Base):
     )
     status: Mapped[str] = mapped_column(String(24), default="imported", nullable=False)
     created_by: Mapped[str] = mapped_column(String(80), nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     reviewed_by: Mapped[str | None] = mapped_column(String(80))
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     approved_by: Mapped[str | None] = mapped_column(String(80))
@@ -333,7 +343,7 @@ class AttendanceDailyRecord(Base):
     review_notes: Mapped[str | None] = mapped_column(Text)
     approved_by: Mapped[str | None] = mapped_column(String(80))
     approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
 class AttendanceImportIssue(Base):
@@ -354,7 +364,7 @@ class AttendanceImportIssue(Base):
     resolved_employee_id: Mapped[int | None] = mapped_column(ForeignKey("employees.id"))
     resolved_by: Mapped[str | None] = mapped_column(String(80))
     resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
 
@@ -398,7 +408,7 @@ class LeaveRecord(Base):
     reason: Mapped[str] = mapped_column(Text, nullable=False)
     status: Mapped[str] = mapped_column(String(20), default="draft", nullable=False)
     created_by: Mapped[str] = mapped_column(String(80), nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     confirmed_by: Mapped[str | None] = mapped_column(String(80))
     confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     cancelled_by: Mapped[str | None] = mapped_column(String(80))
@@ -433,7 +443,7 @@ class LeaveBalanceTransaction(Base):
     days_delta: Mapped[Decimal] = mapped_column(Numeric(7, 2), nullable=False)
     reason: Mapped[str] = mapped_column(Text, nullable=False)
     created_by: Mapped[str] = mapped_column(String(80), nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
 class AdvanceRequest(Base):
@@ -459,7 +469,7 @@ class AdvanceRequest(Base):
     reason: Mapped[str] = mapped_column(Text, nullable=False)
     status: Mapped[str] = mapped_column(String(20), default="pending", nullable=False)
     created_by: Mapped[str] = mapped_column(String(80), nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     approved_by: Mapped[str | None] = mapped_column(String(80))
     approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     rejected_by: Mapped[str | None] = mapped_column(String(80))
@@ -526,7 +536,7 @@ class StaffAction(Base):
     reason: Mapped[str] = mapped_column(Text, nullable=False)
     status: Mapped[str] = mapped_column(String(20), default="draft", nullable=False)
     created_by: Mapped[str] = mapped_column(String(80), nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     approved_by: Mapped[str | None] = mapped_column(String(80))
     approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     cancelled_by: Mapped[str | None] = mapped_column(String(80))
@@ -558,7 +568,7 @@ class PayrollRun(Base):
     pay_date: Mapped[date] = mapped_column(Date, nullable=False)
     status: Mapped[str] = mapped_column(String(20), default="draft", nullable=False)
     created_by: Mapped[str] = mapped_column(String(80), nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     approved_by: Mapped[str | None] = mapped_column(String(80))
     approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     closed_by: Mapped[str | None] = mapped_column(String(80))
@@ -623,9 +633,9 @@ class PayrollItem(Base):
     staff_sanction_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=0, nullable=False)
     net_pay: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=0, nullable=False)
     note: Mapped[str | None] = mapped_column(Text)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow
+        DateTime(timezone=True), default=utcnow, onupdate=utcnow
     )
 
 
@@ -647,7 +657,7 @@ class PayrollPayment(Base):
     method: Mapped[str] = mapped_column(String(20), nullable=False)
     reference: Mapped[str | None] = mapped_column(String(200))
     created_by: Mapped[str] = mapped_column(String(80), nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 class SystemSetting(Base):
     __tablename__ = "system_settings"
@@ -655,7 +665,7 @@ class SystemSetting(Base):
     value: Mapped[str] = mapped_column(Text, nullable=False)
     updated_by: Mapped[str] = mapped_column(String(80), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow
+        DateTime(timezone=True), default=utcnow, onupdate=utcnow
     )
 
 
@@ -678,7 +688,7 @@ class BackupRun(Base):
     archive_path: Mapped[str | None] = mapped_column(Text)
     sha256: Mapped[str | None] = mapped_column(String(64))
     size_bytes: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
     verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     initiated_by: Mapped[str] = mapped_column(String(80), nullable=False)
     error_message: Mapped[str | None] = mapped_column(Text)
@@ -707,7 +717,7 @@ class AIConversationMessage(Base):
     actor: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
     role: Mapped[str] = mapped_column(String(20), nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
 
 
 class ReportPreset(Base):
@@ -718,4 +728,4 @@ class ReportPreset(Base):
     name: Mapped[str] = mapped_column(String(120), unique=True, nullable=False)
     config: Mapped[str] = mapped_column(Text, nullable=False)
     created_by: Mapped[str] = mapped_column(String(80), nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

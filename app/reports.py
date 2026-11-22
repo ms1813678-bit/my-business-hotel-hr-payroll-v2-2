@@ -8,6 +8,7 @@ from openpyxl.utils import get_column_letter
 from sqlalchemy import and_, func, select
 from sqlalchemy.orm import Session
 
+from app.models import CAIRO_TZ
 from app.models import (
     AdvanceRequest,
     AttendanceDailyRecord,
@@ -153,7 +154,7 @@ def build_hr_workbook(
 
     balance_transactions = db.scalars(
         select(LeaveBalanceTransaction)
-        .where(LeaveBalanceTransaction.created_at >= datetime.combine(start_date, time.min), LeaveBalanceTransaction.created_at < datetime.combine(end_date + timedelta(days=1), time.min))
+        .where(LeaveBalanceTransaction.created_at >= datetime.combine(start_date, time.min, tzinfo=CAIRO_TZ), LeaveBalanceTransaction.created_at < datetime.combine(end_date + timedelta(days=1), time.min, tzinfo=CAIRO_TZ))
         .where(LeaveBalanceTransaction.employee_id == employee_id if employee_id is not None else True)
         .order_by(LeaveBalanceTransaction.created_at, LeaveBalanceTransaction.id)
     ).all()
@@ -178,7 +179,7 @@ def build_hr_workbook(
 
     actions = db.scalars(
         select(StaffAction)
-        .where(StaffAction.created_at >= datetime.combine(start_date, time.min), StaffAction.created_at < datetime.combine(end_date + timedelta(days=1), time.min))
+        .where(StaffAction.created_at >= datetime.combine(start_date, time.min, tzinfo=CAIRO_TZ), StaffAction.created_at < datetime.combine(end_date + timedelta(days=1), time.min, tzinfo=CAIRO_TZ))
         .where(StaffAction.employee_id == employee_id if employee_id is not None else True)
         .order_by(StaffAction.created_at, StaffAction.id)
     ).all()

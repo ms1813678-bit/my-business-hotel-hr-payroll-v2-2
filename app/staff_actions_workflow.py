@@ -5,7 +5,7 @@ from decimal import Decimal
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models import AuditLog, Employee, StaffAction
+from app.models import utcnow, AuditLog, Employee, StaffAction
 
 
 SANCTION_CATEGORIES = {
@@ -128,7 +128,7 @@ def approve_staff_action(db: Session, item: StaffAction, actor: str) -> None:
             raise ValueError("An identical active financial action already exists.")
     item.status = "approved"
     item.approved_by = actor
-    item.approved_at = datetime.utcnow()
+    item.approved_at = utcnow()
     db.add(AuditLog(
         actor=actor,
         action=f"{item.kind}_approved",
@@ -150,7 +150,7 @@ def cancel_staff_action(db: Session, item: StaffAction, actor: str, reason: str)
     old_status = item.status
     item.status = "cancelled"
     item.cancelled_by = actor
-    item.cancelled_at = datetime.utcnow()
+    item.cancelled_at = utcnow()
     item.cancellation_reason = reason.strip()
     db.add(AuditLog(
         actor=actor,
@@ -179,7 +179,7 @@ def record_employee_acknowledgement(
     old_status = item.acknowledgement_status
     item.acknowledgement_status = status
     item.acknowledgement_recorded_by = actor
-    item.acknowledgement_at = datetime.utcnow()
+    item.acknowledgement_at = utcnow()
     item.acknowledgement_note = note.strip() or None
     db.add(AuditLog(
         actor=actor,

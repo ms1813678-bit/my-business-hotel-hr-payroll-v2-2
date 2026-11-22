@@ -5,7 +5,7 @@ from decimal import Decimal
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.models import AdvanceInstallment, AdvanceRequest, AuditLog, Employee
+from app.models import utcnow, AdvanceInstallment, AdvanceRequest, AuditLog, Employee
 
 
 RESERVING_STATUSES = ("pending", "approved", "paid")
@@ -169,7 +169,7 @@ def create_installments(db: Session, request: AdvanceRequest, installment_count:
             payroll_month=item["payroll_month"],
             scheduled_payment_date=item["pay_date"],
             status="scheduled",
-            created_at=datetime.utcnow(),
+            created_at=utcnow(),
         )
         for item in schedule
     ]
@@ -201,7 +201,7 @@ def approve_advance(db: Session, request: AdvanceRequest, actor: str, installmen
     create_installments(db, request, installment_count, actor)
     request.status = "approved"
     request.approved_by = actor
-    request.approved_at = datetime.utcnow()
+    request.approved_at = utcnow()
     _audit(
         db, actor=actor, action="advance_approved", request=request,
         old="pending", new="approved", reason=request.reason,
@@ -215,7 +215,7 @@ def reject_advance(db: Session, request: AdvanceRequest, actor: str, reason: str
         raise ValueError("A rejection reason is required.")
     request.status = "rejected"
     request.rejected_by = actor
-    request.rejected_at = datetime.utcnow()
+    request.rejected_at = utcnow()
     request.rejection_reason = reason.strip()
     _audit(
         db, actor=actor, action="advance_rejected", request=request,
@@ -228,7 +228,7 @@ def mark_advance_paid(db: Session, request: AdvanceRequest, actor: str) -> None:
         raise ValueError("Only an approved advance can be marked as paid.")
     request.status = "paid"
     request.paid_by = actor
-    request.paid_at = datetime.utcnow()
+    request.paid_at = utcnow()
     _audit(
         db, actor=actor, action="advance_paid", request=request,
         old="approved", new="paid", reason="Payment confirmed by HR administrator.",

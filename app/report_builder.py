@@ -19,6 +19,7 @@ from openpyxl.utils import get_column_letter
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.models import CAIRO_TZ
 from app.models import (
     AdvanceRequest,
     AttendanceDailyRecord,
@@ -844,8 +845,8 @@ def _build_staff_actions_result(db: Session, selection: ReportSelection, start: 
         db.scalars(
             select(StaffAction)
             .where(
-                StaffAction.created_at >= datetime.combine(start, dtime.min),
-                StaffAction.created_at < datetime.combine(end + timedelta(days=1), dtime.min),
+                StaffAction.created_at >= datetime.combine(start, dtime.min, tzinfo=CAIRO_TZ),
+                StaffAction.created_at < datetime.combine(end + timedelta(days=1), dtime.min, tzinfo=CAIRO_TZ),
             )
             .where(StaffAction.employee_id.in_(list(employee_map) or [0]))
             .order_by(StaffAction.created_at, StaffAction.id)

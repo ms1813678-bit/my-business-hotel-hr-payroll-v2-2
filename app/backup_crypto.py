@@ -19,7 +19,7 @@ from cryptography.exceptions import InvalidTag
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from sqlalchemy.orm import Session
 
-from app.models import SystemSetting
+from app.models import utcnow, SystemSetting
 
 MAGIC = b"MYHENC01"
 CHUNK_SIZE = 4 * 1024 * 1024
@@ -229,7 +229,7 @@ def set_passphrase(
     else:
         setting.value = json.dumps(payload)
         setting.updated_by = actor
-        setting.updated_at = datetime.utcnow()
+        setting.updated_at = utcnow()
     db.flush()
 
 
