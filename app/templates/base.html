@@ -33,7 +33,7 @@
         <div class="nav-group-title">الموارد البشرية</div>
         {% if request.state.admin_role != 'assistant_manager' %}<a class="nav-link {% if active_nav == 'employees' %}active{% endif %}" href="/employees"><span class="dot"></span>الموظفون</a>{% endif %}
         <a class="nav-link {% if active_nav == 'attendance' %}active{% endif %}" href="/attendance/import"><span class="dot"></span>الحضور والانصراف</a>
-        {% if request.state.admin_role != 'finance' %}<a class="nav-link {% if active_nav == 'leave' %}active{% endif %}" href="/leave"><span class="dot"></span>الإجازات</a>{% endif %}
+        <a class="nav-link {% if active_nav == 'leave' %}active{% endif %}" href="/leave"><span class="dot"></span>الإجازات</a>
         {% if request.state.admin_role != 'assistant_manager' %}<a class="nav-link {% if active_nav == 'staff_actions' %}active{% endif %}" href="/staff-actions"><span class="dot"></span>الجزاءات والمكافآت</a>{% endif %}
         <a class="nav-link {% if active_nav == 'security_roster' %}active{% endif %}" href="/security-roster"><span class="dot"></span>جدول الأمن</a>
       </div>

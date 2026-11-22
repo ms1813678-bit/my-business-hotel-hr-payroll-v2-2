@@ -12,6 +12,7 @@
 
 <section class="panel">
   {% if error == "missing" %}<p class="error">أكمل كل الحقول بما فيها سبب الإجراء.</p>{% endif %}
+  {% if error == "auth" %}<p class="error">كلمة مرورك غير صحيحة؛ لم تتم إعادة التعيين.</p>{% endif %}
   {% if error == "role" %}<p class="error">الصلاحية غير معروفة. الحسابات الجديدة تكون مساعد مدير أو مدير مالية فقط.</p>{% endif %}
   {% if error == "mismatch" %}<p class="error">كلمة المرور وتأكيدها غير متطابقين.</p>{% endif %}
   {% if error == "exists" %}<p class="error">اسم المستخدم مستخدم بالفعل أو الحساب غير موجود.</p>{% endif %}
@@ -54,6 +55,7 @@
             <form method="post" action="/settings/accounts/{{ account.id }}/reset-password" class="inline-form">
               <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
               <input name="reason" type="text" placeholder="سبب الإجراء" required maxlength="200" style="max-width:180px">
+              <input name="current_password" type="password" placeholder="كلمة مرورك أنت" required autocomplete="off" style="max-width:150px">
               <button type="submit" class="btn-soft">إعادة تعيين كلمة المرور</button>
             </form>
           </td>

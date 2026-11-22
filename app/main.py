@@ -32,6 +32,7 @@ from app.dependencies import (
     get_current_admin,
     require_attendance_read,
     require_attendance_write,
+    require_leave_read,
     require_employee_read,
     require_payroll_access,
     require_system_admin,
@@ -80,6 +81,7 @@ from app.report_builder import (
     REPORT_TYPE_ATTENDANCE,
     REPORT_TYPE_COMPREHENSIVE,
     REPORT_TYPE_LABELS,
+    REPORT_TYPE_LEAVE,
     REPORT_TYPE_PAYROLL,
     REPORT_TYPE_STAFF_ACTIONS,
     REPORT_TYPES,
@@ -1820,7 +1822,7 @@ def employee_photo(
 
 
 @app.get("/leave", response_class=HTMLResponse)
-def leave_page(request: Request, page: int = 1, admin: AdminAccount = Depends(require_attendance_write)):
+def leave_page(request: Request, page: int = 1, admin: AdminAccount = Depends(require_leave_read)):
     page_size = 100
     page = max(1, page)
     with SessionLocal() as db:
@@ -2956,6 +2958,7 @@ _REPORT_TYPES_BY_ROLE = {
         REPORT_TYPE_ATTENDANCE,
         REPORT_TYPE_ADVANCES,
         REPORT_TYPE_STAFF_ACTIONS,
+        REPORT_TYPE_LEAVE,
     },
 }
 
@@ -3420,6 +3423,7 @@ def reset_account_password(
     request: Request,
     account_id: int,
     reason: str = Form(...),
+    current_password: str = Form(...),
     admin: AdminAccount = Depends(require_system_admin),
 ):
     """The system administrator issues a new one-time password for one account;
@@ -3427,6 +3431,11 @@ def reset_account_password(
     reason = reason.strip()
     if not reason:
         return RedirectResponse("/settings/accounts?error=missing", status_code=303)
+    # Reauthentication: whoever holds this session must prove they know the
+    # administrator's own password before any account password is reset, so an
+    # unlocked session alone cannot take over an account.
+    if not verify_password(current_password, admin.password_hash):
+        return RedirectResponse("/settings/accounts?error=auth", status_code=303)
     temporary_password = _generate_temporary_password()
     with SessionLocal.begin() as db:
         target = db.get(AdminAccount, account_id)

@@ -23,6 +23,7 @@
   </section>
   {% endif %}
 
+  {% if request.state.admin_role != 'finance' %}
   <section class="notice">
     <h2>تسجيل إجازة جديدة</h2>
     <details class="hint"><summary>تعليمات</summary>
@@ -45,7 +46,9 @@
       <button type="submit">حفظ كمسودة</button>
     </form>
   </section>
+  {% endif %}
 
+  {% if request.state.admin_role != 'finance' %}
   <section class="notice">
     <h2>تسجيل رصيد افتتاحي أو تسوية</h2>
     <details class="hint"><summary>تعليمات</summary>
@@ -63,6 +66,7 @@
       <button type="submit">تسجيل الحركة</button>
     </form>
   </section>
+  {% endif %}
 
   <section class="notice">
     <h2>أرصدة الموظفين الحالية</h2>
@@ -82,12 +86,13 @@
       {% if page < total_pages %}<a href="/leave?page={{ page + 1 }}">التالي</a>{% endif %}
     </nav>
     {% endif %}
-    <div class="table-wrap"><table><thead><tr><th>الموظف</th><th>النوع</th><th>الفترة</th><th>أيام تقويمية</th><th>أيام خصم</th><th>الحالة</th><th>الإجراء</th></tr></thead><tbody>
+    <div class="table-wrap"><table><thead><tr><th>الموظف</th><th>النوع</th><th>الفترة</th><th>أيام تقويمية</th><th>أيام خصم</th><th>الحالة</th>{% if request.state.admin_role != 'finance' %}<th>الإجراء</th>{% endif %}</tr></thead><tbody>
     {% for r in records %}
     <tr><td>{{ employee_codes.get(r.employee_id, "—") }} — {{ employee_names.get(r.employee_id, "—") }}</td>
       <td>{{ type_names.get(r.leave_type_id, "—") }}</td>
       <td>{{ r.start_date.strftime("%d/%m/%Y") }} – {{ r.end_date.strftime("%d/%m/%Y") }}</td>
       <td>{{ r.calendar_days }}</td><td>{{ r.charged_days }}</td><td>{{ r.status|status_label }}</td>
+      {% if request.state.admin_role != 'finance' %}
       <td>
         {% if r.status == "draft" %}
         <form method="post" action="/leave/records/{{ r.id }}/confirm" class="inline-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button type="submit">اعتماد وخصم الرصيد</button></form>
@@ -96,6 +101,7 @@
         <form method="post" action="/leave/records/{{ r.id }}/cancel" class="inline-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input name="reason" placeholder="سبب الإلغاء" required><button type="submit">إلغاء</button></form>
         {% endif %}
       </td>
+      {% endif %}
     </tr>
     <tr><td colspan="7"><span class="muted"><span>السبب:</span> {{ r.reason }}{% if r.cancellation_reason %} <span>·</span> <span>سبب الإلغاء:</span> {{ r.cancellation_reason }}{% endif %}</span></td></tr>
     {% else %}<tr><td colspan="7">لا توجد إجازات مسجلة بعد.</td></tr>{% endfor %}
@@ -107,6 +113,7 @@
     <details class="hint"><summary>تعليمات</summary>
       <p class="muted">يمكن إضافة نوع مخصص. تفعيل تتبع الرصيد يعني أن اعتماد الإجازة يخصم الأيام من رصيد الموظف.</p>
     </details>
+    {% if request.state.admin_role != 'finance' %}
     <form method="post" action="/leave/types">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <div class="form-grid">
@@ -119,6 +126,7 @@
       </div>
       <button type="submit">إضافة نوع</button>
     </form>
+    {% endif %}
   </section>
 
   <section class="notice">

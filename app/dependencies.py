@@ -90,6 +90,7 @@ def require_roles(*roles: str):
 require_system_admin = require_roles(ROLE_SYSTEM_ADMIN)
 require_payroll_access = require_roles(ROLE_SYSTEM_ADMIN, ROLE_FINANCE)
 require_attendance_write = require_roles(ROLE_SYSTEM_ADMIN, ROLE_ASSISTANT)
+require_leave_read = require_roles(ROLE_SYSTEM_ADMIN, ROLE_FINANCE, ROLE_ASSISTANT)
 require_attendance_read = require_roles(ROLE_SYSTEM_ADMIN, ROLE_FINANCE, ROLE_ASSISTANT)
 require_employee_read = require_roles(ROLE_SYSTEM_ADMIN, ROLE_FINANCE)
 

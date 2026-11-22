@@ -227,8 +227,8 @@ def test_finance_payroll_full_attendance_readonly(three_clients):
         follow_redirects=False,
     )
     assert response.status_code == 403
-    # no system settings, no AI, no leave
-    for url in ("/settings/backup", "/settings/audit", "/settings/accounts", "/ai", "/leave"):
+    # no system settings, no AI (leave viewing is allowed, read-only)
+    for url in ("/settings/backup", "/settings/audit", "/settings/accounts", "/ai"):
         assert finance.get(url, follow_redirects=False).status_code == 403, url
     # employee edits refused
     response = finance.post(
@@ -301,23 +301,38 @@ def test_each_account_changes_own_password(three_clients):
     assert response.status_code == 401
 
 
-def test_finance_reports_exclude_leave_and_comprehensive(three_clients):
+def test_finance_leave_readonly_and_comprehensive_still_excluded(three_clients):
     _, finance, _ = three_clients
-    # payroll and attendance reports stay available
+    # payroll, attendance and (new) leave reports are in the finance scope
     assert finance.get("/reports?report_type=payroll&period=this_month").status_code == 200
     assert finance.get("/reports?report_type=attendance&period=this_month").status_code == 200
-    # leave reports are outside the finance scope, in every entry path
-    assert finance.get("/reports?report_type=leave&period=this_month", follow_redirects=False).status_code == 403
-    assert finance.get("/reports/view?report_type=leave&period=this_month", follow_redirects=False).status_code == 403
-    # the comprehensive report embeds the leave sheet, so it is refused too
+    assert finance.get("/reports?report_type=leave&period=this_month").status_code == 200
+    assert finance.get("/reports/view?report_type=leave&period=this_month").status_code == 200
+    # the comprehensive export is still outside the finance scope
     assert finance.get("/reports?report_type=comprehensive&period=this_month", follow_redirects=False).status_code == 403
     assert finance.get("/reports/export.xlsx?start_date=2026-10-01&end_date=2026-10-31", follow_redirects=False).status_code == 403
     assert finance.get("/reports/export.pdf?start_date=2026-10-01&end_date=2026-10-31", follow_redirects=False).status_code == 403
-    # the request form does not even offer the excluded types
+    # the request form offers leave but still not comprehensive
     page = finance.get("/reports")
-    assert 'value="leave"' not in page.text
+    assert 'value="leave"' in page.text
     assert 'value="comprehensive"' not in page.text
     assert 'value="payroll"' in page.text
+
+
+def test_finance_leave_pages_readonly_writes_refused(three_clients):
+    _, finance, _ = three_clients
+    page = finance.get("/leave")
+    assert page.status_code == 200, "finance may view leave and balances"
+    assert 'action="/leave/records"' not in page.text, "no record form in the finance view"
+    assert 'action="/leave/balances"' not in page.text, "no balance form in the finance view"
+    assert 'action="/leave/types"' not in page.text, "no type form in the finance view"
+    assert "/confirm" not in page.text and "اعتماد وخصم الرصيد" not in page.text
+    # server-side: every leave write stays refused for finance
+    assert finance.post("/leave/types", data={"code": "x", "name_ar": "x", "name_en": "x"}).status_code == 403
+    assert finance.post("/leave/balances", data={}).status_code == 403
+    assert finance.post("/leave/records", data={}).status_code == 403
+    assert finance.post("/leave/records/1/confirm").status_code == 403
+    assert finance.post("/leave/records/1/cancel", data={"reason": "x"}).status_code == 403
 
 
 def test_assistant_reports_exclude_national_id(three_clients):
@@ -348,11 +363,12 @@ def test_account_audit_actions_have_display_labels():
         assert ACTION_LABELS.get(action, action) != action
 
 
-def reset_account(client, account_id, reason="إعادة تعيين تجريبية"):
+def reset_account(client, account_id, reason="إعادة تعيين تجريبية", current_password=ADMIN_PW):
     page = client.get("/settings/accounts")
     return client.post(
         f"/settings/accounts/{account_id}/reset-password",
-        data={"csrf_token": csrf(page), "reason": reason},
+        data={"csrf_token": csrf(page), "reason": reason,
+              "current_password": current_password},
     )
 
 
@@ -404,13 +420,28 @@ def test_account_password_reset_needs_reason_and_admin(three_clients):
             select(AdminAccount.id).where(AdminAccount.username == "finance-user"))
 
     page = admin.get("/settings/accounts")
+    token = csrf(page)
     missing = admin.post(
         f"/settings/accounts/{target_id}/reset-password",
-        data={"csrf_token": csrf(page), "reason": "   "},
+        data={"csrf_token": token, "reason": "   ", "current_password": ADMIN_PW},
         follow_redirects=False,
     )
     assert missing.status_code == 303
     assert missing.headers["location"] == "/settings/accounts?error=missing"
+
+    # without the administrator's own correct password nothing is reset
+    wrong_auth = admin.post(
+        f"/settings/accounts/{target_id}/reset-password",
+        data={"csrf_token": token, "reason": "محاولة بكلمة غلط",
+              "current_password": "not-the-admin-password"},
+        follow_redirects=False,
+    )
+    assert wrong_auth.status_code == 303
+    assert wrong_auth.headers["location"] == "/settings/accounts?error=auth"
+    with admin.test_session_factory() as db:
+        assert db.scalar(select(AuditLog).where(
+            AuditLog.action == "account_password_reset",
+            AuditLog.reason == "محاولة بكلمة غلط")) is None
 
     forbidden = assistant.post(
         f"/settings/accounts/{target_id}/reset-password",
