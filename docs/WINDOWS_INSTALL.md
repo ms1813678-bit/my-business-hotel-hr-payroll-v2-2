@@ -66,7 +66,7 @@ After a total loss the new installation's database is empty, so the web page has
 4. Sign in and verify employees, attendance, and payroll data.
 
 ## Backup and restore acceptance
-Before production use, verify backup creation, SHA-256/integrity validation, retention behavior, restore confirmation and audit, automatic pre-restore backup, successful restore verification, and rollback after an intentionally failed restore in a disposable test database.
+Before production use, verify backup creation, SHA-256/integrity validation, that no backup is ever deleted automatically, restore confirmation and audit, automatic pre-restore backup, successful restore verification, and rollback after an intentionally failed restore in a disposable test database.
 
 ## Troubleshooting
 - .env contains database credentials and the session secret. Never commit or share it.

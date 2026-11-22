@@ -1,4 +1,4 @@
-"""Verified local PostgreSQL backups and retention management."""
+"""Verified local PostgreSQL backups. Archives are never deleted automatically."""
 from __future__ import annotations
 
 import hashlib
@@ -9,10 +9,10 @@ import stat
 import subprocess
 import tempfile
 import zipfile
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from pathlib import Path
 
-from sqlalchemy import delete, select, text
+from sqlalchemy import select, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session
 
@@ -278,45 +278,6 @@ def verify_backup_archive(
     return manifest
 
 
-def cleanup_retention(
-    backup_root: Path,
-    now: datetime | None = None,
-    data_key: bytes | None = None,
-) -> list[str]:
-    current = now or datetime.now(timezone.utc)
-    removed = []
-    archives = list(backup_root.rglob("*.zip")) + list(backup_root.rglob(f"*{ENCRYPTED_SUFFIX}"))
-    for archive_path in archives:
-        try:
-            if is_encrypted_archive(archive_path):
-                if data_key is None:
-                    # Never delete an archive we cannot read automatically.
-                    continue
-                with tempfile.TemporaryDirectory(prefix="myhotel_retention_") as work_dir:
-                    plain_path = Path(work_dir) / "archive.zip"
-                    decrypt_file(data_key, archive_path, plain_path)
-                    manifest = _read_manifest(plain_path)
-            else:
-                manifest = _read_manifest(archive_path)
-            backup_type = manifest.get("backup_type")
-            created = datetime.fromisoformat(manifest["created_at"])
-            if created.tzinfo is None:
-                created = created.replace(tzinfo=timezone.utc)
-            age = current - created
-            expired = (
-                backup_type == "daily" and age > timedelta(days=40)
-            ) or (
-                backup_type == "weekly" and age > timedelta(days=365)
-            )
-            if expired:
-                archive_path.unlink()
-                removed.append(str(archive_path))
-        except (OSError, ValueError, KeyError, zipfile.BadZipFile):
-            # Never delete an unreadable archive automatically.
-            continue
-    return removed
-
-
 def create_backup(db: Session, backup_type: str, actor: str) -> BackupRun:
     if backup_type not in {"daily", "weekly", "quarterly", "manual", "pre_restore"}:
         raise ValueError("Invalid backup type.")
@@ -407,9 +368,8 @@ def create_backup(db: Session, backup_type: str, actor: str) -> BackupRun:
         verify_backup_archive(archive_path, archive_hash, data_key)
         if data_key:
             export_key_file(db)
-        expired_paths = cleanup_retention(backup_root, data_key=data_key)
-        if expired_paths:
-            db.execute(delete(BackupRun).where(BackupRun.archive_path.in_(expired_paths)))
+        # Owner decision (November 2026): no automatic retention deletion of
+        # any backup category. Old archives are deleted manually by the user.
         run = BackupRun(
             backup_type=backup_type,
             status="success",

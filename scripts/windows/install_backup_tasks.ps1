@@ -53,8 +53,6 @@ foreach ($Task in $Tasks) {
 }
 
 Write-Host "Backup tasks installed."
-Write-Host "Daily retention: 40 days."
-Write-Host "Weekly retention: 365 days."
-Write-Host "Quarterly full backups: never auto-deleted."
+Write-Host "No backup is ever deleted automatically; delete old backups manually from the backup folder."
 Write-Host "Default schedule: daily $DailyTime, Sunday $WeeklyTime, first day of each quarter $QuarterlyTime."
 Write-Host "Times can be changed by rerunning this script with -DailyTime, -WeeklyTime and -QuarterlyTime."

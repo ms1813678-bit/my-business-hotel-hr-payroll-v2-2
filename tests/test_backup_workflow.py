@@ -1,8 +1,8 @@
-"""Backup archive integrity and retention policy tests."""
+"""Backup archive integrity tests. Backups are never deleted automatically."""
 import hashlib
 import json
 import zipfile
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -10,7 +10,6 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
 from app.backup_workflow import (
-    cleanup_retention,
     create_backup,
     restore_backup,
     sha256_file,
@@ -55,38 +54,15 @@ def test_backup_archive_hash_and_photo_manifest_are_verified(tmp_path):
         verify_backup_archive(archive, "0" * 64)
 
 
-def test_backup_retention_deletes_only_expired_daily_and_weekly_archives(tmp_path):
-    now = datetime(2026, 11, 7, tzinfo=timezone.utc)
-    old_daily = make_backup(
-        tmp_path / "daily" / "old-daily.zip", "daily", now - timedelta(days=41)
-    )
-    recent_daily = make_backup(
-        tmp_path / "daily" / "recent-daily.zip", "daily", now - timedelta(days=39)
-    )
-    old_weekly = make_backup(
-        tmp_path / "weekly" / "old-weekly.zip", "weekly", now - timedelta(days=366)
-    )
-    old_quarterly = make_backup(
-        tmp_path / "quarterly" / "old-quarterly.zip", "quarterly", now - timedelta(days=900)
-    )
-    old_manual = make_backup(
-        tmp_path / "manual" / "old-manual.zip", "manual", now - timedelta(days=900)
-    )
-    old_pre_restore = make_backup(
-        tmp_path / "pre_restore" / "old-pre-restore.zip",
-        "pre_restore",
-        now - timedelta(days=900),
-    )
+def test_backup_creation_performs_no_automatic_retention_deletion():
+    # Owner decision (November 2026): no backup of any type or age is ever
+    # deleted automatically; the user deletes old archives manually.
+    import inspect
 
-    removed = cleanup_retention(tmp_path, now=now)
-    assert str(old_daily) in removed
-    assert str(old_weekly) in removed
-    assert not old_daily.exists()
-    assert not old_weekly.exists()
-    assert recent_daily.exists()
-    assert old_quarterly.exists()
-    assert old_manual.exists()
-    assert old_pre_restore.exists()
+    from app import backup_workflow
+
+    assert not hasattr(backup_workflow, "cleanup_retention")
+    assert "cleanup_retention" not in inspect.getsource(backup_workflow.create_backup)
 
 
 def test_backup_location_requires_an_absolute_path(tmp_path):

@@ -22,7 +22,7 @@ from app.backup_crypto import (
     unwrap_data_key_for_restore,
     verify_passphrase,
 )
-from app.backup_workflow import cleanup_retention, verify_backup_archive
+from app.backup_workflow import verify_backup_archive
 from app.db import Base
 
 PASSPHRASE = "correct horse battery staple 123"
@@ -162,27 +162,6 @@ def test_verify_encrypted_archive_needs_data_key(db_factory, tmp_path):
         verify_backup_archive(enc)
     manifest = verify_backup_archive(enc, data_key=key)
     assert manifest["backup_type"] == "daily"
-
-
-def test_retention_handles_encrypted_archives(db_factory, tmp_path, monkeypatch):
-    monkeypatch.setattr(backup_crypto, "CHUNK_SIZE", 1024)
-    with db_factory.begin() as db:
-        set_passphrase(db, PASSPHRASE, "admin")
-        key = load_data_key(db)
-    old = datetime(2026, 9, 1, tzinfo=timezone.utc)
-    recent = datetime(2026, 11, 20, tzinfo=timezone.utc)
-    for name, stamp in (("old", old), ("recent", recent)):
-        plain = _make_plain_zip(tmp_path / "daily" / f"{name}.zip", "daily", stamp)
-        enc = tmp_path / "daily" / f"{name}.zip.enc"
-        encrypt_file(key, plain, enc)
-        plain.unlink()
-    now = datetime(2026, 11, 21, tzinfo=timezone.utc)
-    # Without the key nothing is auto-deleted.
-    assert cleanup_retention(tmp_path, now) == []
-    removed = cleanup_retention(tmp_path, now, data_key=key)
-    assert len(removed) == 1 and "old" in removed[0]
-    assert (tmp_path / "daily" / "recent.zip.enc").is_file()
-    assert not (tmp_path / "daily" / "old.zip.enc").exists()
 
 
 def test_damaged_record_fails_closed(db_factory, tmp_path, monkeypatch):

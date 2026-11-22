@@ -74,9 +74,10 @@ def test_backup_page_and_mutations_are_admin_and_csrf_protected(backup_client):
     login(client)
     page = client.get("/settings/backup")
     assert page.status_code == 200
-    assert "40 يومًا" in page.text
-    assert "365 يومًا" in page.text
-    assert "لا تُحذف تلقائيًا" in page.text
+    # Owner decision (November 2026): no automatic retention deletion at all.
+    assert "40 يومًا" not in page.text
+    assert "365 يومًا" not in page.text
+    assert "لا تُحذف أي نسخة تلقائيًا" in page.text
 
 
 def test_manual_backup_without_external_drive_is_recorded_as_failed(backup_client):
