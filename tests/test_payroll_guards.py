@@ -430,3 +430,107 @@ def test_review_form_carries_no_financial_inputs(guard_client):
     assert inputs == ["csrf_token"]
     buttons = re.findall(r'<button[^>]*formaction=', match.group(1))
     assert not buttons
+
+
+def save_item(client, item_id, **overrides):
+    page = client.get(f"/payroll/runs/{client.test_run_id}")
+    token = csrf(page)
+    data = {
+        "csrf_token": token,
+        "attendance_bonus": "0", "performance_bonus": "0", "occupancy_bonus": "0",
+        "overtime_hours": "0", "other_bonus": "0", "absence_days": "0",
+        "lateness_deduction": "0", "insurance_share": "0", "taxes": "0",
+        "other_deductions": "0", "note": "",
+    }
+    data.update({k: str(v) for k, v in overrides.items()})
+    response = client.post(
+        f"/payroll/items/{item_id}/update", data=data, follow_redirects=False
+    )
+    assert response.status_code == 303
+    assert "error" not in response.headers["location"]
+
+
+def test_missing_employee_alert_on_run_page(guard_client):
+    client = guard_client
+    login(client)
+    run_id, item_id = create_run(client)
+    client.test_run_id = run_id
+    page = client.get(f"/payroll/runs/{run_id}")
+    assert "غير مشمولين في هذا المسير" not in page.text
+
+    with client.test_session_factory() as db:
+        late_hire = Employee(
+            code="MY-TEST-GRD-0002",
+            full_name="Synthetic Late Hire",
+            department_id=1,
+            position="Test Position",
+            hire_date=date(2026, 10, 5),
+            status="active",
+            basic_salary=Decimal("4000.00"),
+            daily_hours=Decimal("8"),
+        )
+        db.add(late_hire)
+        db.flush()
+        db.add(EmployeeServicePeriod(
+            employee_id=late_hire.id,
+            start_date=date(2026, 10, 5),
+            end_date=None,
+            start_reason="Synthetic late hire",
+        ))
+        db.commit()
+
+    page = client.get(f"/payroll/runs/{run_id}")
+    assert "غير مشمولين في هذا المسير" in page.text
+    assert "MY-TEST-GRD-0002" in page.text
+
+
+def test_unchanged_overtime_save_keeps_approval(guard_client):
+    client = guard_client
+    login(client)
+    run_id, item_id = create_run(client)
+    client.test_run_id = run_id
+    save_item(client, item_id, overtime_hours=2)
+    page = client.get(f"/payroll/runs/{run_id}")
+    token = csrf(page)
+    client.post(
+        f"/payroll/items/{item_id}/overtime-approve",
+        data={"csrf_token": token},
+        follow_redirects=False,
+    )
+    with client.test_session_factory() as db:
+        assert db.get(PayrollItem, item_id).overtime_approved is True
+    save_item(client, item_id, overtime_hours=2, other_bonus=50)
+    with client.test_session_factory() as db:
+        assert db.get(PayrollItem, item_id).overtime_approved is True
+
+
+def test_changed_overtime_resets_approval(guard_client):
+    client = guard_client
+    login(client)
+    run_id, item_id = create_run(client)
+    client.test_run_id = run_id
+    save_item(client, item_id, overtime_hours=2)
+    page = client.get(f"/payroll/runs/{run_id}")
+    token = csrf(page)
+    client.post(
+        f"/payroll/items/{item_id}/overtime-approve",
+        data={"csrf_token": token},
+        follow_redirects=False,
+    )
+    save_item(client, item_id, overtime_hours=3)
+    with client.test_session_factory() as db:
+        assert db.get(PayrollItem, item_id).overtime_approved is False
+
+
+def test_run_totals_rendered_on_page(guard_client):
+    client = guard_client
+    login(client)
+    run_id, item_id = create_run(client)
+    client.test_run_id = run_id
+    save_item(client, item_id, other_bonus=100)
+    page = client.get(f"/payroll/runs/{run_id}")
+    assert "عدد الموظفين" in page.text
+    assert "إجمالي الصافي" in page.text
+    assert "إجمالي المتبقي" in page.text
+    # single synthetic employee: 6000.00 net + 100.00 bonus
+    assert "6100.00" in page.text

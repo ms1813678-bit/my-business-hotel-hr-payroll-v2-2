@@ -470,7 +470,7 @@ def update_payroll_item(
     if "absence_days" in values and Decimal(old["absence_days"]) != Decimal(new["absence_days"]):
         item.absence_leave_reviewed = False
         item.absence_leave_review_fingerprint = None
-    if "overtime_hours" in values:
+    if "overtime_hours" in values and Decimal(old["overtime_hours"]) != Decimal(new["overtime_hours"]):
         item.overtime_approved = False
         item.overtime_approved_by = None
         item.overtime_approved_at = None

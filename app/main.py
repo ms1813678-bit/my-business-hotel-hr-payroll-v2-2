@@ -2456,6 +2456,36 @@ def payroll_run_page(
                     )
                 ):
                     stale_codes.append(item.employee_code_snapshot)
+        # Missing-employee alert: an active service period in this month with
+        # no payroll item in the run (e.g. an employee entered after the draft
+        # was created). Alert only; inclusion is an HR decision.
+        from app.payroll_math import money
+        missing_employees = []
+        if run.status in {"draft", "reopened"}:
+            item_employee_ids = {item.employee_id for item in items}
+            active_periods = db.scalars(
+                select(EmployeeServicePeriod).where(
+                    EmployeeServicePeriod.start_date <= run.period_end,
+                    or_(
+                        EmployeeServicePeriod.end_date.is_(None),
+                        EmployeeServicePeriod.end_date >= run.period_start,
+                    ),
+                )
+            ).all()
+            missing_ids = sorted({p.employee_id for p in active_periods} - item_employee_ids)
+            for missing_id in missing_ids:
+                employee = db.get(Employee, missing_id)
+                if employee is not None:
+                    missing_employees.append(f"{employee.code} — {employee.full_name}")
+        zero = money(Decimal("0.00"))
+        totals = {
+            "count": len(items),
+            "gross": money(sum(financials[item.id]["gross"] for item in items)) if items else zero,
+            "deductions": money(sum(financials[item.id]["deductions"] for item in items)) if items else zero,
+            "net": money(sum(Decimal(item.net_pay) for item in items)) if items else zero,
+            "paid": money(sum(summaries[item.id][0] for item in items)) if items else zero,
+            "due": money(sum(summaries[item.id][1] for item in items)) if items else zero,
+        }
         # What-if simulation (GET, read-only): transient copies recomputed by
         # the payroll engine; nothing is written, approved or audited.
         from app.payroll_simulation import (
@@ -2492,6 +2522,8 @@ def payroll_run_page(
                 "payments": payments,
                 "conflict_map": conflict_map,
                 "stale_codes": stale_codes,
+                "missing_employees": missing_employees,
+                "totals": totals,
                 "csrf_token": get_csrf_token(request),
                 "error": request.query_params.get("error"),
                 "simulation": simulation,
