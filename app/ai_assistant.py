@@ -12,6 +12,8 @@ from urllib.parse import urlparse
 from typing import Any
 from urllib import error, request
 
+from app.i18n import translate_text
+
 OLLAMA_BASE_URL = os.getenv("LOCAL_AI_BASE_URL", "http://127.0.0.1:11434").rstrip("/")
 OLLAMA_MODEL = os.getenv("LOCAL_AI_MODEL", "qwen2.5:3b")
 
@@ -36,11 +38,11 @@ def _post_json(path: str, payload: dict[str, Any], timeout: float = TIMEOUT_SECO
         return json.loads(response.read().decode("utf-8"))
 
 
-def local_model_status() -> dict[str, Any]:
+def local_model_status(language: str = "ar") -> dict[str, Any]:
     try:
         _ensure_loopback()
     except RuntimeError as exc:
-        return {"available": False, "server": False, "model": OLLAMA_MODEL, "message": str(exc)}
+        return {"available": False, "server": False, "model": OLLAMA_MODEL, "message": translate_text(str(exc), language) if str(exc) == "الاتصال بالنموذج مسموح فقط على الجهاز المحلي." else str(exc)}
     """Return availability without ever contacting a remote service."""
     req = request.Request(f"{OLLAMA_BASE_URL}/api/tags", method="GET")
     try:
@@ -48,32 +50,53 @@ def local_model_status() -> dict[str, Any]:
             data = json.loads(response.read().decode("utf-8"))
         names = {str(item.get("name", "")) for item in data.get("models", [])}
         installed = OLLAMA_MODEL in names or any(name.startswith(f"{OLLAMA_MODEL}:") for name in names)
+        message = translate_text("المساعد المحلي جاهز." if installed else "خادم الذكاء المحلي يعمل، لكن النموذج المطلوب غير مثبت.", language)
         return {
             "available": installed,
             "server": True,
             "model": OLLAMA_MODEL,
-            "message": "المساعد المحلي جاهز." if installed else "خادم الذكاء المحلي يعمل، لكن النموذج المطلوب غير مثبت.",
+            "message": message,
         }
     except (OSError, ValueError, error.URLError):
         return {
             "available": False,
             "server": False,
             "model": OLLAMA_MODEL,
-            "message": "المساعد المحلي غير متاح حاليًا. النظام الأساسي يعمل بشكل طبيعي.",
+            "message": translate_text("المساعد المحلي غير متاح حاليًا. النظام الأساسي يعمل بشكل طبيعي.", language),
         }
 
 
-def build_system_prompt() -> str:
-    return (
+_SYSTEM_PROMPTS = {
+    "ar": (
         "أنت مساعد موارد بشرية محلي لنظام M.Y. Business Hotel. "
         "أجب بالعربية الواضحة وباختصار. استخدم البيانات التي يرسلها النظام فقط. "
         "لا تخترع بيانات أو أرقامًا. لا تعتمد راتبًا أو إجازة أو حضورًا أو سلفة، "
         "ولا تنفذ أي تغيير؛ أنت مساعد تحليلي فقط. إذا كانت البيانات ناقصة فاذكر ذلك. "
         "عند اقتراح إجراء مؤثر، اعرضه كاقتراح يحتاج مراجعة وتأكيد مسؤول الموارد البشرية."
-    )
+    ),
+    "en": (
+        "You are a local HR assistant for the M.Y. Business Hotel system. "
+        "Answer in clear, concise English. Use only the data the system sends you. "
+        "Never invent data or numbers. Never approve payroll, leave, attendance or "
+        "advances, and never apply any change; you are an analytical assistant only. "
+        "If data is missing, say so. When suggesting an impactful action, present it "
+        "as a suggestion that needs HR administrator review and confirmation."
+    ),
+    "zh": (
+        "你是 M.Y. Business Hotel 系统的本地人力资源助手。"
+        "请用简明的中文回答。只能使用系统发送给你的数据。"
+        "不要编造任何数据或数字。不要批准工资、休假、考勤或预支款，"
+        "也不要执行任何更改；你只是分析助手。数据不足时请明确说明。"
+        "提出有影响的操作时，以需要人力资源管理员审核和确认的建议形式呈现。"
+    ),
+}
 
 
-def ask_local_model(question: str, context: dict[str, Any]) -> str:
+def build_system_prompt(language: str = "ar") -> str:
+    return _SYSTEM_PROMPTS.get(language, _SYSTEM_PROMPTS["ar"])
+
+
+def ask_local_model(question: str, context: dict[str, Any], language: str = "ar") -> str:
     """Ask the configured local model; raises RuntimeError when unavailable."""
     from app.security_roster_compare import (
         answer_security_roster_comparison,
@@ -84,8 +107,8 @@ def ask_local_model(question: str, context: dict[str, Any]) -> str:
         # Deterministic review report; does not mutate attendance or payroll.
         return answer_security_roster_comparison(question)
     if is_structured_hr_query(question):
-        return answer_structured_hr_query(question)
-    status = local_model_status()
+        return answer_structured_hr_query(question, language=language)
+    status = local_model_status(language)
     if not status["available"]:
         raise RuntimeError(status["message"])
     response = _post_json(
@@ -94,12 +117,13 @@ def ask_local_model(question: str, context: dict[str, Any]) -> str:
             "model": OLLAMA_MODEL,
             "stream": False,
             "messages": [
-                {"role": "system", "content": build_system_prompt()},
+                {"role": "system", "content": build_system_prompt(language)},
                 {
                     "role": "user",
                     "content": (
-                        f"سؤال المسؤول: {question.strip()}\n\n"
-                        f"بيانات النظام الحالية (للقراءة فقط): {json.dumps(context, ensure_ascii=False)}"
+                        translate_text("سؤال المسؤول", language) + f": {question.strip()}\n\n"
+                        + translate_text("بيانات النظام الحالية (للقراءة فقط)", language)
+                        + f": {json.dumps(context, ensure_ascii=False)}"
                     ),
                 },
             ],
@@ -112,7 +136,7 @@ def ask_local_model(question: str, context: dict[str, Any]) -> str:
     return answer
 
 
-def local_fallback_answer(question: str, context: dict[str, Any]) -> str:
+def local_fallback_answer(question: str, context: dict[str, Any], language: str = "ar") -> str:
     """Provide useful deterministic help even when no model is installed."""
     from app.security_roster_compare import (
         answer_security_roster_comparison,
@@ -122,19 +146,21 @@ def local_fallback_answer(question: str, context: dict[str, Any]) -> str:
     if is_security_comparison_request(question):
         return answer_security_roster_comparison(question)
     if is_structured_hr_query(question):
-        return answer_structured_hr_query(question)
+        return answer_structured_hr_query(question, language=language)
     q = " ".join(question.casefold().split())
     metrics = context.get("metrics", {})
-    if any(term in q for term in ("عدد الموظفين", "الموظفين النشطين", "الموظفون النشطون")):
-        return f"عدد الموظفين النشطين حاليًا: {metrics.get('active_employees', 0)}."
-    if "الحضور" in q and ("مراجعة" in q or "مشكلة" in q):
-        return f"عدد سجلات الحضور التي تحتاج مراجعة حاليًا: {metrics.get('attendance_review', 0)}."
-    if "الرواتب" in q and ("مفتوح" in q or "مسير" in q):
-        return f"عدد مسيرات الرواتب المفتوحة أو المعاد فتحها: {metrics.get('payroll_drafts', 0)}."
-    return (
+    active_terms = ("عدد الموظفين", "الموظفين النشطين", "الموظفون النشطون", "active employees", "how many employees", "在职员工", "员工数量")
+    if any(term in q for term in active_terms):
+        return translate_text("عدد الموظفين النشطين حاليًا", language) + f": {metrics.get('active_employees', 0)}."
+    if (("الحضور" in q or "attendance" in q or "考勤" in q) and ("مراجعة" in q or "مشكلة" in q or "review" in q or "issue" in q or "审核" in q or "问题" in q)):
+        return translate_text("عدد سجلات الحضور التي تحتاج مراجعة حاليًا", language) + f": {metrics.get('attendance_review', 0)}."
+    if (("الرواتب" in q or "payroll" in q or "工资" in q) and ("مفتوح" in q or "مسير" in q or "open" in q or "draft" in q or "打开" in q or "草稿" in q)):
+        return translate_text("عدد مسيرات الرواتب المفتوحة أو المعاد فتحها", language) + f": {metrics.get('payroll_drafts', 0)}."
+    return translate_text(
         "المساعد الذكي المحلي غير متاح حاليًا لأن النموذج المحلي غير مثبت أو غير مشغّل. "
         "يمكنك استخدام النظام كاملًا بشكل طبيعي. بعد تشغيل النموذج المحلي سأتمكن من تحليل السؤال "
-        "باستخدام بيانات النظام المعروضة للمساعد، دون حفظ أي تغيير تلقائي."
+        "باستخدام بيانات النظام المعروضة للمساعد، دون حفظ أي تغيير تلقائي.",
+        language,
     )
 
 

@@ -3252,3 +3252,40 @@ ZH.update({
 "إدخال حضور يدوي من الموارد البشرية في انتظار الاعتماد.": "人工录入的考勤，等待批准。",
 "قرار الموارد البشرية": "人事决定",
 })
+
+# AI assistant chrome and deterministic fallbacks
+EN.update({
+"الاتصال بالنموذج مسموح فقط على الجهاز المحلي.": "Connecting to the model is only allowed on the local machine.",
+"خادم الذكاء المحلي يعمل، لكن النموذج المطلوب غير مثبت.": "The local AI server is running, but the required model is not installed.",
+"المساعد المحلي غير متاح حاليًا. النظام الأساسي يعمل بشكل طبيعي.": "The local assistant is currently unavailable. The core system works normally.",
+"سؤال المسؤول": "Administrator question",
+"بيانات النظام الحالية (للقراءة فقط)": "Current system data (read-only)",
+"عدد الموظفين النشطين حاليًا": "Current number of active employees",
+"عدد سجلات الحضور التي تحتاج مراجعة حاليًا": "Attendance records currently needing review",
+"عدد مسيرات الرواتب المفتوحة أو المعاد فتحها": "Open or reopened payroll runs",
+"المساعد الذكي المحلي غير متاح حاليًا لأن النموذج المحلي غير مثبت أو غير مشغّل. يمكنك استخدام النظام كاملًا بشكل طبيعي. بعد تشغيل النموذج المحلي سأتمكن من تحليل السؤال باستخدام بيانات النظام المعروضة للمساعد، دون حفظ أي تغيير تلقائي.": "The local AI assistant is currently unavailable because the local model is not installed or not running. You can keep using the whole system normally. Once the local model is running I can analyze the question using the system data shown to the assistant, without saving any change automatically.",
+})
+ZH.update({
+"الاتصال بالنموذج مسموح فقط على الجهاز المحلي.": "只允许连接本机上的模型。",
+"خادم الذكاء المحلي يعمل، لكن النموذج المطلوب غير مثبت.": "本地 AI 服务器正在运行，但未安装所需模型。",
+"المساعد المحلي غير متاح حاليًا. النظام الأساسي يعمل بشكل طبيعي.": "本地助手当前不可用，核心系统正常运行。",
+"سؤال المسؤول": "管理员的问题",
+"بيانات النظام الحالية (للقراءة فقط)": "当前系统数据（只读）",
+"عدد الموظفين النشطين حاليًا": "当前在职员工数量",
+"عدد سجلات الحضور التي تحتاج مراجعة حاليًا": "当前需要审核的考勤记录数量",
+"عدد مسيرات الرواتب المفتوحة أو المعاد فتحها": "打开或重新打开的工资单数量",
+"المساعد الذكي المحلي غير متاح حاليًا لأن النموذج المحلي غير مثبت أو غير مشغّل. يمكنك استخدام النظام كاملًا بشكل طبيعي. بعد تشغيل النموذج المحلي سأتمكن من تحليل السؤال باستخدام بيانات النظام المعروضة للمساعد، دون حفظ أي تغيير تلقائي.": "本地 AI 助手当前不可用，因为本地模型未安装或未运行。您可以继续正常使用整个系统。本地模型运行后，我将能够使用向助手展示的系统数据分析问题，而不会自动保存任何更改。",
+})
+
+EN.update({
+"اكتب أمرًا أو سؤالًا من 1 إلى 2000 حرف.": "Write a command or question between 1 and 2000 characters.",
+"تم إعداد خطة التنفيذ. لن يتم أي تعديل قبل موافقتك الصريحة.": "The execution plan is ready. Nothing will change before your explicit approval.",
+"لم يتم إعداد العملية": "The operation could not be prepared",
+"تعذر قراءة بيانات الموارد البشرية المطلوبة": "Could not read the required HR data",
+})
+ZH.update({
+"اكتب أمرًا أو سؤالًا من 1 إلى 2000 حرف.": "请输入 1 到 2000 个字符的命令或问题。",
+"تم إعداد خطة التنفيذ. لن يتم أي تعديل قبل موافقتك الصريحة.": "执行计划已准备好。在您明确批准之前不会有任何更改。",
+"لم يتم إعداد العملية": "无法准备该操作",
+"تعذر قراءة بيانات الموارد البشرية المطلوبة": "无法读取所需的人力资源数据",
+})

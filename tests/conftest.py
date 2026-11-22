@@ -58,7 +58,8 @@ def require_migrated_database():
         triggers = {
             row[0]
             for row in connection.execute(text(
-                "SELECT tgname FROM pg_trigger WHERE tgrelid = to_regclass('audit_logs')"
+                "SELECT tgname FROM pg_trigger "
+                "WHERE tgrelid = to_regclass('audit_logs') AND tgenabled = 'O'"
             ))
         }
     required = (
@@ -70,10 +71,38 @@ def require_migrated_database():
     if missing:
         pytest.fail(
             "The test database is stamped at the alembic head but is missing "
-            f"database objects the real migration chain creates: {sorted(missing)}. "
-            "It was likely built with create_all and stamped manually, so tests "
-            "would miss real-install behavior. Rebuild it with "
+            f"enabled database objects the real migration chain creates: {sorted(missing)}. "
+            "It was likely built with create_all and stamped manually, or a "
+            "required trigger was disabled, so tests would miss real-install "
+            "behavior. Rebuild it with "
             "`python -m scripts.initialize_database` or `alembic upgrade head`. "
             "See docs/TESTING.md.",
             pytrace=False,
         )
+    if engine.dialect.name == "postgresql":
+        # An enabled-looking trigger name is still not proof: probe the actual
+        # behavior with a rolled-back INSERT+UPDATE so a same-named but
+        # ineffective trigger cannot make the suite look protected. The
+        # transaction always rolls back, so the probe leaves no data behind.
+        probe_error = None
+        try:
+            with engine.begin() as connection:
+                probe_id = connection.execute(text(
+                    "INSERT INTO audit_logs (actor, action, entity_type, entity_id, created_at) "
+                    "VALUES ('suite_guard_probe', 'guard_probe', 'suite', '0', now()) RETURNING id"
+                )).scalar()
+                connection.execute(
+                    text("UPDATE audit_logs SET actor = actor WHERE id = :id"), {"id": probe_id}
+                )
+        except Exception as exc:  # noqa: BLE001 - the trigger's exception type is driver-specific
+            probe_error = exc
+        if probe_error is None:
+            pytest.fail(
+                "The audit log immutability trigger exists but did not block an "
+                "UPDATE probe, so tests would not verify real-install protection. "
+                "Rebuild the test database with `python -m scripts.initialize_database` "
+                "or `alembic upgrade head`. See docs/TESTING.md.",
+                pytrace=False,
+            )
+        if "immutable" not in str(probe_error):
+            raise probe_error

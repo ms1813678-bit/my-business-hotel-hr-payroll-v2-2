@@ -675,7 +675,7 @@ def ai_page(request: Request, admin: AdminAccount = Depends(get_current_admin)):
         context={
             "admin": admin.username,
             "csrf_token": get_csrf_token(request),
-            "status": local_model_status(),
+            "status": local_model_status(request.state.language),
             "question": "",
             "answer": None,
         },
@@ -690,7 +690,7 @@ def ai_ask(
 ):
     question = question.strip()
     if not question or len(question) > 2000:
-        raise HTTPException(status_code=400, detail="اكتب أمرًا أو سؤالًا من 1 إلى 2000 حرف.")
+        raise HTTPException(status_code=400, detail=_translate_text("اكتب أمرًا أو سؤالًا من 1 إلى 2000 حرف.", request.state.language))
 
     pending = None
     answer = None
@@ -706,9 +706,9 @@ def ai_ask(
                 "risks": result.get("risks", []),
                 "expires_at": result["expires_at"].isoformat(),
             }
-            answer = "تم إعداد خطة التنفيذ. لن يتم أي تعديل قبل موافقتك الصريحة."
+            answer = _translate_text("تم إعداد خطة التنفيذ. لن يتم أي تعديل قبل موافقتك الصريحة.", request.state.language)
         except (RuntimeError, ValueError, SQLAlchemyError) as exc:
-            answer = f"لم يتم إعداد العملية: {exc}"
+            answer = _translate_text("لم يتم إعداد العملية", request.state.language) + f": {exc}"
     else:
         with SessionLocal() as db:
             context = {
@@ -729,14 +729,14 @@ def ai_ask(
             }
         if is_structured_hr_query(question):
             try:
-                answer = answer_structured_hr_query(question)
+                answer = answer_structured_hr_query(question, language=request.state.language)
             except (RuntimeError, ValueError, SQLAlchemyError) as exc:
-                answer = f"تعذر قراءة بيانات الموارد البشرية المطلوبة: {exc}"
+                answer = _translate_text("تعذر قراءة بيانات الموارد البشرية المطلوبة", request.state.language) + f": {exc}"
         else:
             try:
-                answer = ask_local_model(question, context)
+                answer = ask_local_model(question, context, language=request.state.language)
             except RuntimeError:
-                answer = local_fallback_answer(question, context)
+                answer = local_fallback_answer(question, context, language=request.state.language)
 
     return templates.TemplateResponse(
         request=request,
@@ -744,7 +744,7 @@ def ai_ask(
         context={
             "admin": admin.username,
             "csrf_token": get_csrf_token(request),
-            "status": local_model_status(),
+            "status": local_model_status(request.state.language),
             "question": question,
             "answer": answer,
             "pending": pending,

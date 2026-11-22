@@ -49,6 +49,56 @@
     return hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59;
   }
 
+  /* The fields mean Africa/Cairo WALL CLOCK, not a browser-local instant.
+   * A browser running in Cairo normalizes a nonexistent wall time when a
+   * Date is constructed (2026-04-24 00:30 silently becomes 01:30), which
+   * would submit a time the operator never typed. Existence is therefore
+   * checked through Intl with an explicit Africa/Cairo zone, independent
+   * of the browser timezone, for any year. */
+  var CAIRO_FMT = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Africa/Cairo", year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", hour12: false
+  });
+
+  function cairoParts(instantMs) {
+    var out = {};
+    CAIRO_FMT.formatToParts(new Date(instantMs)).forEach(function (part) {
+      if (part.type !== "literal") {
+        out[part.type] = Number(part.value);
+      }
+    });
+    if (out.hour === 24) {
+      out.hour = 0;
+    }
+    return out;
+  }
+
+  function cairoOffsetMinutes(instantMs) {
+    var p = cairoParts(instantMs);
+    return (Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute) - instantMs) / 60000;
+  }
+
+  function cairoWallExists(year, month, day, hour, minute) {
+    var wallUTC = Date.UTC(year, month - 1, day, hour, minute);
+    var offset = cairoOffsetMinutes(wallUTC - cairoOffsetMinutes(wallUTC) * 60000);
+    var instant = wallUTC - offset * 60000;
+    var p = cairoParts(instant);
+    return p.year === year && p.month === month && p.day === day &&
+           p.hour === hour && p.minute === minute;
+  }
+
+  function componentsMatch(date, year, month, day, hour, minute) {
+    /* Guard against browser-timezone normalization of the constructed Date:
+     * the visible components must equal exactly what was parsed. */
+    if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) {
+      return false;
+    }
+    if (hour === undefined) {
+      return true;
+    }
+    return date.getHours() === hour && date.getMinutes() === minute;
+  }
+
   function strictParse(text, withTime) {
     /* Returns a local Date or null. Accepts only the exact display shape
      * (d/m/Y [H:MM]) or the submitted ISO shape (Y-m-d[THH:MM[:SS]]). */
@@ -68,14 +118,20 @@
         return null;
       }
       if (!withTime) {
-        return new Date(year, month - 1, day);
+        var dateOnly = new Date(year, month - 1, day);
+        return componentsMatch(dateOnly, year, month, day) ? dateOnly : null;
       }
       var hour = Number(match[4]);
       var minute = Number(match[5]);
       if (!validTime(hour, minute)) {
         return null;
       }
-      return new Date(year, month - 1, day, hour, minute);
+      if (!cairoWallExists(year, month, day, hour, minute)) {
+        /* Nonexistent Cairo wall time (skipped DST hour): never normalize. */
+        return null;
+      }
+      var parsed = new Date(year, month - 1, day, hour, minute);
+      return componentsMatch(parsed, year, month, day, hour, minute) ? parsed : null;
     }
     match = withTime
       ? /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(:\d{2})?$/.exec(value)
@@ -90,17 +146,42 @@
       return null;
     }
     if (!withTime) {
-      return new Date(isoYear, isoMonth - 1, isoDay);
+      var isoDateOnly = new Date(isoYear, isoMonth - 1, isoDay);
+      return componentsMatch(isoDateOnly, isoYear, isoMonth, isoDay) ? isoDateOnly : null;
     }
     var isoHour = Number(match[4]);
     var isoMinute = Number(match[5]);
     if (!validTime(isoHour, isoMinute)) {
       return null;
     }
-    return new Date(isoYear, isoMonth - 1, isoDay, isoHour, isoMinute);
+    if (!cairoWallExists(isoYear, isoMonth, isoDay, isoHour, isoMinute)) {
+      return null;
+    }
+    var isoParsed = new Date(isoYear, isoMonth - 1, isoDay, isoHour, isoMinute);
+    return componentsMatch(isoParsed, isoYear, isoMonth, isoDay, isoHour, isoMinute) ? isoParsed : null;
+  }
+
+  function isoToDisplay(iso, withTime) {
+    /* Format an ISO wall value from its string components only, so a stored
+     * value inside a skipped DST hour displays verbatim instead of being
+     * normalized by a browser running in the Cairo timezone. */
+    var match = withTime
+      ? /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(String(iso).trim())
+      : /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso).trim());
+    if (!match) {
+      return null;
+    }
+    var day = match[3];
+    var month = match[2];
+    var text = day + "/" + month + "/" + match[1];
+    if (withTime) {
+      text += " " + match[4] + ":" + match[5];
+    }
+    return text;
   }
 
   function enhance(el, withTime) {
+    var initialISO = el.value || "";
     var config = {
       dateFormat: withTime ? "Y-m-d\\TH:i" : "Y-m-d",
       altInput: true,
@@ -115,6 +196,18 @@
     if (withTime) {
       config.enableTime = true;
       config.time_24hr = true;
+      /* Calendar selections start at midday so picking a day can never land
+       * inside a skipped DST hour on its own. */
+      config.defaultHour = 12;
+      config.defaultMinute = 0;
+      /* Calendar + time-picker paths bypass parseDate: re-validate the final
+       * ISO wall time and refuse to keep an invented one. */
+      config.onValueUpdate = function () {
+        if (el.value && strictParse(el.value, true) === null && el.value !== initialISO) {
+          el.value = "";
+          markInvalid(error.textContent);
+        }
+      };
     }
     if (el.getAttribute("min")) {
       config.minDate = el.getAttribute("min");
@@ -126,6 +219,20 @@
     var altInput = instance.altInput;
     if (!altInput) {
       return;
+    }
+
+    /* A preloaded value inside a skipped Cairo DST hour fails strict parsing
+     * by design; it is a real stored value and must be shown and submitted
+     * verbatim, never normalized and never silently dropped. */
+    var initialDisplay = initialISO ? isoToDisplay(initialISO, withTime) : null;
+    var preserveInitial = false;
+    if (initialISO && initialDisplay && strictParse(initialISO, withTime) === null) {
+      preserveInitial = true;
+      el.value = initialISO;
+      altInput.value = initialDisplay;
+    }
+    function isPreservedInitial(text) {
+      return preserveInitial && String(text).trim() === initialDisplay;
     }
 
     /* Preserve explicit label/assistive bindings on the visible input. */
@@ -152,7 +259,7 @@
     /* flatpickr clears the visible field when strict parsing rejects the
      * typed text on blur; remember the last typed text so it can be kept
      * visible alongside the error instead of disappearing. */
-    var lastText = "";
+    var lastText = preserveInitial ? initialDisplay : "";
     function markInvalid(message) {
       error.textContent = message;
       error.style.display = "";
@@ -169,10 +276,13 @@
     altInput.addEventListener("input", function () {
       lastText = altInput.value;
       var text = altInput.value.trim();
-      if (text !== "" && strictParse(text, withTime) === null) {
+      if (text !== "" && strictParse(text, withTime) === null && !isPreservedInitial(text)) {
         markInvalid(error.textContent);
       } else {
         clearInvalid();
+        if (isPreservedInitial(text)) {
+          el.value = initialISO;
+        }
       }
     });
 
@@ -184,6 +294,12 @@
         return;
       }
       if (instance.selectedDates.length > 0) {
+        clearInvalid();
+        return;
+      }
+      if (isPreservedInitial(visible)) {
+        altInput.value = visible;
+        el.value = initialISO;
         clearInvalid();
         return;
       }

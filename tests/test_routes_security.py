@@ -2070,7 +2070,7 @@ def test_ai_pending_confirmation_uses_v22_routes_and_shows_before_after(monkeypa
     )
     monkeypatch.setattr(
         "app.main.local_model_status",
-        lambda: SimpleNamespace(available=False, message="النموذج غير متاح", model="test-model"),
+        lambda language="ar": SimpleNamespace(available=False, message="النموذج غير متاح", model="test-model"),
     )
     page = client.get("/ai")
     response = client.post(
@@ -2094,10 +2094,10 @@ def test_ai_question_form_preserves_question_and_uses_existing_post_route(monkey
     assert login(client).status_code == 303
     monkeypatch.setattr("app.main.is_command_request", lambda question: False)
     monkeypatch.setattr("app.main.is_structured_hr_query", lambda question: False)
-    monkeypatch.setattr("app.main.ask_local_model", lambda question, context: "إجابة تجريبية")
+    monkeypatch.setattr("app.main.ask_local_model", lambda question, context, language="ar": "إجابة تجريبية")
     monkeypatch.setattr(
         "app.main.local_model_status",
-        lambda: SimpleNamespace(available=True, message="جاهز", model="test-model"),
+        lambda language="ar": SimpleNamespace(available=True, message="جاهز", model="test-model"),
     )
     page = client.get("/ai")
     response = client.post(

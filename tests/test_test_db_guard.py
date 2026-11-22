@@ -93,3 +93,55 @@ def test_guard_rejects_database_missing_trigger():
         assert "trg_audit_logs_immutable" in result.stdout + result.stderr
     finally:
         _drop_db(name)
+
+
+def _migrated_db(name: str) -> str:
+    db_url = _make_db(name)
+    env = dict(os.environ)
+    env["DATABASE_URL"] = db_url
+    env.setdefault("SESSION_SECRET", "test-secret-0123456789abcdef0123456789")
+    subprocess.run(
+        [sys.executable, "-m", "scripts.initialize_database"],
+        cwd=PROJECT_ROOT, env=env, capture_output=True, text=True, timeout=300, check=True,
+    )
+    return db_url
+
+
+@pytest.mark.skipif(configured_engine.dialect.name != "postgresql", reason="PostgreSQL-only guard")
+def test_guard_rejects_disabled_trigger():
+    name = "guard_disabled_" + uuid4().hex[:12]
+    db_url = _migrated_db(name)
+    try:
+        engine = create_engine(db_url)
+        with engine.begin() as conn:
+            conn.execute(text("ALTER TABLE audit_logs DISABLE TRIGGER trg_audit_logs_immutable"))
+        engine.dispose()
+        result = _run_guarded_suite(db_url)
+        assert result.returncode != 0, "a disabled trigger must not pass the guard"
+        assert "trg_audit_logs_immutable" in result.stdout + result.stderr
+    finally:
+        _drop_db(name)
+
+
+@pytest.mark.skipif(configured_engine.dialect.name != "postgresql", reason="PostgreSQL-only guard")
+def test_guard_rejects_same_named_ineffective_trigger():
+    name = "guard_noop_" + uuid4().hex[:12]
+    db_url = _migrated_db(name)
+    try:
+        engine = create_engine(db_url)
+        with engine.begin() as conn:
+            conn.execute(text("DROP TRIGGER trg_audit_logs_immutable ON audit_logs"))
+            conn.execute(text(
+                "CREATE OR REPLACE FUNCTION noop_audit_trigger() RETURNS trigger AS $$ "
+                "BEGIN RETURN NULL; END; $$ LANGUAGE plpgsql"
+            ))
+            conn.execute(text(
+                "CREATE TRIGGER trg_audit_logs_immutable BEFORE UPDATE OR DELETE ON audit_logs "
+                "FOR EACH ROW EXECUTE FUNCTION noop_audit_trigger()"
+            ))
+        engine.dispose()
+        result = _run_guarded_suite(db_url)
+        assert result.returncode != 0, "a same-named ineffective trigger must not pass the guard"
+        assert "did not block" in result.stdout + result.stderr
+    finally:
+        _drop_db(name)

@@ -333,15 +333,18 @@ def _classify_attendance_row(record: AttendanceDailyRecord) -> list[tuple[str, o
     notes: list[tuple[str, object]] = []
     if record.status in {"needs_review", "ready_for_review"}:
         notes.append(("record_status", record.status))
-    # Late/early mirror payroll's rule exactly: naive wall-clock subtraction
-    # (payroll_workflow computes deductions the same way), so the assistant
-    # never contradicts a payroll figure.
-    if record.scheduled_start_at and record.first_clock_in:
-        late = max(0, int((record.first_clock_in - record.scheduled_start_at).total_seconds() // 60))
+    # Late/early use payroll's exact rule: naive wall-clock subtraction on
+    # payroll's endpoint precedence (approved correction, then fingerprint,
+    # then program). Raw punches stay visible as separate evidence fields;
+    # these flags explain what payroll will actually charge.
+    actual_start = record.approved_clock_in or record.first_clock_in or record.program_clock_in
+    actual_end = record.approved_clock_out or record.last_clock_out or record.program_clock_out
+    if record.scheduled_start_at and actual_start:
+        late = max(0, int((actual_start - record.scheduled_start_at).total_seconds() // 60))
         if late > 0:
             notes.append(("late_in", late))
-    if record.scheduled_end_at and record.last_clock_out:
-        early = max(0, int((record.scheduled_end_at - record.last_clock_out).total_seconds() // 60))
+    if record.scheduled_end_at and actual_end:
+        early = max(0, int((record.scheduled_end_at - actual_end).total_seconds() // 60))
         if early > 0:
             notes.append(("early_out", early))
     if record.first_clock_in is None and record.program_clock_in is None:

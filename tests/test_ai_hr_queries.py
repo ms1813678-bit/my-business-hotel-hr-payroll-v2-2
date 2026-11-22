@@ -270,3 +270,43 @@ def test_dst_fall_back_shift_not_false_flagged():
     )
     keys = [key for key, _ in queries._classify_attendance_row(record)]
     assert "unexpected_duration" not in keys
+
+
+def test_late_early_follow_payroll_endpoint_precedence():
+    # Payroll precedence: approved correction, then fingerprint, then program.
+    # Scheduled 20:00, raw punch 21:00, HR-approved correction 20:00 -> not late.
+    record = _record(
+        status="approved",
+        scheduled_start_at=datetime(2026, 11, 2, 20, 0),
+        scheduled_end_at=datetime(2026, 11, 3, 4, 0),
+        first_clock_in=datetime(2026, 11, 2, 21, 0),
+        last_clock_out=datetime(2026, 11, 3, 4, 0),
+        approved_clock_in=datetime(2026, 11, 2, 20, 0),
+        approved_clock_out=datetime(2026, 11, 3, 4, 0),
+    )
+    keys = [key for key, _ in queries._classify_attendance_row(record)]
+    assert "late_in" not in keys and "early_out" not in keys
+
+
+def test_program_only_fallback_used_when_no_fingerprint_or_approval():
+    record = _record(
+        status="approved",
+        scheduled_start_at=datetime(2026, 11, 2, 9, 0),
+        scheduled_end_at=datetime(2026, 11, 2, 17, 0),
+        program_clock_in=datetime(2026, 11, 2, 9, 45),
+        program_clock_out=datetime(2026, 11, 2, 17, 0),
+    )
+    flags = dict(queries._classify_attendance_row(record))
+    assert flags["late_in"] == 45
+    assert "early_out" not in flags
+
+
+def test_missing_endpoints_produce_no_late_early_flags():
+    record = _record(
+        status="needs_review",
+        scheduled_start_at=datetime(2026, 11, 2, 9, 0),
+        scheduled_end_at=datetime(2026, 11, 2, 17, 0),
+    )
+    keys = [key for key, _ in queries._classify_attendance_row(record)]
+    assert "late_in" not in keys and "early_out" not in keys
+    assert "no_clock_in" in keys and "no_clock_out" in keys
