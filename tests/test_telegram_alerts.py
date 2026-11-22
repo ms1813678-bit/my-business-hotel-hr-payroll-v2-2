@@ -206,6 +206,42 @@ def test_bind_api_error_never_raises(db_factory, monkeypatch):
         assert bind_chat_from_nonce(db, actor="synthetic-admin") == "api_error"
 
 
+def test_token_never_leaks_through_errors(monkeypatch):
+    # Even when the transport error message itself embeds the request URL
+    # (and therefore the token), the failure is swallowed whole: no raise,
+    # no propagation, and the module has no logging calls to carry it.
+    def _leaky(request, timeout=None):
+        raise OSError(f"boom while opening {request.full_url}")
+
+    monkeypatch.setattr(telegram_alerts.urllib.request, "urlopen", _leaky)
+    secret = "111:SECRET-TOKEN"
+    assert send_message(secret, "1", "x") is False
+    assert verify_token(secret) is None
+
+
+def test_no_send_when_unbound_or_disabled(db_factory, monkeypatch):
+    calls, fake = _fake_urlopen({"sendMessage": {"ok": True, "result": {}}})
+    monkeypatch.setattr(telegram_alerts.urllib.request, "urlopen", fake)
+
+    import app.telegram_alerts as module
+    import app.db as db_module
+    monkeypatch.setattr(db_module, "SessionLocal", db_factory)
+
+    with db_factory.begin() as db:
+        # Token saved but no chat bound: nothing may leave.
+        save_config(db, bot_token="tok", chat_id="", enabled=True, language="ar", actor="synthetic-admin")
+    assert module.send_login_event("login_success", "admin") is False
+    with db_factory.begin() as db:
+        assert module.send_test_message(db) is False
+    assert calls == []
+
+    with db_factory.begin() as db:
+        # Bound but disabled: nothing may leave.
+        save_config(db, bot_token="tok", chat_id="777", enabled=False, language="ar", actor="synthetic-admin")
+    assert module.send_login_event("login_success", "admin") is False
+    assert calls == []
+
+
 def test_failures_never_raise(monkeypatch):
     def _boom(request, timeout=None):
         raise OSError("network down")
