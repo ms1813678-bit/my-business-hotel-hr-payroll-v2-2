@@ -43,6 +43,14 @@ class PassphraseRequiredError(ValueError):
     """The selected backup archive is encrypted and needs its passphrase."""
 
 
+class EncryptionRecordError(ValueError):
+    """The stored backup encryption record exists but is unreadable.
+
+    Raised so backup and restore paths fail closed: a damaged record must
+    never silently degrade an encrypted installation into plaintext archives.
+    """
+
+
 def is_encrypted_archive(path: str | Path) -> bool:
     candidate = Path(path)
     if candidate.name.endswith(ENCRYPTED_SUFFIX):
@@ -67,32 +75,49 @@ def _derive_wrap_key(passphrase: str, salt: bytes) -> bytes:
     )
 
 
-def _load_record(db: Session) -> dict | None:
+def _load_record(db: Session, *, strict: bool = False) -> dict | None:
     setting = db.get(SystemSetting, SETTING_KEY)
-    if setting is None or not setting.value.strip():
+    if setting is None or not (setting.value or "").strip():
         return None
+    record = None
     try:
         record = json.loads(setting.value)
     except json.JSONDecodeError:
-        return None
+        record = None
     if not isinstance(record, dict) or record.get("version") != 1:
+        if strict:
+            raise EncryptionRecordError(
+                "Backup encryption settings are damaged; refusing to continue without them."
+            )
         return None
     return record
 
 
 def has_passphrase(db: Session) -> bool:
-    return _load_record(db) is not None
+    """True when any encryption record is stored, even a damaged one.
+
+    Presence (not parseability) is the signal: backup paths must fail closed
+    on a damaged record rather than silently produce plaintext archives.
+    """
+    setting = db.get(SystemSetting, SETTING_KEY)
+    return setting is not None and bool((setting.value or "").strip())
 
 
 def load_data_key(db: Session) -> bytes | None:
-    """Return the plaintext data key from the local database, when configured."""
-    record = _load_record(db)
+    """Return the plaintext data key from the local database, when configured.
+
+    Raises EncryptionRecordError when a record exists but is damaged, so
+    callers fail closed instead of falling back to unencrypted output.
+    """
+    record = _load_record(db, strict=True)
     if record is None:
         return None
     try:
         return bytes.fromhex(record["data_key"])
-    except (KeyError, ValueError):
-        return None
+    except (KeyError, ValueError) as exc:
+        raise EncryptionRecordError(
+            "Backup encryption settings are damaged; refusing to write an unencrypted archive."
+        ) from exc
 
 
 def _unwrap_data_key(record: dict, passphrase: str) -> bytes:

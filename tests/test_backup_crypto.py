@@ -183,3 +183,56 @@ def test_retention_handles_encrypted_archives(db_factory, tmp_path, monkeypatch)
     assert len(removed) == 1 and "old" in removed[0]
     assert (tmp_path / "daily" / "recent.zip.enc").is_file()
     assert not (tmp_path / "daily" / "old.zip.enc").exists()
+
+
+def test_damaged_record_fails_closed(db_factory, tmp_path, monkeypatch):
+    """A damaged encryption record must never silently yield plaintext archives."""
+    from app import backup_workflow
+    from app.backup_crypto import SETTING_KEY, EncryptionRecordError
+    from app.models import SystemSetting
+
+    with db_factory.begin() as db:
+        set_passphrase(db, PASSPHRASE, "admin")
+        record = db.get(SystemSetting, SETTING_KEY)
+        assert has_passphrase(db)
+
+        record.value = "{not-json"
+        db.flush()
+        assert has_passphrase(db)  # presence, not parseability
+        with pytest.raises(EncryptionRecordError):
+            load_data_key(db)
+
+        record.value = json.dumps({"version": 2})
+        db.flush()
+        with pytest.raises(EncryptionRecordError):
+            load_data_key(db)
+
+        record.value = json.dumps({"version": 1, "data_key": "not-hex"})
+        db.flush()
+        with pytest.raises(EncryptionRecordError):
+            load_data_key(db)
+
+        # create_backup fails closed: failed run recorded, no archive written.
+        root = tmp_path / "backups"
+        root.mkdir()
+        db.add(SystemSetting(key=backup_workflow.BACKUP_SETTING_KEY, value=str(root), updated_by="synthetic-admin"))
+        db.flush()
+        monkeypatch.setattr(
+            backup_workflow,
+            "validate_backup_root",
+            lambda path_value, require_external=True: Path(path_value),
+        )
+        run = backup_workflow.create_backup(db, "manual", "synthetic-admin")
+        assert run.status == "failed"
+        assert "damaged" in run.error_message
+        assert list(root.iterdir()) == []
+
+        # verify_passphrase fails closed on the damaged record too.
+        with pytest.raises(ValueError):
+            verify_passphrase(db, PASSPHRASE)
+
+
+def test_restore_cli_rejects_missing_archive(tmp_path):
+    from app.restore_cli import main
+
+    assert main(["--archive", str(tmp_path / "missing.zip.enc")]) == 2

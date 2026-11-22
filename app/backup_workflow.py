@@ -337,6 +337,9 @@ def create_backup(db: Session, backup_type: str, actor: str) -> BackupRun:
 
     try:
         backup_root = validate_backup_root(str(backup_root), require_external=True)
+        # Fail fast and fail closed: a damaged encryption record must stop the
+        # run before any work begins, never degrade the archive to plaintext.
+        data_key = load_data_key(db) if has_passphrase(db) else None
         pg_dump = _find_pg_tool("pg_dump")
         pg_restore = _find_pg_tool("pg_restore")
         connection_args, env = _database_args()
@@ -371,7 +374,6 @@ def create_backup(db: Session, backup_type: str, actor: str) -> BackupRun:
                 "employee_photos_sha256": photos_hash,
                 "employee_photo_count": photo_count,
             }
-            data_key = load_data_key(db) if has_passphrase(db) else None
             archive_dir = backup_root / backup_type
             archive_dir.mkdir(parents=True, exist_ok=True)
             stamp = created_at.strftime("%Y%m%d_%H%M%S_%f")

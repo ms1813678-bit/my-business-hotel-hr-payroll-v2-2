@@ -43,6 +43,19 @@ This installs the Windows scheduled tasks (daily 02:00, weekly Sunday 02:30, qua
 ## Backup encryption
 Set the backup encryption passphrase from the app's Backup & Restore page before relying on backups. New backups are then stored encrypted (.zip.enc) and restore asks for the passphrase. Keep the passphrase safe: losing it makes encrypted backups unrecoverable. The recovery key file backup_encryption_key.json written beside the backups lets a fresh reinstall unlock them with the passphrase; do not delete it.
 
+Changing the passphrase later re-wraps the same data key, so every archive - old and new - stays openable with the new passphrase, and the key file beside the backups is updated automatically. Any older copy of backup_encryption_key.json you kept elsewhere before the change still unlocks the archives with the OLD passphrase: delete such stale copies wherever they exist, exactly as you would destroy a written-down old passphrase.
+
+### Disaster recovery on a fresh PC
+
+After a total loss the new installation's database is empty, so the web page has no backup entries to select. Use the recovery command instead:
+
+1. Install the app and PostgreSQL as above; the empty fresh database is expected.
+2. Plug in the backup drive and locate the archive (for example `E:\backups\manual\mybusinesshotel_manual_....zip.enc`).
+3. From the app folder run:
+   `python -m app.restore_cli --archive "E:\backups\manual\<archive>.zip.enc"`
+   The command applies schema migrations, saves the backup location when it is not configured yet, asks for the encryption passphrase (it unlocks the archive through the backup_encryption_key.json file beside the backups), and asks you to type RESTORE before replacing the database - with the same verified pre-restore snapshot and automatic rollback as the web page.
+4. Sign in and verify employees, attendance, and payroll data.
+
 ## Backup and restore acceptance
 Before production use, verify backup creation, SHA-256/integrity validation, retention behavior, restore confirmation and audit, automatic pre-restore backup, successful restore verification, and rollback after an intentionally failed restore in a disposable test database.
 
