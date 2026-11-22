@@ -1724,7 +1724,9 @@ def employee_photo(
 
 
 @app.get("/leave", response_class=HTMLResponse)
-def leave_page(request: Request, admin: AdminAccount = Depends(get_current_admin)):
+def leave_page(request: Request, page: int = 1, admin: AdminAccount = Depends(get_current_admin)):
+    page_size = 100
+    page = max(1, page)
     with SessionLocal() as db:
         employees = db.scalars(
             select(Employee).where(Employee.status == "active").order_by(Employee.code)
@@ -1732,8 +1734,14 @@ def leave_page(request: Request, admin: AdminAccount = Depends(get_current_admin
         leave_types = db.scalars(
             select(LeaveType).where(LeaveType.active.is_(True)).order_by(LeaveType.id)
         ).all()
+        # Only the records table is paginated; balances and the latest
+        # transactions below still cover the whole ledger.
+        total_records = db.scalar(select(func.count()).select_from(LeaveRecord)) or 0
+        total_pages = max(1, (total_records + page_size - 1) // page_size)
+        page = min(page, total_pages)
         records = db.scalars(
             select(LeaveRecord).order_by(LeaveRecord.created_at.desc(), LeaveRecord.id.desc())
+            .offset((page - 1) * page_size).limit(page_size)
         ).all()
         all_employees = db.scalars(select(Employee).order_by(Employee.code)).all()
         transactions = db.scalars(
@@ -1764,6 +1772,8 @@ def leave_page(request: Request, admin: AdminAccount = Depends(get_current_admin
                 "all_employees": all_employees,
                 "leave_types": leave_types,
                 "records": records,
+                "page": page, "total_pages": total_pages,
+                "total_records": total_records, "records_page_size": page_size,
                 "employee_names": {employee.id: employee.full_name for employee in all_employees},
                 "employee_codes": {employee.id: employee.code for employee in all_employees},
                 "type_names": {item.id: _leave_type_name(item, request.state.language) for item in db.scalars(select(LeaveType)).all()},
@@ -1944,30 +1954,50 @@ def cancel_leave_record(
 
 
 @app.get("/advances", response_class=HTMLResponse)
-def advances_page(request: Request, admin: AdminAccount = Depends(get_current_admin)):
+def advances_page(request: Request, page: int = 1, admin: AdminAccount = Depends(get_current_admin)):
     with SessionLocal() as db:
         employees = db.scalars(
             select(Employee).where(Employee.status == "active").order_by(Employee.code)
         ).all()
         all_employees = db.scalars(select(Employee).order_by(Employee.code)).all()
+        # The per-employee summary must keep covering every request, so it
+        # reads light columns for all rows plus one grouped installment sum
+        # instead of a sum query per request. Only the table below pages.
+        summary_rows = db.execute(
+            select(
+                AdvanceRequest.id, AdvanceRequest.employee_id,
+                AdvanceRequest.amount, AdvanceRequest.advance_type,
+                AdvanceRequest.status, AdvanceRequest.request_date,
+            ).order_by(AdvanceRequest.request_date.desc(), AdvanceRequest.id.desc())
+        ).all()
+        applied_map = {
+            request_id: Decimal(str(total or 0))
+            for request_id, total in db.execute(
+                select(
+                    AdvanceInstallment.advance_request_id,
+                    func.coalesce(func.sum(AdvanceInstallment.amount), 0),
+                ).where(AdvanceInstallment.status == "applied")
+                .group_by(AdvanceInstallment.advance_request_id)
+            ).all()
+        }
+        page_size = 100
+        page = max(1, page)
+        total_requests = db.scalar(select(func.count()).select_from(AdvanceRequest)) or 0
+        total_pages = max(1, (total_requests + page_size - 1) // page_size)
+        page = min(page, total_pages)
         requests = db.scalars(
             select(AdvanceRequest).order_by(
                 AdvanceRequest.request_date.desc(), AdvanceRequest.id.desc()
-            )
+            ).offset((page - 1) * page_size).limit(page_size)
         ).all()
         advance_summary = {}
         for employee in employees:
-            employee_requests = [item for item in requests if item.employee_id == employee.id]
+            employee_requests = [item for item in summary_rows if item.employee_id == employee.id]
             regular_outstanding = Decimal("0.00")
             installment_outstanding = Decimal("0.00")
             deducted = Decimal("0.00")
             for item in employee_requests:
-                applied = db.scalar(
-                    select(func.coalesce(func.sum(AdvanceInstallment.amount), 0)).where(
-                        AdvanceInstallment.advance_request_id == item.id,
-                        AdvanceInstallment.status == "applied",
-                    )
-                ) or Decimal("0.00")
+                applied = applied_map.get(item.id, Decimal("0.00"))
                 if item.status in {"pending", "approved", "paid"}:
                     remaining = Decimal(item.amount) - Decimal(applied)
                 else:
@@ -2005,10 +2035,14 @@ def advances_page(request: Request, admin: AdminAccount = Depends(get_current_ad
                     "limit": default_limit,
                     "available": default_limit,
                 }
+        _advances_pager = {
+            "page": page, "total_pages": total_pages,
+            "total_records": total_requests, "records_page_size": page_size,
+        }
         return templates.TemplateResponse(
             request=request,
             name="advances.html",
-            context={
+            context={**_advances_pager,
                 "employees": employees,
                 "requests": requests,
                 "advance_summary": advance_summary,
@@ -2113,14 +2147,20 @@ def mark_advance_request_paid(
 
 
 @app.get("/staff-actions", response_class=HTMLResponse)
-def staff_actions_page(request: Request, admin: AdminAccount = Depends(get_current_admin)):
+def staff_actions_page(request: Request, page: int = 1, admin: AdminAccount = Depends(get_current_admin)):
+    page_size = 100
+    page = max(1, page)
     with SessionLocal() as db:
         employees = db.scalars(
             select(Employee).where(Employee.status == "active").order_by(Employee.code)
         ).all()
         all_employees = db.scalars(select(Employee).order_by(Employee.code)).all()
+        total_records = db.scalar(select(func.count()).select_from(StaffAction)) or 0
+        total_pages = max(1, (total_records + page_size - 1) // page_size)
+        page = min(page, total_pages)
         actions = db.scalars(
             select(StaffAction).order_by(StaffAction.created_at.desc(), StaffAction.id.desc())
+            .offset((page - 1) * page_size).limit(page_size)
         ).all()
         return templates.TemplateResponse(
             request=request,
@@ -2128,6 +2168,8 @@ def staff_actions_page(request: Request, admin: AdminAccount = Depends(get_curre
             context={
                 "employees": employees,
                 "actions": actions,
+                "page": page, "total_pages": total_pages,
+                "total_records": total_records, "records_page_size": page_size,
                 "employee_names": {e.id: e.full_name for e in all_employees},
                 "employee_codes": {e.id: e.code for e in all_employees},
                 "csrf_token": get_csrf_token(request),

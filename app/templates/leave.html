@@ -75,6 +75,13 @@
 
   <section class="notice">
     <h2>سجل الإجازات</h2>
+    {% if total_records %}
+    <p><span>عرض</span> {{ records|length }} / {{ total_records }} <span>سجلًا</span> — <span>صفحة</span> {{ page }} / {{ total_pages }}</p>
+    <nav aria-label="صفحات السجل">
+      {% if page > 1 %}<a href="/leave?page={{ page - 1 }}">السابق</a>{% endif %}
+      {% if page < total_pages %}<a href="/leave?page={{ page + 1 }}">التالي</a>{% endif %}
+    </nav>
+    {% endif %}
     <div class="table-wrap"><table><thead><tr><th>الموظف</th><th>النوع</th><th>الفترة</th><th>أيام تقويمية</th><th>أيام خصم</th><th>الحالة</th><th>الإجراء</th></tr></thead><tbody>
     {% for r in records %}
     <tr><td>{{ employee_codes.get(r.employee_id, "—") }} — {{ employee_names.get(r.employee_id, "—") }}</td>

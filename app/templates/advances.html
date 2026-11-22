@@ -68,6 +68,13 @@
 
   <section class="notice">
     <h2>طلبات السلف والسجل</h2>
+    {% if total_records %}
+    <p><span>عرض</span> {{ requests|length }} / {{ total_records }} <span>سجلًا</span> — <span>صفحة</span> {{ page }} / {{ total_pages }}</p>
+    <nav aria-label="صفحات السجل">
+      {% if page > 1 %}<a href="/advances?page={{ page - 1 }}">السابق</a>{% endif %}
+      {% if page < total_pages %}<a href="/advances?page={{ page + 1 }}">التالي</a>{% endif %}
+    </nav>
+    {% endif %}
     <div class="table-wrap"><table class="wide-table"><thead><tr>
       <th>الموظف</th><th>تاريخ الطلب</th><th>النوع</th><th>المبلغ</th><th>أساس الراتب</th><th>حد 25%</th><th>خصم في راتب</th><th>الحالة</th><th>الإجراء</th>
     </tr></thead><tbody>

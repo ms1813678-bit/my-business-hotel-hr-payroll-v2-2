@@ -65,6 +65,13 @@
 
   <section class="notice">
     <h2>سجل الجزاءات والمكافآت</h2>
+    {% if total_records %}
+    <p><span>عرض</span> {{ actions|length }} / {{ total_records }} <span>سجلًا</span> — <span>صفحة</span> {{ page }} / {{ total_pages }}</p>
+    <nav aria-label="صفحات السجل">
+      {% if page > 1 %}<a href="/staff-actions?page={{ page - 1 }}">السابق</a>{% endif %}
+      {% if page < total_pages %}<a href="/staff-actions?page={{ page + 1 }}">التالي</a>{% endif %}
+    </nav>
+    {% endif %}
     <div class="table-wrap"><table><thead><tr>
       <th>الموظف</th><th>النوع</th><th>التصنيف</th><th>الإجراء</th><th>القيمة</th><th>شهر الراتب</th><th>الحالة</th><th>إفادة الموظف</th><th>الإجراءات</th>
     </tr></thead><tbody>
