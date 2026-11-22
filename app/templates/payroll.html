@@ -14,23 +14,23 @@
   </section>
   {% endif %}
   <section class="notice">
-    <h2>إنشاء مسير شهر جديد / Create payroll run</h2>
+    <h2>إنشاء مسير شهر جديد</h2>
     <details class="hint"><summary>تعليمات</summary>
       <p class="muted">لا يمكن إنشاء المسير قبل اعتماد الحضور والانصراف للشهر نفسه بعد مراجعة ملف البرنامج وملف البصمة.</p>
     </details>
     <form method="post" action="/payroll">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <div class="form-grid">
-        <label>السنة / Year<input type="number" name="year" min="2020" max="2100" required></label>
-        <label>الشهر / Month<select name="month" required>
+        <label>السنة<input type="number" name="year" min="2020" max="2100" required></label>
+        <label>الشهر<select name="month" required>
           {% for n in range(1, 13) %}<option value="{{ n }}">{{ "%02d"|format(n) }}</option>{% endfor %}
         </select></label>
       </div>
-      <button type="submit">إنشاء مسير الرواتب / Create payroll</button>
+      <button type="submit">إنشاء مسير الرواتب</button>
     </form>
   </section>
   <section class="notice">
-    <h2>مسيرات الرواتب / Payroll runs</h2>
+    <h2>مسيرات الرواتب</h2>
     <div class="table-wrap"><table><thead><tr>
       <th>الشهر</th><th>تاريخ الصرف المخطط</th><th>الحالة</th><th>تاريخ الإنشاء</th><th>الإجراء</th>
     </tr></thead><tbody>
@@ -40,7 +40,7 @@
       <td>{{ r.pay_date.strftime("%d/%m/%Y") }}</td>
       <td>{{ r.status }}</td>
       <td>{{ r.created_at.strftime("%d/%m/%Y %H:%M") }}</td>
-      <td><a href="/payroll/runs/{{ r.id }}">فتح المسير / Open</a></td>
+      <td><a href="/payroll/runs/{{ r.id }}">فتح المسير</a></td>
     </tr>
     {% else %}<tr><td colspan="5">لا توجد مسيرات رواتب حتى الآن.</td></tr>{% endfor %}
     </tbody></table></div>

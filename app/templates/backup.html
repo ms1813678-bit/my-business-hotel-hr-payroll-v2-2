@@ -27,22 +27,22 @@
   {% if success == "backup" %}<section class="notice">اكتمل إنشاء النسخة الاحتياطية والتحقق منها. رقم العملية: {{ request.query_params.get("run") }}</section>{% endif %}
 
   <section class="notice">
-    <h2>مكان حفظ النسخ / External backup location</h2>
+    <h2>مكان حفظ النسخ</h2>
     <details class="hint"><summary>تعليمات</summary>
       <p class="muted">يجب اختيار مجلد على قرص خارجي منفصل عن قرص تشغيل النظام. لا تحفظ النسخ على قرص C: إذا كان النظام مثبتًا عليه.</p>
     </details>
     <form method="post" action="/settings/backup/root">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-      <label>مسار القرص الخارجي / External drive folder
+      <label>مسار القرص الخارجي
         <input name="backup_root" value="{{ backup_root }}" placeholder="مثال: E:\M.Y. Business Hotel Backups" required>
       </label>
-      <button type="submit">حفظ المسار / Save location</button>
+      <button type="submit">حفظ المسار</button>
     </form>
     {% if backup_root %}<p><strong>المسار الحالي:</strong> <code>{{ backup_root }}</code></p>{% else %}<p class="error">لم يتم تحديد قرص النسخ الاحتياطي بعد.</p>{% endif %}
   </section>
 
   <section class="notice">
-    <h2>تشفير النسخ الاحتياطية / Backup encryption</h2>
+    <h2>تشفير النسخ الاحتياطية</h2>
     {% if encryption_enabled %}
     <p><strong>التشفير مفعّل.</strong> كل النسخ الجديدة تُحفظ مشفّرة، وتطلب الاستعادة كلمة سر التشفير.</p>
     {% else %}
@@ -54,37 +54,37 @@
     <form method="post" action="/settings/backup/passphrase">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       {% if encryption_enabled %}
-      <label>كلمة السر الحالية / Current passphrase
+      <label>كلمة السر الحالية
         <input type="password" name="current_passphrase" required autocomplete="current-password">
       </label>
       {% endif %}
-      <label>كلمة السر الجديدة / New passphrase
+      <label>كلمة السر الجديدة
         <input type="password" name="new_passphrase" required minlength="8" autocomplete="new-password">
       </label>
-      <label>تأكيد كلمة السر الجديدة / Confirm new passphrase
+      <label>تأكيد كلمة السر الجديدة
         <input type="password" name="confirm_passphrase" required minlength="8" autocomplete="new-password">
       </label>
-      <button type="submit">حفظ كلمة سر التشفير / Save passphrase</button>
+      <button type="submit">حفظ كلمة سر التشفير</button>
     </form>
   </section>
 
   <section class="notice">
-    <h2>إنشاء نسخة الآن / Create backup now</h2>
+    <h2>إنشاء نسخة الآن</h2>
     <p>تحتوي النسخة على قاعدة بيانات PostgreSQL وصور الموظفين وملف تحقق ببصمات SHA-256. يتحقق النظام من سلامة ملف قاعدة البيانات قبل اعتبار النسخة ناجحة.</p>
     <form method="post" action="/settings/backup/create">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <label>نوع النسخة<select name="backup_type">
-        <option value="manual">يدوية / Manual</option>
-        <option value="daily">يومية / Daily</option>
-        <option value="weekly">أسبوعية / Weekly</option>
-        <option value="quarterly">ربع سنوية / Quarterly</option>
+        <option value="manual">يدوية</option>
+        <option value="daily">يومية</option>
+        <option value="weekly">أسبوعية</option>
+        <option value="quarterly">ربع سنوية</option>
       </select></label>
-      <button type="submit" {% if not backup_root %}disabled{% endif %}>إنشاء والتحقق / Create and verify</button>
+      <button type="submit" {% if not backup_root %}disabled{% endif %}>إنشاء والتحقق</button>
     </form>
   </section>
 
   <section class="notice">
-    <h2>جدول النسخ / Backup schedule</h2>
+    <h2>جدول النسخ</h2>
     <ul>
       <li>لا تُحذف أي نسخة تلقائيًا مهما قدُمت. حذف النسخ القديمة يتم يدويًا بمعرفتك من مجلد النسخ.</li>
     </ul>
@@ -95,7 +95,7 @@
   </section>
 
   <section class="notice">
-    <h2>سجل النسخ / Backup history</h2>
+    <h2>سجل النسخ</h2>
     <div class="table-wrap"><table><thead><tr>
       <th>التاريخ</th><th>النوع</th><th>الحالة</th><th>الحجم</th><th>المسار</th><th>التحقق</th>
     </tr></thead><tbody>
@@ -115,13 +115,13 @@
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <input type="hidden" name="backup_id" value="{{ run.id }}">
         <div class="form-grid">
-          <label>سبب الاستعادة / Restore reason<input name="reason" required maxlength="1000" placeholder="مثال: استعادة بعد تلف قاعدة البيانات"></label>
+          <label>سبب الاستعادة<input name="reason" required maxlength="1000" placeholder="مثال: استعادة بعد تلف قاعدة البيانات"></label>
           <label>اكتب RESTORE للتأكيد<input name="confirm_text" required autocomplete="off" placeholder="RESTORE"></label>
           {% if run.archive_path.endswith('.enc') %}
-          <label>كلمة سر التشفير / Backup passphrase<input type="password" name="passphrase" required autocomplete="off"></label>
+          <label>كلمة سر التشفير<input type="password" name="passphrase" required autocomplete="off"></label>
           {% endif %}
         </div>
-        <button type="submit">استعادة هذه النسخة / Restore this backup</button>
+        <button type="submit">استعادة هذه النسخة</button>
       </form>
     </td></tr>
     {% endif %}

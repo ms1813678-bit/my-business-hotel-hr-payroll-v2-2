@@ -19,7 +19,7 @@
   {% endif %}
 
   <section class="notice">
-    <h2>مراحل اعتماد المسير / Payroll workflow</h2>
+    <h2>مراحل اعتماد المسير</h2>
     <details class="hint"><summary>تعليمات</summary>
       <p class="muted">المسودة ← اعتماد الموارد البشرية ← إغلاق الشهر ← تسجيل الصرف النقدي أو التحويل البنكي. إعادة فتح مسير مغلق تتطلب سببًا مسجلًا في سجل المراجعة.</p>
     </details>
@@ -43,7 +43,7 @@
   </section>
 
   <section class="notice">
-    <h2>تفاصيل الرواتب / Employee payroll items</h2>
+    <h2>تفاصيل الرواتب</h2>
     <div class="table-wrap"><table><thead><tr>
       <th>الموظف</th><th>الأساسي</th><th>بعد التناسب</th><th>إجمالي المستحقات</th><th>إجمالي الخصومات</th><th>الصافي</th><th>المدفوع</th><th>المتبقي</th><th>حالة الصرف</th><th>قسيمة المرتب</th>
     </tr></thead><tbody>
@@ -101,7 +101,7 @@
         <div class="form-grid">
           <label>المبلغ المدفوع<input type="number" name="amount" min="0.01" max="{{ p[1] }}" step="0.01" required></label>
           <label>تاريخ الصرف<input type="date" name="paid_date" required></label>
-          <label>طريقة الصرف<select name="method"><option value="cash">نقدي / Cash</option><option value="bank_transfer">تحويل بنكي / Bank transfer</option></select></label>
+          <label>طريقة الصرف<select name="method"><option value="cash">نقدي</option><option value="bank_transfer">تحويل بنكي</option></select></label>
           <label>مرجع / رقم إيصال<input name="reference"></label>
         </div>
         <button type="submit">تسجيل دفعة</button>

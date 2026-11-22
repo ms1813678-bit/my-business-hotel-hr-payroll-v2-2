@@ -19,52 +19,52 @@
   {% endif %}
 
   <section class="notice">
-    <h2>تسجيل جزاء أو مكافأة / New staff action</h2>
+    <h2>تسجيل جزاء أو مكافأة</h2>
     <details class="hint"><summary>تعليمات</summary>
       <p class="muted">القيم المالية يحددها مسؤول الموارد البشرية يدويًا. لا توجد معادلات تلقائية للمكافآت أو الجزاءات. يجب تحديد شهر الرواتب للإجراء المالي.</p>
     </details>
     <form method="post" action="/staff-actions">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <div class="form-grid">
-        <label>نوع الإجراء / Type
+        <label>نوع الإجراء
           <select name="kind" required>
-            <option value="sanction">جزاء / Sanction</option>
-            <option value="reward">مكافأة / Reward</option>
+            <option value="sanction">جزاء</option>
+            <option value="reward">مكافأة</option>
           </select>
         </label>
-        <label>التصنيف / Category
+        <label>التصنيف
           <select name="category" required>
-            <optgroup label="الجزاءات / Sanctions">
-              <option value="verbal_notice">تنبيه شفهي / Verbal notice</option>
-              <option value="first_warning">إنذار أول / First warning</option>
-              <option value="final_warning">إنذار نهائي / Final warning</option>
-              <option value="salary_deduction">خصم من الراتب / Salary deduction</option>
-              <option value="suspension">إيقاف عن العمل / Suspension</option>
+            <optgroup label="الجزاءات">
+              <option value="verbal_notice">تنبيه شفهي</option>
+              <option value="first_warning">إنذار أول</option>
+              <option value="final_warning">إنذار نهائي</option>
+              <option value="salary_deduction">خصم من الراتب</option>
+              <option value="suspension">إيقاف عن العمل</option>
             </optgroup>
-            <optgroup label="المكافآت / Rewards">
-              <option value="financial_reward">مكافأة مالية / Financial reward</option>
-              <option value="certificate">شهادة تقدير / Certificate</option>
-              <option value="commendation">إشادة / Commendation</option>
-              <option value="promotion_recommendation">توصية بالترقية / Promotion recommendation</option>
+            <optgroup label="المكافآت">
+              <option value="financial_reward">مكافأة مالية</option>
+              <option value="certificate">شهادة تقدير</option>
+              <option value="commendation">إشادة</option>
+              <option value="promotion_recommendation">توصية بالترقية</option>
             </optgroup>
-            <option value="custom">نوع مخصص / Custom</option>
+            <option value="custom">نوع مخصص</option>
           </select>
         </label>
-        <label>الموظف / Employee
+        <label>الموظف
           <select name="employee_id" required>{% for e in employees %}<option value="{{ e.id }}">{{ e.code }} — {{ e.full_name }}</option>{% endfor %}</select>
         </label>
-        <label>عنوان الإجراء / Title<input name="title" maxlength="200" required></label>
-        <label>شهر الرواتب / Payroll month<input type="date" name="payroll_month"></label>
-        <label>المبلغ بالجنيه / Amount (EGP)<input type="number" name="amount" min="0.01" step="0.01"></label>
-        <label><input type="checkbox" name="is_financial" value="yes"> إجراء مالي / Financial item</label>
-        <label>السبب والتفاصيل / Reason<textarea name="reason" rows="3" maxlength="4000" required></textarea></label>
+        <label>عنوان الإجراء<input name="title" maxlength="200" required></label>
+        <label>شهر الرواتب<input type="date" name="payroll_month"></label>
+        <label>المبلغ بالجنيه<input type="number" name="amount" min="0.01" step="0.01"></label>
+        <label><input type="checkbox" name="is_financial" value="yes"> إجراء مالي</label>
+        <label>السبب والتفاصيل<textarea name="reason" rows="3" maxlength="4000" required></textarea></label>
       </div>
-      <button type="submit">حفظ كمسودة / Save draft</button>
+      <button type="submit">حفظ كمسودة</button>
     </form>
   </section>
 
   <section class="notice">
-    <h2>سجل الجزاءات والمكافآت / History</h2>
+    <h2>سجل الجزاءات والمكافآت</h2>
     <div class="table-wrap"><table><thead><tr>
       <th>الموظف</th><th>النوع</th><th>التصنيف</th><th>الإجراء</th><th>القيمة</th><th>شهر الراتب</th><th>الحالة</th><th>إفادة الموظف</th><th>الإجراءات</th>
     </tr></thead><tbody>

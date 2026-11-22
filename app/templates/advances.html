@@ -20,7 +20,7 @@
   {% endif %}
 
   <section class="notice">
-    <h2>تسجيل طلب سلفة / New advance request</h2>
+    <h2>تسجيل طلب سلفة</h2>
     <details class="hint"><summary>تعليمات</summary>
       <p class="muted">تُقبل الطلبات من يوم 15 إلى يوم 22 من الشهر فقط. السلفة الشهرية العادية فقط تخضع لحد 25% من الراتب الأساسي. السلفة المقسطة مستقلة عن هذا الحد ويمكن أن تتجاوز الراتب الشهري، ويحدد جدولها عدد الأقساط. شهر الاستحقاق المحاسبي هو شهر الطلب، ويُدفع الراتب في اليوم الخامس من الشهر التالي.</p>
     </details>
@@ -28,25 +28,25 @@
       <input type="hidden" name="submission_key" value="{{ submission_key }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <div class="form-grid">
-        <label>الموظف / Employee
+        <label>الموظف
           <select name="employee_id" required>{% for e in employees %}<option value="{{ e.id }}">{{ e.code }} — {{ e.full_name }} ({{ e.basic_salary }} جنيه)</option>{% endfor %}</select>
         </label>
-        <label>تاريخ الطلب / Request date<input type="date" name="request_date" max="{{ today }}" required></label>
-        <label>نوع السلفة / Advance type
+        <label>تاريخ الطلب<input type="date" name="request_date" max="{{ today }}" required></label>
+        <label>نوع السلفة
           <select name="advance_type" required>
             <option value="regular">سلفة شهرية (تُخصم من راتب الشهر) — حد 25% من الأساسي</option>
             <option value="installment">سلفة مقسطة — بدون حد 25%</option>
           </select>
         </label>
-        <label>المبلغ بالجنيه / Amount (EGP)<input type="number" name="amount" min="0.01" step="0.01" required></label>
-        <label>السبب / Reason<input name="reason" maxlength="2000" required></label>
+        <label>المبلغ بالجنيه<input type="number" name="amount" min="0.01" step="0.01" required></label>
+        <label>السبب<input name="reason" maxlength="2000" required></label>
       </div>
-      <button type="submit">تسجيل الطلب / Submit request</button>
+      <button type="submit">تسجيل الطلب</button>
     </form>
   </section>
 
   <section class="notice">
-    <h2>ملخص السلف لكل موظف / Employee advance summary</h2>
+    <h2>ملخص السلف لكل موظف</h2>
     <div class="table-wrap"><table><thead><tr>
       <th>الموظف</th><th>آخر سلفة</th><th>إجمالي السلف التاريخي</th><th>المخصوم</th><th>المتبقي من السلفة الشهرية</th><th>قائم مقسط</th><th>الحد الأقصى 25% من الأساسي</th><th>المتاح للسلفة الشهرية</th>
     </tr></thead><tbody>
@@ -67,7 +67,7 @@
   </section>
 
   <section class="notice">
-    <h2>طلبات السلف والسجل / Advances register</h2>
+    <h2>طلبات السلف والسجل</h2>
     <div class="table-wrap"><table><thead><tr>
       <th>الموظف</th><th>تاريخ الطلب</th><th>النوع</th><th>المبلغ</th><th>أساس الراتب</th><th>حد 25%</th><th>خصم في راتب</th><th>الحالة</th><th>الإجراء</th>
     </tr></thead><tbody>
