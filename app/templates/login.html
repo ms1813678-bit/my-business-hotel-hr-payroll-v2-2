@@ -24,6 +24,10 @@
       </label>
       <label>كلمة المرور
         <input name="password" type="password" autocomplete="current-password" required placeholder="أدخل كلمة المرور" dir="rtl">
+        {% if backup_passphrase_required %}
+        <div class="alert-panel"><p>تم استرجاع نسخة احتياطية. لتأكيد هويتك، أدخل كلمة مرور النسخ الاحتياطية مع بيانات دخولك في أول تسجيل بعد الاسترجاع.</p></div>
+        <input name="backup_passphrase" type="password" placeholder="كلمة مرور النسخ الاحتياطية" required autocomplete="off">
+        {% endif %}
       </label>
       <button type="submit" class="btn-primary">دخول</button>
       <p class="muted small" style="text-align:center"><a href="/login/recover">نسيت كلمة المرور؟</a></p>

@@ -3668,6 +3668,10 @@ ZH.update({
 # Post-restore reconciliation
 EN.update({
 "مطلوب بعد استرجاع النسخة الاحتياطية": "Required after the backup restore",
+"تم استرجاع نسخة احتياطية. لتأكيد هويتك، أدخل كلمة مرور النسخ الاحتياطية مع بيانات دخولك في أول تسجيل بعد الاسترجاع.": "A backup was restored. To confirm your identity, enter the backup passphrase together with your sign-in details the first time you sign in after the restore.",
+"كلمة مرور النسخ الاحتياطية": "Backup passphrase",
+"كلمة مرور النسخ الاحتياطية غير صحيحة.": "The backup passphrase is incorrect.",
+"أُوقفت هذه العملية مؤقتًا بعد كثرة المحاولات. حاول لاحقًا.": "This operation is temporarily paused after too many attempts. Try again later.",
 "مطلوب بعد ترقية النظام": "Required after the system upgrade",
 "رموز الاستعادة الحالية أُنشئت قبل ترقية الأمان الأخيرة ولا تستفيد من حماية التوقيت الجديدة. أعد إنشاء رموز الاستعادة من الأسفل لإبطال كل الرموز الحالية واستبدالها برموز محمية بالكامل. لن تستطيع فتح صفحة أخرى حتى تُنجز هذا.": "The current recovery codes were created before the latest security upgrade and do not benefit from the new timing protection. Regenerate recovery codes below to invalidate every current code and replace them with fully protected ones. You cannot open another page until this is done.",
 "استُرجعت نسخة احتياطية، فعادت كلمات المرور ورموز الاستعادة إلى حالتها وقت النسخة — أي رمز استُهلك بعدها قد يعمل مجددًا حتى الآن. أعد إنشاء رموز الاستعادة فورًا من الأسفل لإبطال كل الرموز القديمة، وسيُطلب من كل حساب تعيين كلمة مرور جديدة عند دخوله القادم. لن تستطيع فتح صفحة أخرى حتى تُنجز هذا.": "A backup was restored, so passwords and recovery codes returned to their state at backup time — any code consumed after it may work again until now. Regenerate the recovery codes immediately below to invalidate all old codes; every account will be asked to set a new password at its next sign-in. You cannot open any other page until this is done.",
@@ -3675,6 +3679,10 @@ EN.update({
 })
 ZH.update({
 "مطلوب بعد استرجاع النسخة الاحتياطية": "恢复备份后的必要操作",
+"تم استرجاع نسخة احتياطية. لتأكيد هويتك، أدخل كلمة مرور النسخ الاحتياطية مع بيانات دخولك في أول تسجيل بعد الاسترجاع.": "已恢复备份。为确认您的身份，请在恢复后首次登录时连同登录信息一起输入备份密码。",
+"كلمة مرور النسخ الاحتياطية": "备份密码",
+"كلمة مرور النسخ الاحتياطية غير صحيحة.": "备份密码不正确。",
+"أُوقفت هذه العملية مؤقتًا بعد كثرة المحاولات. حاول لاحقًا.": "尝试次数过多，此操作已暂时暂停。请稍后重试。",
 "مطلوب بعد ترقية النظام": "系统升级后的必要操作",
 "رموز الاستعادة الحالية أُنشئت قبل ترقية الأمان الأخيرة ولا تستفيد من حماية التوقيت الجديدة. أعد إنشاء رموز الاستعادة من الأسفل لإبطال كل الرموز الحالية واستبدالها برموز محمية بالكامل. لن تستطيع فتح صفحة أخرى حتى تُنجز هذا.": "当前恢复码是在最近一次安全升级之前创建的，无法受益于新的时间侧信道防护。请在下方重新生成恢复码，使所有现有恢复码失效并替换为完全受保护的新恢复码。在完成此操作之前，您无法打开其他页面。",
 "استُرجعت نسخة احتياطية، فعادت كلمات المرور ورموز الاستعادة إلى حالتها وقت النسخة — أي رمز استُهلك بعدها قد يعمل مجددًا حتى الآن. أعد إنشاء رموز الاستعادة فورًا من الأسفل لإبطال كل الرموز القديمة، وسيُطلب من كل حساب تعيين كلمة مرور جديدة عند دخوله القادم. لن تستطيع فتح صفحة أخرى حتى تُنجز هذا.": "系统已恢复备份，密码和恢复代码已回到备份时的状态——备份后使用过的代码可能暂时再次有效。请立即在下方重新生成恢复代码以使所有旧代码失效；每个账户下次登录时都将被要求设置新密码。完成此操作前，您无法打开其他页面。",

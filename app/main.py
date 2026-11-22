@@ -632,6 +632,7 @@ def login_page(request: Request):
     }
     with SessionLocal() as db:
         remaining = lockout_remaining(db)
+        context["backup_passphrase_required"] = _post_restore_passphrase_armed(db)
     if remaining is not None:
         context["error"] = "تم إيقاف الدخول مؤقتًا بعد كثرة المحاولات غير الصحيحة. حاول مرة أخرى بعد"
         context["lockout_minutes"] = max(1, math.ceil(remaining.total_seconds() / 60))
@@ -642,8 +643,14 @@ def login_page(request: Request):
     )
 
 
+def _post_restore_passphrase_armed(db) -> bool:
+    flag = db.get(SystemSetting, "post_restore_passphrase_required")
+    return bool(flag is not None and flag.value)
+
+
 @app.post("/login", dependencies=[Depends(csrf_protect)])
-def login(request: Request, username: str = Form(...), password: str = Form(...)):
+def login(request: Request, username: str = Form(...), password: str = Form(...),
+          backup_passphrase: str = Form("")):
     with SessionLocal() as db:
         remaining = lockout_remaining(db)
         if remaining is not None:
@@ -683,6 +690,39 @@ def login(request: Request, username: str = Form(...), password: str = Form(...)
                 context={"error": "اسم المستخدم أو كلمة المرور غير صحيحة.", "csrf_token": get_csrf_token(request)},
                 status_code=401,
             )
+        if _post_restore_passphrase_armed(db):
+            # Disaster-restore identity proof: passwords alone came from the
+            # archive, so the first sign-in must also present the offline
+            # backup passphrase. Guesses share the sensitive-action throttle.
+            from app.backup_crypto import unwrap_data_key_for_restore
+            if reauth_lockout_remaining(db) is not None:
+                return templates.TemplateResponse(
+                    request=request, name="login.html",
+                    context={"error": "أُوقفت هذه العملية مؤقتًا بعد كثرة المحاولات. حاول لاحقًا.",
+                             "backup_passphrase_required": True,
+                             "csrf_token": get_csrf_token(request)},
+                    status_code=429,
+                )
+            try:
+                unwrap_data_key_for_restore(db, backup_passphrase)
+            except Exception:
+                record_failed_reauth(db, actor="post_restore_login")
+                return templates.TemplateResponse(
+                    request=request, name="login.html",
+                    context={"error": "كلمة مرور النسخ الاحتياطية غير صحيحة.",
+                             "backup_passphrase_required": True,
+                             "csrf_token": get_csrf_token(request)},
+                    status_code=401,
+                )
+            clear_reauth_attempts(db, actor="post_restore_login")
+            db.merge(SystemSetting(key="post_restore_passphrase_required", value="", updated_by=admin.username))
+            db.add(AuditLog(
+                actor=admin.username,
+                action="post_restore_passphrase_verified",
+                entity_type="admin_account",
+                entity_id=admin.username,
+                reason="Backup passphrase presented at first post-restore sign-in.",
+            ))
         clear_attempts(db, actor="login")
         staged_token = request.session.get("security_roster_stage")
         if isinstance(staged_token, str):

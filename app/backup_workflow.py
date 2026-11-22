@@ -730,6 +730,18 @@ def restore_backup(
                 value=completed_at.isoformat(),
                 updated_by=actor,
             ))
+            # The archive's old credentials are all that exists here, so a
+            # stolen old password or consumed code could authenticate before
+            # the owner does. The backup passphrase is an offline secret the
+            # restorer provably holds (an encrypted archive cannot be restored
+            # without it), so the first post-restore login must present it.
+            from app.backup_crypto import has_passphrase as _has_backup_passphrase
+            if _has_backup_passphrase(db):
+                db.merge(SystemSetting(
+                    key="post_restore_passphrase_required",
+                    value=completed_at.isoformat(),
+                    updated_by=actor,
+                ))
         _ensure_pre_restore_run_record(
             db,
             archive_path=pre_restore_path,

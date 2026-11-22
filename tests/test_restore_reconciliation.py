@@ -231,3 +231,116 @@ def test_restore_route_requires_current_password(factory, monkeypatch):
         assert response.status_code == 303
         assert response.headers["location"] == "/settings/backup?error=auth"
         assert called == [], "restore must not start without the admin's current password"
+
+
+def test_disaster_restore_arms_passphrase_gate_and_login_requires_it(factory, monkeypatch, tmp_path):
+    """Disaster path with encrypted backups: restored old credentials alone
+    must NOT sign anyone in — the offline backup passphrase is required once."""
+    from app.backup_crypto import set_passphrase
+
+    with factory() as db:
+        set_passphrase(db, "synthetic-backup-passphrase", actor="test")
+        db.commit()
+
+    monkeypatch.setattr(backup_workflow, "_capture_security_state",
+                        lambda db: {"accounts": {}, "codes": [], "settings": {}})
+    monkeypatch.setattr(backup_workflow, "verify_backup_archive", lambda *a, **k: {"created_at": "2026-11-23T00:00:00+00:00"})
+    monkeypatch.setattr(backup_workflow, "_restore_archive_contents", lambda *a, **k: None)
+
+    class _Run:
+        status = "success"
+        id = 1
+        sha256 = "0" * 64
+
+    def _fake_backup(db, t, a):
+        (tmp_path / "pre.zip").write_bytes(b"pre")
+        run = _Run()
+        run.archive_path = str(tmp_path / "pre.zip")
+        return run
+
+    monkeypatch.setattr(backup_workflow, "create_backup", _fake_backup)
+    archive = tmp_path / "backup.zip"
+    archive.write_bytes(b"zip")
+    with factory() as db:
+        db.merge(SystemSetting(key="backup_root", value=str(tmp_path), updated_by="test"))
+        db.commit()
+
+    backup_workflow.restore_backup(archive, "ab" * 32, actor="guard-admin", reason="اختبار")
+    with factory() as db:
+        flag = db.get(SystemSetting, "post_restore_passphrase_required")
+        assert flag is not None and flag.value, "disaster restore with encrypted backups must arm the passphrase gate"
+
+    with TestClient(app) as client:
+        page = client.get("/login")
+        assert "كلمة مرور النسخ الاحتياطية" in page.text, "login page must ask for the passphrase"
+        token = _csrf(page)
+
+        # correct account password + WRONG backup passphrase: refused, no session
+        response = client.post(
+            "/login",
+            data={"username": "guard-admin", "password": ADMIN_PW,
+                  "backup_passphrase": "wrong-passphrase", "csrf_token": token},
+            follow_redirects=False,
+        )
+        assert response.status_code == 401
+        assert "كلمة مرور النسخ الاحتياطية غير صحيحة" in response.text
+        assert "admin_username" not in client.cookies.get("session", "")
+
+        # correct account password alone: refused (field required by server too)
+        page = client.get("/login")
+        response = client.post(
+            "/login",
+            data={"username": "guard-admin", "password": ADMIN_PW,
+                  "backup_passphrase": "", "csrf_token": _csrf(page)},
+            follow_redirects=False,
+        )
+        assert response.status_code == 401
+
+        # correct password + correct passphrase: in, gate cleared, audited
+        page = client.get("/login")
+        response = client.post(
+            "/login",
+            data={"username": "guard-admin", "password": ADMIN_PW,
+                  "backup_passphrase": "synthetic-backup-passphrase", "csrf_token": _csrf(page)},
+            follow_redirects=False,
+        )
+        assert response.status_code == 303
+        with factory() as db:
+            flag = db.get(SystemSetting, "post_restore_passphrase_required")
+            assert flag is not None and not flag.value
+            assert db.scalar(select(AuditLog).where(AuditLog.action == "post_restore_passphrase_verified")) is not None
+        page = client.get("/login")
+        assert "كلمة مرور النسخ الاحتياطية" not in page.text
+
+
+def test_disaster_restore_without_backup_passphrase_keeps_legacy_gate(factory, monkeypatch, tmp_path):
+    """Unencrypted-archive disaster path: no offline proof exists, so the
+    passphrase gate cannot arm; forced rotation + regen gate remain."""
+    monkeypatch.setattr(backup_workflow, "_capture_security_state",
+                        lambda db: {"accounts": {}, "codes": [], "settings": {}})
+    monkeypatch.setattr(backup_workflow, "verify_backup_archive", lambda *a, **k: {"created_at": "2026-11-23T00:00:00+00:00"})
+    monkeypatch.setattr(backup_workflow, "_restore_archive_contents", lambda *a, **k: None)
+
+    class _Run:
+        status = "success"
+        id = 1
+        sha256 = "0" * 64
+
+    def _fake_backup(db, t, a):
+        (tmp_path / "pre.zip").write_bytes(b"pre")
+        run = _Run()
+        run.archive_path = str(tmp_path / "pre.zip")
+        return run
+
+    monkeypatch.setattr(backup_workflow, "create_backup", _fake_backup)
+    archive = tmp_path / "backup.zip"
+    archive.write_bytes(b"zip")
+    with factory() as db:
+        db.merge(SystemSetting(key="backup_root", value=str(tmp_path), updated_by="test"))
+        db.commit()
+
+    backup_workflow.restore_backup(archive, "ab" * 32, actor="guard-admin", reason="اختبار")
+    with factory() as db:
+        flag = db.get(SystemSetting, "post_restore_passphrase_required")
+        assert flag is None or not flag.value, "no passphrase record: passphrase gate must not arm"
+        assert all(a.must_change_password for a in db.scalars(select(AdminAccount)).all())
