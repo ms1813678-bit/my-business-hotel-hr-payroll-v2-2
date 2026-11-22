@@ -206,7 +206,7 @@ def _prepare_restore_test_environment(monkeypatch, tmp_path, *, fail_selected_re
 
     restore_calls = []
 
-    def restore_archive(path, root, expected_sha256=None, data_key=None):
+    def restore_archive(path, root, expected_sha256=None, data_key=None, **kwargs):
         path = Path(path)
         restore_calls.append(path)
         if fail_selected_restore and path == selected_archive:
