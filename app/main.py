@@ -3556,6 +3556,13 @@ def activate_account(
         target = db.get(AdminAccount, account_id)
         if target is None:
             return RedirectResponse("/settings/accounts?error=exists", status_code=303)
+        if target.pending_credential_reset:
+            # This account returned from an old archive: its archive-time
+            # password hash is still on the row, so plain re-activation would
+            # let a stolen old password sign in. It only comes back through
+            # the audited reset flow below, which issues a fresh password and
+            # destroys the old hash (owner-approved 2026-11-23).
+            return RedirectResponse("/settings/accounts?error=reset_required", status_code=303)
         target.active = True
         db.add(AuditLog(
             actor=admin.username,
@@ -3591,6 +3598,7 @@ def _accounts_page_response(request: Request, reset_reveal: dict | None = None):
                 "role": account.role,
                 "role_label": ROLE_LABELS.get(account.role, account.role),
                 "active": account.active,
+                "pending_credential_reset": account.pending_credential_reset,
                 "created_at": account.created_at,
             }
             for account in accounts
@@ -3688,6 +3696,17 @@ def reset_account_password(
         target.session_version += 1
         db.execute(delete(AdminSession).where(AdminSession.admin_account_id == target.id))
         target.must_change_password = True
+        reactivated = False
+        if target.pending_credential_reset:
+            # Restore-locked account: the owner-approved re-enable is this
+            # reset. The old archive hash is already destroyed above, so the
+            # account can safely return to service with the fresh one-time
+            # password; its owner still sets a personal password at first
+            # sign-in (must_change_password).
+            target.pending_credential_reset = False
+            if not target.active:
+                target.active = True
+                reactivated = True
         db.add(AuditLog(
             actor=admin.username,
             action="account_password_reset",
@@ -3697,7 +3716,17 @@ def reset_account_password(
             new_value=f"{target.display_name or target.username}",
             reason=reason,
         ))
-        reveal = {"name": target.display_name or target.username, "password": temporary_password}
+        if reactivated:
+            db.add(AuditLog(
+                actor=admin.username,
+                action="account_reenabled_with_reset",
+                entity_type="admin_account",
+                entity_id=str(target.id),
+                old_value="inactive, pending credential reset",
+                new_value=f"{target.display_name or target.username} - active with new password",
+                reason=reason,
+            ))
+        reveal = {"name": target.display_name or target.username, "password": temporary_password, "reactivated": reactivated}
     # Rendered directly (never through a redirect) so the one-time password
     # does not appear in URLs, browser history or server logs. The secret is
     # also never cacheable: a later back/forward or reopen must not restore it.

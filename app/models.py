@@ -247,6 +247,13 @@ class AdminAccount(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     session_version: Mapped[int] = mapped_column(Integer, default=0, server_default="0", nullable=False)
     must_change_password: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)
+    # Set when a backup restore resurrects this account from archive time
+    # (deleted after the backup, or absent from a fresh install's snapshot):
+    # the account stays inactive until the system administrator issues a NEW
+    # password through the audited reset flow, which also clears this flag.
+    # Plain re-activation is refused so the archive-time password can never
+    # authenticate again (owner-approved 2026-11-23).
+    pending_credential_reset: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)
 
 
 @event.listens_for(AdminAccount, "before_delete")

@@ -542,6 +542,7 @@ def _capture_security_state(db) -> dict:
             "must_change_password": a.must_change_password,
             "role": a.role,
             "display_name": a.display_name,
+            "pending_credential_reset": a.pending_credential_reset,
         }
         for a in all_accounts
     }
@@ -576,15 +577,32 @@ def _reapply_security_state(db, snapshot: dict, *, actor: str) -> None:
     for username, state in accounts_state.items():
         account = restored_accounts.get(username)
         if account is None:
-            account = AdminAccount(username=username)
+            # The account was created after the backup (or the restore runs on
+            # a fresh install whose bootstrap admin is absent from the
+            # archive). Build it fully BEFORE adding: password_hash is NOT
+            # NULL, so flushing a partially-populated row crashes here — after
+            # the schema was already replaced — instead of recreating the
+            # account. (created_at restarts at now; audit history keys on the
+            # username, not this timestamp.)
+            account = AdminAccount(
+                username=username,
+                password_hash=state["password_hash"],
+                session_version=state["session_version"],
+                active=state["active"],
+                must_change_password=state["must_change_password"],
+                role=state["role"],
+                display_name=state["display_name"],
+                pending_credential_reset=state["pending_credential_reset"],
+            )
             db.add(account)
-            db.flush()
-        account.password_hash = state["password_hash"]
-        account.session_version = state["session_version"]
-        account.active = state["active"]
-        account.must_change_password = state["must_change_password"]
-        account.role = state["role"]
-        account.display_name = state["display_name"]
+        else:
+            account.password_hash = state["password_hash"]
+            account.session_version = state["session_version"]
+            account.active = state["active"]
+            account.must_change_password = state["must_change_password"]
+            account.role = state["role"]
+            account.display_name = state["display_name"]
+            account.pending_credential_reset = state["pending_credential_reset"]
     db.flush()
     restored_accounts = {a.username: a for a in db.scalars(select(AdminAccount)).all()}
 
@@ -612,7 +630,13 @@ def restore_backup(
     reason: str,
     passphrase: str | None = None,
 ) -> dict:
-    """Restore a verified archive after first creating a separate pre-restore backup."""
+    """Restore a verified archive after first creating a separate pre-restore backup.
+
+    All-or-nothing: the archive contents swap AND the post-restore security
+    finalization (credential carry-over, archive-only account lock, disaster
+    gates, audit) run inside the same rollback window, so any failure returns
+    the database to the pre-restore archive instead of leaving archive-time
+    credentials live."""
     from app.db import SessionLocal
     from app.models import AuditLog
 
@@ -665,8 +689,24 @@ def restore_backup(
         pre_restore_hash = pre_restore.sha256
         security_snapshot = _capture_security_state(db)
 
+    completed_at = datetime.now(timezone.utc)
     try:
         _restore_archive_contents(selected, backup_root, expected_sha256, data_key)
+        # Credential carry-over, the archive-only account lock, disaster-path
+        # neutralization and the audit trail are part of the restore itself:
+        # if ANY of them fails after the schema was replaced, the database
+        # rolls back to the pre-restore archive below. A restore is
+        # all-or-nothing; it never leaves archive credentials live.
+        _finalize_restored_security(
+            selected=selected,
+            security_snapshot=security_snapshot,
+            actor=actor,
+            reason=reason,
+            manifest_created_at=manifest.get("created_at"),
+            pre_restore_path=pre_restore_path,
+            pre_restore_hash=pre_restore_hash,
+            completed_at=completed_at,
+        )
     except Exception as restore_error:
         try:
             _restore_archive_contents(pre_restore_path, backup_root, pre_restore_hash, data_key)
@@ -695,13 +735,46 @@ def restore_backup(
             f"Restore failed; the previous database was restored from {pre_restore_path}: {restore_error}"
         ) from restore_error
 
-    completed_at = datetime.now(timezone.utc)
+    restore_log = {
+        "restored_at": completed_at.isoformat(),
+        "actor": actor,
+        "reason": reason.strip(),
+        "archive_path": str(selected),
+        "archive_sha256": expected_sha256,
+        "backup_created_at": manifest.get("created_at"),
+        "pre_restore_archive": str(pre_restore_path),
+    }
+    with (backup_root / "restore_history.jsonl").open("a", encoding="utf-8") as stream:
+        stream.write(json.dumps(restore_log, ensure_ascii=False) + "\n")
+    return restore_log
+
+
+def _finalize_restored_security(
+    *,
+    selected: Path,
+    security_snapshot: dict,
+    actor: str,
+    reason: str,
+    manifest_created_at,
+    pre_restore_path: Path,
+    pre_restore_hash: str,
+    completed_at: datetime,
+) -> None:
+    """Carry the pre-restore credential state onto the restored database, lock
+    archive-only accounts, arm the disaster gates and write the audit trail.
+
+    Runs inside restore_backup's rollback window: any failure here aborts the
+    whole restore and the database returns to the pre-restore archive, so a
+    crash can never leave the schema replaced with archive credentials live.
+    """
+    from app.db import SessionLocal
+    from app.models import AdminAccount, AdminSession, AuditLog, RecoveryCode, SystemSetting
+
     with SessionLocal.begin() as db:
         # A restore rolls the whole security state back to archive time, which
         # would otherwise resurrect sessions terminated after the backup (the
         # signing secret is unchanged). Drop every live session record so all
         # accounts sign in again on the restored state.
-        from app.models import AdminAccount, AdminSession, RecoveryCode, SystemSetting
 
         db.execute(delete(AdminSession))
         if security_snapshot["accounts"]:
@@ -732,6 +805,13 @@ def restore_backup(
                 for account in resurrected:
                     account.active = False
                     account.must_change_password = True
+                    # The archive-time password hash is still on the row, so a
+                    # bare re-activation would let a stolen old password sign
+                    # in once (must_change only confines AFTER login). The
+                    # flag makes the accounts page refuse plain re-activation:
+                    # the account only comes back through the audited reset
+                    # flow, which destroys the old hash and activates it.
+                    account.pending_credential_reset = True
                 db.execute(delete(RecoveryCode).where(RecoveryCode.admin_account_id.in_(resurrected_ids)))
                 db.add(AuditLog(
                     actor=actor,
@@ -787,19 +867,6 @@ def restore_backup(
             # full path can exceed the column on real backup-drive locations.
             entity_id=str(selected.name)[:80],
             old_value=None,
-            new_value=str(manifest.get("created_at")),
+            new_value=str(manifest_created_at),
             reason=reason.strip(),
         ))
-
-    restore_log = {
-        "restored_at": completed_at.isoformat(),
-        "actor": actor,
-        "reason": reason.strip(),
-        "archive_path": str(selected),
-        "archive_sha256": expected_sha256,
-        "backup_created_at": manifest.get("created_at"),
-        "pre_restore_archive": str(pre_restore_path),
-    }
-    with (backup_root / "restore_history.jsonl").open("a", encoding="utf-8") as stream:
-        stream.write(json.dumps(restore_log, ensure_ascii=False) + "\n")
-    return restore_log

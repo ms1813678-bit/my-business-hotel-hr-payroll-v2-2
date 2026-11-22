@@ -395,13 +395,217 @@ def test_live_restore_locks_archive_resurrected_accounts(factory, monkeypatch, t
         old = db.scalar(select(AdminAccount).where(AdminAccount.username == "deleted-old-account"))
         assert old.active is False, "archive-only account must come back locked"
         assert old.must_change_password is True, "and must rotate on re-enable"
+        assert old.pending_credential_reset is True, "and plain re-activation must be refused"
         assert db.scalars(select(RecoveryCode).where(RecoveryCode.admin_account_id == old.id)).all() == [], \
             "archive codes must not resurrect"
         current = db.scalar(select(AdminAccount).where(AdminAccount.username == "guard-admin"))
         assert current.active is True and current.must_change_password is False
+        assert current.pending_credential_reset is False
         finance = db.scalar(select(AdminAccount).where(AdminAccount.username == "finance-demo"))
         assert finance.active is True, "snapshot accounts are not locked"
+        assert finance.pending_credential_reset is False
         actions = [a.action for a in db.scalars(select(AuditLog)).all()]
         assert "restore_resurrected_accounts_locked" in actions
         row = db.scalar(select(AuditLog).where(AuditLog.action == "restore_resurrected_accounts_locked"))
         assert "deleted-old-account" in (row.new_value or "")
+
+
+def _patch_restore_scaffolding(monkeypatch, tmp_path):
+    """Shared fakes: verified archive, captured pre-restore backup file."""
+    monkeypatch.setattr(backup_workflow, "verify_backup_archive",
+                        lambda *a, **k: {"created_at": "2026-11-23T00:00:00+00:00"})
+
+    class _Run:
+        status = "success"
+        id = 1
+        sha256 = "0" * 64
+
+    def _fake_backup(db, t, a):
+        (tmp_path / "pre.zip").write_bytes(b"pre")
+        run = _Run()
+        run.archive_path = str(tmp_path / "pre.zip")
+        return run
+
+    monkeypatch.setattr(backup_workflow, "create_backup", _fake_backup)
+    archive = tmp_path / "backup.zip"
+    archive.write_bytes(b"zip")
+    from app.db import SessionLocal as _SessionLocal  # picks up the factory monkeypatch
+    with _SessionLocal() as db:
+        db.merge(SystemSetting(key="backup_root", value=str(tmp_path), updated_by="test"))
+        db.commit()
+    return archive
+
+
+def test_reapply_recreates_account_missing_from_archive(factory, tmp_path):
+    """Snapshot account absent from the archive (created after the backup, or
+    a fresh install's bootstrap admin): it must be recreated with its CURRENT
+    credentials and its recovery codes re-linked to the new row id.
+    Regression for the NOT NULL flush crash: the row must be fully populated
+    before any flush, so this creation path can no longer crash mid-restore."""
+    from app.models import RecoveryCode
+    from app.security import verify_password
+
+    with factory() as db:
+        snapshot = backup_workflow._capture_security_state(db)
+    snapshot["accounts"]["post-backup-admin"] = {
+        "password_hash": hash_password("Post-Backup-Pass-999!"),
+        "session_version": 2,
+        "active": True,
+        "must_change_password": False,
+        "role": "system_admin",
+        "display_name": "مدير لاحق للنسخة",
+        "pending_credential_reset": False,
+    }
+    snapshot["codes"] = [{
+        "username": "post-backup-admin",
+        "code_hash": "hash-post",
+        "code_lookup": "lkpost",
+        "created_at": datetime.now(timezone.utc),
+        "used_at": None,
+    }]
+
+    with factory.begin() as db:
+        # The live DB does NOT contain post-backup-admin: this is exactly the
+        # state after an archive without it replaced the schema.
+        backup_workflow._reapply_security_state(db, snapshot, actor="test")
+
+    with factory() as db:
+        recreated = db.scalar(select(AdminAccount).where(AdminAccount.username == "post-backup-admin"))
+        assert recreated is not None, "snapshot-only account must be recreated"
+        assert verify_password("Post-Backup-Pass-999!", recreated.password_hash)
+        assert recreated.session_version == 2
+        assert recreated.active is True and recreated.must_change_password is False
+        assert recreated.role == "system_admin"
+        assert recreated.display_name == "مدير لاحق للنسخة"
+        assert recreated.pending_credential_reset is False
+        code = db.scalar(select(RecoveryCode).where(RecoveryCode.code_lookup == "lkpost"))
+        assert code is not None, "snapshot codes must be recreated"
+        assert code.admin_account_id == recreated.id, "code FK must map to the recreated row's new id"
+        existing = db.scalar(select(AdminAccount).where(AdminAccount.username == "guard-admin"))
+        assert existing is not None and verify_password(ADMIN_PW, existing.password_hash)
+
+
+def test_finalize_failure_rolls_back_to_pre_restore(factory, monkeypatch, tmp_path):
+    """Failure-atomicity: if ANY post-restore finalization step fails after
+    the schema swap, the whole restore aborts and the database returns to the
+    pre-restore archive. A restore never leaves archive credentials live."""
+    calls = []
+
+    def fake_contents(archive_path, backup_root, expected_sha256=None, data_key=None):
+        calls.append(str(archive_path))
+        with factory.begin() as db:
+            db.merge(SystemSetting(
+                key="restore_marker",
+                value="archive" if len(calls) == 1 else "pre-restore",
+                updated_by="test",
+            ))
+
+    def boom(**kwargs):
+        raise RuntimeError("injected finalize failure")
+
+    monkeypatch.setattr(backup_workflow, "_restore_archive_contents", fake_contents)
+    monkeypatch.setattr(backup_workflow, "_finalize_restored_security", boom)
+    archive = _patch_restore_scaffolding(monkeypatch, tmp_path)
+
+    with pytest.raises(RuntimeError, match="previous database was restored"):
+        backup_workflow.restore_backup(archive, "ab" * 32, actor="guard-admin", reason="اختبار")
+
+    assert calls == [str(archive), str(tmp_path / "pre.zip")], \
+        "rollback must restore the pre-restore archive after a finalize failure"
+    with factory() as db:
+        assert db.get(SystemSetting, "restore_marker").value == "pre-restore"
+        assert db.scalar(select(AuditLog).where(AuditLog.action == "backup_restore_rolled_back")) is not None
+
+
+def _login(client, username="guard-admin", password=ADMIN_PW):
+    page = client.get("/login")
+    response = client.post(
+        "/login",
+        data={"username": username, "password": password, "csrf_token": _csrf(page)},
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    return client
+
+
+def test_activate_refused_for_restore_locked_account(factory):
+    """A restore-locked account must not come back through plain
+    re-activation: its archive-time password hash is still on the row, so the
+    old secret would sign in. Only the audited reset flow may re-enable it."""
+    with factory.begin() as db:
+        db.add(AdminAccount(username="locked-ghost", password_hash=hash_password("Ghost-Old-Pass-111!"),
+                            display_name="شبح النسخة", role="finance", active=False,
+                            must_change_password=True, pending_credential_reset=True))
+
+    with TestClient(app) as client:
+        _login(client)
+        page = client.get("/settings/accounts")
+        assert "رجع من نسخة قديمة" in page.text, "the row must explain the reset-only path"
+        with factory() as db:
+            ghost_id = db.scalar(select(AdminAccount.id).where(AdminAccount.username == "locked-ghost"))
+        response = client.post(
+            f"/settings/accounts/{ghost_id}/activate",
+            data={"csrf_token": _csrf(page), "reason": "تجربة"},
+            follow_redirects=False,
+        )
+        assert response.status_code == 303
+        assert response.headers["location"] == "/settings/accounts?error=reset_required"
+
+    with factory() as db:
+        ghost = db.scalar(select(AdminAccount).where(AdminAccount.username == "locked-ghost"))
+        assert ghost.active is False and ghost.pending_credential_reset is True
+
+
+def test_reset_password_reenables_restore_locked_account(factory):
+    """The owner-approved re-enable: the audited reset flow destroys the old
+    archive hash, activates the account, clears the flag, closes its sessions
+    and leaves must_change_password on for the owner's own fresh password."""
+    from app.security import verify_password
+
+    with factory.begin() as db:
+        db.add(AdminAccount(username="locked-ghost", password_hash=hash_password("Ghost-Old-Pass-111!"),
+                            display_name="شبح النسخة", role="finance", active=False,
+                            must_change_password=True, pending_credential_reset=True))
+
+    with TestClient(app) as client:
+        _login(client)
+        page = client.get("/settings/accounts")
+        token = _csrf(page)
+        with factory() as db:
+            ghost_id = db.scalar(select(AdminAccount.id).where(AdminAccount.username == "locked-ghost"))
+        response = client.post(
+            f"/settings/accounts/{ghost_id}/reset-password",
+            data={"csrf_token": token, "reason": "إعادة تفعيل بعد استرجاع", "current_password": ADMIN_PW},
+        )
+        assert response.status_code == 200, "reset renders the one-time reveal page"
+        match = re.search(r"<bdi><code>([^<]+)</code></bdi>", response.text)
+        assert match, "a new one-time password must be revealed once"
+        temporary_password = match.group(1)
+        assert "أُعيد تفعيله الآن بكلمة المرور الجديدة" in response.text
+
+    with factory() as db:
+        ghost = db.scalar(select(AdminAccount).where(AdminAccount.username == "locked-ghost"))
+        assert ghost.active is True, "reset re-enables the account"
+        assert ghost.pending_credential_reset is False
+        assert ghost.must_change_password is True, "owner still sets a personal password at first sign-in"
+        assert verify_password(temporary_password, ghost.password_hash)
+        assert not verify_password("Ghost-Old-Pass-111!", ghost.password_hash), "old archive secret is destroyed"
+        actions = [a.action for a in db.scalars(select(AuditLog)).all()]
+        assert "account_password_reset" in actions
+        assert "account_reenabled_with_reset" in actions
+
+    with TestClient(app) as client:
+        page = client.get("/login")
+        response = client.post(
+            "/login",
+            data={"username": "locked-ghost", "password": "Ghost-Old-Pass-111!", "csrf_token": _csrf(page)},
+            follow_redirects=False,
+        )
+        assert response.status_code == 401, "the old archive password must never sign in again"
+        page = client.get("/login")
+        response = client.post(
+            "/login",
+            data={"username": "locked-ghost", "password": temporary_password, "csrf_token": _csrf(page)},
+            follow_redirects=False,
+        )
+        assert response.status_code == 303, "the new one-time password signs in"
