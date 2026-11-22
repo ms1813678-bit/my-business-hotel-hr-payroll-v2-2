@@ -299,6 +299,21 @@ def build_employee_count_report(question: str = "") -> dict[str, Any]:
             }
         if any(term in q for term in _DEPARTMENT_TERMS):
             return {"scope": "department_unknown"}
+        # A scoped count whose scope matches nothing registered declines or
+        # clarifies — never answers with the global number.
+        scope_match = re.search(r"(?:في|in|at)\s+([^\s؟?,.،]+)", q)
+        if scope_match:
+            candidate = scope_match.group(1)
+            whole_org = (
+                "فندق", "الفندق", "hotel", "شركة", "الشركة", "company", "هنا",
+                "عندنا", "here", "المكان", "الشغل", "العمل", "work", "المحل",
+            )
+            status_words = _INACTIVE_TERMS + ("نشط", "النشطين", "active", "شغال", "شغالين", "working", "在职", "工作")
+            if candidate not in whole_org and candidate not in status_words:
+                return {
+                    "scope": "scope_unknown", "candidate": candidate,
+                    "known": [d.name for d in departments if d.name],
+                }
     if wants_inactive:
         return {"scope": "inactive", "inactive": int(inactive), "total": int(total)}
     return {"scope": "all", "active": int(active), "total": int(total)}
@@ -312,6 +327,15 @@ def format_employee_count_report(report: dict[str, Any], language: str = "ar") -
             "لم أتعرّف على القسم المطلوب بالاسم في سؤالك؛ الأقسام المسجلة تظهر في صفحة الموظفين.",
             "I could not recognize the department named in your question; the registered departments are listed on the Employees page.",
             "无法识别您问题中的部门名称；已登记的部门请在员工页面查看。",
+        )
+    if scope == "scope_unknown":
+        known_ar = "، ".join(report.get("known") or []) or "—"
+        known_en = ", ".join(report.get("known") or []) or "—"
+        return _msg(
+            language,
+            f"لم أتعرّف على نطاق «{report['candidate']}». الأقسام المسجلة: {known_ar}. حدد القسم باسمه المسجل أو اسأل عن العدد الإجمالي.",
+            f"I could not recognize the scope '{report['candidate']}'. Registered departments: {known_en}. Use a registered department name or ask for the total count.",
+            f"无法识别范围「{report['candidate']}」。已登记的部门：{known_en}。请使用已登记的部门名称，或询问总人数。",
         )
     if scope == "department_inactive":
         return _msg(
@@ -603,15 +627,19 @@ def build_attendance_analysis(*, work_date: date | None, month_start: date | Non
                     [employee.id for employee in employees]))
         rows = db.execute(query.order_by(AttendanceDailyRecord.work_date, Employee.code)).all()
         late_count = 0
-        late_determinable = False
+        late_covered_rows = 0
         if work_date is not None:
             for record, _employee in rows:
                 start = record.scheduled_start_at
-                clock = record.approved_clock_in or record.first_clock_in
+                # Same endpoint precedence payroll and the row classifier use:
+                # approved correction, then fingerprint, then program.
+                clock = (record.approved_clock_in or record.first_clock_in
+                         or record.program_clock_in)
                 if start and clock:
-                    late_determinable = True
+                    late_covered_rows += 1
                     if clock > start:
                         late_count += 1
+        late_determinable = late_covered_rows > 0
         items: list[dict[str, Any]] = []
         for record, employee in rows:
             flags = _classify_attendance_row(record)
@@ -635,6 +663,8 @@ def build_attendance_analysis(*, work_date: date | None, month_start: date | Non
             "note": "note_readonly_attendance",
             "late_count": late_count,
             "late_determinable": late_determinable,
+            "late_covered_rows": late_covered_rows,
+            "late_total_rows": len(rows),
         }
 
 
@@ -663,10 +693,18 @@ def format_attendance_analysis(report: dict[str, Any], language: str = "ar") -> 
             "Coverage: this analysis reads only the records entered for this day; it cannot determine whether someone with no record was absent or simply not entered.",
             "覆盖范围：此分析仅读取当日已录入的记录；无法判断没有记录的人是缺勤还是尚未录入。"))
         if report.get("late_determinable"):
-            lines.append(_msg(language,
-                f"المتأخرون عن موعد بداية الوردية: {report['late_count']}.",
-                f"Late after scheduled shift start: {report['late_count']}.",
-                f"晚于排班开始时间到岗：{report['late_count']} 人。"))
+            covered = report.get("late_covered_rows", 0)
+            total_rows = report.get("late_total_rows", covered)
+            if covered < total_rows:
+                lines.append(_msg(language,
+                    f"المتأخرون عن موعد بداية الوردية: {report['late_count']} (من أصل {covered} سجلًا فيه بصمة؛ {total_rows - covered} سجلًا بدون بصمة لا يشملها العد).",
+                    f"Late after scheduled shift start: {report['late_count']} (out of {covered} records with a clock-in; {total_rows - covered} records without one are not counted).",
+                    f"晚于排班开始时间到岗：{report['late_count']} 人（在 {covered} 条有打卡记录中；另有 {total_rows - covered} 条无打卡记录未计入）。"))
+            else:
+                lines.append(_msg(language,
+                    f"المتأخرون عن موعد بداية الوردية: {report['late_count']}.",
+                    f"Late after scheduled shift start: {report['late_count']}.",
+                    f"晚于排班开始时间到岗：{report['late_count']} 人。"))
         else:
             lines.append(_msg(language,
                 "لا يمكن تحديد عدد المتأخرين: لا توجد بصمات ومواعيد كافية في سجلات هذا اليوم.",
@@ -912,6 +950,56 @@ def _is_weekly_summary(question: str) -> bool:
     return is_weekly_summary_request(question)
 
 
+_READ_ANCHOR_TERMS = (
+    "رصيد", "أرصدة", "ارصدة", "balance", "余额",
+    "تحليل", "حلل", "حلّل", "analysis", "analyze", "分析",
+    "ملخص", "summary", "汇总", "تقرير", "report", "报告",
+    "بيانات", "عرض", "اشوف", "أشوف", "view", "check", "查看", "查询",
+    "كام", "كم عدد", "كم موظف", "how many", "多少", "几个",
+    "مين", "who", "谁",
+)
+
+
+def _has_read_anchor(question: str) -> bool:
+    if _CODE_RE.search(question or ""):
+        return True
+    q = " ".join((question or "").casefold().split())
+    return any(term in q for term in _READ_ANCHOR_TERMS)
+
+
+def explicit_unsupported_answer(question: str, language: str = "ar") -> str | None:
+    """Deterministic honesty for recognized-but-unsupported questions.
+
+    Checked before any model call and in the offline fallback, so a
+    historical or dated count is explicitly declined everywhere instead of
+    being guessed from current metrics.
+    """
+    q = " ".join((question or "").casefold().split())
+    if not q:
+        return None
+    count_like = any(term in q for term in (
+        "كام موظف", "كم موظف", "عدد الموظفين", "كام واحد", "كم عدد",
+        "how many employees", "how many staff", "number of employees",
+        "多少员工", "几位员工", "员工数量", "在职员工",
+    ))
+    dated = bool(re.search(r"(19|20)\d{2}", q)) or any(term in q for term in (
+        "امبارح", "أمس", "امس", "yesterday", "昨天", "昨日",
+        "بكرة", "بكره", "غدا", "غدًا", "tomorrow", "明天",
+        "last year", "السنة الماضية", "السنة اللي فاتت", "去年",
+        "last month", "الشهر الماضي", "الشهر اللي فات", "上个月", "上月",
+        "last week", "الأسبوع الماضي", "الاسبوع الماضي", "上周",
+        "بتاريخ", "في تاريخ",
+    ))
+    if count_like and dated:
+        return _msg(
+            language,
+            "لا أستطيع تحديد عدد الموظفين في تاريخ أو فترة سابقة من السجلات الحالية؛ الأعداد المتاحة لدي هي الحالية فقط. يمكنك سؤالي عن العدد الحالي أو عن حضور يوم محدد.",
+            "I cannot determine the employee count for a past or specific date from the current records; only the current count is available to me. You can ask about the current count or about a specific day's attendance.",
+            "我无法根据现有记录确定过去或指定日期的员工人数；我只能提供当前人数。您可以询问当前人数或某一天的考勤情况。",
+        )
+    return None
+
+
 def answer_structured_hr_query(question: str, language: str = "ar") -> str:
     """Dispatch a natural-language HR question to the matching read-only report."""
     if _is_weekly_summary(question):
@@ -925,7 +1013,10 @@ def answer_structured_hr_query(question: str, language: str = "ar") -> str:
         or is_attendance_analysis_request(question) or is_leave_balance_request(question)
         or is_advance_query_request(question) or is_staff_action_query_request(question)
     )
-    if topic is not None and not data_read:
+    # A how-to question stays a guide answer unless it carries a real data
+    # anchor (an employee code, a count word, or an explicit read noun) —
+    # "how do I add an advance" must never return advance records.
+    if topic is not None and not (data_read and _has_read_anchor(question)):
         from app.usage_guide import format_usage_guide
 
         return format_usage_guide(topic, language)

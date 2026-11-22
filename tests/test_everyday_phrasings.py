@@ -377,3 +377,57 @@ def test_late_count_answered_when_clock_data_exists(seeded):
 def test_late_count_declines_explicitly_without_clock_data(seeded):
     answer = queries.answer_structured_hr_query("كام موظف اتأخر النهارده؟", language="ar")
     assert "لا يمكن تحديد عدد المتأخرين" in answer
+def test_explicit_unsupported_pre_model_for_historical_counts():
+    from app.ai_assistant import ask_local_model
+    for question, lang, marker in (
+        ("how many employees did we have on 2020-01-01?", "en", "cannot determine"),
+        ("2020年1月1日我们有多少员工？", "zh", "无法"),
+        ("كم عدد الموظفين بتاريخ 2020-01-15؟", "ar", "لا أستطيع"),
+    ):
+        assert marker in queries.explicit_unsupported_answer(question, language=lang)
+        # pre-model: returns the explicit answer without touching the model
+        assert marker in ask_local_model(question, {"metrics": {}}, language=lang)
+
+
+def test_late_count_uses_payroll_clock_precedence_and_partial_coverage(seeded):
+    from datetime import datetime
+    with seeded.begin() as db:
+        db.query(AttendanceDailyRecord).delete()
+        rows = []
+        for emp_id, clock_kind in ((1, "approved"), (2, "program"), (3, None)):
+            row = AttendanceDailyRecord(
+                employee_id=emp_id, work_date=date.today(), status="approved",
+                scheduled_start_at=datetime(2026, 11, 22, 9, 0, 0))
+            if clock_kind == "approved":
+                row.approved_clock_in = datetime(2026, 11, 22, 9, 0, 0)   # on time
+            elif clock_kind == "program":
+                row.program_clock_in = datetime(2026, 11, 22, 10, 0, 0)    # 60 min late
+            rows.append(row)
+        db.add_all(rows)
+        db.commit()
+    answer = queries.answer_structured_hr_query("كام موظف اتأخر النهارده؟", language="ar")
+    assert "المتأخرون عن موعد بداية الوردية: 1 " in answer
+    assert "2 سجلًا فيه بصمة" in answer
+    assert "1 سجلًا بدون بصمة لا يشملها العد" in answer
+
+
+def test_how_to_questions_still_reach_the_guide(seeded):
+    from app.usage_guide import is_usage_guide_request
+    assert is_usage_guide_request("عايز أعمل جزاء لموظف") is not None
+    answer = queries.answer_structured_hr_query("عايز أعمل جزاء لموظف", language="ar")
+    assert "جزاء" in answer and "سجل" not in answer.split("\n")[0]  # instructions, not records
+    answer_en = queries.answer_structured_hr_query("how do i add an advance", language="en")
+    assert "Advance" in answer_en or "advance" in answer_en
+    assert "Source:" not in answer_en  # not the advances records report
+
+
+def test_unmatched_scope_name_declines_with_registered_names(seeded):
+    answer = queries.answer_structured_hr_query("how many employees in reception?", language="en")
+    assert "could not recognize the scope" in answer
+    assert "الاستقبال" in answer
+    assert "total on record" not in answer
+
+
+def test_whole_org_scope_words_still_answer_global(seeded):
+    answer = queries.answer_structured_hr_query("كام موظف في الفندق؟", language="ar")
+    assert "إجمالي المسجلين: 3" in answer
