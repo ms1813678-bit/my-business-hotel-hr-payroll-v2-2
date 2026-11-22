@@ -49,6 +49,10 @@
     return hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59;
   }
 
+  function pad2(n) {
+    return (n < 10 ? "0" : "") + n;
+  }
+
   /* The fields mean Africa/Cairo WALL CLOCK, not a browser-local instant.
    * A browser running in Cairo normalizes a nonexistent wall time when a
    * Date is constructed (2026-04-24 00:30 silently becomes 01:30), which
@@ -200,22 +204,46 @@
        * inside a skipped DST hour on its own. */
       config.defaultHour = 12;
       config.defaultMinute = 0;
-      /* Calendar + time-picker paths bypass parseDate: re-validate the final
-       * ISO wall time and refuse to keep an invented one. */
+      /* Calendar + time-picker paths bypass parseDate: re-validate the
+       * intended wall components (raw time-control values captured before
+       * the browser can normalize them into a Date) and refuse to keep an
+       * invented time. */
       config.onValueUpdate = function () {
-        if (el.value && strictParse(el.value, true) === null && el.value !== initialISO) {
-          el.value = "";
-          markInvalid(error.textContent);
-        }
+        validatePopupTime();
       };
     }
+    config.onClose = function () {
+      if (!instance || !instance.selectedDates) {
+        return;
+      }
+      /* Clicking another picker or outside can make flatpickr clear a field
+       * that holds a preserved historical value (no selectedDates). The
+       * stored original must survive until the user explicitly types a valid
+       * correction, so restore it after flatpickr's own close handling. */
+      if (preserveInitial && instance.selectedDates.length === 0 && lastText === initialDisplay) {
+        el.value = initialISO;
+        altInput.value = initialDisplay;
+        clearInvalid();
+        return;
+      }
+      if (withTime) {
+        validatePopupTime();
+        reassertRejected();
+      }
+    };
     if (el.getAttribute("min")) {
       config.minDate = el.getAttribute("min");
     }
     if (el.getAttribute("max")) {
       config.maxDate = el.getAttribute("max");
     }
-    var instance = window.flatpickr(el, config);
+    var instance;
+    try {
+      instance = window.flatpickr(el, config);
+    } finally {
+      /* config callbacks can fire during construction; instance is still
+       * undefined then and every callback guards on it. */
+    }
     var altInput = instance.altInput;
     if (!altInput) {
       return;
@@ -260,6 +288,109 @@
      * typed text on blur; remember the last typed text so it can be kept
      * visible alongside the error instead of disappearing. */
     var lastText = preserveInitial ? initialDisplay : "";
+
+    /* A rejected popup attempt (nonexistent Cairo wall time): the attempt
+     * must survive flatpickr's own close/blur clearing until the user makes
+     * an explicit valid correction. */
+    var rejectedDisplay = null;
+    var rejectedDate = null;
+    function reassertRejected() {
+      if (!rejectedDisplay) {
+        return;
+      }
+      if (!rejectedDate && !instance.selectedDates.length) {
+        rejectedDisplay = null;
+        return;
+      }
+      if (!instance.selectedDates.length || el.value === "") {
+        el.value = "";
+        altInput.value = rejectedDisplay;
+        lastText = rejectedDisplay;
+        markInvalid(error.textContent);
+      }
+    }
+
+    /* Raw values the user entered into the popup time controls, captured in
+     * the capture phase BEFORE flatpickr can write back a browser-normalized
+     * value (a Cairo browser turns a nonexistent 00:30 into 01:30). Keyed by
+     * control so a later flatpickr write-back is never mistaken for intent. */
+    var userTime = {};
+    function validatePopupTime() {
+      if (!withTime || !instance || !instance.selectedDates) {
+        return;
+      }
+      var d = instance.selectedDates[0];
+      var year;
+      var month;
+      var day;
+      if (d) {
+        year = d.getFullYear();
+        month = d.getMonth() + 1;
+        day = d.getDate();
+      } else if (rejectedDate && (userTime.hour !== undefined || userTime.minute !== undefined)) {
+        /* The selection was cleared (e.g. outside click) after a rejection,
+         * and the user has entered new raw time values since: validate the
+         * correction against the rejected date. */
+        year = rejectedDate.year;
+        month = rejectedDate.month;
+        day = rejectedDate.day;
+      } else {
+        return;
+      }
+      var hour = userTime.hour !== undefined ? userTime.hour : d.getHours();
+      var minute = userTime.minute !== undefined ? userTime.minute : d.getMinutes();
+      if (!validTime(hour, minute)) {
+        return;
+      }
+      var iso = year + "-" + pad2(month) + "-" + pad2(day) + "T" + pad2(hour) + ":" + pad2(minute);
+      if (!cairoWallExists(year, month, day, hour, minute)) {
+        /* Intended Cairo wall time does not exist (skipped DST hour): keep
+         * the attempt visible, submit nothing, and block the form even when
+         * the field is optional. Never keep the browser-normalized time. */
+        var display = isoToDisplay(iso, true);
+        rejectedDisplay = display;
+        rejectedDate = { year: year, month: month, day: day };
+        el.value = "";
+        altInput.value = display;
+        lastText = display;
+        markInvalid(error.textContent);
+        return;
+      }
+      /* Valid: rebuild the submitted ISO from the intended components so a
+       * normalized Date can never leak into the submission. */
+      rejectedDisplay = null;
+      rejectedDate = null;
+      userTime = {};
+      el.value = iso;
+      var acceptedDisplay = isoToDisplay(iso, true);
+      altInput.value = acceptedDisplay;
+      lastText = acceptedDisplay;
+      clearInvalid();
+    }
+    if (withTime && instance.timeContainer) {
+      instance.timeContainer.addEventListener("input", function (ev) {
+        if (ev.target === instance.hourElement) {
+          userTime.hour = Number(instance.hourElement.value);
+        } else if (ev.target === instance.minuteElement) {
+          userTime.minute = Number(instance.minuteElement.value);
+        }
+      }, true);
+      instance.timeContainer.addEventListener("increment", function (ev) {
+        if (ev.target === instance.hourElement) {
+          userTime.hour = Number(instance.hourElement.value);
+        } else if (ev.target === instance.minuteElement) {
+          userTime.minute = Number(instance.minuteElement.value);
+        }
+      }, true);
+      /* A fresh day click resets the intended time to the picker default. */
+      if (instance.calendarContainer) {
+        instance.calendarContainer.addEventListener("click", function (ev) {
+          if (ev.target && ev.target.classList && ev.target.classList.contains("flatpickr-day")) {
+            userTime = {};
+          }
+        }, true);
+      }
+    }
     function markInvalid(message) {
       error.textContent = message;
       error.style.display = "";
@@ -275,6 +406,9 @@
     }
     altInput.addEventListener("input", function () {
       lastText = altInput.value;
+      if (rejectedDisplay && altInput.value.trim() !== rejectedDisplay) {
+        rejectedDisplay = null;
+      }
       var text = altInput.value.trim();
       if (text !== "" && strictParse(text, withTime) === null && !isPreservedInitial(text)) {
         markInvalid(error.textContent);
@@ -287,13 +421,11 @@
     });
 
     altInput.addEventListener("blur", function () {
-      /* Runs after flatpickr's own blur handling (registered at creation). */
+      /* Runs after flatpickr's own blur handling (registered at creation).
+       * Note: focusing the popup time controls also blurs the visible input,
+       * so this must not clear a rejection while the attempt is visible. */
       var visible = altInput.value.trim() !== "" ? altInput.value : lastText;
       if (visible.trim() === "") {
-        clearInvalid();
-        return;
-      }
-      if (instance.selectedDates.length > 0) {
         clearInvalid();
         return;
       }
@@ -305,15 +437,25 @@
       }
       var parsed = strictParse(visible, withTime);
       if (parsed !== null) {
-        /* Valid text that flatpickr did not adopt (e.g. outside min/max is
-         * handled by flatpickr itself); adopt it through the normal path. */
+        /* Valid text (typed or produced by a valid popup selection): adopt
+         * it through the normal path so the hidden ISO value is set. The
+         * nested onValueUpdate may still reject the intended popup time, so
+         * only clear the error when a value actually survived. */
         instance.setDate(parsed, true);
-        clearInvalid();
-        return;
-      }
+        if (!withTime || el.value !== "") {
+          clearInvalid();
+        }
+      } else {
+      /* Invalid or nonexistent Cairo wall time: the attempt stays visible,
+       * nothing submits, and the custom validity blocks the form even when
+       * the field is optional. */
       altInput.value = visible;
       el.value = "";
       markInvalid(error.textContent);
+      }
+      /* flatpickr's own blur handling is debounced and can still clear the
+       * attempt after this handler; re-assert it once that has settled. */
+      window.setTimeout(reassertRejected, 400);
     });
   }
 

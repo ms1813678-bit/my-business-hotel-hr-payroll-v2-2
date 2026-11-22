@@ -310,3 +310,111 @@ def test_missing_endpoints_produce_no_late_early_flags():
     keys = [key for key, _ in queries._classify_attendance_row(record)]
     assert "late_in" not in keys and "early_out" not in keys
     assert "no_clock_in" in keys and "no_clock_out" in keys
+
+
+def _seed_full(db):
+    dept = Department(name="Reception", active=True)
+    db.add(dept)
+    db.flush()
+    emp = Employee(
+        code="MY-0007", full_name="موظف شامل", department_id=dept.id,
+        position="Reception", hire_date=date(2026, 1, 1), status="active",
+        basic_salary=Decimal("7000"), daily_hours=Decimal("8"),
+    )
+    leave_type = LeaveType(code="annual", name_ar="سنوية", name_en="Annual",
+                           is_paid=True, tracks_balance=True, active=True)
+    db.add_all([emp, leave_type])
+    db.flush()
+    db.add(LeaveBalanceTransaction(
+        employee_id=emp.id, leave_type_id=leave_type.id,
+        transaction_type="opening", days_delta=Decimal("21"),
+        reason="رصيد افتتاحي", created_by="test"))
+    db.add(AttendanceDailyRecord(
+        employee_id=emp.id, work_date=date(2026, 11, 2), status="approved",
+        scheduled_start_at=datetime(2026, 11, 2, 9, 0),
+        scheduled_end_at=datetime(2026, 11, 2, 17, 0),
+        first_clock_in=datetime(2026, 11, 2, 9, 15),
+        last_clock_out=datetime(2026, 11, 2, 17, 0), worked_minutes=465))
+    db.flush()
+    adv = AdvanceRequest(
+        employee_id=emp.id, request_date=date(2026, 11, 16),
+        payroll_month=date(2026, 11, 1), amount=Decimal("1200"),
+        advance_type="installment", salary_basis=Decimal("7000"),
+        reason="سلفة تجريبية", status="approved", created_by="test")
+    db.add(adv)
+    db.flush()
+    now = datetime.utcnow()
+    db.add(AdvanceInstallment(
+        advance_request_id=adv.id, installment_number=1,
+        amount=Decimal("600"), payroll_month=date(2026, 12, 1),
+        scheduled_payment_date=date(2026, 12, 5), status="scheduled",
+        created_at=now))
+    db.add(StaffAction(
+        employee_id=emp.id, kind="sanction", category="lateness",
+        title="تأخير", is_financial=True, amount=Decimal("50"),
+        payroll_month=date(2026, 11, 1), reason="تأخير", status="approved",
+        created_by="test"))
+    db.commit()
+    return emp
+
+
+PARITY_QUESTIONS = {
+    "employee": {
+        "ar": "بيانات الموظف MY-0007", "en": "employee details MY-0007", "zh": "员工详情 MY-0007",
+        "markers": {"ar": "نتيجة البحث", "en": "Employee register search result", "zh": "员工登记查询结果"},
+        "shared": ["MY-0007", "7000"],
+    },
+    "leave": {
+        "ar": "رصيد إجازة MY-0007", "en": "leave balance MY-0007", "zh": "请假余额 MY-0007",
+        "markers": {"ar": None, "en": None, "zh": None},
+        "shared": ["MY-0007", "21.00"],
+    },
+    "advance": {
+        "ar": "سلف MY-0007", "en": "advance MY-0007", "zh": "预支 MY-0007",
+        "markers": {"ar": None, "en": None, "zh": None},
+        "shared": ["MY-0007"],
+    },
+    "staff": {
+        "ar": "جزاءات MY-0007 2026-11", "en": "sanctions MY-0007 2026-11", "zh": "奖惩 MY-0007 2026-11",
+        "markers": {"ar": None, "en": None, "zh": None},
+        "shared": ["MY-0007"],
+    },
+    "attendance": {
+        "ar": "تحليل حضور يوم 2026-11-02", "en": "attendance analysis 2026-11-02", "zh": "考勤分析 2026-11-02",
+        "markers": {"ar": None, "en": None, "zh": None},
+        "shared": ["2026-11-02"],
+    },
+    "payroll": {
+        "ar": "راتب الموظف MY-0007", "en": "payroll MY-0007", "zh": "工资明细 MY-0007",
+        # No payroll run seeded: all three languages must say so (insufficient
+        # data stated, never a silent empty answer).
+        "markers": {"ar": "لا يوجد مسير رواتب منشأ", "en": "No payroll run created", "zh": "尚未创建工资批次"},
+        "shared": [],
+    },
+}
+
+
+def test_trilingual_parity_all_answer_types(monkeypatch):
+    engine, factory = _session()
+    try:
+        with factory() as db:
+            _seed_full(db)
+        monkeypatch.setattr(queries, "SessionLocal", factory)
+        for kind, spec in PARITY_QUESTIONS.items():
+            answers = {}
+            for lang in ("ar", "en", "zh"):
+                assert queries.is_structured_hr_query(spec[lang]), f"{kind} {lang} not detected"
+                answers[lang] = queries.answer_structured_hr_query(spec[lang], language=lang)
+                assert answers[lang].strip(), f"{kind} {lang} empty"
+            for lang, marker in spec["markers"].items():
+                if marker:
+                    assert marker in answers[lang], f"{kind} {lang} missing marker"
+            for token in spec["shared"]:
+                for lang in ("ar", "en", "zh"):
+                    assert token in answers[lang], f"{kind} {lang} missing {token}"
+            # No Arabic boilerplate leaks into EN/ZH answers (user data may be Arabic).
+            for lang in ("en", "zh"):
+                for marker in ("نتيجة البحث", "المصدر"):
+                    assert marker not in answers[lang], f"{kind} {lang} leaks Arabic: {marker}"
+    finally:
+        engine.dispose()

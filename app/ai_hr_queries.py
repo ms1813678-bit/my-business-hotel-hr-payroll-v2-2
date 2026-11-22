@@ -144,7 +144,7 @@ def is_attendance_analysis_request(question: str) -> bool:
         term in q
         for term in (
             "تحليل", "حلّل", "حلل", "ملخص", "ملاحظات", "مراجعة",
-            "مشاكل", "تقرير", "summary", "analyze", "分析", "汇总", "问题",
+            "مشاكل", "تقرير", "summary", "analyze", "analysis", "review", "report", "分析", "汇总", "问题",
         )
     )
     if "أمن" in q and "بصم" in q:
@@ -164,6 +164,18 @@ def is_advance_query_request(question: str) -> bool:
     q = " ".join((question or "").casefold().split())
     return any(term in q for term in (
         "سلف", "سلفة", "أقساط", "اقساط", "قسط", "advance", "installment", "预支", "借款", "分期",
+    ))
+
+
+def is_pre_payroll_review_request(question: str) -> bool:
+    q = " ".join((question or "").casefold().split())
+    if not q:
+        return False
+    return any(term in q for term in (
+        "مراجعة ما قبل الرواتب", "مراجعة قبل اعتماد الرواتب", "قبل اعتماد الرواتب",
+        "قبل اعتماد المرتبات", "راجع الرواتب قبل", "مراجعة الرواتب قبل",
+        "pre-payroll", "pre payroll review", "payroll review before",
+        "发薪前检查", "工资审批前检查", "工资审核前",
     ))
 
 
@@ -325,6 +337,7 @@ def is_structured_hr_query(question: str) -> bool:
         or is_leave_balance_request(question)
         or is_advance_query_request(question)
         or is_staff_action_query_request(question)
+        or is_pre_payroll_review_request(question)
     )
 
 
@@ -668,6 +681,10 @@ def answer_structured_hr_query(question: str, language: str = "ar") -> str:
     """Dispatch a natural-language HR question to the matching read-only report."""
     if is_employee_query_request(question):
         return format_employee_report(build_employee_report(question), language)
+    if is_pre_payroll_review_request(question):
+        from app.pre_payroll_review import build_pre_payroll_review, format_pre_payroll_review
+        month = _parse_month(question) or date.today().replace(day=1)
+        return format_pre_payroll_review(build_pre_payroll_review(month), language)
     if is_payroll_query_request(question):
         return format_payroll_report(build_payroll_report(question), language)
     if is_attendance_analysis_request(question):

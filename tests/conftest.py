@@ -85,17 +85,27 @@ def require_migrated_database():
         # ineffective trigger cannot make the suite look protected. The
         # transaction always rolls back, so the probe leaves no data behind.
         probe_error = None
+        connection = engine.connect()
+        transaction = connection.begin()
         try:
-            with engine.begin() as connection:
-                probe_id = connection.execute(text(
-                    "INSERT INTO audit_logs (actor, action, entity_type, entity_id, created_at) "
-                    "VALUES ('suite_guard_probe', 'guard_probe', 'suite', '0', now()) RETURNING id"
-                )).scalar()
-                connection.execute(
-                    text("UPDATE audit_logs SET actor = actor WHERE id = :id"), {"id": probe_id}
-                )
+            probe_id = connection.execute(text(
+                "INSERT INTO audit_logs (actor, action, entity_type, entity_id, created_at) "
+                "VALUES ('suite_guard_probe', 'guard_probe', 'suite', '0', now()) RETURNING id"
+            )).scalar()
+            connection.execute(
+                text("UPDATE audit_logs SET actor = actor WHERE id = :id"), {"id": probe_id}
+            )
         except Exception as exc:  # noqa: BLE001 - the trigger's exception type is driver-specific
             probe_error = exc
+        finally:
+            # Roll back explicitly even when the probe failed: engine.begin()
+            # would commit the probe INSERT if the UPDATE wrongly succeeded,
+            # and pytest.fail inside the with block would abort the commit but
+            # the explicit rollback is the guarantee that no probe row remains.
+            try:
+                transaction.rollback()
+            finally:
+                connection.close()
         if probe_error is None:
             pytest.fail(
                 "The audit log immutability trigger exists but did not block an "
