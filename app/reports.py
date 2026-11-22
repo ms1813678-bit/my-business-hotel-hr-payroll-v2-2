@@ -243,6 +243,9 @@ def build_hr_workbook(
     payment_sums = dict(
         db.execute(
             select(PayrollPayment.payroll_item_id, func.coalesce(func.sum(PayrollPayment.amount), 0))
+            # Superseded payments were corrected away; only active records count,
+            # matching payment_totals() everywhere else.
+            .where(PayrollPayment.superseded_by_payment_id.is_(None))
             .group_by(PayrollPayment.payroll_item_id)
         ).all()
     )

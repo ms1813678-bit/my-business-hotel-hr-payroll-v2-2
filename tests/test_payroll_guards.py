@@ -16,6 +16,7 @@ from app.models import (
     AttendanceImportBatch,
     AttendanceMonth,
     Department,
+    AuditLog,
     Employee,
     EmployeeChange,
     EmployeeCodeCounter,
@@ -23,6 +24,7 @@ from app.models import (
     LeaveRecord,
     LeaveType,
     PayrollItem,
+    PayrollPayment,
     PayrollRun,
 )
 from app.security import hash_password
@@ -552,3 +554,178 @@ def test_edit_rows_collapsed_and_conflict_row_stays_open(guard_client):
     # a row with an unresolved absence/leave conflict stays expanded so the
     # review gate is never hidden behind a collapsed row
     assert '<tr class="payroll-edit-row">' in page.text
+
+
+def close_run(client, run_id):
+    page = client.get(f"/payroll/runs/{run_id}")
+    token = csrf(page)
+    response = client.post(
+        f"/payroll/runs/{run_id}/close",
+        data={"csrf_token": token},
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    assert "error" not in response.headers["location"]
+
+
+def pay(client, item_id, amount):
+    page = client.get(f"/payroll/runs/{client.test_run_id}")
+    token = csrf(page)
+    response = client.post(
+        f"/payroll/items/{item_id}/payments",
+        data={
+            "csrf_token": token,
+            "amount": str(amount),
+            "paid_date": "2026-10-31",
+            "method": "cash",
+            "reference": "synthetic-receipt",
+        },
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    assert "error" not in response.headers["location"]
+
+
+def correct_payment(client, payment_id, amount, reason="تصحيح مبلغ مسجل بالخطأ"):
+    page = client.get(f"/payroll/runs/{client.test_run_id}")
+    token = csrf(page)
+    return client.post(
+        f"/payroll/payments/{payment_id}/correct",
+        data={"csrf_token": token, "corrected_amount": str(amount), "reason": reason},
+        follow_redirects=False,
+    )
+
+
+def make_closed_run_with_payment(guard_client):
+    client = guard_client
+    login(client)
+    run_id, item_id = create_run(client)
+    client.test_run_id = run_id
+    approved = approve_run(client, run_id)
+    assert approved.status_code == 303
+    close_run(client, run_id)
+    pay(client, item_id, 3000)
+    with client.test_session_factory() as db:
+        payment = db.scalar(select(PayrollPayment))
+        return client, run_id, item_id, payment.id
+
+
+def test_payment_correction_supersedes_and_recomputes_totals(guard_client):
+    client, run_id, item_id, payment_id = make_closed_run_with_payment(guard_client)
+    response = correct_payment(client, payment_id, 2000)
+    assert response.status_code == 303
+    assert "error" not in response.headers["location"]
+    with client.test_session_factory() as db:
+        original = db.get(PayrollPayment, payment_id)
+        correction = db.scalar(
+            select(PayrollPayment).where(PayrollPayment.correction_of_id == payment_id)
+        )
+        assert original.superseded_by_payment_id == correction.id
+        assert Decimal(correction.amount) == Decimal("2000.00")
+        assert correction.correction_reason
+        assert correction.method == original.method
+        assert correction.paid_at == original.paid_at
+        from app.payroll_workflow import payment_totals
+        paid_total, due, status = payment_totals(db, db.get(PayrollItem, item_id))
+        assert paid_total == Decimal("2000.00")
+        assert due == Decimal("4000.00")
+        assert status == "partially_paid"
+        audits = db.scalars(
+            select(AuditLog).where(AuditLog.action == "payroll_payment_corrected")
+        ).all()
+        assert len(audits) == 1
+    page = client.get(f"/payroll/runs/{run_id}")
+    assert "تم تصحيحها بالقيد رقم" in page.text
+    assert "قيد تصحيح للدفعة رقم" in page.text
+
+
+def test_superseded_payment_cannot_be_corrected_again(guard_client):
+    client, run_id, item_id, payment_id = make_closed_run_with_payment(guard_client)
+    correct_payment(client, payment_id, 2000)
+    again = correct_payment(client, payment_id, 1500)
+    assert again.headers["location"].endswith("error=payment_correction")
+    with client.test_session_factory() as db:
+        assert db.scalar(select(PayrollPayment).where(PayrollPayment.correction_of_id == payment_id)).amount == Decimal("2000.00")
+        assert db.scalar(select(PayrollPayment).where(PayrollPayment.superseded_by_payment_id.isnot(None))).id == payment_id
+
+
+def test_correction_cannot_exceed_net(guard_client):
+    client, run_id, item_id, payment_id = make_closed_run_with_payment(guard_client)
+    response = correct_payment(client, payment_id, 7000)
+    assert response.headers["location"].endswith("error=payment_correction")
+    with client.test_session_factory() as db:
+        assert db.get(PayrollPayment, payment_id).superseded_by_payment_id is None
+        assert db.scalars(select(PayrollPayment)).all().__len__() == 1
+
+
+def test_same_amount_correction_rejected(guard_client):
+    client, run_id, item_id, payment_id = make_closed_run_with_payment(guard_client)
+    response = correct_payment(client, payment_id, 3000)
+    assert response.headers["location"].endswith("error=payment_correction")
+    with client.test_session_factory() as db:
+        assert db.get(PayrollPayment, payment_id).superseded_by_payment_id is None
+
+
+def test_correction_rejects_out_of_range_amount(guard_client):
+    client, run_id, item_id, payment_id = make_closed_run_with_payment(guard_client)
+    for bad in ("1e999", "nan", "inf"):
+        response = correct_payment(client, payment_id, bad)
+        # Safe rejection either way: 422 at form parsing (nan/inf) or a clean
+        # validation redirect (1e999) — never a 500 and never a partial write.
+        assert response.status_code in (303, 422)
+        if response.status_code == 303:
+            assert "error=payment_correction" in response.headers["location"]
+    with client.test_session_factory() as db:
+        assert db.get(PayrollPayment, payment_id).superseded_by_payment_id is None
+        assert len(db.scalars(select(PayrollPayment)).all()) == 1
+
+
+def test_correction_requires_closed_run(guard_client):
+    client = guard_client
+    login(client)
+    run_id, item_id = create_run(client)
+    client.test_run_id = run_id
+    with client.test_session_factory() as db:
+        db.add(PayrollPayment(
+            payroll_item_id=item_id, amount=Decimal("3000.00"),
+            paid_at=datetime(2026, 10, 31, 12, 0), method="cash",
+            created_by="guard-admin",
+        ))
+        db.commit()
+        payment_id = db.scalar(select(PayrollPayment)).id
+    response = correct_payment(client, payment_id, 2000)
+    assert response.status_code == 303
+    assert "error=payment_correction" in response.headers["location"]
+    with client.test_session_factory() as db:
+        assert db.get(PayrollPayment, payment_id).superseded_by_payment_id is None
+        assert len(db.scalars(select(PayrollPayment)).all()) == 1
+
+
+def test_corrected_payment_excluded_from_excel_and_ai_reports(guard_client, monkeypatch):
+    from io import BytesIO
+
+    from openpyxl import load_workbook
+
+    import app.ai_hr_queries as queries
+    from app.reports import build_hr_workbook
+
+    client, run_id, item_id, payment_id = make_closed_run_with_payment(guard_client)
+    response = correct_payment(client, payment_id, 2000)
+    assert "error" not in response.headers["location"]
+
+    with client.test_session_factory() as db:
+        content = build_hr_workbook(db, PERIOD_START, PERIOD_END)
+    workbook = load_workbook(BytesIO(content), data_only=True)
+    try:
+        sheet = workbook["Payroll"]
+        headers = [cell.value for cell in sheet[1]]
+        paid_col = headers.index("Paid") + 1
+        assert sheet.cell(row=2, column=paid_col).value == 2000.0
+    finally:
+        workbook.close()
+
+    monkeypatch.setattr(queries, "SessionLocal", client.test_session_factory)
+    report = queries.build_payroll_report("رواتب شهر 2026-10")
+    assert report["status"] == "closed"
+    assert len(report["items"]) == 1
+    assert report["items"][0]["paid"] == "2000.00"

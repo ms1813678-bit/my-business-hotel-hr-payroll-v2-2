@@ -665,6 +665,13 @@ class PayrollPayment(Base):
     reference: Mapped[str | None] = mapped_column(String(200))
     created_by: Mapped[str] = mapped_column(String(80), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    superseded_by_payment_id: Mapped[int | None] = mapped_column(
+        ForeignKey("payroll_payments.id", ondelete="RESTRICT")
+    )
+    correction_of_id: Mapped[int | None] = mapped_column(
+        ForeignKey("payroll_payments.id", ondelete="RESTRICT")
+    )
+    correction_reason: Mapped[str | None] = mapped_column(String(300))
 
 class SystemSetting(Base):
     __tablename__ = "system_settings"

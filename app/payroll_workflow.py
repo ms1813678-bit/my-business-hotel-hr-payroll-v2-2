@@ -654,7 +654,8 @@ def reopen_payroll_run(db: Session, run: PayrollRun, actor: str, reason: str) ->
 def payment_totals(db: Session, item: PayrollItem) -> tuple[Decimal, Decimal, str]:
     paid = db.scalar(
         select(func.coalesce(func.sum(PayrollPayment.amount), 0)).where(
-            PayrollPayment.payroll_item_id == item.id
+            PayrollPayment.payroll_item_id == item.id,
+            PayrollPayment.superseded_by_payment_id.is_(None),
         )
     )
     paid_total = money(Decimal(str(paid or 0)))
@@ -704,3 +705,67 @@ def add_payroll_payment(
         new_value=str(paid_total + amount), reason=reference or method,
     )
     return payment
+
+
+def correct_payroll_payment(
+    db: Session,
+    payment: PayrollPayment,
+    *,
+    corrected_amount: Decimal,
+    reason: str,
+    actor: str,
+) -> PayrollPayment:
+    """Replace a mistaken payment record with a corrected one, atomically.
+
+    Bookkeeping only: no money moves. The original entry is kept and marked
+    superseded by the new correcting entry, which links back to it and carries
+    the recorded reason. Never edits or deletes the original record.
+    """
+    reason = (reason or "").strip()
+    if not reason:
+        raise ValueError("A reason is required to correct a payment record.")
+    if payment.superseded_by_payment_id is not None:
+        raise ValueError("This payment record was already corrected; correct the latest active record instead.")
+    corrected_amount = Decimal(str(corrected_amount))
+    # Guard before any arithmetic: NaN/Infinity and values beyond the
+    # Numeric(12, 2) column capacity raise InvalidOperation instead of a
+    # clean validation error.
+    if not corrected_amount.is_finite() or corrected_amount > Decimal("9999999999.99"):
+        raise ValueError("Corrected amount is outside the allowed range.")
+    if corrected_amount <= 0:
+        raise ValueError("Corrected amount must be positive.")
+    if money(corrected_amount) == money(Decimal(payment.amount)):
+        raise ValueError("Corrected amount equals the recorded amount; nothing to correct.")
+    item = db.get(PayrollItem, payment.payroll_item_id)
+    if item is None:
+        raise ValueError("Payroll item not found for this payment.")
+    run = db.get(PayrollRun, item.payroll_run_id)
+    if run is None or run.status != "closed":
+        raise ValueError("Payments can be corrected only after payroll is closed.")
+    paid_total, _, _ = payment_totals(db, item)
+    new_total = money(paid_total - Decimal(payment.amount) + corrected_amount)
+    if new_total > Decimal(item.net_pay):
+        raise ValueError(
+            f"Corrected amount exceeds the remaining amount of {money(Decimal(item.net_pay) - (paid_total - Decimal(payment.amount)))}."
+        )
+    correction = PayrollPayment(
+        payroll_item_id=payment.payroll_item_id,
+        amount=money(corrected_amount),
+        paid_at=payment.paid_at,
+        method=payment.method,
+        reference=payment.reference,
+        created_by=actor,
+        correction_of_id=payment.id,
+        correction_reason=reason,
+    )
+    db.add(correction)
+    db.flush()
+    payment.superseded_by_payment_id = correction.id
+    db.flush()
+    _audit(
+        db, actor=actor, action="payroll_payment_corrected", entity_type="payroll_payment",
+        entity_id=str(payment.id), old_value=str(payment.amount),
+        new_value=f"{correction.id}:{correction.amount}",
+        reason=reason,
+    )
+    return correction

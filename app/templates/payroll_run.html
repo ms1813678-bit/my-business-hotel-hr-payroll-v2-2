@@ -15,6 +15,7 @@
     {% elif error == "item" %}تعذر تعديل بند الراتب. تأكد أن المسير في حالة مسودة أو معاد فتحه وأن الخصومات لا تتجاوز المستحق.
     {% elif error == "absence_leave_conflict" %}تعذر الاعتماد: يوجد خصم غياب قد يتعارض مع إجازة مدفوعة معتمدة ولم تتم مراجعته بعد. راجع البنود المعلَّمة بالأسفل.
     {% elif error == "payment" %}تعذر تسجيل الدفعة. تحقق من أن المسير مغلق وأن المبلغ لا يتجاوز المتبقي.
+    {% elif error == "payment_correction" %}تعذر تصحيح الدفعة. تحقق من المبلغ والسبب وأن الدفعة لم تُصحح من قبل.
     {% else %}تعذر تنفيذ العملية.{% endif %}
   </section>
   {% endif %}
@@ -65,7 +66,7 @@
     {% set p = summaries.get(item.id) %}
     {% set f = financials.get(item.id) %}
     <tr class="payroll-summary-row" data-search="{{ item.employee_code_snapshot }} {{ item.employee_name_snapshot }}">
-      <td>{% if run.status in ["draft", "reopened"] %}<button type="button" class="payroll-edit-toggle">تعديل</button> {% endif %}{{ item.employee_code_snapshot }} — {{ item.employee_name_snapshot }}</td>
+      <td>{% if run.status in ["draft", "reopened"] %}<button type="button" class="payroll-edit-toggle">تعديل</button> {% elif run.status == "closed" and payments_by_item.get(item.id) %}<button type="button" class="payroll-edit-toggle">الدفعات</button> {% endif %}{{ item.employee_code_snapshot }} — {{ item.employee_name_snapshot }}</td>
       <td>{{ "%.2f"|format(item.salary_basis) }}</td>
       <td>{{ "%.2f"|format(item.base_salary) }}</td>
       <td>{{ "%.2f"|format(f.gross) }}</td>
@@ -124,6 +125,41 @@
         {% endif %}
       </div>
       {% endif %}
+    </td></tr>
+    {% endif %}
+    {% if run.status == "closed" and payments_by_item.get(item.id) %}
+    <tr class="payroll-edit-row" hidden><td colspan="10">
+      <table><thead><tr>
+        <th>المبلغ</th><th>التاريخ</th><th>الطريقة</th><th>المرجع</th><th>الحالة</th><th>تصحيح تسجيل دفعة</th>
+      </tr></thead><tbody>
+      {% for payment in payments_by_item[item.id] %}
+      <tr>
+        <td>{{ "%.2f"|format(payment.amount) }}</td>
+        <td>{{ payment.paid_at|fmt_dt }}</td>
+        <td>{% if payment.method == "cash" %}نقدي{% else %}تحويل بنكي{% endif %}</td>
+        <td>{{ payment.reference or "" }}</td>
+        <td>
+          {% if payment.superseded_by_payment_id %}<span>تم تصحيحها بالقيد رقم</span> {{ payment.superseded_by_payment_id }}
+          {% elif payment.correction_of_id %}<span>قيد تصحيح للدفعة رقم</span> {{ payment.correction_of_id }} — {{ payment.correction_reason }}
+          {% else %}نشطة{% endif %}
+        </td>
+        <td>
+          {% if not payment.superseded_by_payment_id %}
+          <form method="post" action="/payroll/payments/{{ payment.id }}/correct">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <label><span>المبلغ الصحيح</span><input type="number" name="corrected_amount" class="pc-amount" min="0.01" step="0.01" value="{{ payment.amount }}" required></label>
+            <label><span>سبب التصحيح</span><input name="reason" required></label>
+            <span class="pc-before" hidden>بعد التصحيح:</span>
+            <span class="pc-paid-label" hidden>إجمالي المدفوع</span>
+            <span class="pc-due-label" hidden>والمتبقي</span>
+            <p class="muted pc-preview" data-net="{{ item.net_pay }}" data-paid="{{ p[0] }}" data-original="{{ payment.amount }}"></p>
+            <button type="submit">تأكيد التصحيح</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+      </tbody></table>
     </td></tr>
     {% endif %}
     {% if run.status == "closed" and p[1] > 0 %}
@@ -247,6 +283,19 @@
         });
       });
     }
+    document.querySelectorAll(".pc-amount").forEach(function (input) {
+      input.addEventListener("input", function () {
+        var preview = input.closest("form").querySelector(".pc-preview");
+        var form = input.closest("form");
+        var net = parseFloat(preview.dataset.net), paid = parseFloat(preview.dataset.paid), orig = parseFloat(preview.dataset.original);
+        var v = parseFloat(input.value);
+        if (isNaN(v)) { preview.textContent = ""; return; }
+        var newPaid = (paid - orig + v).toFixed(2), newDue = (net - (paid - orig + v)).toFixed(2);
+        preview.textContent = form.querySelector(".pc-before").textContent + " " +
+          form.querySelector(".pc-paid-label").textContent + " " + newPaid + " " +
+          form.querySelector(".pc-due-label").textContent + " " + newDue;
+      });
+    });
     function payrollReviewSubmit() {
       var dirty = Array.prototype.some.call(
         document.querySelectorAll("form.payroll-item-edit"),

@@ -443,7 +443,10 @@ def build_payroll_report(question: str) -> dict[str, Any]:
         rows = []
         for item in items:
             paid = db.scalar(select(func.coalesce(func.sum(PayrollPayment.amount), 0)).where(
-                PayrollPayment.payroll_item_id == item.id
+                PayrollPayment.payroll_item_id == item.id,
+                # Superseded payments were corrected away; only active records count,
+                # matching payment_totals() everywhere else.
+                PayrollPayment.superseded_by_payment_id.is_(None),
             ))
             rows.append({
                 "code": item.employee_code_snapshot, "name": item.employee_name_snapshot,

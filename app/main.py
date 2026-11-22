@@ -91,6 +91,7 @@ from app.payroll_workflow import (
     AbsenceLeaveConflictError,
     absence_leave_conflicts,
     add_payroll_payment,
+    correct_payroll_payment,
     approve_payroll_run,
     close_payroll_run,
     create_payroll_run,
@@ -2497,6 +2498,9 @@ def payroll_run_page(
             "value": request.query_params.get("sim_value") or "",
             "employee": request.query_params.get("sim_employee") or "",
         }
+        payments_by_item = {}
+        for payment in payments:
+            payments_by_item.setdefault(payment.payroll_item_id, []).append(payment)
         simulation = None
         simulation_error = False
         if sim_params["field"]:
@@ -2520,6 +2524,7 @@ def payroll_run_page(
                 "summaries": summaries,
                 "financials": financials,
                 "payments": payments,
+                "payments_by_item": payments_by_item,
                 "conflict_map": conflict_map,
                 "stale_codes": stale_codes,
                 "missing_employees": missing_employees,
@@ -2733,6 +2738,40 @@ def add_payroll_payment_route(
             )
     except (ValueError, SQLAlchemyError):
         return RedirectResponse(f"/payroll/runs/{run_id}?error=payment", status_code=303)
+    return RedirectResponse(f"/payroll/runs/{run_id}", status_code=303)
+
+
+@app.post("/payroll/payments/{payment_id}/correct", dependencies=[Depends(csrf_protect)])
+def correct_payroll_payment_route(
+    payment_id: int,
+    corrected_amount: Decimal = Form(...),
+    reason: str = Form(...),
+    admin: AdminAccount = Depends(get_current_admin),
+):
+    run_id = None
+    try:
+        with SessionLocal.begin() as db:
+            payment = db.scalar(
+                select(PayrollPayment).where(PayrollPayment.id == payment_id).with_for_update()
+            )
+            if payment is None:
+                return RedirectResponse("/payroll?error=payment", status_code=303)
+            # Lock the payroll item too, in the same order as the add-payment
+            # route, so a correction can never interleave with a new payment
+            # on the same item and both read a stale paid total.
+            item = db.scalar(
+                select(PayrollItem).where(PayrollItem.id == payment.payroll_item_id).with_for_update()
+            )
+            run_id = item.payroll_run_id if item is not None else None
+            correct_payroll_payment(
+                db,
+                payment,
+                corrected_amount=corrected_amount,
+                reason=reason,
+                actor=admin.username,
+            )
+    except (ValueError, SQLAlchemyError):
+        return RedirectResponse(f"/payroll/runs/{run_id}?error=payment_correction", status_code=303)
     return RedirectResponse(f"/payroll/runs/{run_id}", status_code=303)
 
 
