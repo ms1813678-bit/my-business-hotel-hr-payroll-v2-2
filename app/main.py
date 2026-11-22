@@ -32,6 +32,14 @@ from app.login_security import (
     record_failed_attempt,
     send_login_alert,
 )
+from app.telegram_alerts import (
+    detect_chat_id as detect_telegram_chat_id,
+    get_config as telegram_get_config,
+    save_config as telegram_save_config,
+    send_login_event as send_telegram_login_event,
+    send_test_message as send_telegram_test_message,
+    verify_token as verify_telegram_token,
+)
 from app.security import verify_password
 from app.employee_codes import allocate_employee_code
 from app.leave_workflow import add_balance_entry, cancel_leave, confirm_leave, leave_balance
@@ -329,6 +337,11 @@ def login(request: Request, username: str = Form(...), password: str = Form(...)
             engaged = record_failed_attempt(db, actor="login")
             if engaged:
                 send_login_alert("login_lockout", username.strip(), failed_attempts=FAILED_ATTEMPTS_LIMIT)
+                send_telegram_login_event(
+                    "login_lockout", username.strip(),
+                    failed_attempts=FAILED_ATTEMPTS_LIMIT, locked_minutes=LOCKOUT_MINUTES,
+                    app_name=settings.app_name,
+                )
                 return templates.TemplateResponse(
                     request=request, name="login.html",
                     context={
@@ -353,6 +366,7 @@ def login(request: Request, username: str = Form(...), password: str = Form(...)
         request.session["admin_session_version"] = admin.session_version
         get_csrf_token(request)
     send_login_alert("login_success", admin.username)
+    send_telegram_login_event("login_success", admin.username, app_name=settings.app_name)
     return RedirectResponse("/", status_code=303)
 
 
@@ -2439,13 +2453,91 @@ def export_hr_reports_pdf(
         headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(filename)}"},
     )
 
+def _telegram_context(request: Request) -> dict:
+    with SessionLocal() as db:
+        config = telegram_get_config(db)
+    return {
+        "tg_configured": bool(config["bot_token"]),
+        "tg_enabled": config["enabled"],
+        "tg_chat_id": config["chat_id"],
+        "tg_language": config["language"],
+        "tg_status": request.query_params.get("tg"),
+    }
+
+
 @app.get("/settings/password", response_class=HTMLResponse)
 def password_page(request: Request, admin: AdminAccount = Depends(get_current_admin)):
     return templates.TemplateResponse(
         request=request,
         name="password.html",
-        context={"error": None, "success": False, "csrf_token": get_csrf_token(request)},
+        context={"error": None, "success": False, "csrf_token": get_csrf_token(request), **_telegram_context(request)},
     )
+
+
+@app.post("/settings/telegram", dependencies=[Depends(csrf_protect)])
+def telegram_settings_save(
+    request: Request,
+    bot_token: str = Form(""),
+    chat_id: str = Form(""),
+    language: str = Form("ar"),
+    enabled: str = Form(""),
+    admin: AdminAccount = Depends(get_current_admin),
+):
+    with SessionLocal.begin() as db:
+        current = telegram_get_config(db)
+        token = bot_token.strip() or current["bot_token"]
+        if bot_token.strip() and verify_telegram_token(token) is None:
+            return RedirectResponse("/settings/password?tg=bad_token", status_code=303)
+        telegram_save_config(
+            db,
+            bot_token=token,
+            chat_id=chat_id.strip() or current["chat_id"],
+            enabled=enabled == "on",
+            language=language,
+            actor=admin.username,
+        )
+        db.add(AuditLog(
+            actor=admin.username,
+            action="telegram_alerts_configured",
+            entity_type="system_setting",
+            entity_id="telegram_alerts",
+            old_value=None,
+            new_value=f"enabled={enabled == 'on'}, chat_id={'set' if (chat_id.strip() or current['chat_id']) else 'unset'}",
+            reason=None,
+        ))
+    return RedirectResponse("/settings/password?tg=saved", status_code=303)
+
+
+@app.post("/settings/telegram/detect", dependencies=[Depends(csrf_protect)])
+def telegram_detect_chat(
+    request: Request,
+    bot_token: str = Form(""),
+    admin: AdminAccount = Depends(get_current_admin),
+):
+    with SessionLocal.begin() as db:
+        current = telegram_get_config(db)
+        token = bot_token.strip() or current["bot_token"]
+        if not token:
+            return RedirectResponse("/settings/password?tg=need_token", status_code=303)
+        detected = detect_telegram_chat_id(token)
+        if not detected:
+            return RedirectResponse("/settings/password?tg=no_updates", status_code=303)
+        telegram_save_config(
+            db,
+            bot_token=token,
+            chat_id=detected,
+            enabled=current["enabled"],
+            language=current["language"],
+            actor=admin.username,
+        )
+    return RedirectResponse("/settings/password?tg=detected", status_code=303)
+
+
+@app.post("/settings/telegram/test", dependencies=[Depends(csrf_protect)])
+def telegram_test_message(request: Request, admin: AdminAccount = Depends(get_current_admin)):
+    with SessionLocal() as db:
+        sent = send_telegram_test_message(db)
+    return RedirectResponse(f"/settings/password?tg={'test_ok' if sent else 'test_failed'}", status_code=303)
 
 
 @app.post("/settings/password", dependencies=[Depends(csrf_protect)])

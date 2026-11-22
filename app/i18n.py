@@ -728,6 +728,56 @@ ZH.update({
     'كلمة سر التشفير / Backup passphrase': '备份加密密码',
 })
 
+EN.update({
+    'تنبيهات تيليجرام': 'Telegram alerts',
+    'تصلك تنبيهات الدخول الناجح وإيقاف الدخول المؤقت على تيليجرام مجانًا. أنشئ بوتًا من @BotFather في تيليجرام، والصق الرمز هنا، ثم افتح البوت في تيليجرام واضغط Start، وبعدها اضغط «اكتشاف المحادثة تلقائيًا».': 'Get successful-sign-in and lockout alerts on Telegram for free. Create a bot with @BotFather in Telegram, paste the token here, then open the bot in Telegram and tap Start, then press "Detect chat automatically".',
+    'تم حفظ إعدادات تيليجرام.': 'Telegram settings saved.',
+    'رمز البوت غير صحيح؛ تأكد من نسخه كاملًا من @BotFather.': 'The bot token is invalid; make sure you copied it in full from @BotFather.',
+    'تم اكتشاف المحادثة وربطها بنجاح.': 'Chat detected and linked successfully.',
+    'لم يعثر البوت على رسائل بعد. افتح البوت في تيليجرام واضغط Start ثم أعد المحاولة.': 'The bot found no messages yet. Open the bot in Telegram, tap Start, then try again.',
+    'تم إرسال رسالة تجريبية إلى تيليجرام.': 'A test message was sent to Telegram.',
+    'فشل إرسال الرسالة التجريبية؛ راجع الرمز والمحادثة واتصال الإنترنت.': 'The test message failed; check the token, the chat, and the internet connection.',
+    'احفظ رمز البوت أولًا.': 'Save the bot token first.',
+    'الحالة الحالية:': 'Current status:',
+    'رمز البوت محفوظ': 'bot token saved',
+    'المحادثة مربوطة': 'chat linked',
+    'التنبيهات مفعّلة': 'alerts on',
+    'التنبيهات متوقفة': 'alerts off',
+    'رمز البوت': 'Bot token',
+    'اترك رمز البوت فارغًا للإبقاء على الرمز المحفوظ الحالي.': 'Leave the bot token blank to keep the currently saved token.',
+    'معرّف المحادثة': 'Chat ID',
+    'لغة التنبيهات': 'Alert language',
+    'تفعيل التنبيهات': 'Enable alerts',
+    'حفظ إعدادات تيليجرام': 'Save Telegram settings',
+    'اكتشاف المحادثة تلقائيًا': 'Detect chat automatically',
+    'إرسال رسالة تجريبية': 'Send a test message',
+})
+
+ZH.update({
+    'تنبيهات تيليجرام': 'Telegram 提醒',
+    'تصلك تنبيهات الدخول الناجح وإيقاف الدخول المؤقت على تيليجرام مجانًا. أنشئ بوتًا من @BotFather في تيليجرام، والصق الرمز هنا، ثم افتح البوت في تيليجرام واضغط Start، وبعدها اضغط «اكتشاف المحادثة تلقائيًا».': '免费在 Telegram 上接收登录成功和锁定提醒。在 Telegram 中通过 @BotFather 创建机器人，在此粘贴令牌，然后在 Telegram 中打开该机器人并点按 Start，再点击“自动检测聊天”。',
+    'تم حفظ إعدادات تيليجرام.': 'Telegram 设置已保存。',
+    'رمز البوت غير صحيح؛ تأكد من نسخه كاملًا من @BotFather.': '机器人令牌无效；请确认已从 @BotFather 完整复制。',
+    'تم اكتشاف المحادثة وربطها بنجاح.': '聊天已成功检测并关联。',
+    'لم يعثر البوت على رسائل بعد. افتح البوت في تيليجرام واضغط Start ثم أعد المحاولة.': '机器人暂未收到任何消息。请在 Telegram 中打开该机器人并点按 Start，然后重试。',
+    'تم إرسال رسالة تجريبية إلى تيليجرام.': '测试消息已发送到 Telegram。',
+    'فشل إرسال الرسالة التجريبية؛ راجع الرمز والمحادثة واتصال الإنترنت.': '测试消息发送失败；请检查令牌、聊天和网络连接。',
+    'احفظ رمز البوت أولًا.': '请先保存机器人令牌。',
+    'الحالة الحالية:': '当前状态:',
+    'رمز البوت محفوظ': '令牌已保存',
+    'المحادثة مربوطة': '聊天已关联',
+    'التنبيهات مفعّلة': '提醒已开启',
+    'التنبيهات متوقفة': '提醒已关闭',
+    'رمز البوت': '机器人令牌',
+    'اترك رمز البوت فارغًا للإبقاء على الرمز المحفوظ الحالي.': '留空则保留当前已保存的令牌。',
+    'معرّف المحادثة': '聊天 ID',
+    'لغة التنبيهات': '提醒语言',
+    'تفعيل التنبيهات': '启用提醒',
+    'حفظ إعدادات تيليجرام': '保存 Telegram 设置',
+    'اكتشاف المحادثة تلقائيًا': '自动检测聊天',
+    'إرسال رسالة تجريبية': '发送测试消息',
+})
+
 LANGUAGES = {"ar": "العربية", "en": "English", "zh": "中文"}
 
 def _translate_value(value: str, language: str) -> str:
