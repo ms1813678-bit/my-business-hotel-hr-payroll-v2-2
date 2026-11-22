@@ -637,7 +637,10 @@ def build_attendance_analysis(*, work_date: date | None, month_start: date | Non
                          or record.program_clock_in)
                 if start and clock:
                     late_covered_rows += 1
-                    if clock > start:
+                    # Shared rule with _classify_attendance_row / payroll:
+                    # whole late minutes floored; sub-minute drift is not late.
+                    late_minutes = max(0, int((clock - start).total_seconds() // 60))
+                    if late_minutes > 0:
                         late_count += 1
         late_determinable = late_covered_rows > 0
         items: list[dict[str, Any]] = []
@@ -961,8 +964,8 @@ _READ_ANCHOR_TERMS = (
 
 
 def _has_read_anchor(question: str) -> bool:
-    if _CODE_RE.search(question or ""):
-        return True
+    # A code identifies WHO the question is about, not whether it is a data
+    # read or a how-to ("add an advance for MY-0001" is still a how-to).
     q = " ".join((question or "").casefold().split())
     return any(term in q for term in _READ_ANCHOR_TERMS)
 
@@ -996,6 +999,18 @@ def explicit_unsupported_answer(question: str, language: str = "ar") -> str | No
             "لا أستطيع تحديد عدد الموظفين في تاريخ أو فترة سابقة من السجلات الحالية؛ الأعداد المتاحة لدي هي الحالية فقط. يمكنك سؤالي عن العدد الحالي أو عن حضور يوم محدد.",
             "I cannot determine the employee count for a past or specific date from the current records; only the current count is available to me. You can ask about the current count or about a specific day's attendance.",
             "我无法根据现有记录确定过去或指定日期的员工人数；我只能提供当前人数。您可以询问当前人数或某一天的考勤情况。",
+        )
+    negated_absence = any(term in q for term in (
+        "مش غايب", "مش غائب", "ما غابش", "ماغابش", "موجود النهارده", "حضر النهارده",
+        "not absent", "did not miss", "didn't miss", "came today", "present today",
+        "没有缺席", "没缺席", "今天来了",
+    ))
+    if negated_absence:
+        return _msg(
+            language,
+            "لا أستطيع تحديد من ليس غائبًا: السجلات المتاحة تُظهر سجلات الحضور المدخلة فقط ولا تثبت حضور من لا سجل له. يمكنك سؤالي عن تحليل حضور يوم محدد أو عن السجلات التي تحتاج مراجعة.",
+            "I cannot determine who is not absent: the available records only show entered attendance records and cannot prove the presence of someone with no record. You can ask me for a specific day's attendance analysis or for records that need review.",
+            "我无法确定谁没有缺席：现有记录仅显示已录入的考勤记录，无法证明没有记录的人出勤。您可以询问某一天的考勤分析或需要审核的记录。",
         )
     return None
 

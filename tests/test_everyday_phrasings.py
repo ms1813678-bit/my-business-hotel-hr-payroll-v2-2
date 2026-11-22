@@ -431,3 +431,43 @@ def test_unmatched_scope_name_declines_with_registered_names(seeded):
 def test_whole_org_scope_words_still_answer_global(seeded):
     answer = queries.answer_structured_hr_query("كام موظف في الفندق؟", language="ar")
     assert "إجمالي المسجلين: 3" in answer
+def test_code_targeted_how_to_stays_a_guide(seeded):
+    answer = queries.answer_structured_hr_query("how do i add an advance for MY-0001", language="en")
+    assert "Source:" not in answer  # not the advances records report
+    answer_ar = queries.answer_structured_hr_query("عايز أعمل جزاء لـMY-0001", language="ar")
+    assert "المصدر:" not in answer_ar
+
+
+def test_read_anchor_still_wins_over_guide_with_code(seeded):
+    answer = queries.answer_structured_hr_query("can i check MY-0001 leave balance?", language="en")
+    assert "balances" in answer or "ledger" in answer or "leave" in answer.casefold()
+    assert "To record leave" not in answer  # not the create-leave guide
+
+
+def test_negated_absence_pre_model_explicit_unsupported():
+    from app.ai_assistant import ask_local_model
+    for question, lang, marker in (
+        ("who is not absent today?", "en", "cannot determine who is not absent"),
+        ("مين مش غايب النهارده؟", "ar", "لا أستطيع تحديد من ليس غائبًا"),
+        ("今天谁没有缺席？", "zh", "无法确定谁没有缺席"),
+    ):
+        assert marker in queries.explicit_unsupported_answer(question, language=lang)
+        assert marker in ask_local_model(question, {"metrics": {}}, language=lang)
+
+
+def test_sub_minute_drift_is_not_late(seeded):
+    from datetime import datetime
+    with seeded.begin() as db:
+        db.query(AttendanceDailyRecord).delete()
+        drift = AttendanceDailyRecord(
+            employee_id=1, work_date=date.today(), status="approved",
+            scheduled_start_at=datetime(2026, 11, 22, 9, 0, 0),
+            first_clock_in=datetime(2026, 11, 22, 9, 0, 30))
+        late = AttendanceDailyRecord(
+            employee_id=2, work_date=date.today(), status="approved",
+            scheduled_start_at=datetime(2026, 11, 22, 9, 0, 0),
+            first_clock_in=datetime(2026, 11, 22, 9, 1, 0))
+        db.add_all([drift, late])
+        db.commit()
+    answer = queries.answer_structured_hr_query("كام موظف اتأخر النهارده؟", language="ar")
+    assert "المتأخرون عن موعد بداية الوردية: 1." in answer
