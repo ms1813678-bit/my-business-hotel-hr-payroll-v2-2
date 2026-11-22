@@ -28,7 +28,11 @@ def is_weekly_summary_request(question: str) -> bool:
         "ملخص الأسبوع", "الملخص الأسبوعي", "ملخص أسبوعي", "ملخص الاسبوع",
         "weekly summary", "summary of the week", "this week's summary",
         "this week summary", "week summary",
-        "本周总结", "每周总结", "本周摘要", "周度总结",
+        "本周总结", "每周总结", "本周摘要", "周度总结", "本周发生了什么", "这周怎么样", "本周情况",
+    ) + (
+        "ايه اللي حصل الاسبوع", "إيه اللي حصل الأسبوع", "اللي حصل الاسبوع",
+        "أخبار الأسبوع", "اخبار الاسبوع", "شغل الأسبوع ده", "الاسبوع ده ايه",
+        "what happened this week", "this week at work", "how was this week",
     )
     return any(phrase in q for phrase in phrases)
 

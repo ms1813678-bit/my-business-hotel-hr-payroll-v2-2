@@ -14,8 +14,10 @@ from typing import Any
 _TOPICS: list[dict[str, Any]] = [
     {
         "keys": ("أصحح حضور", "تصحيح حضور", "تعديل حضور", "حضور يدوي", "انسى البصمة", "نسي البصمة",
+                 "أسجل حضور", "اسجل حضور", "أضيف حضور", "سجل دخول", "دخول وخروج", "نسي يبصم", "مابصمش",
                  "correct attendance", "fix attendance", "manual attendance", "forgot to punch",
-                 "补打卡", "修改考勤", "手工考勤"),
+                 "add attendance", "record attendance", "missed punch",
+                 "补打卡", "修改考勤", "手工考勤", "忘打卡"),
         "path": "/attendance/review",
         "ar": "لتصحيح حضور موظف: افتح صفحة الحضور والانصراف، اختر اليوم، راجع سجل الموظف، ثم استخدم «حضور يدوي» وأدخل وقت الدخول والخروج والسبب. السجل يبقى بانتظار المراجعة حتى تعتمده، وأي تعديل يُحفظ في سجل المراجعة.",
         "en": "To correct an employee's attendance: open the Attendance page, pick the day, review the employee's record, then use \"Manual attendance\" and enter the clock-in, clock-out and reason. The record stays pending review until you approve it, and every change is kept in the audit log.",
@@ -23,8 +25,9 @@ _TOPICS: list[dict[str, Any]] = [
     },
     {
         "keys": ("أضيف موظف", "اضافة موظف", "إضافة موظف", "موظف جديد",
+                 "شغال جديد", "عامل جديد", "واحد جديد اشتغل", "تعيين جديد",
                  "add employee", "new employee", "hire",
-                 "添加员工", "新员工", "新增员工"),
+                 "添加员工", "新员工", "新增员工", "入职"),
         "path": "/employees",
         "ar": "لإضافة موظف جديد: افتح صفحة الموظفين، اضغط «إضافة موظف»، أكمل البيانات الأساسية (الاسم، القسم، المسمى، الراتب، ساعات العمل) ثم احفظ. الكود يُنشأ تلقائيًا وتبدأ فترة خدمة جديدة من تاريخ التعيين.",
         "en": "To add a new employee: open the Employees page, click \"Add employee\", fill in the basics (name, department, position, salary, daily hours) and save. The code is generated automatically and a new service period starts from the hire date.",
@@ -32,15 +35,17 @@ _TOPICS: list[dict[str, Any]] = [
     },
     {
         "keys": ("إجازة لموظف", "اجازة لموظف", "أضيف إجازة", "طلب إجازة", "رصيد إجازة",
-                 "add leave", "leave request", "leave balance",
-                 "添加请假", "请假申请", "申请请假", "请假余额"),
+                 "أديله إجازة", "اديله اجازة", "أسجل إجازة", "اسجل اجازة",
+                 "add leave", "leave request", "leave balance", "request leave", "give leave",
+                 "添加请假", "请假申请", "申请请假", "请假余额", "请假"),
         "path": "/leave",
         "ar": "لتسجيل إجازة: افتح صفحة الإجازات، أنشئ طلبًا جديدًا وحدد الموظف ونوع الإجازة والتواريخ والأيام المحتسبة. الطلب يبدأ مسودة ولا يُخصم الرصيد إلا بعد اعتماده. رصيد الإجازة يظهر من نفس الصفحة.",
         "en": "To record leave: open the Leave page, create a new request with the employee, leave type, dates and charged days. The request starts as a draft and the balance is only deducted after approval. The leave balance is shown on the same page.",
         "zh": "登记请假：打开「请假」页面，新建申请并选择员工、请假类型、日期和计扣天数。申请以草稿开始，批准后才扣减余额。请假余额在同一页面查看。",
     },
     {
-        "keys": ("سلفة", "سلف", "advance",
+        "keys": ("سلفة", "سلف", "أسلف", "اسلف", "أديله سلفة", "اديله سلفة",
+                 "advance",
                  "预支", "借款"),
         "path": "/advances",
         "ar": "للسلف: افتح صفحة السلف، أنشئ طلب السلفة بالمبلغ والنوع، ثم اعتمده وحدد عدد الأقساط. بعد الاعتماد سجّل صرف السلفة للموظف من نفس الصفحة. قسط السلفة لا يُخصم من المسير إلا بعد إغلاقه.",
@@ -49,8 +54,9 @@ _TOPICS: list[dict[str, Any]] = [
     },
     {
         "keys": ("مسير رواتب", "اعتماد المسير", "إغلاق الشهر", "اغلاق الشهر", "صرف المرتبات", "صرف الرواتب",
-                 "payroll run", "approve payroll", "close the month", "pay salaries",
-                 "工资批次", "批准工资", "关闭月份", "发放工资"),
+                 "أعمل مسير", "اعمل مسير", "أقفل الشهر", "اقفل الشهر", "أصرف المرتبات", "اصرف المرتبات",
+                 "payroll run", "approve payroll", "close the month", "pay salaries", "run payroll",
+                 "工资批次", "批准工资", "关闭月份", "发放工资", "算工资"),
         "path": "/payroll",
         "ar": "دورة المسير: أنشئ مسير الشهر من صفحة مسيرات الرواتب، راجع بنود الموظفين وعدّل ما يلزم وهو مسودة، اعتمد المسير، أغلق الشهر، ثم سجّل الصرف نقدًا أو تحويلًا لكل بند. إعادة فتح مسير مغلق تتطلب سببًا يُحفظ في سجل المراجعة. وتقدر تجرب «محاكاة ماذا لو» من صفحة المسير قبل أي قرار.",
         "en": "Payroll cycle: create the month's run from the Payroll Runs page, review and adjust employee items while it is a draft, approve the run, close the month, then record payment per item (cash or bank transfer). Reopening a closed run requires a reason kept in the audit log. You can try the \"What-if simulation\" on the run page before any decision.",
@@ -67,6 +73,7 @@ _TOPICS: list[dict[str, Any]] = [
     },
     {
         "keys": ("جزاء", "مكافأة لموظف", "إجراء موظف", "خصم جزاء",
+                 "أعمل جزاء", "اعمل جزاء", "أديله جزاء", "اديله جزاء", "أكافئ", "اكافئ",
                  "sanction", "reward", "staff action", "disciplinary",
                  "处分", "奖励", "员工措施"),
         "path": "/staff-actions",
@@ -94,8 +101,9 @@ _TOPICS: list[dict[str, Any]] = [
 
 _HOW_TO_MARKERS = (
     "إزاي", "ازاي", "كيف", "كيفية", "طريقة", "أعمل", "اعمل", "أضيف", "أسجل", "اسجل",
-    "how do i", "how to", "how can i", "steps to",
-    "怎么", "如何", "怎样",
+    "عايز أ", "عاوز أ", "عايز ا", "عاوز ا", "محتاج", "ممكن أ", "ممكن ا", "أقدر", "اقدر",
+    "how do i", "how to", "how can i", "steps to", "can i", "want to", "need to",
+    "怎么", "如何", "怎样", "咋", "我想", "我要",
 )
 
 

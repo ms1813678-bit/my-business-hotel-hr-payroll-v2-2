@@ -11,8 +11,10 @@ def test_ai_system_prompt_is_advisory():
 
 
 def test_ai_fallback_reads_dashboard_metrics():
+    # A bare fragment without a count word still uses the dashboard metrics;
+    # full count questions route to the DB-grounded structured answer instead.
     answer = local_fallback_answer(
-        "كم عدد الموظفين النشطين؟",
+        "الموظفين النشطين",
         {"metrics": {"active_employees": 7}},
     )
     assert answer == "عدد الموظفين النشطين حاليًا: 7."

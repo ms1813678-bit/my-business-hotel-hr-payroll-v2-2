@@ -139,12 +139,13 @@ def is_attendance_analysis_request(question: str) -> bool:
     q = " ".join((question or "").casefold().split())
     if not q:
         return False
-    attendance = any(term in q for term in ("حضور", "انصراف", "تأخير", "غياب", "attendance", "考勤", "出勤", "迟到"))
+    attendance = any(term in q for term in ("حضور", "انصراف", "تأخير", "غياب", "اتأخر", "غايب", "ما حضرش", "محضرش", "attendance", "absent", "late", "考勤", "出勤", "迟到", "缺席", "没来"))
     analysis = any(
         term in q
         for term in (
             "تحليل", "حلّل", "حلل", "ملخص", "ملاحظات", "مراجعة",
             "مشاكل", "تقرير", "summary", "analyze", "analysis", "review", "report", "分析", "汇总", "问题",
+            "مين", "من الغائب", "who", "谁",
         )
     )
     if "أمن" in q and "بصم" in q:
@@ -156,7 +157,8 @@ def is_leave_balance_request(question: str) -> bool:
     q = " ".join((question or "").casefold().split())
     return any(term in q for term in (
         "رصيد إجازة", "رصيد اجازة", "أرصدة الإجازات", "ارصدة الاجازات", "إجازات الموظف", "اجازات الموظف",
-        "leave balance", "رصيد", "请假余额", "假期余额", "年假余额",
+        "كام يوم إجازة", "كم يوم إجازة", "فاضل من إجازاته", "باقي من إجازاته", "إجازاته الباقية",
+        "leave balance", "leave days left", "remaining leave", "رصيد", "请假余额", "假期余额", "年假余额", "还剩多少假",
     ))
 
 
@@ -164,6 +166,7 @@ def is_advance_query_request(question: str) -> bool:
     q = " ".join((question or "").casefold().split())
     return any(term in q for term in (
         "سلف", "سلفة", "أقساط", "اقساط", "قسط", "advance", "installment", "预支", "借款", "分期",
+        "عليه سلفة", "متبقي من السلفة", "باقي من السلفة",
     ))
 
 
@@ -184,7 +187,8 @@ def is_staff_action_query_request(question: str) -> bool:
     return any(
         term in q
         for term in ("جزاء", "جزاءات", "مكافأة", "مكافات", "مكافآت", "عقوبة", "خصم تأديبي",
-                     "sanction", "reward", "penalty", "奖惩", "处罚", "奖励")
+                     "اتجازى", "اتعاقب", "عليه جزاء", "اتكافأ",
+                     "sanction", "reward", "penalty", "奖惩", "处罚", "奖励", "被处罚")
     )
 
 
@@ -192,17 +196,48 @@ def is_employee_query_request(question: str) -> bool:
     q = " ".join((question or "").casefold().split())
     return any(term in q for term in (
         "بيانات الموظف", "تفاصيل الموظف", "سجل الموظف", "ابحث عن الموظف",
-        "بيانات العامل", "employee profile", "employee details",
-        "员工信息", "员工详情", "员工资料",
+        "بيانات العامل", "هات بيانات", "عايز بيانات", "عاوز بيانات", "دور على موظف", "دوّر على موظف",
+        "employee profile", "employee details", "find employee", "look up employee",
+        "员工信息", "员工详情", "员工资料", "查一下员工",
     ))
+
+
+def is_employee_count_request(question: str) -> bool:
+    q = " ".join((question or "").casefold().split())
+    count_word = any(term in q for term in (
+        "عدد", "كام", "كم", "how many", "number of", "count", "多少", "几个", "几位",
+    ))
+    employee_word = any(term in q for term in (
+        "موظف", "عامل", "شغال", "employee", "staff", "员工", "职员",
+    ))
+    return count_word and employee_word
+
+
+def build_employee_count_report() -> dict[str, Any]:
+    with SessionLocal() as db:
+        active = db.scalar(
+            select(func.count(Employee.id)).where(Employee.status == "active")
+        ) or 0
+        total = db.scalar(select(func.count(Employee.id))) or 0
+    return {"active": int(active), "total": int(total)}
+
+
+def format_employee_count_report(report: dict[str, Any], language: str = "ar") -> str:
+    return _msg(
+        language,
+        f"عدد الموظفين النشطين حاليًا: {report['active']} (إجمالي المسجلين: {report['total']}).",
+        f"Active employees right now: {report['active']} (total on record: {report['total']}).",
+        f"当前在职员工数：{report['active']}（登记总数：{report['total']}）。",
+    )
 
 
 def is_payroll_query_request(question: str) -> bool:
     q = " ".join((question or "").casefold().split())
     return any(term in q for term in (
         "راتب الموظف", "رواتب الموظفين", "مسير الرواتب", "تفاصيل الراتب",
-        "صافي الراتب", "payroll", "salary details",
-        "工资批次", "工资明细", "薪资", "实发工资",
+        "صافي الراتب", "مرتبه كام", "مرتب فلان", "صافي مرتب", "مرتبه كام الشهر",
+        "payroll", "salary details", "net salary", "how much salary",
+        "工资批次", "工资明细", "薪资", "实发工资", "工资多少",
     ))
 
 
@@ -331,7 +366,8 @@ def format_payroll_report_ar(report: dict[str, Any]) -> str:
 
 def is_structured_hr_query(question: str) -> bool:
     return (
-        is_employee_query_request(question)
+        is_employee_count_request(question)
+        or is_employee_query_request(question)
         or is_payroll_query_request(question)
         or is_attendance_analysis_request(question)
         or is_leave_balance_request(question)
@@ -702,6 +738,8 @@ def answer_structured_hr_query(question: str, language: str = "ar") -> str:
         from app.usage_guide import format_usage_guide
 
         return format_usage_guide(topic, language)
+    if is_employee_count_request(question):
+        return format_employee_count_report(build_employee_count_report(), language)
     if is_employee_query_request(question):
         return format_employee_report(build_employee_report(question), language)
     if is_pre_payroll_review_request(question):
@@ -712,7 +750,11 @@ def answer_structured_hr_query(question: str, language: str = "ar") -> str:
         return format_payroll_report(build_payroll_report(question), language)
     if is_attendance_analysis_request(question):
         q = question or ""
-        if _DATE_RE.search(q) and "شهر" not in q:
+        normalized = " ".join(q.casefold().split())
+        asks_today = any(term in normalized for term in ("النهارده", "النهاردة", "اليوم", "today", "今天", "今日"))
+        if asks_today and "شهر" not in normalized and "month" not in normalized and "月" not in normalized:
+            report = build_attendance_analysis(work_date=date.today(), month_start=None)
+        elif _DATE_RE.search(q) and "شهر" not in q:
             report = build_attendance_analysis(work_date=_parse_date(q), month_start=None)
         else:
             report = build_attendance_analysis(work_date=None, month_start=_parse_month(q))
