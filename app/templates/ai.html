@@ -21,6 +21,25 @@
 </section>
 
 <section class="card">
+  <h2>الفحص الذكي</h2>
+  <p class="muted mb-2">فحص لحظي لطوابير العمل من قاعدة البيانات المحلية. «لا شيء معلّق» يعني أن الطابور فارغ الآن فقط، وأي فحص يتعذر إجراؤه يُعرض كغير مؤكد.</p>
+  <div class="ai-scan">
+    {% for item in scan %}
+    <a class="ai-scan-item" href="{{ item.url }}">
+      <span>{{ item.label }}</span>
+      {% if item.status == "attention" %}
+      <span class="badge-attention">{{ item.count }} بانتظارك</span>
+      {% elif item.status == "clear" %}
+      <span class="badge-clear">لا شيء معلّق</span>
+      {% else %}
+      <span class="badge-unavailable">غير مؤكد — تعذر الفحص</span>
+      {% endif %}
+    </a>
+    {% endfor %}
+  </div>
+</section>
+
+<section class="card">
   <h2>اكتب أمرًا أو سؤالًا</h2>
   <p class="muted mb-2">السؤال العادي يُجاب عنه مباشرة. أي أمر تعديل يُحوَّل إلى خطة واضحة ثم تختار أنت الموافقة أو الرفض.</p>
   <form method="post" action="/ai" class="stack">
@@ -34,10 +53,24 @@
   </form>
 </section>
 
-{% if answer %}
-<section class="card ai-answer">
-  <h2>النتيجة</h2>
-  <p>{{ answer }}</p>
+{% if question or answer or memory %}
+<section class="card">
+  <h2>المحادثة</h2>
+  <div class="ai-chat">
+    {% if memory %}
+    {% for item in memory %}
+    <div class="ai-msg {{ 'ai-msg-user' if item.role == 'user' else 'ai-msg-assistant' }}">
+      <span class="ai-msg-role">{{ 'أنت' if item.role == 'user' else 'المساعد' }}</span>{{ item.content }}
+    </div>
+    {% endfor %}
+    {% endif %}
+    {% if question %}
+    <div class="ai-msg ai-msg-user"><span class="ai-msg-role">أنت</span>{{ question }}</div>
+    {% endif %}
+    {% if answer %}
+    <div class="ai-msg ai-msg-assistant"><span class="ai-msg-role">المساعد</span>{{ answer }}</div>
+    {% endif %}
+  </div>
 </section>
 {% endif %}
 
@@ -84,13 +117,6 @@
       <button type="submit" class="btn-danger">رفض العملية</button>
     </form>
   </div>
-</section>
-{% endif %}
-
-{% if memory %}
-<section class="card">
-  <h2>سياق المحادثة المحلي</h2>
-  <ul>{% for item in memory %}<li><strong>{{ item.role }}:</strong> {{ item.content }}</li>{% endfor %}</ul>
 </section>
 {% endif %}
 

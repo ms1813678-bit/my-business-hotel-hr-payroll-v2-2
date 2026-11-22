@@ -1,0 +1,88 @@
+"""Deterministic smart scan for the AI assistant page (read-only).
+
+Each check queries one operational queue and reports one of three states:
+- "attention": items need a human look (count > 0);
+- "clear": the queue is empty RIGHT NOW (worded as "nothing pending", never
+  as "no problems");
+- "unavailable": the check itself could not run, reported as unverified —
+  an unavailable check is never presented as a clean queue.
+"""
+from __future__ import annotations
+
+from typing import Any, Callable
+
+from sqlalchemy import func, select
+from sqlalchemy.exc import SQLAlchemyError
+
+from app.db import SessionLocal
+from app.models import (
+    AdvanceRequest,
+    AttendanceDailyRecord,
+    LeaveRecord,
+    PayrollRun,
+)
+
+
+def _count(statement) -> int:
+    with SessionLocal() as db:
+        return db.scalar(statement) or 0
+
+
+_CHECKS: list[dict[str, Any]] = [
+    {
+        "key": "attendance_review",
+        "url": "/attendance/review",
+        "label": ("حضور يحتاج مراجعة", "Attendance needing review", "需要审核的考勤"),
+        "count": lambda: _count(
+            select(func.count(AttendanceDailyRecord.id)).where(
+                AttendanceDailyRecord.status.in_(["needs_review", "ready_for_review"])
+            )
+        ),
+    },
+    {
+        "key": "leave_drafts",
+        "url": "/leave",
+        "label": ("طلبات إجازة بانتظار القرار", "Leave requests awaiting a decision", "待审批的请假申请"),
+        "count": lambda: _count(
+            select(func.count(LeaveRecord.id)).where(LeaveRecord.status == "draft")
+        ),
+    },
+    {
+        "key": "advance_pending",
+        "url": "/advances",
+        "label": ("طلبات سلفة معلّقة", "Pending advance requests", "待处理的预支申请"),
+        "count": lambda: _count(
+            select(func.count(AdvanceRequest.id)).where(
+                AdvanceRequest.status.in_(["pending", "approved"])
+            )
+        ),
+    },
+    {
+        "key": "payroll_drafts",
+        "url": "/payroll",
+        "label": ("مسيرات رواتب غير معتمدة", "Unapproved payroll runs", "未批准的工资批次"),
+        "count": lambda: _count(
+            select(func.count(PayrollRun.id)).where(PayrollRun.status.in_(["draft", "reopened"]))
+        ),
+    },
+]
+
+
+def build_smart_scan(
+    language: str = "ar",
+    count_fn: Callable[[dict[str, Any]], int] | None = None,
+) -> list[dict[str, Any]]:
+    lang_index = {"ar": 0, "en": 1, "zh": 2}.get(language, 0)
+    results = []
+    for check in _CHECKS:
+        entry = {"key": check["key"], "url": check["url"], "label": check["label"][lang_index]}
+        try:
+            n = count_fn(check) if count_fn else check["count"]()
+        except (SQLAlchemyError, RuntimeError):
+            entry["status"] = "unavailable"
+            entry["count"] = None
+        else:
+            entry["status"] = "attention" if n > 0 else "clear"
+            entry["count"] = n
+        results.append(entry)
+    return results

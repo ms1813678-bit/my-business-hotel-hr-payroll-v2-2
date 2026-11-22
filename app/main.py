@@ -97,6 +97,7 @@ from app.attendance_workflow import persist_attendance_import, prepare_and_persi
 from app.security_roster_workflow import prepare_security_roster, confirm_security_roster_day
 from app.ai_assistant import ask_local_model, local_fallback_answer, local_model_status
 from app.ai_agent import is_command_request
+from app.ai_smart_scan import build_smart_scan
 from app.ai_hr_queries import is_structured_hr_query, answer_structured_hr_query
 from app.ai_gateway import prepare_command, approve_command, reject_command, recent_memory
 
@@ -652,23 +653,6 @@ def dashboard(request: Request, admin: AdminAccount = Depends(get_current_admin)
 
 @app.get("/ai", response_class=HTMLResponse)
 def ai_page(request: Request, admin: AdminAccount = Depends(get_current_admin)):
-    with SessionLocal() as db:
-        metrics = {
-            "active_employees": db.scalar(select(func.count(Employee.id)).where(Employee.status == "active")) or 0,
-            "former_employees": db.scalar(select(func.count(Employee.id)).where(Employee.status != "active")) or 0,
-            "attendance_review": db.scalar(
-                select(func.count(AttendanceDailyRecord.id)).where(
-                    AttendanceDailyRecord.status.in_(["needs_review", "ready_for_review"])
-                )
-            ) or 0,
-            "leave_drafts": db.scalar(select(func.count(LeaveRecord.id)).where(LeaveRecord.status == "draft")) or 0,
-            "advance_pending": db.scalar(
-                select(func.count(AdvanceRequest.id)).where(AdvanceRequest.status.in_(["pending", "approved"]))
-            ) or 0,
-            "payroll_drafts": db.scalar(
-                select(func.count(PayrollRun.id)).where(PayrollRun.status.in_(["draft", "reopened"]))
-            ) or 0,
-        }
     return templates.TemplateResponse(
         request=request,
         name="ai.html",
@@ -676,6 +660,7 @@ def ai_page(request: Request, admin: AdminAccount = Depends(get_current_admin)):
             "admin": admin.username,
             "csrf_token": get_csrf_token(request),
             "status": local_model_status(request.state.language),
+            "scan": build_smart_scan(request.state.language),
             "question": "",
             "answer": None,
         },
@@ -745,6 +730,7 @@ def ai_ask(
             "admin": admin.username,
             "csrf_token": get_csrf_token(request),
             "status": local_model_status(request.state.language),
+            "scan": build_smart_scan(request.state.language),
             "question": question,
             "answer": answer,
             "pending": pending,
