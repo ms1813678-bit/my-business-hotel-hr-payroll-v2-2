@@ -1161,6 +1161,43 @@ def test_employee_photo_upload_is_validated_and_served_only_to_admin(client, mon
     assert invalid.status_code == 400
 
 
+def test_employee_photo_exif_orientation_is_applied(client, monkeypatch, tmp_path):
+    import io
+    from PIL import Image
+    import app.main as main_module
+
+    monkeypatch.setattr(main_module, "EMPLOYEE_PHOTO_DIR", tmp_path)
+    assert login(client).status_code == 303
+    token = csrf_from(client.get("/employees"))
+
+    # A 200x100 photo whose EXIF says "rotate 90° CW" (phone portrait shot).
+    image_bytes = io.BytesIO()
+    exif = Image.Exif()
+    exif[0x0112] = 6
+    Image.new("RGB", (200, 100), "white").save(image_bytes, format="JPEG", exif=exif)
+    created = client.post(
+        "/employees",
+        data={
+            "csrf_token": token,
+            "full_name": "EXIF Employee",
+            "department_id": client.test_department_id,
+            "position": "Test Position",
+            "hire_date": "2025-01-01",
+            "basic_salary": "1000.00",
+            "daily_hours": "8",
+        },
+        files={"photo": ("phone-shot.jpg", image_bytes.getvalue(), "image/jpeg")},
+        follow_redirects=False,
+    )
+    assert created.status_code == 303
+    with main_module.SessionLocal() as db:
+        employee = db.query(Employee).filter_by(full_name="EXIF Employee").one()
+        stored = tmp_path / employee.photo_path
+    with Image.open(stored) as saved:
+        assert saved.size == (100, 200)  # pixels physically rotated
+        assert not saved.getexif() or saved.getexif().get(0x0112) in (None, 1)
+
+
 def test_security_roster_upload_preview_and_explicit_day_approval(client, monkeypatch, tmp_path):
     from datetime import time
     from io import BytesIO

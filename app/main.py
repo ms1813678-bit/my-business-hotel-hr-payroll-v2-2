@@ -16,7 +16,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy import select, text, func
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
-from PIL import Image, UnidentifiedImageError
+from PIL import Image, ImageOps, UnidentifiedImageError
 from starlette.middleware.sessions import SessionMiddleware
 
 from app.auth import authenticate, change_admin_password
@@ -199,6 +199,13 @@ def _store_employee_photo(upload: UploadFile | None) -> str | None:
     extension = extensions.get(image_format)
     if extension is None:
         raise HTTPException(status_code=400, detail="الصورة يجب أن تكون JPG أو PNG أو WEBP.")
+    # Phone cameras store orientation in EXIF instead of rotating pixels;
+    # apply it so portraits never appear sideways or upside down.
+    with Image.open(io.BytesIO(raw)) as image_file:
+        oriented = ImageOps.exif_transpose(image_file)
+        buffer = io.BytesIO()
+        oriented.save(buffer, format=image_format)
+        raw = buffer.getvalue()
     EMPLOYEE_PHOTO_DIR.mkdir(parents=True, exist_ok=True)
     filename = f"{uuid4().hex}{extension}"
     (EMPLOYEE_PHOTO_DIR / filename).write_bytes(raw)
