@@ -7,11 +7,20 @@ Write-Host "Local-only setup; no Windows auto-start is configured."
 if (-not (Get-Command py -ErrorAction SilentlyContinue)) {
     throw "Install Python 3.11+ with the Python Launcher (py)."
 }
-& py -3.11 --version
-if ($LASTEXITCODE -ne 0) { throw "Python 3.11 was not found." }
+
+# Dependency range (pyproject requires-python >=3.11, all pinned ranges ship
+# cp311-cp313 wheels). Prefer the tested 3.11; accept 3.12 or 3.13 when newer
+# machines no longer offer 3.11.
+$PyLauncher = $null
+foreach ($candidate in @("3.11", "3.12", "3.13")) {
+    & py -$candidate --version *> $null
+    if ($LASTEXITCODE -eq 0) { $PyLauncher = $candidate; break }
+}
+if (-not $PyLauncher) { throw "Python 3.11, 3.12, or 3.13 was not found." }
+Write-Host "Using Python $PyLauncher"
 
 if (-not (Test-Path ".venv\Scripts\python.exe")) {
-    & py -3.11 -m venv .venv
+    & py -$PyLauncher -m venv .venv
     if ($LASTEXITCODE -ne 0) { throw "Could not create virtual environment." }
 }
 

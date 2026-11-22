@@ -103,3 +103,32 @@ def action_label(code: str) -> str:
 
 def entity_label(code: str) -> str:
     return ENTITY_LABELS.get(code, code)
+
+
+# --- Audit detail payload label localization -------------------------------
+# Stored audit old_value/new_value payloads often look like
+# "code=EMP-001; full_name=...; department_id=2". The stored payload is never
+# rewritten; at render time we swap only known field keys for their localized
+# labels, preserving values and any unknown payload text byte-for-byte.
+
+import re as _re
+
+from app.i18n import translate_text as _translate_text
+from app.validation_labels import FIELD_LABELS_AR as _FIELD_LABELS_AR
+
+_KEY_AT_SEGMENT_START = _re.compile(r"(^|;\s*)([A-Za-z_][A-Za-z0-9_]*)=")
+
+
+def detail_label(value: str, language: str) -> str:
+    """Localize known field keys inside an audit payload; preserve the rest."""
+    if not value:
+        return value
+
+    def _replace(match):
+        prefix, key = match.group(1), match.group(2)
+        label_ar = _FIELD_LABELS_AR.get(key)
+        if label_ar is None:
+            return match.group(0)
+        return f"{prefix}{_translate_text(label_ar, language)}="
+
+    return _KEY_AT_SEGMENT_START.sub(_replace, value)

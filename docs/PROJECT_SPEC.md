@@ -146,7 +146,7 @@ Future modules, not part of the initial release: purchasing, inventory, accounti
 - No voice AI and no API bypass.
 
 ## Backup and recovery
-- External-drive backups: daily retained 40 days; weekly retained 1 year; quarterly full backups never automatically deleted.
+- External-drive backups: daily, weekly, quarterly, manual, and pre-restore archives are never deleted automatically; the administrator deletes old archives manually when storage requires it.
 - Full backup includes database, current/former employees, raw fingerprint imports and attendance, leave, payroll, advances, sanctions/rewards, departments/branches/positions, users/roles/settings/audit, and relationships.
 - Verify integrity and perform restore tests. On failure, alert and retry; report success only after verification.
 - Restore requires sole administrator confirmation, displays backup date, records reason, and preserves current state first when possible.

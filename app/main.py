@@ -213,7 +213,13 @@ def _store_employee_photo(upload: UploadFile | None) -> str | None:
     return filename
 
 
-app = FastAPI(title=settings.app_name, docs_url=None if settings.app_env == "production" else "/docs", lifespan=_app_lifespan)
+app = FastAPI(
+    title=settings.app_name,
+    docs_url="/docs" if settings.app_expose_docs else None,
+    openapi_url="/openapi.json" if settings.app_expose_docs else None,
+    redoc_url=None,
+    lifespan=_app_lifespan,
+)
 app.add_middleware(
     SessionMiddleware,
     secret_key=settings.session_secret,
@@ -320,9 +326,38 @@ templates.env.filters["fmt_m"] = _fmt_m
 templates.env.filters["status_label"] = _status_label
 templates.env.filters["field_label"] = _field_label
 
-from app.i18n import translate_html
+from app.audit_display import detail_label as _audit_detail_label
+
+
+def _leave_type_name(item, language: str) -> str:
+    """Per-locale leave type name: AR/EN come from stored data; ZH translates
+    known Arabic names and otherwise falls back to the stored English name,
+    so Arabic never leaks into the EN/ZH UI."""
+    if language == "ar":
+        return item.name_ar
+    if language == "en":
+        return item.name_en or item.name_ar
+    translated = _translate_text(item.name_ar, "zh")
+    if translated != item.name_ar:
+        return translated
+    return item.name_en or item.name_ar
+
+
+templates.env.globals["audit_detail"] = _audit_detail_label
+templates.env.globals["leave_type_name"] = _leave_type_name
+
+from app.i18n import translate_html, translate_text as _translate_text
 
 SUPPORTED_LANGUAGES = {"ar", "en", "zh"}
+
+@app.middleware("http")
+async def security_headers_middleware(request: Request, call_next):
+    response = await call_next(request)
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("Referrer-Policy", "same-origin")
+    return response
+
 
 @app.middleware("http")
 async def language_middleware(request: Request, call_next):

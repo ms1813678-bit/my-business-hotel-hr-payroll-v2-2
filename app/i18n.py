@@ -3098,3 +3098,19 @@ ZH.update({
 "هذا الحقل مطلوب.":"此字段为必填项。",
 "يتتبع الرصيد":"跟踪余额",
 })
+
+# Standard leave type names: ZH has no stored column, so known Arabic names
+# translate here; custom types fall back to their stored English name.
+ZH.update({
+    "إجازة سنوية": "年假",
+    "إجازة مرضية": "病假",
+    "إجازة طارئة": "紧急假",
+    "إجازة غير مدفوعة": "无薪假",
+    "إجازة أمومة": "产假",
+    "إجازة أبوة": "陪产假",
+    "إجازة حج": "朝觐假",
+    "سنوية": "年假",
+    "مرضية": "病假",
+    "طارئة": "紧急假",
+    "غير مدفوعة": "无薪假",
+})

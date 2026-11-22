@@ -6,6 +6,9 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     app_name: str = "M.Y. Business Hotel HR"
     app_env: str = "development"
+    # Interactive API docs (/docs, /openapi.json) stay off unless the
+    # administrator explicitly enables them for troubleshooting.
+    app_expose_docs: bool = False
     app_host: str = "127.0.0.1"
     app_port: int = 8000
     database_url: str
