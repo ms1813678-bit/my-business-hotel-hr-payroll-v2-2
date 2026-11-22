@@ -15,7 +15,7 @@
 
 ### حدود معروفة
 - إجابات النموذج الحر (خارج الأسئلة المهيكلة) قد تخطئ؛ النص غير المؤكد يُوسم بذلك. الحسابات المالية تأتي دائمًا من محركات النظام الثابتة، لا من النموذج.
-- المحادثة محفوظة لكل مستخدم على جهازه (بحد أقصى 200 رسالة). كل رسالة تُعرض بلغتها الأصلية كما كُتبت، وتُوسم بلغتها إن اختلفت عن لغة الصفحة.
+- المحادثة محفوظة لكل مستخدم على جهازه ولا تُحذف آليًا أبدًا (العرض الأخير محدود بعدد، والسجل الكامل محتفَظ به). الرسائل الجديدة تُوسم بلغتها الفعلية: رسائل المستخدم تُتحدد من حروفها لا من لغة الواجهة، ورسائل النظام بلغة توليدها. الرسائل القديمة قبل هذه الميزة موسومة «غير معروفة» وتُعرض بدون وسم لغة. النصوص الأصلية لا تُعدَّل.
 - نتائج تنفيذ الأوامر (بعد الموافقة) تُعرض بالعربية حاليًا حتى لو كانت الواجهة بإنجليزية أو صينية؛ تُوسم كذلك في المحادثة.
 - اكتشاف أسئلة مقارنة جدول الأمن بالبصمات يتعرف على الصياغة العربية حاليًا، والتقرير نفسه يُعرض بلغة الواجهة.
 - إن كان النموذج غير متاح، يعمل المساعد بالردود المهيكلة من قاعدة البيانات، والنظام الأساسي لا يتأثر.
@@ -42,7 +42,7 @@ A local AI assistant running **entirely on your machine** via Ollama. Hotel data
 
 ### Known limits
 - Free-form model answers (outside the structured questions) can be wrong; unverified model text is marked. Financial calculations always come from the system's deterministic engines, never from the model.
-- Conversations are stored per user on the local device (capped at 200 messages). Each message renders in the language it was written in and is badged when that differs from the page language.
+- Conversations are stored per user on the local device and are never auto-deleted (recent reads are bounded; the full history is retained). New messages are labeled with their actual language: user messages from their own script, not the interface locale; system messages by their generation language. Messages from before this feature are marked "unknown" and show no language badge. Original texts are never rewritten.
 - Command execution results (after approval) are still generated in Arabic on English/Chinese pages; they are badged as such in the thread.
 - Security-roster/fingerprint comparison questions are detected in Arabic phrasing for now; the report itself renders in the page language.
 - If the model is unavailable, the assistant still answers the structured questions from the database and the core system is unaffected.
@@ -69,7 +69,7 @@ A local AI assistant running **entirely on your machine** via Ollama. Hotel data
 
 ### 已知限制
 - 结构化问题之外的自由回答可能出错；未经验证的模型文本会标注。财务计算始终来自系统固定引擎，而非模型。
-- 对话按用户保存在本机（上限 200 条）。每条消息以原文语言显示；与页面语言不同时会标注原文语言。
+- 对话按用户保存在本机，永不自动删除（仅限制最近读取条数，完整记录保留）。新消息标注实际语言：用户消息按其文字脚本判断，而非界面语言；系统消息按其生成语言。此功能之前的旧消息标记为"未知"，不显示语言标注。原文永不改写。
 - 指令执行结果（批准后）目前仍以阿拉伯语生成；在对话中会标注原文语言。
 - 安保排班与指纹对比的问题目前识别阿拉伯语表述；报告本身以页面语言显示。
 - 模型不可用时，助手仍可用数据库回答结构化问题，核心系统不受影响。

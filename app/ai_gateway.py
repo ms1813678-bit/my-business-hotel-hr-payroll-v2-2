@@ -13,7 +13,7 @@ from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import delete, select
+from sqlalchemy import select
 
 from app.ai_agent import build_plan, execute_plan
 from app.db import SessionLocal
@@ -293,34 +293,43 @@ def _msg(language: str, ar: str, en: str, zh: str) -> str:
     return {"ar": ar, "en": en, "zh": zh}.get(language, ar)
 
 
-# Per-actor history is capped so the table stays small on a light device.
-_MEMORY_KEEP = 200
-
-
-def _memory(actor: str, role: str, content: str, language: str = "ar") -> None:
+def _memory(actor: str, role: str, content: str, language: str = "unknown") -> None:
+    """Append one entry. History is never auto-deleted: there is no user
+    authority for irreversible cleanup, so only reads are bounded."""
     with SessionLocal.begin() as db:
         db.add(AIConversationMessage(
             actor=actor, role=role, content=content[:10000], language=language,
         ))
-        db.flush()
-        keep_ids = db.scalars(
-            select(AIConversationMessage.id)
-            .where(AIConversationMessage.actor == actor)
-            .order_by(AIConversationMessage.id.desc())
-            .limit(_MEMORY_KEEP)
-        ).all()
-        db.execute(
-            delete(AIConversationMessage).where(
-                AIConversationMessage.actor == actor,
-                AIConversationMessage.id.not_in(keep_ids),
-            )
-        )
+
+
+def detect_text_language(text: str) -> str:
+    """Ground an authored text's language in its script, never in the UI
+    locale: Arabic letters -> ar (even with embedded codes), CJK -> zh,
+    Latin letters -> en (the system's only Latin-script UI language),
+    anything else -> unknown. UI language is never evidence of authorship."""
+    for ch in text:
+        if (
+            "\u0600" <= ch <= "\u06ff"
+            or "\u0750" <= ch <= "\u077f"
+            or "\ufb50" <= ch <= "\ufdff"
+            or "\ufe70" <= ch <= "\ufeff"
+        ):
+            return "ar"
+    for ch in text:
+        if "\u4e00" <= ch <= "\u9fff" or "\u3400" <= ch <= "\u4dbf":
+            return "zh"
+    for ch in text:
+        if "a" <= ch.lower() <= "z":
+            return "en"
+    return "unknown"
 
 
 def record_exchange(actor: str, question: str, answer: str, language: str = "ar") -> None:
     """Persist an ordinary Q&A exchange so the conversation thread is real,
-    not just command history. Stored in the language it was rendered in."""
-    _memory(actor, "user", question, language)
+    not just command history. The assistant answer's language is the UI
+    language it was generated in (grounded); the user's question is labeled
+    from its own script, not from the interface locale."""
+    _memory(actor, "user", question, detect_text_language(question))
     _memory(actor, "assistant", answer, language)
 
 
@@ -334,7 +343,7 @@ def recent_memory(actor: str, limit: int = 12) -> list[dict[str, str]]:
         ).all()
     rows.reverse()
     return [
-        {"role": row.role, "content": row.content, "language": row.language or "ar"}
+        {"role": row.role, "content": row.content, "language": row.language or "unknown"}
         for row in rows
     ]
 
@@ -376,7 +385,7 @@ def prepare_command(question: str, actor: str, language: str = "ar") -> dict[str
             new_value=f"action={plan.get('action')}; plan_hash={plan_hash(plan)}",
             reason=question,
         ))
-    _memory(actor, "user", question, language)
+    _memory(actor, "user", question, detect_text_language(question))
     _memory(actor, "assistant", _msg(
         language,
         "خطة معلقة تحتاج موافقة: ",

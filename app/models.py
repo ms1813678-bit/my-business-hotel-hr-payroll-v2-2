@@ -726,8 +726,10 @@ class AIConversationMessage(Base):
     actor: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
     role: Mapped[str] = mapped_column(String(20), nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
-    # Language the entry was generated in; legacy rows are Arabic originals.
-    language: Mapped[str] = mapped_column(String(8), nullable=False, server_default="ar", default="ar")
+    # Language the entry was generated in. Rows that predate this column are
+    # "unknown": their origin language was never recorded, so nothing may
+    # claim it. New writes pass the real UI language explicitly.
+    language: Mapped[str] = mapped_column(String(8), nullable=False, server_default="unknown", default="unknown")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
 
 

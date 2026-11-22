@@ -215,7 +215,7 @@ def test_record_exchange_persists_user_and_assistant(monkeypatch):
 
     engine = _memory_engine(monkeypatch)
     try:
-        gateway.record_exchange("tester", "سؤال تجريبي", "جواب تجريبي")
+        gateway.record_exchange("tester", "سؤال تجريبي", "جواب تجريبي", language="ar")
         memory = gateway.recent_memory("tester")
         assert memory == [
             {"role": "user", "content": "سؤال تجريبي", "language": "ar"},
@@ -239,15 +239,16 @@ def test_record_exchange_stores_the_rendering_language(monkeypatch):
         engine.dispose()
 
 
-def test_memory_is_bounded_per_actor(monkeypatch):
-    """History is capped so the table stays small on a light device."""
+def test_memory_is_never_auto_deleted(monkeypatch):
+    """Writes retain every entry (no user authority for irreversible
+    cleanup); only reads are bounded."""
     import app.ai_gateway as gateway
     from app.models import AIConversationMessage
     from sqlalchemy import select
 
     engine = _memory_engine(monkeypatch)
     try:
-        for index in range(gateway._MEMORY_KEEP + 25):
+        for index in range(225):
             gateway._memory("tester", "user", f"message {index}")
         with gateway.SessionLocal() as db:
             total = db.scalars(
@@ -255,10 +256,11 @@ def test_memory_is_bounded_per_actor(monkeypatch):
                     AIConversationMessage.actor == "tester"
                 )
             ).all()
-        assert len(total) == gateway._MEMORY_KEEP
-        # the newest entries survive
+        assert len(total) == 225  # nothing deleted, oldest retained
         recent = gateway.recent_memory("tester", limit=3)
-        assert recent[-1]["content"] == f"message {gateway._MEMORY_KEEP + 24}"
+        assert len(recent) == 3
+        assert recent[-1]["content"] == "message 224"
+        assert recent[0]["content"] == "message 222"
     finally:
         engine.dispose()
 

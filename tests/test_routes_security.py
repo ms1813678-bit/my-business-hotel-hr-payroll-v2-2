@@ -2383,6 +2383,8 @@ def test_ai_history_language_badge_only_on_mismatch(client, monkeypatch):
         {"role": "user", "content": "Earlier question", "language": "en"},
         # exact catalog-collision string: must stay Arabic on every page
         {"role": "user", "content": "كم عدد الموظفين النشطين؟", "language": "ar"},
+        # legacy row with unproven origin: no language badge anywhere
+        {"role": "assistant", "content": "رد قديم قبل تسجيل اللغة", "language": "unknown"},
     ]
     monkeypatch.setattr(
         "app.main.recent_memory", lambda actor, limit=12: list(store)
@@ -2391,6 +2393,7 @@ def test_ai_history_language_badge_only_on_mismatch(client, monkeypatch):
     client.cookies.set("my_hr_language", "en")
     en_page = client.get("/ai")
     assert en_page.text.count("Original in Arabic") == 3
+    assert "رد قديم قبل تسجيل اللغة" in en_page.text
     # stored Arabic content is never catalog-translated
     assert "كم عدد الموظفين النشطين؟" in en_page.text
     # content direction follows the entry's own language
@@ -2405,3 +2408,30 @@ def test_ai_history_language_badge_only_on_mismatch(client, monkeypatch):
     assert "الأصل بالعربية" not in ar_page.text
     assert ar_page.text.count("الأصل بالإنجليزية") == 1
     assert "كم عدد الموظفين النشطين؟" in ar_page.text
+
+
+def test_ai_approve_and_reject_responses_keep_fresh_scan(client, monkeypatch):
+    """Regression: POST /ai/approve and /ai/reject must render the scan card
+    with its four explicit checks, like GET /ai does."""
+    gateway, engine = _real_gateway_memory(monkeypatch)
+    try:
+        monkeypatch.setattr(
+            "app.main.approve_command", lambda token, actor, language="ar": "تم."
+        )
+        monkeypatch.setattr(
+            "app.main.reject_command", lambda token, actor, language="ar": "تم الرفض."
+        )
+        assert login(client).status_code == 303
+        client.cookies.set("my_hr_language", "en")
+        page = client.get("/ai")
+        for route in ("/ai/approve", "/ai/reject"):
+            response = client.post(
+                route, data={"token": "tok", "csrf_token": csrf_from(page)}
+            )
+            assert response.status_code == 200
+            # four scan checks, each with an explicit state label
+            assert response.text.count('class="ai-scan-item"') == 4
+            assert "Attendance needing review" in response.text
+            assert "Unapproved payroll runs" in response.text
+    finally:
+        engine.dispose()
