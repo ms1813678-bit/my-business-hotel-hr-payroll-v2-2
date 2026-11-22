@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from pathlib import Path
-from urllib.parse import urlsplit
+from urllib.parse import urlencode, urlsplit
 from uuid import uuid4
 import secrets
 import time as time_module
@@ -13,7 +13,7 @@ from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, Upload
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from sqlalchemy import select, text, func
+from sqlalchemy import select, text, func, or_
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
 from PIL import Image, ImageOps, UnidentifiedImageError
@@ -2795,8 +2795,19 @@ def restore_backup_route(
     return RedirectResponse("/login?restored=1", status_code=303)
 
 
+EMPLOYEES_PER_PAGE = 24
+
+
 @app.get("/employees", response_class=HTMLResponse)
-def employees_page(request: Request, admin: AdminAccount = Depends(get_current_admin)):
+def employees_page(
+    request: Request,
+    q: str = "",
+    department_id: int = 0,
+    branch_id: int = 0,
+    status: str = "",
+    page: int = 1,
+    admin: AdminAccount = Depends(get_current_admin),
+):
     with SessionLocal() as db:
         departments = db.scalars(select(Department).where(Department.active.is_(True)).order_by(Department.name)).all()
         branches = db.scalars(select(Branch).where(Branch.active.is_(True)).order_by(Branch.name)).all()
@@ -2804,10 +2815,38 @@ def employees_page(request: Request, admin: AdminAccount = Depends(get_current_a
         all_branches = db.scalars(select(Branch).order_by(Branch.name)).all()
         employee_changes = db.scalars(select(EmployeeChange).order_by(EmployeeChange.effective_date.desc(), EmployeeChange.id.desc())).all()
         data_change_requests = db.scalars(select(EmployeeDataChangeRequest).order_by(EmployeeDataChangeRequest.recorded_at.desc())).all()
-        employees = db.scalars(select(Employee).order_by(Employee.code)).all()
+
+        stmt = select(Employee)
+        query = q.strip()
+        if query:
+            like = f"%{query}%"
+            stmt = stmt.where(or_(
+                Employee.full_name.ilike(like),
+                Employee.code.ilike(like),
+                Employee.national_id.ilike(like),
+                Employee.phone.ilike(like),
+            ))
+        if department_id:
+            stmt = stmt.where(Employee.department_id == department_id)
+        if branch_id:
+            stmt = stmt.where(Employee.branch_id == branch_id)
+        if status in ("active", "archived"):
+            stmt = stmt.where(Employee.status == status)
+        total = db.scalar(select(func.count()).select_from(stmt.subquery())) or 0
+        per_page = EMPLOYEES_PER_PAGE
+        pages = max(1, math.ceil(total / per_page))
+        page = min(max(1, page), pages)
+        employees = db.scalars(
+            stmt.order_by(Employee.code).offset((page - 1) * per_page).limit(per_page)
+        ).all()
+
+        def page_url(target: int) -> str:
+            params = {"q": query, "department_id": department_id, "branch_id": branch_id, "status": status, "page": target}
+            return "/employees?" + urlencode({k: v for k, v in params.items() if v not in ("", 0)})
+
         return templates.TemplateResponse(
             request=request, name="employees.html",
-            context={"departments": departments, "branches": branches, "all_departments": all_departments, "all_branches": all_branches, "employee_changes": employee_changes, "data_change_requests": data_change_requests, "employees": employees, "csrf_token": get_csrf_token(request)},
+            context={"departments": departments, "branches": branches, "all_departments": all_departments, "all_branches": all_branches, "employee_changes": employee_changes, "data_change_requests": data_change_requests, "employees": employees, "csrf_token": get_csrf_token(request), "q": query, "filter_department_id": department_id, "filter_branch_id": branch_id, "filter_status": status, "filters_active": bool(query or department_id or branch_id or status), "page": page, "pages": pages, "total": total, "page_url": page_url},
         )
 
 

@@ -1980,3 +1980,76 @@ def test_ai_question_form_preserves_question_and_uses_existing_post_route(monkey
     assert 'action="/ai"' in response.text
     assert "اشرح ملخص الحضور" in response.text
     assert "إجابة تجريبية" in response.text
+
+
+def _add_employee(client, code, name, status="active", phone=None, national_id=None, department_id=None):
+    import app.main as main_module
+
+    with main_module.SessionLocal() as db:
+        db.add(Employee(
+            code=code,
+            full_name=name,
+            department_id=department_id or client.test_department_id,
+            position="Test Position",
+            hire_date=date(2025, 1, 1),
+            basic_salary=1000,
+            daily_hours=8,
+            status=status,
+            phone=phone,
+            national_id=national_id,
+        ))
+        db.commit()
+
+
+def test_employees_list_search_filters_and_pagination(client, monkeypatch):
+    import app.main as main_module
+
+    assert login(client).status_code == 303
+    _add_employee(client, "EMP-101", "Ahmed Ali", phone="01001234567", national_id="30001010101010")
+    _add_employee(client, "EMP-102", "Mona Said")
+    _add_employee(client, "EMP-103", "Retired Worker", status="archived")
+
+    page = client.get("/employees")
+    assert "Ahmed Ali" in page.text and "Mona Said" in page.text and "Retired Worker" in page.text
+
+    by_name = client.get("/employees", params={"q": "Ahmed"})
+    assert "Ahmed Ali" in by_name.text and "Mona Said" not in by_name.text
+
+    by_phone = client.get("/employees", params={"q": "0100123"})
+    assert "Ahmed Ali" in by_phone.text and "Mona Said" not in by_phone.text
+
+    by_national_id = client.get("/employees", params={"q": "3000101"})
+    assert "Ahmed Ali" in by_national_id.text and "Mona Said" not in by_national_id.text
+
+    archived_only = client.get("/employees", params={"status": "archived"})
+    assert "Retired Worker" in archived_only.text
+    assert "Ahmed Ali" not in archived_only.text
+
+    no_hits = client.get("/employees", params={"q": "no-such-person"})
+    assert "لا توجد نتائج مطابقة للبحث أو الفلاتر الحالية." in no_hits.text
+
+    monkeypatch.setattr(main_module, "EMPLOYEES_PER_PAGE", 2)
+    first = client.get("/employees", params={"q": "e"})
+    assert "Ahmed Ali" in first.text and "Mona Said" in first.text
+    assert "Retired Worker" not in first.text
+    assert "صفحة" in first.text and "التالي" in first.text and "page=2" in first.text
+    second = client.get("/employees", params={"q": "e", "page": 2})
+    assert "Retired Worker" in second.text
+    assert "Ahmed Ali" not in second.text
+    assert "السابق" in second.text and "page=1" in second.text
+    # The search term survives pagination links.
+    assert "q=e" in first.text and "q=e" in second.text
+
+    # Out-of-range pages clamp instead of erroring.
+    clamped = client.get("/employees", params={"page": 99})
+    assert clamped.status_code == 200
+
+    # The new states are translated, not Arabic leftovers, on other languages.
+    client.cookies.set("my_hr_language", "en")
+    en_empty = client.get("/employees", params={"q": "no-such-person"})
+    assert "No results match the current search or filters." in en_empty.text
+    en_page = client.get("/employees", params={"q": "e"})
+    assert "Next" in en_page.text and "Page" in en_page.text and "Search" in en_page.text
+    client.cookies.set("my_hr_language", "zh")
+    zh_page = client.get("/employees", params={"q": "e"})
+    assert "下一页" in zh_page.text and "搜索" in zh_page.text
