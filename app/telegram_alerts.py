@@ -3,8 +3,11 @@
 Sends lockout and successful-login alerts to the owner's Telegram chat via the
 official Bot API (https://core.telegram.org/bots/api): free, ToS-compliant,
 and no automation of anyone's personal account. The bot cannot initiate the
-conversation, so the owner taps START once; the chat id is then detected from
-the bot's recent updates.
+conversation, so the owner binds their private chat once with a single-use
+nonce: the app issues a short-lived binding link, the owner opens it in
+Telegram and taps Start, and only the chat that returns that exact nonce is
+bound. There is no "latest chat" fallback: possessing the bot token never
+makes an arbitrary chat the owner.
 
 Alerting must never break sign-in: every network or configuration problem is
 swallowed and reported as False.
@@ -13,9 +16,10 @@ from __future__ import annotations
 
 import json
 import os
+import secrets
 import urllib.parse
 import urllib.request
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.orm import Session
 
@@ -24,6 +28,7 @@ from app.models import SystemSetting
 SETTING_KEY = "telegram_alerts"
 _API_BASE = "https://api.telegram.org"
 _TIMEOUT_SECONDS = 5
+_BIND_TTL = timedelta(minutes=15)
 
 _LANGUAGES = ("ar", "en", "zh")
 
@@ -61,14 +66,42 @@ def _load_record(db: Session) -> dict | None:
     return record if isinstance(record, dict) else None
 
 
+def _save_record(db: Session, record: dict, actor: str) -> None:
+    setting = db.get(SystemSetting, SETTING_KEY)
+    if setting is None:
+        setting = SystemSetting(key=SETTING_KEY, value="", updated_by=actor)
+        db.add(setting)
+    setting.value = json.dumps(record, ensure_ascii=False)
+    setting.updated_by = actor
+    db.flush()
+
+
+def _expiry_from(record: dict) -> datetime | None:
+    raw = record.get("bind_nonce_expires_at")
+    if not raw:
+        return None
+    try:
+        expiry = datetime.fromisoformat(str(raw))
+    except ValueError:
+        return None
+    if expiry.tzinfo is None:
+        expiry = expiry.replace(tzinfo=timezone.utc)
+    return expiry
+
+
 def get_config(db: Session) -> dict:
     """Effective Telegram alert configuration (database record + env fallback)."""
     record = _load_record(db) or {}
+    expiry = _expiry_from(record)
     return {
         "bot_token": (record.get("bot_token") or os.environ.get("TELEGRAM_BOT_TOKEN", "")).strip(),
+        "bot_username": (record.get("bot_username") or "").strip(),
         "chat_id": (record.get("chat_id") or os.environ.get("TELEGRAM_CHAT_ID", "")).strip(),
         "enabled": bool(record.get("enabled", True)),
         "language": record.get("language") if record.get("language") in _LANGUAGES else "ar",
+        "bind_nonce": record.get("bind_nonce") or "",
+        "bind_nonce_used": bool(record.get("bind_nonce_used", False)),
+        "bind_nonce_expires_at": expiry,
     }
 
 
@@ -80,22 +113,27 @@ def save_config(
     enabled: bool,
     language: str,
     actor: str,
+    bot_username: str | None = None,
+    clear_binding: bool = False,
 ) -> None:
+    """Persist settings, preserving binding state unless the bot itself changed."""
     if language not in _LANGUAGES:
         language = "ar"
-    record = {
+    record = _load_record(db) or {}
+    record.update({
         "bot_token": bot_token.strip(),
         "chat_id": chat_id.strip(),
         "enabled": bool(enabled),
         "language": language,
-    }
-    setting = db.get(SystemSetting, SETTING_KEY)
-    if setting is None:
-        setting = SystemSetting(key=SETTING_KEY, value="", updated_by=actor)
-        db.add(setting)
-    setting.value = json.dumps(record, ensure_ascii=False)
-    setting.updated_by = actor
-    db.flush()
+    })
+    if bot_username is not None:
+        record["bot_username"] = bot_username.strip()
+    if clear_binding:
+        record["chat_id"] = ""
+        record["bind_nonce"] = ""
+        record["bind_nonce_expires_at"] = ""
+        record["bind_nonce_used"] = False
+    _save_record(db, record, actor)
 
 
 def _api_call(token: str, method: str, payload: dict) -> dict | None:
@@ -125,18 +163,67 @@ def verify_token(token: str) -> str | None:
     return None
 
 
-def detect_chat_id(token: str) -> str | None:
-    """Return the chat id of the most recent message sent to the bot, if any."""
-    body = _api_call(token.strip(), "getUpdates", {"limit": 20})
-    if not body:
+def generate_bind_nonce(db: Session, *, actor: str) -> str | None:
+    """Issue a single-use, 15-minute binding nonce; None when no token is saved."""
+    config = get_config(db)
+    if not config["bot_token"]:
         return None
-    chat_id: str | None = None
+    record = _load_record(db) or {}
+    nonce = secrets.token_urlsafe(6)
+    record["bind_nonce"] = nonce
+    record["bind_nonce_expires_at"] = (_now() + _BIND_TTL).isoformat()
+    record["bind_nonce_used"] = False
+    _save_record(db, record, actor)
+    return nonce
+
+
+def bind_deep_link(bot_username: str, nonce: str) -> str:
+    """Telegram deep link that carries the nonce back as the /start payload."""
+    return f"https://t.me/{bot_username}?start={nonce}"
+
+
+def bind_chat_from_nonce(db: Session, *, actor: str) -> str:
+    """Bind the one private chat that returned the live nonce.
+
+    Returns a status string: "bound", "no_token", "no_nonce", "used",
+    "expired", "api_error", "no_match", "multiple", or "group_rejected".
+    Only an exact, unexpired, unused nonce from exactly one private chat binds;
+    there is deliberately no fallback to the latest or any other chat.
+    """
+    config = get_config(db)
+    if not config["bot_token"]:
+        return "no_token"
+    nonce = config["bind_nonce"]
+    if not nonce:
+        return "no_nonce"
+    if config["bind_nonce_used"]:
+        return "used"
+    expiry = config["bind_nonce_expires_at"]
+    if expiry is None or expiry <= _now():
+        return "expired"
+    body = _api_call(config["bot_token"], "getUpdates", {"limit": 50})
+    if body is None:
+        return "api_error"
+    matches: dict[str, str] = {}
+    accepted_texts = {nonce, f"/start {nonce}"}
     for update in body.get("result") or []:
-        message = update.get("message") or update.get("channel_post") or {}
+        message = update.get("message") or {}
+        text = (message.get("text") or "").strip()
         chat = message.get("chat") or {}
-        if chat.get("id") is not None:
-            chat_id = str(chat["id"])
-    return chat_id
+        if text in accepted_texts and chat.get("id") is not None:
+            matches[str(chat["id"])] = str(chat.get("type") or "")
+    if not matches:
+        return "no_match"
+    if len(matches) > 1:
+        return "multiple"
+    chat_id, chat_type = next(iter(matches.items()))
+    if chat_type != "private":
+        return "group_rejected"
+    record = _load_record(db) or {}
+    record["chat_id"] = chat_id
+    record["bind_nonce_used"] = True
+    _save_record(db, record, actor)
+    return "bound"
 
 
 def build_alert(event: str, username: str, language: str, *, failed_attempts: int | None = None,

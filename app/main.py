@@ -33,7 +33,9 @@ from app.login_security import (
     send_login_alert,
 )
 from app.telegram_alerts import (
-    detect_chat_id as detect_telegram_chat_id,
+    bind_chat_from_nonce as bind_telegram_chat_from_nonce,
+    bind_deep_link as telegram_bind_deep_link,
+    generate_bind_nonce as generate_telegram_bind_nonce,
     get_config as telegram_get_config,
     save_config as telegram_save_config,
     send_login_event as send_telegram_login_event,
@@ -2456,11 +2458,26 @@ def export_hr_reports_pdf(
 def _telegram_context(request: Request) -> dict:
     with SessionLocal() as db:
         config = telegram_get_config(db)
+    bind_link = None
+    bind_expires = None
+    expiry = config["bind_nonce_expires_at"]
+    if (
+        config["bot_username"]
+        and config["bind_nonce"]
+        and not config["bind_nonce_used"]
+        and expiry is not None
+        and expiry > datetime.now(timezone.utc)
+    ):
+        bind_link = telegram_bind_deep_link(config["bot_username"], config["bind_nonce"])
+        bind_expires = expiry.astimezone().strftime("%Y-%m-%d %H:%M")
     return {
         "tg_configured": bool(config["bot_token"]),
         "tg_enabled": config["enabled"],
         "tg_chat_id": config["chat_id"],
         "tg_language": config["language"],
+        "tg_bot_username": config["bot_username"],
+        "tg_bind_link": bind_link,
+        "tg_bind_expires": bind_expires,
         "tg_status": request.query_params.get("tg"),
     }
 
@@ -2486,15 +2503,21 @@ def telegram_settings_save(
     with SessionLocal.begin() as db:
         current = telegram_get_config(db)
         token = bot_token.strip() or current["bot_token"]
-        if bot_token.strip() and verify_telegram_token(token) is None:
-            return RedirectResponse("/settings/password?tg=bad_token", status_code=303)
+        token_changed = bool(bot_token.strip()) and token != current["bot_token"]
+        bot_username = None
+        if bot_token.strip():
+            bot_username = verify_telegram_token(token)
+            if bot_username is None:
+                return RedirectResponse("/settings/password?tg=bad_token", status_code=303)
         telegram_save_config(
             db,
             bot_token=token,
-            chat_id=chat_id.strip() or current["chat_id"],
+            chat_id=("" if token_changed else (chat_id.strip() or current["chat_id"])),
             enabled=enabled == "on",
             language=language,
             actor=admin.username,
+            bot_username=bot_username,
+            clear_binding=token_changed,
         )
         db.add(AuditLog(
             actor=admin.username,
@@ -2508,29 +2531,43 @@ def telegram_settings_save(
     return RedirectResponse("/settings/password?tg=saved", status_code=303)
 
 
-@app.post("/settings/telegram/detect", dependencies=[Depends(csrf_protect)])
-def telegram_detect_chat(
-    request: Request,
-    bot_token: str = Form(""),
-    admin: AdminAccount = Depends(get_current_admin),
-):
+@app.post("/settings/telegram/bind-link", dependencies=[Depends(csrf_protect)])
+def telegram_bind_link(request: Request, admin: AdminAccount = Depends(get_current_admin)):
     with SessionLocal.begin() as db:
-        current = telegram_get_config(db)
-        token = bot_token.strip() or current["bot_token"]
-        if not token:
+        nonce = generate_telegram_bind_nonce(db, actor=admin.username)
+        if nonce is None:
             return RedirectResponse("/settings/password?tg=need_token", status_code=303)
-        detected = detect_telegram_chat_id(token)
-        if not detected:
-            return RedirectResponse("/settings/password?tg=no_updates", status_code=303)
-        telegram_save_config(
-            db,
-            bot_token=token,
-            chat_id=detected,
-            enabled=current["enabled"],
-            language=current["language"],
+        db.add(AuditLog(
             actor=admin.username,
-        )
-    return RedirectResponse("/settings/password?tg=detected", status_code=303)
+            action="telegram_bind_link_created",
+            entity_type="system_setting",
+            entity_id="telegram_alerts",
+            old_value=None,
+            new_value="single-use binding nonce issued",
+            reason=None,
+        ))
+    return RedirectResponse("/settings/password?tg=link_created", status_code=303)
+
+
+@app.post("/settings/telegram/bind-confirm", dependencies=[Depends(csrf_protect)])
+def telegram_bind_confirm(request: Request, admin: AdminAccount = Depends(get_current_admin)):
+    with SessionLocal.begin() as db:
+        status = bind_telegram_chat_from_nonce(db, actor=admin.username)
+        if status == "bound":
+            db.add(AuditLog(
+                actor=admin.username,
+                action="telegram_alerts_chat_bound",
+                entity_type="system_setting",
+                entity_id="telegram_alerts",
+                old_value=None,
+                new_value="private chat bound via single-use nonce",
+                reason=None,
+            ))
+    if status == "no_token":
+        status = "need_token"
+    elif status != "bound":
+        status = f"bind_{status}"
+    return RedirectResponse(f"/settings/password?tg={status}", status_code=303)
 
 
 @app.post("/settings/telegram/test", dependencies=[Depends(csrf_protect)])
