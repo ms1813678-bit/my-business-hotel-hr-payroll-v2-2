@@ -491,3 +491,19 @@ def test_reset_password_must_be_changed_before_anything_else(three_clients):
     with admin.test_session_factory() as db:
         assert db.get(AdminAccount, target_id).must_change_password is False
     assert finance.get("/payroll").status_code == 200, "normal work resumes after the change"
+
+
+def test_reset_reveal_response_is_never_cached(three_clients):
+    admin, _, _ = three_clients
+    with admin.test_session_factory() as db:
+        target_id = db.scalar(
+            select(AdminAccount.id).where(AdminAccount.username == "finance-user"))
+    response = reset_account(admin, target_id)
+    assert response.status_code == 200
+    assert "no-store" in response.headers["cache-control"], \
+        "the one-time password must not survive in any browser cache"
+    assert response.headers.get("pragma") == "no-cache"
+    # a fresh visit to the accounts page shows no password again
+    again = admin.get("/settings/accounts")
+    assert again.status_code == 200
+    assert "<code>" not in again.text, "the reveal exists only in the original response"

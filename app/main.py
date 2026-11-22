@@ -3455,8 +3455,12 @@ def reset_account_password(
         ))
         reveal = {"name": target.display_name or target.username, "password": temporary_password}
     # Rendered directly (never through a redirect) so the one-time password
-    # does not appear in URLs, browser history or server logs.
-    return _accounts_page_response(request, reset_reveal=reveal)
+    # does not appear in URLs, browser history or server logs. The secret is
+    # also never cacheable: a later back/forward or reopen must not restore it.
+    response = _accounts_page_response(request, reset_reveal=reveal)
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
+    response.headers["Pragma"] = "no-cache"
+    return response
 
 
 AUDIT_PAGE_SIZE = 50
