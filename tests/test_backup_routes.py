@@ -108,6 +108,7 @@ def test_restore_requires_explicit_phrase_and_reason(backup_client):
             "backup_id": "1",
             "confirm_text": "WRONG",
             "reason": "Synthetic restore validation",
+            "current_password": "Backup-Test-Password-123!",
         },
         follow_redirects=False,
     )

@@ -3471,6 +3471,9 @@ def _accounts_page_response(request: Request, reset_reveal: dict | None = None):
         ]
         regen_flag = db.get(SystemSetting, _RECOVERY_REGEN_SETTING_KEY)
         regen_required = bool(regen_flag is not None and regen_flag.value)
+        regen_reason = (
+            "legacy" if regen_flag is not None and regen_flag.value == "legacy_codes" else "restore"
+        )
     return templates.TemplateResponse(
         request=request,
         name="accounts.html",
@@ -3483,6 +3486,7 @@ def _accounts_page_response(request: Request, reset_reveal: dict | None = None):
             "unused_recovery_codes": unused_codes,
             "sessions": sessions,
             "regen_required": regen_required,
+            "regen_reason": regen_reason,
         },
     )
 
@@ -3715,25 +3719,29 @@ def recover_account(
                 verified_once = True
                 if verify_password(normalized_code, candidate.code_hash):
                     matched_id = candidate.id
-            else:
-                # Rows predating the lookup column still verify one by one.
-                legacy = db.scalars(
-                    select(RecoveryCode).where(
-                        RecoveryCode.admin_account_id == account.id,
-                        RecoveryCode.used_at.is_(None),
-                        RecoveryCode.code_lookup.is_(None),
-                    )
-                ).all()
-                for candidate in legacy:
-                    verified_once = True
-                    if verify_password(normalized_code, candidate.code_hash):
-                        matched_id = candidate.id
-                        break
-
         if matched_id is None and not verified_once:
-            # Equalize failure work: unknown user, inactive account and wrong
-            # code all pay exactly one Argon2 verification, so response timing
-            # does not reveal whether the account exists.
+            # Rows predating the lookup column still verify one by one. The
+            # fallback deliberately scans EVERY unused legacy row regardless of
+            # the submitted username (recovery codes only ever belong to the
+            # system administrator), so a failed attempt costs the same number
+            # of verifications whether or not the account exists — per-account
+            # filtering would leak account existence through timing. Only a
+            # match that also belongs to the submitted account can recover it.
+            legacy = db.scalars(
+                select(RecoveryCode).where(
+                    RecoveryCode.used_at.is_(None),
+                    RecoveryCode.code_lookup.is_(None),
+                )
+            ).all()
+            for candidate in legacy:
+                verified_once = True
+                if verify_password(normalized_code, candidate.code_hash):
+                    if account is not None and candidate.admin_account_id == account.id:
+                        matched_id = candidate.id
+        if matched_id is None and not verified_once:
+            # Equalize failure work: with no legacy rows, unknown user, inactive
+            # account and wrong code all pay exactly one Argon2 verification,
+            # so response timing does not reveal whether the account exists.
             verify_password(normalized_code, _dummy_recovery_hash())
 
         if account is None or matched_id is None:
@@ -3913,9 +3921,18 @@ def restore_backup_route(
     confirm_text: str = Form(...),
     reason: str = Form(...),
     passphrase: str = Form(""),
+    current_password: str = Form(""),
     db: Session = Depends(get_db),
     admin: AdminAccount = Depends(require_system_admin),
 ):
+    # A restore is the most destructive in-app action, and it runs while the
+    # administrator is signed in — so an unlocked session alone must not be
+    # enough to trigger it. Same reauth gate as the other sensitive actions.
+    reauth = _sensitive_reauth(admin, current_password)
+    if reauth == "locked":
+        return RedirectResponse("/settings/backup?error=auth_locked", status_code=303)
+    if reauth != "ok":
+        return RedirectResponse("/settings/backup?error=auth", status_code=303)
     if confirm_text.strip() != "RESTORE" or not reason.strip():
         return RedirectResponse("/settings/backup?error=confirm", status_code=303)
     run = db.get(BackupRun, backup_id)

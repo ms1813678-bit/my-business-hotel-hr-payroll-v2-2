@@ -116,6 +116,7 @@
         <input type="hidden" name="backup_id" value="{{ run.id }}">
         <div class="form-grid">
           <label>سبب الاستعادة<input name="reason" required maxlength="1000" placeholder="مثال: استعادة بعد تلف قاعدة البيانات"></label>
+          <label>كلمة مرورك أنت<input name="current_password" type="password" required autocomplete="off"></label>
           <label>اكتب RESTORE للتأكيد<input name="confirm_text" required autocomplete="off" placeholder="RESTORE"></label>
           {% if run.archive_path.endswith('.enc') %}
           <label>كلمة سر التشفير<input type="password" name="passphrase" required autocomplete="off"></label>

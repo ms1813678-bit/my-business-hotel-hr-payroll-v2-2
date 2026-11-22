@@ -52,11 +52,12 @@ def factory(monkeypatch):
         engine.dispose()
 
 
-def test_restore_drops_sessions_and_forces_rotation_and_regen(factory, monkeypatch, tmp_path):
-    """Regression proof for the restore boundary: after any successful restore,
-    no session row survives (old cookies die even with an unchanged signing
-    secret), every account must rotate its password at next login, and the
-    sysadmin faces the code-regeneration gate."""
+def test_disaster_restore_drops_sessions_and_forces_rotation_and_regen(factory, monkeypatch, tmp_path):
+    """Disaster path (nothing to carry over, e.g. fresh install): after the
+    restore, no session row survives, every account must rotate its password
+    at next login, and the sysadmin faces the code-regeneration gate."""
+    monkeypatch.setattr(backup_workflow, "_capture_security_state",
+                        lambda db: {"accounts": {}, "codes": [], "settings": {}})
     monkeypatch.setattr(backup_workflow, "verify_backup_archive", lambda *a, **k: {"created_at": "2026-11-23T00:00:00+00:00"})
     monkeypatch.setattr(backup_workflow, "_restore_archive_contents", lambda *a, **k: None)
 
@@ -128,3 +129,105 @@ def test_sysadmin_confined_until_codes_regenerated(factory, monkeypatch):
             flag = db.get(SystemSetting, "post_restore_regen_required")
             assert flag is not None and not flag.value
         assert client.get("/", follow_redirects=False).status_code == 200
+
+
+def test_live_restore_carries_credentials_forward(factory, monkeypatch, tmp_path):
+    """Live-database restore: the archive's old passwords and consumed codes
+    must NOT come back. Current password hashes, rotation flags, code
+    consumption and throttle counters survive the restore; sessions die."""
+    from app.models import RecoveryCode
+
+    with factory() as db:
+        admin = db.scalar(select(AdminAccount).where(AdminAccount.username == "guard-admin"))
+        db.add(RecoveryCode(admin_account_id=admin.id, code_hash="hash-used", code_lookup="lk1",
+                            created_at=datetime.now(timezone.utc), used_at=datetime.now(timezone.utc)))
+        db.add(RecoveryCode(admin_account_id=admin.id, code_hash="hash-fresh", code_lookup="lk2",
+                            created_at=datetime.now(timezone.utc)))
+        db.merge(SystemSetting(key="reauth_security",
+                               value='{"failed_attempts": 3, "locked_until": null}', updated_by="test"))
+        db.commit()
+        original_hash = admin.password_hash
+
+    monkeypatch.setattr(backup_workflow, "verify_backup_archive", lambda *a, **k: {"created_at": "2026-11-23T00:00:00+00:00"})
+
+    def fake_restore(*a, **k):
+        # the archive replaces the data: old password hash, rotation flag off,
+        # consumed code resurrected as unused, extra codes deleted
+        with factory.begin() as db:
+            admin = db.scalar(select(AdminAccount).where(AdminAccount.username == "guard-admin"))
+            admin.password_hash = "archive-time-old-hash"
+            admin.must_change_password = False
+            for row in db.scalars(select(RecoveryCode)).all():
+                row.used_at = None
+                row.code_hash = "archive-time-code-hash"
+
+    monkeypatch.setattr(backup_workflow, "_restore_archive_contents", fake_restore)
+
+    class _Run:
+        status = "success"
+        id = 1
+        sha256 = "0" * 64
+
+    def _fake_backup(db, t, a):
+        (tmp_path / "pre.zip").write_bytes(b"pre")
+        run = _Run()
+        run.archive_path = str(tmp_path / "pre.zip")
+        return run
+
+    monkeypatch.setattr(backup_workflow, "create_backup", _fake_backup)
+    archive = tmp_path / "backup.zip"
+    archive.write_bytes(b"zip")
+    with factory() as db:
+        db.merge(SystemSetting(key="backup_root", value=str(tmp_path), updated_by="test"))
+        db.commit()
+
+    log = backup_workflow.restore_backup(archive, "ab" * 32, actor="guard-admin", reason="اختبار")
+    assert log["restored_at"]
+
+    with factory() as db:
+        assert db.scalars(select(AdminSession)).all() == [], "restore must drop every session"
+        admin = db.scalar(select(AdminAccount).where(AdminAccount.username == "guard-admin"))
+        assert admin.password_hash == original_hash, "current password survives; archive password must not return"
+        assert admin.must_change_password is False, "no forced rotation when nothing rolled back"
+        codes = {c.code_lookup: c for c in db.scalars(select(RecoveryCode)).all()}
+        assert codes["lk1"].used_at is not None, "consumed code must stay consumed"
+        assert codes["lk1"].code_hash == "hash-used"
+        assert codes["lk2"].code_hash == "hash-fresh"
+        flag = db.get(SystemSetting, "post_restore_regen_required")
+        assert flag is None or not flag.value or flag.value == "", "no regen gate when nothing rolled back"
+        assert db.get(SystemSetting, "reauth_security").value == '{"failed_attempts": 3, "locked_until": null}'
+        actions = [a.action for a in db.scalars(select(AuditLog)).all()]
+        assert "backup_restored" in actions
+        assert "restore_credentials_carried_over" in actions
+
+
+def test_restore_route_requires_current_password(factory, monkeypatch):
+    """The restore route must not run on an unlocked session alone."""
+    called = []
+    monkeypatch.setattr("app.main.restore_backup", lambda *a, **k: called.append(1))
+
+    with factory() as db:
+        from app.models import BackupRun
+        db.add(BackupRun(backup_type="manual", status="success", archive_path="/tmp/x.zip.enc",
+                         sha256="ab" * 32, initiated_by="test"))
+        db.commit()
+
+    with TestClient(app) as client:
+        page = client.get("/login")
+        response = client.post(
+            "/login",
+            data={"username": "guard-admin", "password": ADMIN_PW, "csrf_token": _csrf(page)},
+            follow_redirects=False,
+        )
+        assert response.status_code == 303
+        page = client.get("/settings/backup")
+        token = _csrf(page)
+        response = client.post(
+            "/settings/backup/restore",
+            data={"csrf_token": token, "backup_id": "1", "confirm_text": "RESTORE",
+                  "reason": "اختبار", "passphrase": "", "current_password": "wrong-password"},
+            follow_redirects=False,
+        )
+        assert response.status_code == 303
+        assert response.headers["location"] == "/settings/backup?error=auth"
+        assert called == [], "restore must not start without the admin's current password"

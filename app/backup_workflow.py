@@ -516,6 +516,94 @@ def _ensure_pre_restore_run_record(
     ))
 
 
+_SECURITY_SETTING_KEYS = (
+    "login_security",
+    "recovery_security",
+    "reauth_security",
+    "recovery_lookup_pepper",
+)
+
+
+def _capture_security_state(db) -> dict:
+    """Snapshot the current credential state before a restore replaces the
+    database. Restoring an old archive must not roll authentication back to
+    archive time: passwords rotated after the backup would become valid
+    again, consumed recovery codes would resurrect, and throttles would
+    reset. Captured in the same process so nothing sensitive touches disk;
+    the pre-restore archive is the crash fallback."""
+    from app.models import AdminAccount, RecoveryCode, SystemSetting
+
+    all_accounts = db.scalars(select(AdminAccount)).all()
+    accounts = {
+        a.username: {
+            "password_hash": a.password_hash,
+            "session_version": a.session_version,
+            "active": a.active,
+            "must_change_password": a.must_change_password,
+            "role": a.role,
+            "display_name": a.display_name,
+        }
+        for a in all_accounts
+    }
+    id_to_username = {a.id: a.username for a in all_accounts}
+    codes = []
+    for row in db.scalars(select(RecoveryCode)).all():
+        codes.append({
+            "username": id_to_username.get(row.admin_account_id),
+            "code_hash": row.code_hash,
+            "code_lookup": row.code_lookup,
+            "created_at": row.created_at,
+            "used_at": row.used_at,
+        })
+    settings_state = {}
+    for key in _SECURITY_SETTING_KEYS:
+        setting = db.get(SystemSetting, key)
+        if setting is not None:
+            settings_state[key] = setting.value
+    return {"accounts": accounts, "codes": codes, "settings": settings_state}
+
+
+def _reapply_security_state(db, snapshot: dict, *, actor: str) -> None:
+    """Re-apply the pre-restore credential state onto the restored database,
+    so the restore returns business data without rolling back passwords,
+    recovery-code consumption, lockout counters, or the lookup pepper.
+    Accounts and codes created after the backup are kept; codes invalidated
+    since the backup stay invalid."""
+    from app.models import AdminAccount, RecoveryCode, SystemSetting
+
+    accounts_state = snapshot["accounts"]
+    restored_accounts = {a.username: a for a in db.scalars(select(AdminAccount)).all()}
+    for username, state in accounts_state.items():
+        account = restored_accounts.get(username)
+        if account is None:
+            account = AdminAccount(username=username)
+            db.add(account)
+            db.flush()
+        account.password_hash = state["password_hash"]
+        account.session_version = state["session_version"]
+        account.active = state["active"]
+        account.must_change_password = state["must_change_password"]
+        account.role = state["role"]
+        account.display_name = state["display_name"]
+    db.flush()
+    restored_accounts = {a.username: a for a in db.scalars(select(AdminAccount)).all()}
+
+    db.execute(delete(RecoveryCode))
+    for row in snapshot["codes"]:
+        owner = restored_accounts.get(row["username"] or "")
+        if owner is None:
+            continue
+        db.add(RecoveryCode(
+            admin_account_id=owner.id,
+            code_hash=row["code_hash"],
+            code_lookup=row["code_lookup"],
+            created_at=row["created_at"],
+            used_at=row["used_at"],
+        ))
+    for key, value in snapshot["settings"].items():
+        db.merge(SystemSetting(key=key, value=value, updated_by=actor))
+
+
 def restore_backup(
     archive_path: str | Path,
     expected_sha256: str,
@@ -575,6 +663,7 @@ def restore_backup(
         pre_restore_id = pre_restore.id
         pre_restore_path = Path(pre_restore.archive_path)
         pre_restore_hash = pre_restore.sha256
+        security_snapshot = _capture_security_state(db)
 
     try:
         _restore_archive_contents(selected, backup_root, expected_sha256, data_key)
@@ -615,18 +704,32 @@ def restore_backup(
         from app.models import AdminAccount, AdminSession, SystemSetting
 
         db.execute(delete(AdminSession))
-        # Restored password hashes and consumed recovery codes are valid again
-        # until rotated, so reconciliation is enforced, not advisory: every
-        # account must set a fresh password at its next login (the restored
-        # password still signs in, so nobody is locked out), and the system
-        # administrator is confined to the accounts page until recovery codes
-        # are regenerated, which invalidates every resurrected code.
-        db.execute(update(AdminAccount).values(must_change_password=True))
-        db.merge(SystemSetting(
-            key="post_restore_regen_required",
-            value=completed_at.isoformat(),
-            updated_by=actor,
-        ))
+        if security_snapshot["accounts"]:
+            # Live-database restore: the pre-restore credential state is
+            # carried over, so passwords, recovery-code consumption, throttle
+            # counters and the lookup pepper do NOT roll back to archive time
+            # and nothing that was revoked or consumed can be replayed.
+            _reapply_security_state(db, security_snapshot, actor=actor)
+            db.add(AuditLog(
+                actor=actor,
+                action="restore_credentials_carried_over",
+                entity_type="backup_archive",
+                entity_id=str(selected.name)[:80],
+                reason="Credential state kept from before the restore; nothing rolled back.",
+            ))
+        else:
+            # Disaster path (fresh install / no pre-existing accounts): the
+            # archive's credentials are the only ones that exist. Every account
+            # must set a fresh password at its next login (the restored
+            # password still signs in, so nobody is locked out), and the
+            # system administrator is confined to the accounts page until
+            # recovery codes are regenerated.
+            db.execute(update(AdminAccount).values(must_change_password=True))
+            db.merge(SystemSetting(
+                key="post_restore_regen_required",
+                value=completed_at.isoformat(),
+                updated_by=actor,
+            ))
         _ensure_pre_restore_run_record(
             db,
             archive_path=pre_restore_path,
