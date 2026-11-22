@@ -550,6 +550,7 @@ footer { padding: 26px 4px; font-size: 13px; line-height: 1.7; text-align: cente
   display: inline-flex; align-items: center; gap: 10px;
   color: var(--text-soft); font-size: 12.5px; font-weight: 700; letter-spacing: .04em;
 }
+.dev-credit-logo { height: 30px; width: auto; display: block; }
 .dev-credit::before, .dev-credit::after {
   content: ""; width: 42px; height: 1px;
   background: linear-gradient(90deg, transparent, #c9a227, transparent);

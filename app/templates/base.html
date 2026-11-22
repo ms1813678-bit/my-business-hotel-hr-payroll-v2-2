@@ -52,7 +52,7 @@
 
     <main class="content">
       {% block content %}{% endblock %}
-      <footer>{% block footer %}<span class="dev-credit">{% if request.url.path == '/' or request.url.path.startswith(('/ai', '/employees', '/leave', '/advances', '/reports')) %}Developed by Abu Younes · 2026{% else %}Developed by Abu Dalida · 2026{% endif %}</span>{% endblock %}</footer>
+      <footer>{% block footer %}<span class="dev-credit"><img class="dev-credit-logo" src="/static/hony-logo.svg" alt="HOnY">{% if request.url.path == '/' or request.url.path.startswith(('/ai', '/employees', '/leave', '/advances', '/reports')) %}Developed by Abu Younes · 2026{% else %}Developed by Abu Dalida · 2026{% endif %}</span>{% endblock %}</footer>
     </main>
   </div>
 </body>
