@@ -273,3 +273,25 @@ def test_helper_never_autoflushes_dirty_session_state(factory):
         result = simulate_run_adjustment(db, run_id, field="taxes", mode="add", value="10")
         assert result["rows"]
         assert employee in db.dirty  # pending change survived: nothing was flushed
+
+
+def test_no_autoflush_with_deferred_run_and_expired_identity_map(factory):
+    """Reviewer repro: run loaded with load_only(id), dirty employee,
+    autoflush=True. Deferred/expired attribute loads inside the compare must
+    never flush the unrelated dirty employee."""
+    from sqlalchemy.orm import load_only, sessionmaker as _sm
+    engine = factory.kw["bind"]
+    auto = _sm(bind=engine, autoflush=True, autocommit=False)
+    with auto.begin() as db:
+        # deferred run: every attribute except id loads lazily on access
+        run = db.scalars(
+            select(PayrollRun).options(load_only(PayrollRun.id))
+        ).first()
+        run_id = run.id
+        employee = db.scalars(select(Employee)).first()
+        db.expire_all()  # every attribute of every instance now loads on access
+        employee.full_name = "اسم متسخ لم يُحفظ"  # refresh, then dirty
+        result = simulate_run_adjustment(db, run_id, field="taxes", mode="add", value="10")
+        assert result["rows"]
+        assert result["period_start"] == "2026-11-01"
+        assert employee in db.dirty  # zero writes: nothing was flushed

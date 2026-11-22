@@ -130,8 +130,11 @@ def simulate_run_adjustment(
     if amount > Decimal("999999999.99"):
         raise ValueError("value_too_large")
 
-    # Read-only invariant: no query inside the simulation may ever autoflush
-    # unrelated dirty session state; wrap the whole read/compare body.
+    # Read-only invariant: NO ORM attribute access, query, lazy load or result
+    # materialization may ever autoflush unrelated dirty session state. The
+    # ENTIRE compare body runs under no_autoflush, and the return value is
+    # built from plain strings/ints only, so nothing touching the ORM escapes
+    # the block (deferred or expired attributes included).
     with db.no_autoflush:
         run = db.get(PayrollRun, run_id)
         if run is None:
@@ -139,73 +142,72 @@ def simulate_run_adjustment(
         items = db.scalars(
             select(PayrollItem).where(PayrollItem.payroll_run_id == run.id)
         ).all()
+        rows: list[dict[str, Any]] = []
+        total_before = Decimal("0.00")
+        total_after = Decimal("0.00")
+        infeasible = 0
+        for item in items:
+            if employee_ids is not None and item.employee_id not in employee_ids:
+                continue
+            baseline = _transient_copy(item)
+            recompute_payroll_item(baseline, run)
+            hypothetical = _transient_copy(item)
+            current = Decimal(hypothetical.__getattribute__(field))
+            hypothetical.__setattr__(
+                field, money(current + amount) if mode == "add" else money(amount)
+            )
+            try:
+                recompute_payroll_item(hypothetical, run)
+                new_net = hypothetical.net_pay
+                feasible = True
+                reason = None
+            except ValueError as exc:
+                # Engine refuses: report the accurate reason, don't clamp.
+                detail = str(exc)
+                if detail.startswith("Payroll deductions exceed earnings"):
+                    reason = "net_negative"
+                elif detail.startswith("Invalid salary or absence days"):
+                    reason = "absence_bounds"
+                else:
+                    reason = "engine"
+                new_net = None
+                feasible = False
+                infeasible += 1
+            rows.append(
+                {
+                    "employee_id": item.employee_id,
+                    "employee_code": item.employee_code_snapshot,
+                    "employee_name": item.employee_name_snapshot,
+                    "field": field,
+                    "stored_value": str(current),
+                    "hypothetical_value": str(hypothetical.__getattribute__(field)),
+                    "net_before": str(baseline.net_pay),
+                    "net_after": str(new_net) if feasible else None,
+                    "net_delta": str(money(new_net - baseline.net_pay)) if feasible else None,
+                    "feasible": feasible,
+                    "infeasible_reason": reason,
+                }
+            )
+            total_before += baseline.net_pay
+            if feasible:
+                total_after += new_net
 
-    rows: list[dict[str, Any]] = []
-    total_before = Decimal("0.00")
-    total_after = Decimal("0.00")
-    infeasible = 0
-    for item in items:
-        if employee_ids is not None and item.employee_id not in employee_ids:
-            continue
-        baseline = _transient_copy(item)
-        recompute_payroll_item(baseline, run)
-        hypothetical = _transient_copy(item)
-        current = Decimal(hypothetical.__getattribute__(field))
-        hypothetical.__setattr__(
-            field, money(current + amount) if mode == "add" else money(amount)
-        )
-        try:
-            recompute_payroll_item(hypothetical, run)
-            new_net = hypothetical.net_pay
-            feasible = True
-            reason = None
-        except ValueError as exc:
-            # Engine refuses: report the accurate reason, don't clamp.
-            detail = str(exc)
-            if detail.startswith("Payroll deductions exceed earnings"):
-                reason = "net_negative"
-            elif detail.startswith("Invalid salary or absence days"):
-                reason = "absence_bounds"
-            else:
-                reason = "engine"
-            new_net = None
-            feasible = False
-            infeasible += 1
-        rows.append(
-            {
-                "employee_id": item.employee_id,
-                "employee_code": item.employee_code_snapshot,
-                "employee_name": item.employee_name_snapshot,
-                "field": field,
-                "stored_value": str(current),
-                "hypothetical_value": str(hypothetical.__getattribute__(field)),
-                "net_before": str(baseline.net_pay),
-                "net_after": str(new_net) if feasible else None,
-                "net_delta": str(money(new_net - baseline.net_pay)) if feasible else None,
-                "feasible": feasible,
-                "infeasible_reason": reason,
-            }
-        )
-        total_before += baseline.net_pay
-        if feasible:
-            total_after += new_net
-
-    # Aggregates are only meaningful when every compared item recomputed
-    # successfully; with infeasible items a partial total would be misleading.
-    complete = infeasible == 0
-    return {
-        "run_id": run.id,
-        "run_status": run.status,
-        "period_start": run.period_start.isoformat(),
-        "field": field,
-        "mode": mode,
-        "value": str(amount),
-        "scope": "selected_employees" if employee_ids is not None else "all_items",
-        "items_compared": len(rows),
-        "infeasible_items": infeasible,
-        "totals_complete": complete,
-        "total_net_before": str(money(total_before)),
-        "total_net_after": str(money(total_after)) if complete else None,
-        "total_net_delta": str(money(total_after - total_before)) if complete else None,
-        "rows": rows,
-    }
+        # Aggregates are only meaningful when every compared item recomputed
+        # successfully; with infeasible items a partial total would be misleading.
+        complete = infeasible == 0
+        return {
+            "run_id": run.id,
+            "run_status": run.status,
+            "period_start": run.period_start.isoformat(),
+            "field": field,
+            "mode": mode,
+            "value": str(amount),
+            "scope": "selected_employees" if employee_ids is not None else "all_items",
+            "items_compared": len(rows),
+            "infeasible_items": infeasible,
+            "totals_complete": complete,
+            "total_net_before": str(money(total_before)),
+            "total_net_after": str(money(total_after)) if complete else None,
+            "total_net_delta": str(money(total_after - total_before)) if complete else None,
+            "rows": rows,
+        }

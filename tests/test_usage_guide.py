@@ -65,3 +65,25 @@ def test_answer_links_filter_extracts_in_app_paths():
     assert links == [("فتح السجلات", "/leave")]
     assert _answer_links("") == []
     assert _answer_links(None) == []
+
+
+def test_answer_links_rejects_non_in_app_or_hostile_paths():
+    from app.main import _answer_links, _answer_text_without_links
+    hostile = [
+        "ت: //evil.com/phish",          # protocol-relative external URL
+        "ت: /\\evil.com",               # backslash network-path variant
+        "ت: /%2e%2e/secret",            # encoded traversal
+        "ت: /leave/../../etc",          # dot segments
+        "ت: javascript:alert(1)",       # no leading slash at all
+        "ت: /definitely-not-a-route",   # not a real GET route
+        "ت: https://evil.com/leave",    # absolute external URL
+    ]
+    for line in hostile:
+        assert _answer_links(line) == [], line
+        assert line in _answer_text_without_links(line)  # stays plain text
+    # real routes survive; link lines are stripped from the text copy
+    text = "نص أول\nفتح السجلات: /leave\nنص أخير"
+    assert _answer_links(text) == [("فتح السجلات", "/leave")]
+    stripped = _answer_text_without_links(text)
+    assert "فتح السجلات: /leave" not in stripped
+    assert "نص أول" in stripped and "نص أخير" in stripped

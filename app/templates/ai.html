@@ -64,7 +64,7 @@
       {%- if item.language in ['ar', 'en', 'zh'] and ui_language and item.language != ui_language %}
       <span class="ai-msg-lang">{% if item.language == 'en' %}الأصل بالإنجليزية{% elif item.language == 'zh' %}الأصل بالصينية{% else %}الأصل بالعربية{% endif %}</span>
       {%- endif %}
-      <span class="ai-msg-text" dir="auto" data-no-translate>{{ item.content }}</span>
+      <span class="ai-msg-text" dir="auto" data-no-translate>{{ item.content | answer_text_without_links }}</span>
       {% if item.role != 'user' %}
       {% for label, path in item.content | answer_links %}
       <a class="ai-answer-link" href="{{ path }}">{{ label }}: {{ path }}</a>
@@ -81,7 +81,7 @@
       {%- if answer_language in ['ar', 'en', 'zh'] and ui_language and answer_language != ui_language %}
       <span class="ai-msg-lang">{% if answer_language == 'en' %}الأصل بالإنجليزية{% elif answer_language == 'zh' %}الأصل بالصينية{% else %}الأصل بالعربية{% endif %}</span>
       {%- endif %}
-      <span class="ai-msg-text" dir="auto" data-no-translate>{{ answer }}</span>
+      <span class="ai-msg-text" dir="auto" data-no-translate>{{ answer | answer_text_without_links }}</span>
       {% for label, path in answer | answer_links %}
       <a class="ai-answer-link" href="{{ path }}">{{ label }}: {{ path }}</a>
       {% endfor %}

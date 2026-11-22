@@ -70,9 +70,9 @@ _TOPICS: list[dict[str, Any]] = [
                  "sanction", "reward", "staff action", "disciplinary",
                  "处分", "奖励", "员工措施"),
         "path": "/staff-actions",
-        "ar": "الجزاءات والمكافآت: من صفحة الجزاءات والمكافآت أنشئ إجراء الموظف (نوعه وتصنيفه وأثره المالي إن وجد) ثم اعتمده. الإجراء المالي المعتمد يظهر في مسير الشهر تلقائيًا، والإلغاء يتطلب سببًا.",
-        "en": "Sanctions and rewards: on the Sanctions & Rewards page, create the staff action (kind, category, financial effect if any) and approve it. An approved financial action appears automatically in the month's payroll run; cancellation requires a reason.",
-        "zh": "奖惩：在「奖惩」页面创建员工措施（类型、类别、财务影响如有）并批准。已批准的财务措施会自动计入当月工资批次；取消需填写原因。",
+        "ar": "الجزاءات والمكافآت: من صفحة الجزاءات والمكافآت أنشئ إجراء الموظف (نوعه وتصنيفه وأثره المالي إن وجد) ثم اعتمده. الإجراءات المالية المعتمدة المستحقة تُدرج عند إنشاء مسير الشهر؛ المسيرات الموجودة بالفعل لا تتحدث تلقائيًا، فراجعها من صفحة الرواتب بشكل منفصل. الإلغاء يتطلب سببًا.",
+        "en": "Sanctions and rewards: on the Sanctions & Rewards page, create the staff action (kind, category, financial effect if any) and approve it. Eligible approved financial actions are included when the month's payroll run is created; an already-created run is not refreshed automatically, so review it separately from the Payroll page. Cancellation requires a reason.",
+        "zh": "奖惩：在「奖惩」页面创建员工措施（类型、类别、财务影响如有）并批准。符合条件的已批准财务措施会在创建当月工资批次时计入；已创建的工资批次不会自动更新，请在「工资」页面单独核对。取消需填写原因。",
     },
     {
         "keys": ("نسخة احتياطية", "النسخ الاحتياطي", "باك اب", "backup",

@@ -334,21 +334,49 @@ templates.env.filters["fmt_m"] = _fmt_m
 templates.env.filters["status_label"] = _status_label
 
 
-_ANSWER_LINK_LINE = re.compile(r"^([^\n:]{1,80}):\s*(/[A-Za-z0-9_\-/]+)\s*$")
+# Link lines emitted by the structured answer formatters look like
+# "label: /path". A rendered link must be a same-origin in-app GET page:
+# exactly one leading slash, plain path segments only (no backslashes, no
+# percent-encoding, no dots, no second slash that would make it a
+# protocol-relative //host URL), and it must resolve to a real GET route.
+_ANSWER_LINK_LINE = re.compile(
+    r"^([^:\n]{1,80}):\s*(/[A-Za-z0-9_\-]+(?:/[A-Za-z0-9_\-]+)*)/?$"
+)
+
+
+def _get_route_paths():
+    return {
+        route.path
+        for route in app.routes
+        if getattr(route, "methods", None) and "GET" in route.methods
+    }
 
 
 def _answer_links(text):
-    """Extract in-app record links from assistant answer lines like
-    'label: /path' so the UI renders them as real clickable links."""
+    """Extract verified in-app record links from assistant answer lines."""
+    routes = _get_route_paths()
     links = []
     for line in (text or "").splitlines():
         match = _ANSWER_LINK_LINE.match(line.strip())
-        if match:
+        if match and match.group(2) in routes:
             links.append((match.group(1).strip(), match.group(2)))
     return links
 
 
+def _answer_text_without_links(text):
+    """The same answer text with link lines removed (they render as links)."""
+    routes = _get_route_paths()
+    kept = []
+    for line in (text or "").splitlines():
+        match = _ANSWER_LINK_LINE.match(line.strip())
+        if match and match.group(2) in routes:
+            continue
+        kept.append(line)
+    return "\n".join(kept)
+
+
 templates.env.filters["answer_links"] = _answer_links
+templates.env.filters["answer_text_without_links"] = _answer_text_without_links
 templates.env.filters["field_label"] = _field_label
 
 from app.audit_display import detail_label as _audit_detail_label, reason_label as _audit_reason_label, system_reason as _system_reason_label, STATUS_LABELS_AR as _STATUS_AR
