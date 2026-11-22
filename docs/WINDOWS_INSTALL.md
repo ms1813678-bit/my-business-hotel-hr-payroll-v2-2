@@ -45,6 +45,12 @@ Set the backup encryption passphrase from the app's Backup & Restore page before
 
 Changing the passphrase later re-wraps the same data key, so every archive - old and new - stays openable with the new passphrase, and the key file beside the backups is updated automatically. Any older copy of backup_encryption_key.json you kept elsewhere before the change still unlocks the archives with the OLD passphrase: delete such stale copies wherever they exist, exactly as you would destroy a written-down old passphrase.
 
+Restoring an archive created BEFORE a passphrase change also restores the encryption settings stored inside it: the passphrase that was active at that backup's creation becomes the active one again. The data key never changes, so all archives remain openable. Safe next steps after restoring such an archive:
+
+- Immediately change the passphrase on the Backup & Restore page: enter the restored archive's era passphrase as the current one, then your preferred new passphrase. Everything returns to your newest passphrase and the key file refreshes automatically.
+- If you no longer remember that older passphrase, do NOT create a new backup yet: the first new backup rewrites the key file from the restored older settings and your newer passphrase stops working. Immediately save a copy of the current backup_encryption_key.json somewhere safe (it keeps opening existing archives with your newer passphrase), then have your technician reset the encryption settings in the database; this does not touch data or existing archives and only affects future backups.
+- If the active passphrase is lost entirely with no suitable key file copy preserved, encrypted backups become unrecoverable, exactly as with a forgotten passphrase.
+
 ### Disaster recovery on a fresh PC
 
 After a total loss the new installation's database is empty, so the web page has no backup entries to select. Use the recovery command instead:
@@ -53,6 +59,7 @@ After a total loss the new installation's database is empty, so the web page has
 2. Plug in the backup drive and locate the archive (for example `E:\backups\manual\mybusinesshotel_manual_....zip.enc`).
 3. From the app folder run:
    `python -m app.restore_cli --archive "E:\backups\manual\<archive>.zip.enc"`
+   The interface language defaults to Arabic; add `--lang en` or `--lang zh` to switch (or set MYHOTEL_LANG).
    The command applies schema migrations, saves the backup location when it is not configured yet, asks for the encryption passphrase (it unlocks the archive through the backup_encryption_key.json file beside the backups), and asks you to type RESTORE before replacing the database - with the same verified pre-restore snapshot and automatic rollback as the web page.
 4. Sign in and verify employees, attendance, and payroll data.
 

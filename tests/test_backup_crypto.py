@@ -236,3 +236,19 @@ def test_restore_cli_rejects_missing_archive(tmp_path):
     from app.restore_cli import main
 
     assert main(["--archive", str(tmp_path / "missing.zip.enc")]) == 2
+
+
+def test_restore_cli_language_selection(tmp_path, capsys, monkeypatch):
+    from app.restore_cli import main
+
+    missing = tmp_path / "missing.zip.enc"
+    assert main(["--archive", str(missing)]) == 2
+    assert "النسخة غير موجودة" in capsys.readouterr().out  # Arabic default
+    assert main(["--archive", str(missing), "--lang", "zh"]) == 2
+    assert "找不到备份文件" in capsys.readouterr().out
+    monkeypatch.setenv("MYHOTEL_LANG", "en")
+    assert main(["--archive", str(missing)]) == 2
+    assert "Archive not found" in capsys.readouterr().out
+    monkeypatch.setenv("MYHOTEL_LANG", "fr")
+    assert main(["--archive", str(missing)]) == 2
+    assert "Unsupported language" in capsys.readouterr().out
