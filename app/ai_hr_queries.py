@@ -628,13 +628,19 @@ def build_attendance_analysis(*, work_date: date | None, month_start: date | Non
         rows = db.execute(query.order_by(AttendanceDailyRecord.work_date, Employee.code)).all()
         late_count = 0
         late_covered_rows = 0
+        late_details: list[dict[str, Any]] = []
+        late_missing: list[dict[str, Any]] = []
         if work_date is not None:
-            for record, _employee in rows:
+            for record, employee in rows:
                 start = record.scheduled_start_at
                 # Same endpoint precedence payroll and the row classifier use:
                 # approved correction, then fingerprint, then program.
-                clock = (record.approved_clock_in or record.first_clock_in
-                         or record.program_clock_in)
+                if record.approved_clock_in:
+                    clock, source = record.approved_clock_in, "approved"
+                elif record.first_clock_in:
+                    clock, source = record.first_clock_in, "fingerprint"
+                else:
+                    clock, source = record.program_clock_in, "program"
                 if start and clock:
                     late_covered_rows += 1
                     # Shared rule with _classify_attendance_row / payroll:
@@ -642,6 +648,20 @@ def build_attendance_analysis(*, work_date: date | None, month_start: date | Non
                     late_minutes = max(0, int((clock - start).total_seconds() // 60))
                     if late_minutes > 0:
                         late_count += 1
+                        late_details.append({
+                            "employee_code": employee.code,
+                            "employee_name": employee.full_name,
+                            "work_date": record.work_date.isoformat(),
+                            "late_minutes": late_minutes,
+                            "source": source,
+                        })
+                else:
+                    # Visible data gap: this row cannot be judged late or not.
+                    late_missing.append({
+                        "employee_code": employee.code,
+                        "employee_name": employee.full_name,
+                        "gap": "no_schedule" if not start else "no_clock",
+                    })
         late_determinable = late_covered_rows > 0
         items: list[dict[str, Any]] = []
         for record, employee in rows:
@@ -668,6 +688,8 @@ def build_attendance_analysis(*, work_date: date | None, month_start: date | Non
             "late_determinable": late_determinable,
             "late_covered_rows": late_covered_rows,
             "late_total_rows": len(rows),
+            "late_details": late_details,
+            "late_missing": late_missing,
         }
 
 
@@ -713,6 +735,51 @@ def format_attendance_analysis(report: dict[str, Any], language: str = "ar") -> 
                 "لا يمكن تحديد عدد المتأخرين: لا توجد بصمات ومواعيد كافية في سجلات هذا اليوم.",
                 "The late count cannot be determined: not enough clock-ins and schedules in this day's records.",
                 "无法确定迟到人数：当日记录中缺少足够的打卡和排班数据。"))
+
+    if report.get("day_mode"):
+        # Drill-down: tie every counted number to its source records, and
+        # make rows that cannot be judged visible instead of silently skipped.
+        details = report.get("late_details") or []
+        if details:
+            lines.append(_msg(language,
+                "تفاصيل المتأخرين (الاسم والدقائق ومصدر الاحتساب):",
+                "Late records behind the count (name, minutes, clock source):",
+                "迟到计数对应的明细（姓名、分钟数、打卡来源）："))
+            for index, item in enumerate(details[:20], start=1):
+                source_label = _msg(language,
+                    {"approved": "تصحيح معتمد", "fingerprint": "البصمة", "program": "برنامج المواعيد"}[item["source"]],
+                    {"approved": "approved correction", "fingerprint": "fingerprint", "program": "schedule program"}[item["source"]],
+                    {"approved": "已批准的修正", "fingerprint": "指纹打卡", "program": "排班系统"}[item["source"]])
+                lines.append(
+                    f"{index}) {item['employee_code']} — {item['employee_name']} — "
+                    + _msg(language, f"تأخر {item['late_minutes']} دقيقة",
+                           f"{item['late_minutes']} min late", f"迟到 {item['late_minutes']} 分钟")
+                    + f" — {source_label}"
+                )
+            if len(details) > 20:
+                lines.append(_msg(language,
+                    f"... و{len(details) - 20} سجل تأخير إضافي. راجع شاشة مراجعة الحضور.",
+                    f"... and {len(details) - 20} more late records. See the attendance review screen.",
+                    f"……另有 {len(details) - 20} 条迟到记录。请查看考勤审核页面。"))
+        missing = report.get("late_missing") or []
+        if missing:
+            no_clock = [m for m in missing if m["gap"] == "no_clock"]
+            no_schedule = [m for m in missing if m["gap"] == "no_schedule"]
+            lines.append(_msg(language,
+                f"سجلات لا يمكن الحكم على تأخيرها (خارج العد): {len(missing)} — بدون بصمة: {len(no_clock)}، بدون موعد مجدول: {len(no_schedule)}.",
+                f"Records that cannot be judged for lateness (not counted): {len(missing)} — no clock-in: {len(no_clock)}, no scheduled start: {len(no_schedule)}.",
+                f"无法判断迟到的记录（未计入）：{len(missing)} 条 — 无打卡：{len(no_clock)} 条，无排班：{len(no_schedule)} 条。"))
+            for item in missing[:10]:
+                gap_label = _msg(language,
+                    "لا يوجد موعد مجدول" if item["gap"] == "no_schedule" else "لا توجد بصمة",
+                    "no scheduled start" if item["gap"] == "no_schedule" else "no clock-in",
+                    "无排班时间" if item["gap"] == "no_schedule" else "无打卡记录")
+                lines.append(f"   - {item['employee_code']} — {item['employee_name']} — {gap_label}")
+            if len(missing) > 10:
+                lines.append(_msg(language,
+                    f"... و{len(missing) - 10} سجلًا إضافيًا غير قابل للحكم.",
+                    f"... and {len(missing) - 10} more undecidable records.",
+                    f"……另有 {len(missing) - 10} 条无法判断的记录。"))
     if not report["items"]:
         lines.append(_msg(language,
             "لا توجد ملاحظات ظاهرة في السجلات المتاحة لهذه الفترة.",

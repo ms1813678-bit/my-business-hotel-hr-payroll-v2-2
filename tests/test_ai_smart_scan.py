@@ -6,7 +6,9 @@ def test_states_and_unavailable_distinction():
     def counts(check):
         if check["key"] == "leave_drafts":
             raise RuntimeError("db down")
-        return {"attendance_review": 3, "advance_pending": 0, "payroll_drafts": 0}[check["key"]]
+        return {"attendance_review": 3, "advance_pending": 0, "payroll_drafts": 0,
+                "staff_action_drafts": 0, "attendance_months_review": 0,
+                "import_issues": 0, "attendance_review_notes": 0}[check["key"]]
 
     results = {r["key"]: r for r in scan.build_smart_scan("en", counts)}
     assert results["attendance_review"]["status"] == "attention"
@@ -25,3 +27,7 @@ def test_labels_localized():
     assert en["payroll_drafts"]["label"] == "Unapproved payroll runs"
     assert zh["payroll_drafts"]["label"] == "未批准的工资批次"
     assert ar["payroll_drafts"]["label"] == "مسيرات رواتب غير معتمدة"
+    assert en["staff_action_drafts"]["label"] == "Draft staff actions awaiting approval"
+    assert zh["attendance_months_review"]["label"] == "待批准的考勤月份"
+    assert ar["import_issues"]["label"] == "مشاكل استيراد حضور بانتظار الحل"
+    assert en["attendance_review_notes"]["label"] == "Attendance records carrying review notes"

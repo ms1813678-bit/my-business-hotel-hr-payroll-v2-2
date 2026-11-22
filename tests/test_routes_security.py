@@ -2416,7 +2416,7 @@ def test_ai_history_language_badge_only_on_mismatch(client, monkeypatch):
 
 def test_ai_approve_and_reject_responses_keep_fresh_scan(client, monkeypatch):
     """Regression: POST /ai/approve and /ai/reject must render the scan card
-    with its four explicit checks, like GET /ai does."""
+    with its eight explicit checks, like GET /ai does."""
     gateway, engine = _real_gateway_memory(monkeypatch)
     try:
         monkeypatch.setattr(
@@ -2433,9 +2433,11 @@ def test_ai_approve_and_reject_responses_keep_fresh_scan(client, monkeypatch):
                 route, data={"token": "tok", "csrf_token": csrf_from(page)}
             )
             assert response.status_code == 200
-            # four scan checks, each with an explicit state label
-            assert response.text.count('class="ai-scan-item"') == 4
+            # eight scan checks, each with an explicit state label
+            assert response.text.count('class="ai-scan-item"') == 8
             assert "Attendance needing review" in response.text
             assert "Unapproved payroll runs" in response.text
+            assert "Draft staff actions awaiting approval" in response.text
+            assert "Attendance import issues awaiting resolution" in response.text
     finally:
         engine.dispose()

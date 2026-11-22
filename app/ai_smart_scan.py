@@ -18,8 +18,11 @@ from app.db import SessionLocal
 from app.models import (
     AdvanceRequest,
     AttendanceDailyRecord,
+    AttendanceImportIssue,
+    AttendanceMonth,
     LeaveRecord,
     PayrollRun,
+    StaffAction,
 )
 
 
@@ -54,6 +57,44 @@ _CHECKS: list[dict[str, Any]] = [
         "count": lambda: _count(
             select(func.count(AdvanceRequest.id)).where(
                 AdvanceRequest.status.in_(["pending", "approved"])
+            )
+        ),
+    },
+    {
+        "key": "staff_action_drafts",
+        "url": "/staff-actions",
+        "label": ("مسودات جزاءات ومكافآت بانتظار الاعتماد", "Draft staff actions awaiting approval", "待审批的奖惩草稿"),
+        "count": lambda: _count(
+            select(func.count(StaffAction.id)).where(StaffAction.status == "draft")
+        ),
+    },
+    {
+        "key": "attendance_months_review",
+        "url": "/attendance/months",
+        "label": ("شهور حضور بانتظار الاعتماد", "Attendance months awaiting approval", "待批准的考勤月份"),
+        "count": lambda: _count(
+            select(func.count(AttendanceMonth.id)).where(AttendanceMonth.status == "under_review")
+        ),
+    },
+    {
+        "key": "import_issues",
+        "url": "/attendance/import",
+        "label": ("مشاكل استيراد حضور بانتظار الحل", "Attendance import issues awaiting resolution", "待解决的考勤导入问题"),
+        "count": lambda: _count(
+            select(func.count(AttendanceImportIssue.id)).where(
+                AttendanceImportIssue.resolved_at.is_(None)
+            )
+        ),
+    },
+    {
+        "key": "attendance_review_notes",
+        "url": "/attendance/review",
+        "label": ("سجلات حضور عليها ملاحظات مراجعة", "Attendance records carrying review notes", "带有审核备注的考勤记录"),
+        "count": lambda: _count(
+            select(func.count(AttendanceDailyRecord.id)).where(
+                AttendanceDailyRecord.review_notes.isnot(None),
+                AttendanceDailyRecord.review_notes != "",
+                AttendanceDailyRecord.status.in_(["needs_review", "ready_for_review"]),
             )
         ),
     },

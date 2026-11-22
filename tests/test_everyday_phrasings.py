@@ -374,6 +374,65 @@ def test_late_count_answered_when_clock_data_exists(seeded):
     assert "المتأخرون عن موعد بداية الوردية: 1." in answer
 
 
+def test_late_drilldown_lists_names_minutes_and_source(seeded):
+    from datetime import datetime
+    with seeded.begin() as db:
+        row = db.scalars(select(AttendanceDailyRecord)).one()
+        row.scheduled_start_at = datetime(2026, 1, 1, 9, 0, 0)
+        row.first_clock_in = datetime(2026, 1, 1, 9, 30, 0)
+        db.commit()
+    answer = queries.answer_structured_hr_query("كام موظف اتأخر النهارده؟", language="ar")
+    assert "تفاصيل المتأخرين" in answer
+    assert "MY-0001" in answer
+    assert "تأخر 30 دقيقة" in answer
+    assert "البصمة" in answer
+
+
+def test_late_drilldown_makes_undecidable_rows_visible(seeded):
+    from datetime import datetime
+    with seeded.begin() as db:
+        row = db.scalars(select(AttendanceDailyRecord)).one()
+        row.scheduled_start_at = datetime(2026, 1, 1, 9, 0, 0)
+        row.first_clock_in = datetime(2026, 1, 1, 9, 30, 0)
+        db.add(AttendanceDailyRecord(
+            employee_id=2, work_date=row.work_date, status="needs_review",
+            scheduled_start_at=datetime(2026, 1, 1, 9, 0, 0)))
+        db.add(AttendanceDailyRecord(
+            employee_id=3, work_date=row.work_date, status="needs_review",
+            first_clock_in=datetime(2026, 1, 1, 9, 10, 0)))
+        db.commit()
+    answer = queries.answer_structured_hr_query("كام موظف اتأخر النهارده؟", language="ar")
+    assert "سجلات لا يمكن الحكم على تأخيرها (خارج العد): 2" in answer
+    assert "MY-0002" in answer and "لا توجد بصمة" in answer
+    assert "MY-0003" in answer and "لا يوجد موعد مجدول" in answer
+
+
+def test_late_drilldown_source_precedence_labels_approved_correction(seeded):
+    from datetime import datetime
+    with seeded.begin() as db:
+        row = db.scalars(select(AttendanceDailyRecord)).one()
+        row.scheduled_start_at = datetime(2026, 1, 1, 9, 0, 0)
+        row.first_clock_in = datetime(2026, 1, 1, 9, 5, 0)
+        row.approved_clock_in = datetime(2026, 1, 1, 9, 45, 0)
+        db.commit()
+    answer = queries.answer_structured_hr_query("كام موظف اتأخر النهارده؟", language="ar")
+    assert "تأخر 45 دقيقة" in answer
+    assert "تصحيح معتمد" in answer
+
+
+def test_late_drilldown_localized_en_zh(seeded):
+    from datetime import datetime
+    with seeded.begin() as db:
+        row = db.scalars(select(AttendanceDailyRecord)).one()
+        row.scheduled_start_at = datetime(2026, 1, 1, 9, 0, 0)
+        row.first_clock_in = datetime(2026, 1, 1, 9, 30, 0)
+        db.commit()
+    en = queries.answer_structured_hr_query("how many staff were late today?", language="en")
+    zh = queries.answer_structured_hr_query("今天有多少员工迟到？", language="zh")
+    assert "Late records behind the count" in en and "30 min late" in en and "fingerprint" in en
+    assert "迟到计数对应的明细" in zh and "迟到 30 分钟" in zh and "指纹打卡" in zh
+
+
 def test_late_count_declines_explicitly_without_clock_data(seeded):
     answer = queries.answer_structured_hr_query("كام موظف اتأخر النهارده؟", language="ar")
     assert "لا يمكن تحديد عدد المتأخرين" in answer
