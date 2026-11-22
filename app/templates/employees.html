@@ -114,6 +114,36 @@
         </div>
       </div>
 
+      {% set tiles = card_tiles.get(e.id) %}
+      {% if tiles %}
+      <div class="employee-tiles">
+        <div class="tile">
+          <span class="tile-label">رصيد الإجازات</span>
+          <strong class="tile-value">{{ '%g'|format(tiles.leave_balance|float) }} <small>يوم</small></strong>
+        </div>
+        <div class="tile">
+          <span class="tile-label">حضور الشهر الحالي</span>
+          <strong class="tile-value">{{ tiles.att_present }} / {{ tiles.att_total }} <small>يوم</small></strong>
+        </div>
+        {% if can_payroll %}
+        <div class="tile">
+          <span class="tile-label">آخر صافي راتب</span>
+          <strong class="tile-value">{% if tiles.net_pay is not none %}{{ '%0.2f'|format(tiles.net_pay|float) }} <small>ج.م</small>{% else %}—{% endif %}</strong>
+        </div>
+        {% endif %}
+        <div class="tile">
+          <span class="tile-label">سنوات الخدمة</span>
+          <strong class="tile-value">{% if tiles.service_years is not none %}{{ tiles.service_years }}{% else %}—{% endif %}</strong>
+        </div>
+      </div>
+      <div class="employee-quick-actions">
+        <a class="btn btn-outline btn-sm" href="/reports/view?report_type=attendance&employee_id={{ e.id }}">سجل الحضور</a>
+        {% if can_payroll and tiles.payslip_run_id %}
+        <a class="btn btn-outline btn-sm" href="/payroll/runs/{{ tiles.payslip_run_id }}/items/{{ tiles.payslip_item_id }}/payslip.pdf">قسيمة الراتب</a>
+        {% endif %}
+      </div>
+      {% endif %}
+
       {% if request.state.admin_role == 'system_admin' %}
       <div class="employee-actions">
         <details class="action-panel">

@@ -13,11 +13,11 @@ import re
 import secrets
 import time as time_module
 
-from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from sqlalchemy import delete, func, or_, select, text, update
+from sqlalchemy import case, delete, func, or_, select, text, update
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
 from PIL import Image, ImageOps, UnidentifiedImageError
@@ -97,10 +97,15 @@ from app.report_builder import (
     REPORT_TYPES,
     ReportSelection,
     _parse_date,
+    MONTHLY_OPTION_LABELS,
+    MONTHLY_OPTION_TYPE,
+    MONTHLY_ALL_OPTIONS,
     apply_config,
     build_custom_pdf,
     build_custom_workbook,
+    build_monthly_pdf,
     build_report,
+    monthly_options_for_types,
     list_presets,
     load_preset,
     month_label,
@@ -838,6 +843,46 @@ def dashboard(request: Request, admin: AdminAccount = Depends(get_current_admin)
                     "value": None, "post": "",
                     "link": "/settings/backup", "link_label": "فتح النسخ الاحتياطي ←",
                 })
+        # Six-month mini-charts (approved UI batch): posted payroll totals and
+        # approved attended days per month. Month-scoped counts keep this
+        # portable and cheap.
+        def _month_add(d: date, n: int) -> date:
+            m = d.month - 1 + n
+            return date(d.year + m // 12, m % 12 + 1, 1)
+
+        month_zero = date.today().replace(day=1)
+        chart_payroll = []
+        chart_attendance = []
+        for i in range(-5, 1):
+            m_start = _month_add(month_zero, i)
+            m_end = _month_add(month_zero, i + 1)
+            payroll_total = db.scalar(
+                select(func.coalesce(func.sum(PayrollItem.net_pay), 0))
+                .select_from(PayrollItem)
+                .join(PayrollRun, PayrollRun.id == PayrollItem.payroll_run_id)
+                .where(
+                    PayrollRun.status.in_(["approved", "closed"]),
+                    PayrollRun.period_start >= m_start,
+                    PayrollRun.period_start < m_end,
+                )
+            ) or 0
+            attended_days = db.scalar(
+                select(func.count(AttendanceDailyRecord.id)).where(
+                    AttendanceDailyRecord.status == "approved",
+                    AttendanceDailyRecord.worked_minutes > 0,
+                    AttendanceDailyRecord.work_date >= m_start,
+                    AttendanceDailyRecord.work_date < m_end,
+                )
+            ) or 0
+            label = m_start.strftime("%Y-%m")
+            chart_payroll.append({"label": label, "value": float(payroll_total)})
+            chart_attendance.append({"label": label, "value": int(attended_days)})
+        charts = {
+            "payroll": chart_payroll,
+            "attendance": chart_attendance,
+            "payroll_max": max((c["value"] for c in chart_payroll), default=0) or 1,
+            "attendance_max": max((c["value"] for c in chart_attendance), default=0) or 1,
+        }
         missing_fingerprint = db.scalar(
             select(func.count(Employee.id)).where(
                 Employee.status == "active",
@@ -858,6 +903,7 @@ def dashboard(request: Request, admin: AdminAccount = Depends(get_current_admin)
                 "csrf_token": get_csrf_token(request),
                 "metrics": metrics,
                 "alerts": alerts,
+                "charts": charts,
             },
         )
 
@@ -2927,6 +2973,8 @@ def reports_page(
                 if report_type in _REPORT_TYPES_BY_ROLE.get(admin.role, set(REPORT_TYPES))
             ],
             "report_type_labels": REPORT_TYPE_LABELS,
+            "monthly_option_labels": MONTHLY_OPTION_LABELS,
+            "monthly_allowed_options": sorted(monthly_options_for_types(_REPORT_TYPES_BY_ROLE.get(admin.role))),
             "csrf_token": get_csrf_token(request),
             "error": params.get("error"),
             "saved": params.get("saved"),
@@ -3130,6 +3178,51 @@ def export_hr_reports_pdf(
         media_type="application/pdf",
         headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(filename)}"},
     )
+
+@app.get("/reports/monthly.pdf")
+def reports_monthly_pdf(
+    request: Request,
+    month: str = "",
+    opt: list[int] = Query(default=[]),
+    admin: AdminAccount = Depends(get_current_admin),
+):
+    """Approved monthly report: 11 checkboxes + explicit month, PDF only.
+
+    Role scope matches the existing custom report: each option is allowed only
+    when its underlying report type is in the role's approved set, and the
+    assistant never receives payroll or national-ID content. Nothing is
+    scheduled or sent automatically.
+    """
+    try:
+        month_start = date.fromisoformat((month or "").strip() + "-01")
+    except ValueError:
+        raise HTTPException(status_code=400, detail="اختر شهرًا صالحًا للتقرير الشهري.")
+    requested = set(opt)
+    if not requested or requested - MONTHLY_ALL_OPTIONS:
+        raise HTTPException(status_code=400, detail="خيارات التقرير الشهري غير صالحة.")
+    allowed_types = _REPORT_TYPES_BY_ROLE.get(admin.role)
+    allowed_options = monthly_options_for_types(allowed_types)
+    options = requested & allowed_options
+    data_options = options - {10, 11}
+    if not data_options:
+        raise HTTPException(status_code=403, detail="هذا الجزء غير متاح لصلاحية حسابك.")
+    try:
+        with SessionLocal() as db:
+            content = build_monthly_pdf(db, month_start, options, language=request.state.language)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except SQLAlchemyError:
+        raise HTTPException(status_code=503, detail="تعذر إنشاء التقرير بسبب خطأ في قاعدة البيانات.")
+    month_end = date(month_start.year + (month_start.month == 12), month_start.month % 12 + 1, 1) - timedelta(days=1)
+    _save_report_copy(content, "pdf", month_start, month_end)
+    filename = f"MY_HR_Monthly_{month_start.strftime('%Y-%m')}.pdf"
+    from urllib.parse import quote
+    return Response(
+        content=content,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(filename)}"},
+    )
+
 
 def _telegram_context(request: Request) -> dict:
     with SessionLocal() as db:
@@ -4045,6 +4138,63 @@ def employees_page(
         # Change history renders only inside the visible cards, so load it just
         # for the employees on this page instead of the entire table.
         page_employee_ids = [e.id for e in employees] or [-1]
+
+        # Employee-card summary tiles (approved UI batch): leave balance,
+        # current-month recorded attendance, latest net pay, service years.
+        # Payroll data is computed only for roles already allowed to see it.
+        today = date.today()
+        month_start = today.replace(day=1)
+        card_tiles: dict[int, dict] = {}
+        attendance_counts = db.execute(
+            select(
+                AttendanceDailyRecord.employee_id,
+                func.count(),
+                func.sum(case((AttendanceDailyRecord.worked_minutes > 0, 1), else_=0)),
+            )
+            .where(
+                AttendanceDailyRecord.employee_id.in_(page_employee_ids),
+                AttendanceDailyRecord.work_date >= month_start,
+                AttendanceDailyRecord.work_date <= today,
+                AttendanceDailyRecord.status == "approved",
+            )
+            .group_by(AttendanceDailyRecord.employee_id)
+        ).all()
+        attendance_map = {emp_id: (total or 0, present or 0) for emp_id, total, present in attendance_counts}
+        leave_totals: dict[int, Decimal] = {}
+        leave_types = db.scalars(select(LeaveType).order_by(LeaveType.id)).all()
+        if leave_types:
+            balance_sums = db.execute(
+                select(LeaveBalanceTransaction.employee_id, func.sum(LeaveBalanceTransaction.days_delta))
+                .where(LeaveBalanceTransaction.employee_id.in_(page_employee_ids))
+                .group_by(LeaveBalanceTransaction.employee_id)
+            ).all()
+            leave_totals = {emp_id: (total or Decimal("0")) for emp_id, total in balance_sums}
+        can_payroll = admin.role in (ROLE_SYSTEM_ADMIN, ROLE_FINANCE)
+        latest_payroll: dict[int, tuple[PayrollItem, PayrollRun]] = {}
+        if can_payroll:
+            payroll_rows = db.execute(
+                select(PayrollItem, PayrollRun)
+                .join(PayrollRun, PayrollRun.id == PayrollItem.payroll_run_id)
+                .where(PayrollItem.employee_id.in_(page_employee_ids))
+                .order_by(PayrollItem.employee_id, PayrollRun.period_start.desc(), PayrollRun.id.desc())
+            ).all()
+            for item, run in payroll_rows:
+                latest_payroll.setdefault(item.employee_id, (item, run))
+        for e in employees:
+            total_days, present_days = attendance_map.get(e.id, (0, 0))
+            service_years = None
+            if e.hire_date:
+                service_years = round((today - e.hire_date).days / 365.25, 1)
+            latest = latest_payroll.get(e.id)
+            card_tiles[e.id] = {
+                "leave_balance": leave_totals.get(e.id, Decimal("0")),
+                "att_present": present_days,
+                "att_total": total_days,
+                "net_pay": latest[0].net_pay if latest else None,
+                "payslip_run_id": latest[1].id if latest else None,
+                "payslip_item_id": latest[0].id if latest else None,
+                "service_years": service_years,
+            }
         employee_changes = db.scalars(
             select(EmployeeChange)
             .where(EmployeeChange.employee_id.in_(page_employee_ids))
@@ -4074,7 +4224,7 @@ def employees_page(
 
         return templates.TemplateResponse(
             request=request, name="employees.html",
-            context={"departments": departments, "branches": branches, "all_departments": all_departments, "all_branches": all_branches, "employee_changes": employee_changes, "data_change_requests": data_change_requests, "employees": employees, "csrf_token": get_csrf_token(request), "q": query, "filter_department_id": department_id, "filter_branch_id": branch_id, "filter_status": status, "filters_active": bool(query or department_id or branch_id or status), "page": page, "pages": pages, "total": total, "page_url": page_url, "req_page": req_page, "req_pages": req_pages, "req_page_url": req_page_url},
+            context={"departments": departments, "branches": branches, "all_departments": all_departments, "all_branches": all_branches, "employee_changes": employee_changes, "card_tiles": card_tiles, "can_payroll": can_payroll, "data_change_requests": data_change_requests, "employees": employees, "csrf_token": get_csrf_token(request), "q": query, "filter_department_id": department_id, "filter_branch_id": branch_id, "filter_status": status, "filters_active": bool(query or department_id or branch_id or status), "page": page, "pages": pages, "total": total, "page_url": page_url, "req_page": req_page, "req_pages": req_pages, "req_page_url": req_page_url},
         )
 
 

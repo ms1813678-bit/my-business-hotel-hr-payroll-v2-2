@@ -92,6 +92,24 @@
 </form>
 
 <div class="card">
+  <h2>التقرير الشهري الجاهز</h2>
+  <p class="muted" style="font-size:13px;">تقرير شهري جاهز بخيارات محددة: علّم الأقسام المطلوبة واختر الشهر، وسيُصدَّر ملف PDF واحد يجمعها. التقرير قراءة فقط ولا يُرسَل تلقائيًا.</p>
+  <form method="get" action="/reports/monthly.pdf">
+    <div class="period-row" style="margin-bottom:10px;">
+      <label>شهر التقرير <input type="month" name="month" required></label>
+    </div>
+    <div class="chip-row" role="group" aria-label="محتويات التقرير الشهري">
+      {% for option, label in monthly_option_labels.items() if option in monthly_allowed_options %}
+      <label class="chip"><input type="checkbox" name="opt" value="{{ option }}"> {{ label }}</label>
+      {% endfor %}
+    </div>
+    <div class="header-actions" style="margin-top:10px;">
+      <button class="btn-primary" type="submit">تصدير PDF شهري</button>
+    </div>
+  </form>
+</div>
+
+<div class="card">
   <h2>اختيارات جاهزة</h2>
   <span id="preset-confirm-msg" hidden>حذف هذا الاختيار؟</span>
   <div class="saved-row">

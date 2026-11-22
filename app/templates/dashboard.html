@@ -47,13 +47,43 @@
     <div><span class="section-kicker">مؤشرات رئيسية</span><h2>ملخص النظام</h2></div>
   </div>
   <div class="metric-grid">
-    <article class="metric-card"><span>الموظفون النشطون</span><strong>{{ metrics.active_employees }}</strong><a href="/employees">إدارة الموظفين ←</a></article>
-    <article class="metric-card"><span>الموظفون السابقون</span><strong>{{ metrics.former_employees }}</strong><a href="/employees">السجل الوظيفي ←</a></article>
-    <article class="metric-card"><span>حضور يحتاج مراجعة</span><strong>{{ metrics.attendance_review }}</strong><a href="/attendance/review">مراجعة الحضور ←</a></article>
-    {% if request.state.admin_role != 'finance' %}<article class="metric-card"><span>إجازات غير مؤكدة</span><strong>{{ metrics.leave_drafts }}</strong><a href="/leave">فتح الإجازات ←</a></article>{% endif %}
-    <article class="metric-card"><span>سلف قيد الإجراء</span><strong>{{ metrics.advance_pending }}</strong><a href="/advances">فتح السلف ←</a></article>
-    <article class="metric-card"><span>جزاءات ومكافآت للمراجعة</span><strong>{{ metrics.staff_action_drafts }}</strong><a href="/staff-actions">فتح الإجراءات ←</a></article>
-    <article class="metric-card"><span>مسيرات رواتب مفتوحة</span><strong>{{ metrics.payroll_drafts }}</strong><a href="/payroll">فتح الرواتب ←</a></article>
+    <a class="metric-card" href="/employees"><span>الموظفون النشطون</span><strong>{{ metrics.active_employees }}</strong><span class="metric-link">إدارة الموظفين ←</span></a>
+    <a class="metric-card" href="/employees?status=archived"><span>الموظفون السابقون</span><strong>{{ metrics.former_employees }}</strong><span class="metric-link">السجل الوظيفي ←</span></a>
+    <a class="metric-card" href="/attendance/review"><span>حضور يحتاج مراجعة</span><strong>{{ metrics.attendance_review }}</strong><span class="metric-link">مراجعة الحضور ←</span></a>
+    {% if request.state.admin_role != 'finance' %}<a class="metric-card" href="/leave"><span>إجازات غير مؤكدة</span><strong>{{ metrics.leave_drafts }}</strong><span class="metric-link">فتح الإجازات ←</span></a>{% endif %}
+    <a class="metric-card" href="/advances"><span>سلف قيد الإجراء</span><strong>{{ metrics.advance_pending }}</strong><span class="metric-link">فتح السلف ←</span></a>
+    <a class="metric-card" href="/staff-actions"><span>جزاءات ومكافآت للمراجعة</span><strong>{{ metrics.staff_action_drafts }}</strong><span class="metric-link">فتح الإجراءات ←</span></a>
+    <a class="metric-card" href="/payroll"><span>مسيرات رواتب مفتوحة</span><strong>{{ metrics.payroll_drafts }}</strong><span class="metric-link">فتح الرواتب ←</span></a>
+  </div>
+</section>
+
+<section>
+  <div class="section-heading">
+    <div><span class="section-kicker">اتجاهات</span><h2>آخر ستة أشهر</h2></div>
+  </div>
+  <div class="chart-grid">
+    <div class="chart-card">
+      <h3>إجمالي صافي الرواتب المعتمدة (ج.م)</h3>
+      <div class="mini-chart" role="img" aria-label="إجمالي صافي الرواتب المعتمدة خلال آخر ستة أشهر">
+        {% for c in charts.payroll %}
+        <div class="mini-bar" title="{{ c.label }}: {{ '%0.0f'|format(c.value) }}">
+          <span class="mini-bar-fill" style="height: {{ (c.value / charts.payroll_max * 100)|round(1) }}%"></span>
+          <span class="mini-bar-label">{{ c.label[5:] }}</span>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    <div class="chart-card">
+      <h3>أيام الحضور المعتمدة</h3>
+      <div class="mini-chart" role="img" aria-label="أيام الحضور المعتمدة خلال آخر ستة أشهر">
+        {% for c in charts.attendance %}
+        <div class="mini-bar" title="{{ c.label }}: {{ c.value }}">
+          <span class="mini-bar-fill attendance" style="height: {{ (c.value / charts.attendance_max * 100)|round(1) }}%"></span>
+          <span class="mini-bar-label">{{ c.label[5:] }}</span>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
   </div>
 </section>
 

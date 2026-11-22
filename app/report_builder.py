@@ -1308,3 +1308,302 @@ def preset_config(preset: ReportPreset) -> dict:
     except (TypeError, ValueError):
         return {}
     return config if isinstance(config, dict) else {}
+
+
+# Monthly report (approved UI batch): a ready monthly PDF with 11 selectable
+# options. Options 1-7 are content sections, 8-9 six-month charts, and 10-11
+# modifiers (previous-month comparison, department grouping). The existing
+# custom report flow is untouched; this builder composes the same build_report
+# engine into one document.
+MONTHLY_OPTION_LABELS = {
+    1: "ملخص الرواتب",
+    2: "تفاصيل الرواتب",
+    3: "ملخص الحضور",
+    4: "تفاصيل الحضور",
+    5: "السلف",
+    6: "الجزاءات والمكافآت",
+    7: "الإجازات",
+    8: "رسم إجمالي صافي الرواتب — آخر 6 أشهر",
+    9: "رسم أيام الحضور المعتمدة — آخر 6 أشهر",
+    10: "مقارنة بالشهر السابق",
+    11: "تجميع حسب القسم",
+}
+MONTHLY_ALL_OPTIONS = set(MONTHLY_OPTION_LABELS)
+# Content option -> report type, for role scoping (charts inherit their type).
+MONTHLY_OPTION_TYPE = {
+    1: REPORT_TYPE_PAYROLL,
+    2: REPORT_TYPE_PAYROLL,
+    3: REPORT_TYPE_ATTENDANCE,
+    4: REPORT_TYPE_ATTENDANCE,
+    5: REPORT_TYPE_ADVANCES,
+    6: REPORT_TYPE_STAFF_ACTIONS,
+    7: REPORT_TYPE_LEAVE,
+    8: REPORT_TYPE_PAYROLL,
+    9: REPORT_TYPE_ATTENDANCE,
+}
+_MONTHLY_PAYROLL_SUMMARY_FIELDS = {"emp_name", "emp_code", "pay_net"}
+_MONTHLY_PAYROLL_DETAIL_FIELDS = {
+    "emp_name", "emp_code", "emp_department", "pay_basic", "pay_allowances",
+    "pay_deductions", "pay_advances", "pay_net", "pay_work_days",
+}
+_MONTHLY_ATTENDANCE_SUMMARY_FIELDS = {"emp_name", "emp_code", "att_present", "att_absent"}
+_MONTHLY_ATTENDANCE_DETAIL_FIELDS = {
+    "emp_name", "emp_code", "emp_department",
+    "att_present", "att_absent", "att_late", "att_overtime",
+}
+_MONTHLY_SECTION_FIELDS = {
+    1: _MONTHLY_PAYROLL_SUMMARY_FIELDS,
+    2: _MONTHLY_PAYROLL_DETAIL_FIELDS,
+    3: _MONTHLY_ATTENDANCE_SUMMARY_FIELDS,
+    4: _MONTHLY_ATTENDANCE_DETAIL_FIELDS,
+}
+
+
+def monthly_options_for_types(allowed_types: set[str] | None) -> set[int]:
+    """Options whose underlying report type is allowed; 10/11 are modifiers."""
+    data_options = {
+        option for option, report_type in MONTHLY_OPTION_TYPE.items()
+        if allowed_types is None or report_type in allowed_types
+    }
+    if not data_options:
+        return set()
+    return data_options | {10, 11}
+
+
+def _monthly_six_month_series(db: Session, month_start: date, report_type: str) -> list[tuple[str, float]]:
+    series: list[tuple[str, float]] = []
+    for offset in range(-5, 1):
+        start = _add_months(month_start, offset)
+        end = _add_months(month_start, offset + 1)
+        if report_type == REPORT_TYPE_PAYROLL:
+            value = db.scalar(
+                select(func.coalesce(func.sum(PayrollItem.net_pay), 0))
+                .select_from(PayrollItem)
+                .join(PayrollRun, PayrollRun.id == PayrollItem.payroll_run_id)
+                .where(
+                    PayrollRun.status.in_(["approved", "closed"]),
+                    PayrollRun.period_start >= start,
+                    PayrollRun.period_start < end,
+                )
+            ) or 0
+            series.append((start.strftime("%m/%Y"), float(value)))
+        else:
+            value = db.scalar(
+                select(func.count(AttendanceDailyRecord.id)).where(
+                    AttendanceDailyRecord.status == "approved",
+                    AttendanceDailyRecord.worked_minutes > 0,
+                    AttendanceDailyRecord.work_date >= start,
+                    AttendanceDailyRecord.work_date < end,
+                )
+            ) or 0
+            series.append((start.strftime("%m/%Y"), float(value)))
+    return series
+
+
+def _monthly_chart_drawing(series: list[tuple[str, float]], bar_color_hex: str):
+    from reportlab.graphics.shapes import Drawing, Rect, String
+    from reportlab.lib import colors as _colors
+
+    width, height, chart_h, base_y = 520, 170, 120, 30
+    drawing = Drawing(width, height)
+    maximum = max((value for _, value in series), default=0) or 1
+    slot = width / max(1, len(series))
+    bar_w = min(48, slot * 0.6)
+    for index, (label, value) in enumerate(series):
+        x = width - (index + 1) * slot + (slot - bar_w) / 2  # RTL: newest left
+        bar_h = max(1.0, (value / maximum) * chart_h)
+        drawing.add(Rect(x, base_y, bar_w, bar_h, fillColor=_colors.HexColor(bar_color_hex), strokeColor=None))
+        drawing.add(String(x + bar_w / 2, base_y - 12, label, fontName="Helvetica", fontSize=8, textAnchor="middle"))
+        drawing.add(String(x + bar_w / 2, base_y + bar_h + 4, ("%0.0f" % value), fontName="Helvetica", fontSize=7, textAnchor="middle"))
+    return drawing
+
+
+def build_monthly_pdf(db: Session, month_start: date, options: set[int], language: str = "ar") -> bytes:
+    """Render the approved monthly report: one PDF with the chosen sections.
+
+    Options outside 1-11 are rejected by the caller. The month is explicit —
+    no automatic period guessing — and nothing here schedules or sends anything.
+    """
+    from reportlab.lib import colors
+    from reportlab.lib.enums import TA_CENTER, TA_RIGHT
+    from reportlab.lib.pagesizes import A4, landscape
+    from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+    from reportlab.lib.units import mm
+    from reportlab.platypus import LongTable, PageBreak, Paragraph, SimpleDocTemplate, Spacer, TableStyle
+
+    from app.reports import _pdf_cell, _pdf_font_name
+
+    unknown = set(options) - MONTHLY_ALL_OPTIONS
+    if unknown or not options:
+        raise ValueError("خيارات التقرير الشهري غير صالحة.")
+    month_start = month_start.replace(day=1)
+    month_end = _add_months(month_start, 1) - timedelta(days=1)
+
+    def L(text):
+        return _L(text, language)
+
+    if language == "zh":
+        from reportlab.pdfbase import pdfmetrics
+        from reportlab.pdfbase.cidfonts import UnicodeCIDFont
+        if "STSong-Light" not in pdfmetrics.getRegisteredFontNames():
+            pdfmetrics.registerFont(UnicodeCIDFont("STSong-Light"))
+        font_name = "STSong-Light"
+    else:
+        font_name = _pdf_font_name()
+    if language == "zh":
+        from app.reports import _pdf_cell_mixed
+        arabic_font = _pdf_font_name()
+
+        def cell_(value):
+            return _pdf_cell_mixed(value, arabic_font)
+    else:
+        cell_ = _pdf_cell
+    base_styles = getSampleStyleSheet()
+    title_style = ParagraphStyle("MRTitle", parent=base_styles["Title"], fontName=font_name, fontSize=16, leading=20, alignment=TA_RIGHT, spaceAfter=3 * mm)
+    section_style = ParagraphStyle("MRSection", parent=base_styles["Heading2"], fontName=font_name, fontSize=13, leading=17, alignment=TA_RIGHT, spaceAfter=2 * mm)
+    meta_style = ParagraphStyle("MRMeta", parent=base_styles["BodyText"], fontName=font_name, fontSize=9, leading=12, alignment=TA_RIGHT)
+    cell_style = ParagraphStyle("MRCell", parent=base_styles["BodyText"], fontName=font_name, fontSize=7.5, leading=9.5, alignment=TA_RIGHT, wordWrap="CJK")
+    header_style = ParagraphStyle("MRHeader", parent=cell_style, fontSize=8, leading=10, alignment=TA_CENTER, textColor=colors.white)
+
+    page_size = landscape(A4)
+    output = BytesIO()
+    month_label_text = month_start.strftime("%m/%Y")
+    document = SimpleDocTemplate(
+        output,
+        pagesize=page_size,
+        rightMargin=10 * mm,
+        leftMargin=10 * mm,
+        topMargin=10 * mm,
+        bottomMargin=10 * mm,
+        title=f"{L('التقرير الشهري')} {month_label_text}",
+        author="M.Y. Business Hotel HR System",
+    )
+    available_width = page_size[0] - document.leftMargin - document.rightMargin
+    story = [
+        Paragraph(cell_(f"{L('التقرير الشهري')} — {month_label_text}"), title_style),
+        Paragraph(cell_(f"{L('الفترة:')} {month_start.strftime('%d/%m/%Y')} {L('إلى')} {month_end.strftime('%d/%m/%Y')}"), meta_style),
+        Paragraph(cell_(f"{L('الأقسام المختارة:')} " + "، ".join(L(MONTHLY_OPTION_LABELS[o]) for o in sorted(options) if o in MONTHLY_OPTION_LABELS)), meta_style),
+        Spacer(1, 4 * mm),
+    ]
+    compare = 10 in options
+    grouped = 11 in options
+    first_section = True
+
+    def render_result(result):
+        nonlocal first_section
+        if not first_section:
+            story.append(PageBreak())
+        first_section = False
+        story.append(Paragraph(cell_(L(result.title)), section_style))
+        story.append(Paragraph(cell_(f"{L(result.period_label)} · {L(result.scope_label)} · {L(result.status_label)} · {result.employee_count} {L('موظف')}"), meta_style))
+        story.append(Spacer(1, 2 * mm))
+        groups = result.groups
+        if not grouped:
+            merged_rows = [row for group in groups for row in group["rows"]]
+            groups = [{"department": "الكل", "rows": merged_rows}] if merged_rows else []
+        column_count = max(1, len(result.columns))
+        table_rows = [[Paragraph(cell_(L(label)), header_style) for _, label, _ in result.columns]]
+        for group in groups:
+            dept_row = [Paragraph(cell_(L(group["department"])), cell_style)] + [Paragraph("", cell_style)] * (column_count - 1)
+            table_rows.append(dept_row)
+            for row in group["rows"]:
+                table_rows.append([
+                    Paragraph(cell_(_fmt_number(row.get(key)) if numeric else L(row.get(key, ""))), cell_style)
+                    for key, _, numeric in result.columns
+                ])
+        if result.totals:
+            totals_cells = []
+            first = True
+            for key, _, numeric in result.columns:
+                if numeric and key in result.totals:
+                    totals_cells.append(Paragraph(cell_(_fmt_number(result.totals[key])), cell_style))
+                elif first:
+                    totals_cells.append(Paragraph(cell_(L("الإجمالي")), cell_style))
+                    first = False
+                else:
+                    totals_cells.append(Paragraph("", cell_style))
+            table_rows.append(totals_cells)
+        table = LongTable(table_rows, colWidths=[available_width / column_count] * column_count, repeatRows=1, hAlign="RIGHT")
+        table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#24415E")),
+            ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#AAB4BE")),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("LEFTPADDING", (0, 0), (-1, -1), 2),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 2),
+            ("TOPPADDING", (0, 0), (-1, -1), 2),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
+        ]))
+        story.append(table)
+        if result.summary:
+            story.append(Spacer(1, 3 * mm))
+            story.append(Paragraph(cell_(L("الملخص")), meta_style))
+            summary_rows = [[Paragraph(cell_(L(label)), cell_style), Paragraph(cell_(L(str(value))), cell_style)] for label, value in result.summary]
+            summary_table = LongTable(summary_rows, colWidths=[available_width * 0.3, available_width * 0.2], hAlign="RIGHT")
+            summary_table.setStyle(TableStyle([
+                ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#AAB4BE")),
+                ("BACKGROUND", (0, 0), (0, -1), colors.HexColor("#FAF3E3")),
+            ]))
+            story.append(summary_table)
+        if compare and result.comparison and result.comparison.get("like_for_like"):
+            lfl = result.comparison["like_for_like"]
+            story.append(Spacer(1, 3 * mm))
+            story.append(Paragraph(cell_(f"{L('مقارنة مثل بمثل مع الفترة السابقة')} ({result.comparison['period_label']})"), meta_style))
+            lfl_rows = [
+                [Paragraph(cell_(L("المستمرون في الفترتين")), cell_style), Paragraph(cell_(str(lfl["continuing_count"])), cell_style)],
+                [Paragraph(cell_(L("صافي المستمرين — الفترة الحالية")), cell_style), Paragraph(cell_(_fmt_number(lfl["continuing_current_net"])), cell_style)],
+                [Paragraph(cell_(L("صافي المستمرين — الفترة السابقة")), cell_style), Paragraph(cell_(_fmt_number(lfl["continuing_previous_net"])), cell_style)],
+                [Paragraph(cell_(L("التغير مثل بمثل")), cell_style), Paragraph(cell_(lfl["continuing_pct"] or "—"), cell_style)],
+            ]
+            lfl_table = LongTable(lfl_rows, colWidths=[available_width * 0.3, available_width * 0.25], hAlign="RIGHT")
+            lfl_table.setStyle(TableStyle([
+                ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#AAB4BE")),
+                ("BACKGROUND", (0, 0), (0, -1), colors.HexColor("#FAF3E3")),
+            ]))
+            story.append(lfl_table)
+        if result.warnings:
+            story.append(Spacer(1, 2 * mm))
+            for warning in result.warnings:
+                story.append(Paragraph(cell_(f"{L('تنبيه:')} {_warning_text_ar(warning, language)}"), meta_style))
+
+    for option in sorted(options):
+        if option in (10, 11):
+            continue
+        if option in (8, 9):
+            if not first_section:
+                story.append(PageBreak())
+            first_section = False
+            report_type = MONTHLY_OPTION_TYPE[option]
+            story.append(Paragraph(cell_(L(MONTHLY_OPTION_LABELS[option])), section_style))
+            series = _monthly_six_month_series(db, month_start, report_type)
+            color = "#8a6d1a" if report_type == REPORT_TYPE_PAYROLL else "#14495c"
+            story.append(_monthly_chart_drawing(series, color))
+            if all(value == 0 for _, value in series):
+                story.append(Paragraph(cell_(L("لا توجد بيانات معتمدة في هذه الفترة بعد.")), meta_style))
+            continue
+        selection = ReportSelection(
+            report_type=MONTHLY_OPTION_TYPE[option],
+            start_date=month_start,
+            end_date=month_end,
+            period_choice="custom",
+            compare_like_for_like=compare,
+        )
+        if option in _MONTHLY_SECTION_FIELDS:
+            selection.fields = set(_MONTHLY_SECTION_FIELDS[option])
+        else:
+            selection.fields = {"emp_name", "emp_code", "emp_department"}
+        render_result(build_report(db, selection))
+
+    story.append(Spacer(1, 10 * mm))
+    signature_rows = [[
+        Paragraph(cell_(L("إعداد: ..............................")), meta_style),
+        Paragraph(cell_(L("مراجعة: ..............................")), meta_style),
+        Paragraph(cell_(L("اعتماد: ..............................")), meta_style),
+    ]]
+    signature_table = LongTable(signature_rows, colWidths=[available_width / 3] * 3, hAlign="RIGHT")
+    signature_table.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "BOTTOM")]))
+    story.append(signature_table)
+
+    generated = datetime.now(CAIRO_TZ).strftime("%d/%m/%Y %H:%M")
+    footer_text = f"M.Y. Business Hotel — {L('استُخرج في:')} {generated}"
+    document.build(story, canvasmaker=_NumberedCanvas.build(font_name, footer_text, language))
+    return output.getvalue()
