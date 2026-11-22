@@ -9,6 +9,7 @@ submitted input value.
 FIELD_LABELS_AR = {
     "absence_days": "أيام الغياب",
     "action_id": "رقم الإجراء",
+    "page": "رقم الصفحة",
     "active": "نشط",
     "address": "العنوان",
     "advance_type": "نوع السلفة",

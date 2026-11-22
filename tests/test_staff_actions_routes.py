@@ -278,3 +278,34 @@ def test_staff_action_approval_rejects_inactive_employee(staff_action_client):
     with client.test_session_factory() as db:
         assert db.get(StaffAction, item_id).status == "draft"
 
+
+
+def test_category_renders_arabic_label_not_raw_key(staff_action_client):
+    client = staff_action_client
+    login(client)
+    token = csrf(client.get("/staff-actions"))
+    created = client.post(
+        "/staff-actions",
+        data={
+            "csrf_token": token,
+            "employee_id": client.test_employee_id,
+            "kind": "sanction",
+            "category": "salary_deduction",
+            "title": "Synthetic label rendering check",
+            "reason": "Synthetic documented reason",
+        },
+        follow_redirects=False,
+    )
+    assert created.status_code == 303
+
+    page = client.get("/staff-actions")
+    assert page.status_code == 200
+    assert "خصم من الراتب" in page.text
+    assert ">salary_deduction<" not in page.text
+
+    page_en = client.get("/staff-actions", cookies={"my_hr_language": "en"})
+    assert "Salary Deduction" in page_en.text
+    assert ">salary_deduction<" not in page_en.text
+
+    page_zh = client.get("/staff-actions", cookies={"my_hr_language": "zh"})
+    assert "工资扣款" in page_zh.text

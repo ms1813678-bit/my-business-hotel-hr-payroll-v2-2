@@ -17,6 +17,19 @@ REWARD_CATEGORIES = {
     "promotion_recommendation", "custom",
 }
 
+CATEGORY_LABELS_AR = {
+    "verbal_notice": "تنبيه شفهي",
+    "first_warning": "إنذار أول",
+    "final_warning": "إنذار نهائي",
+    "salary_deduction": "خصم من الراتب",
+    "suspension": "إيقاف عن العمل",
+    "financial_reward": "مكافأة مالية",
+    "certificate": "شهادة تقدير",
+    "commendation": "إشادة",
+    "promotion_recommendation": "توصية بالترقية",
+    "custom": "نوع مخصص",
+}
+
 
 def create_staff_action(
     db: Session,

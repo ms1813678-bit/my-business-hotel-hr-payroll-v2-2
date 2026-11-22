@@ -49,7 +49,13 @@ from app.leave_workflow import add_balance_entry, cancel_leave, confirm_leave, l
 from app.advance_workflow import approve_advance, create_advance, mark_advance_paid, reject_advance
 from app.models import AdvanceInstallment, CAIRO_TZ
 from app.national_id import ERROR_MESSAGE as NATIONAL_ID_ERROR, is_valid_egyptian_national_id
-from app.staff_actions_workflow import approve_staff_action, cancel_staff_action, create_staff_action, record_employee_acknowledgement
+from app.staff_actions_workflow import (
+    CATEGORY_LABELS_AR,
+    approve_staff_action,
+    cancel_staff_action,
+    create_staff_action,
+    record_employee_acknowledgement,
+)
 from app.reports import build_hr_pdf, build_hr_workbook
 from app.report_builder import (
     DEFAULT_FIELDS,
@@ -473,13 +479,65 @@ def set_language(language: str, request: Request):
 
 
 
+def _wants_html(request: Request) -> bool:
+    accept = request.headers.get("accept", "").lower()
+    return "text/html" in accept and "application/json" not in accept
+
+
+def _friendly_error_page(request: Request, status_code: int, heading: str, body: str) -> HTMLResponse:
+    """Standalone trilingual error page. Strings are Arabic source, translated here."""
+    import html as _html
+    from app.i18n import translate_text
+    language = getattr(request.state, "language", "ar")
+    heading = _html.escape(translate_text(heading, language))
+    body = _html.escape(translate_text(body, language))
+    home = _html.escape(translate_text("العودة للرئيسية", language))
+    html = (
+        "<!DOCTYPE html><html lang=\"ar\" dir=\"rtl\"><head>"
+        "<meta charset=\"utf-8\">"
+        "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">"
+        f"<title>{status_code} — {heading}</title>"
+        "<style>body{font-family:sans-serif;background:#f4f6f8;color:#1f2933;"
+        "display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;}"
+        ".card{background:#fff;border-radius:12px;box-shadow:0 2px 12px rgba(0,0,0,.08);"
+        "padding:32px;max-width:420px;text-align:center;}"
+        ".code{font-size:48px;font-weight:700;color:#0d6efd;margin:0;}"
+        "h1{font-size:20px;margin:8px 0;}"
+        "p{color:#52606d;line-height:1.7;}"
+        "a{display:inline-block;margin-top:16px;background:#0d6efd;color:#fff;"
+        "padding:10px 20px;border-radius:8px;text-decoration:none;}</style></head><body>"
+        f"<div class=\"card\"><p class=\"code\">{status_code}</p>"
+        f"<h1>{heading}</h1><p>{body}</p>"
+        "<a href=\"/\">" + home + "</a></div></body></html>"
+    )
+    return HTMLResponse(status_code=status_code, content=html)
+
+
+from starlette.exceptions import HTTPException as StarletteHTTPException
+
+
+@app.exception_handler(StarletteHTTPException)
 @app.exception_handler(HTTPException)
 async def authentication_exception_handler(request: Request, exc: HTTPException):
     """Redirect browser page requests to login while preserving API error responses."""
-    accept = request.headers.get("accept", "").lower()
-    wants_html = "text/html" in accept and "application/json" not in accept
+    wants_html = _wants_html(request)
     if exc.status_code == 401 and request.method in {"GET", "HEAD"} and wants_html:
         return RedirectResponse("/login", status_code=303)
+    if wants_html and exc.status_code in {403, 404}:
+        # App-authored Arabic details are user-facing reasons; keep them.
+        # Anything else (framework "Not Found", programmer strings) gets a
+        # neutral fallback so no internals leak into the page.
+        detail = exc.detail if isinstance(exc.detail, str) else ""
+        has_arabic_reason = any("\u0600" <= ch <= "\u06ff" for ch in detail)
+        if exc.status_code == 403:
+            heading = "غير مسموح بهذا الإجراء"
+            fallback = "ليس لديك صلاحية تنفيذ هذا الإجراء. ارجع للرئيسية."
+        else:
+            heading = "الصفحة غير موجودة"
+            fallback = "الرابط غير صحيح أو الصفحة اتنقلت. ارجع للرئيسية وكمّل من هناك."
+        return _friendly_error_page(
+            request, exc.status_code, heading, detail if has_arabic_reason else fallback,
+        )
     from fastapi.responses import JSONResponse
     detail = exc.detail
     if isinstance(detail, str):
@@ -511,6 +569,13 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
             "field": translate_text(label_ar, language),
             "msg": translate_text(msg_ar, language),
         })
+    if _wants_html(request):
+        problems = ". ".join(f"{d['field']}: {d['msg']}" for d in detail[:3])
+        retry = translate_text("ارجع وجرّب مرة أخرى.", language)
+        return _friendly_error_page(
+            request, 422, "البيانات غير مكتملة أو غير صحيحة",
+            f"{problems} {retry}",
+        )
     return JSONResponse(status_code=422, content={"detail": detail})
 
 
@@ -2048,6 +2113,7 @@ def advances_page(request: Request, page: int = 1, admin: AdminAccount = Depends
                 "advance_summary": advance_summary,
                 "employee_names": {e.id: e.full_name for e in all_employees},
                 "employee_codes": {e.id: e.code for e in all_employees},
+                "category_labels": CATEGORY_LABELS_AR,
                 "today": date.today().isoformat(),
                 "submission_key": uuid4().hex,
                 "csrf_token": get_csrf_token(request),
@@ -2172,6 +2238,7 @@ def staff_actions_page(request: Request, page: int = 1, admin: AdminAccount = De
                 "total_records": total_records, "records_page_size": page_size,
                 "employee_names": {e.id: e.full_name for e in all_employees},
                 "employee_codes": {e.id: e.code for e in all_employees},
+                "category_labels": CATEGORY_LABELS_AR,
                 "csrf_token": get_csrf_token(request),
                 "error": request.query_params.get("error"),
             },

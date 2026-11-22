@@ -79,7 +79,7 @@
     <tr>
       <td>{{ employee_codes.get(a.employee_id, "—") }} — {{ employee_names.get(a.employee_id, "—") }}</td>
       <td>{{ "جزاء" if a.kind == "sanction" else "مكافأة" }}</td>
-      <td>{{ a.category }}</td>
+      <td>{{ category_labels.get(a.category, a.category) }}</td>
       <td>{{ a.title }}</td>
       <td>{% if a.is_financial %}{{ "%.2f"|format(a.amount) }} <span>ج</span>{% else %}—{% endif %}</td>
       <td>{% if a.payroll_month %}{{ a.payroll_month|fmt_m }}{% else %}—{% endif %}</td>
