@@ -6,8 +6,9 @@ never changes or recommends changes to data.
 """
 from __future__ import annotations
 
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import func, select
 
@@ -56,9 +57,26 @@ def build_weekly_summary(end: date | None = None, days: int = 7) -> dict[str, An
             AdvanceRequest.status, func.count(AdvanceRequest.id)
         ).where(AdvanceRequest.request_date.between(start, end))
           .group_by(AdvanceRequest.status)).all())
-        staff_actions = count(select(func.count(StaffAction.id)).where(
-            func.date(StaffAction.created_at).between(start, end),
-        ))
+        # Bucket staff actions by the Cairo calendar day (hotel local time).
+        # created_at is stored in UTC; a Cairo day does not align with the
+        # database/server day, so convert in Python for identical behavior
+        # on every database. Naive values are read as UTC (models store UTC).
+        cairo = ZoneInfo("Africa/Cairo")
+        staff_rows = db.scalars(select(StaffAction).where(
+            StaffAction.created_at >= datetime.combine(
+                start - timedelta(days=1), datetime.min.time()),
+            StaffAction.created_at <= datetime.combine(
+                end + timedelta(days=1), datetime.max.time()),
+        )).all()
+
+        def _cairo_day(ts: datetime) -> date:
+            if ts.tzinfo is None:
+                ts = ts.replace(tzinfo=timezone.utc)
+            return ts.astimezone(cairo).date()
+
+        staff_actions = sum(
+            1 for row in staff_rows if start <= _cairo_day(row.created_at) <= end
+        )
         hires = count(select(func.count(Employee.id)).where(
             Employee.hire_date.between(start, end),
         ))
@@ -81,6 +99,21 @@ def build_weekly_summary(end: date | None = None, days: int = 7) -> dict[str, An
     }
 
 
+_PAYROLL_STATUS = {
+    "draft": ("مسودة", "draft", "草稿"),
+    "reopened": ("معاد فتحه", "reopened", "已重新打开"),
+    "approved": ("معتمد", "approved", "已批准"),
+    "closed": ("مغلق", "closed", "已关闭"),
+}
+
+
+def _payroll_status_label(status: str, language: str) -> str:
+    labels = _PAYROLL_STATUS.get(status)
+    if labels is None:
+        return status
+    return {"ar": labels[0], "en": labels[1], "zh": labels[2]}.get(language, labels[0])
+
+
 def format_weekly_summary(report: dict[str, Any], language: str = "ar") -> str:
     """Trilingual presentation of the report dict; stored data untouched."""
     def m(ar: str, en: str, zh: str) -> str:
@@ -88,6 +121,7 @@ def format_weekly_summary(report: dict[str, Any], language: str = "ar") -> str:
 
     leaves = report["leaves"]
     advances = report["advances"]
+    link = {"ar": "فتح السجلات", "en": "Open the records", "zh": "打开记录"}.get(language, "فتح السجلات")
     lines = [
         m(
             f"ملخص الأسبوع من {report['start']} إلى {report['end']} (قراءة فقط).",
@@ -99,29 +133,50 @@ def format_weekly_summary(report: dict[str, Any], language: str = "ar") -> str:
             f"Attendance: {report['attendance_review']} records awaiting review, {report['attendance_approved']} approved.",
             f"考勤：{report['attendance_review']} 条待审核，{report['attendance_approved']} 条已批准。",
         ),
+        f"{link}: /attendance/review",
         m(
             f"الإجازات: {leaves.get('draft', 0)} مسودة، {leaves.get('approved', 0)} معتمدة، {leaves.get('cancelled', 0)} ملغاة خلال الفترة.",
             f"Leave: {leaves.get('draft', 0)} draft, {leaves.get('approved', 0)} approved, {leaves.get('cancelled', 0)} cancelled in the window.",
             f"请假：窗口内 {leaves.get('draft', 0)} 条草稿，{leaves.get('approved', 0)} 条已批准，{leaves.get('cancelled', 0)} 条已取消。",
         ),
+        f"{link}: /leave",
         m(
             f"السلف: {advances.get('pending', 0)} قيد الانتظار، {advances.get('approved', 0)} معتمدة، {advances.get('rejected', 0)} مرفوضة، {advances.get('paid', 0)} مدفوعة.",
             f"Advances: {advances.get('pending', 0)} pending, {advances.get('approved', 0)} approved, {advances.get('rejected', 0)} rejected, {advances.get('paid', 0)} paid.",
             f"预支：{advances.get('pending', 0)} 笔待处理，{advances.get('approved', 0)} 笔已批准，{advances.get('rejected', 0)} 笔已拒绝，{advances.get('paid', 0)} 笔已支付。",
         ),
+        f"{link}: /advances",
         m(
             f"إجراءات الموظفين المسجلة: {report['staff_actions']} — تعيينات جديدة: {report['hires']}.",
             f"Staff actions recorded: {report['staff_actions']} — new hires: {report['hires']}.",
             f"已登记员工处分/措施：{report['staff_actions']} 条——新入职：{report['hires']} 人。",
         ),
     ]
+    lines.append(f"{link}: /staff-actions")
+    activity_zero = (
+        report["attendance_review"] == 0
+        and report["attendance_approved"] == 0
+        and not any(report["leaves"].values())
+        and not any(report["advances"].values())
+        and report["staff_actions"] == 0
+        and report["hires"] == 0
+    )
+    if activity_zero:
+        lines.append(m(
+            "ملاحظة: الأرقام أعلاه تغطي السجلات المسجلة في النظام فقط (الحضور، الإجازات، السلف، إجراءات الموظفين، الرواتب)، والصفر يعني عدم وجود سجلات في هذه المصادر — لا يُستنتج منه أنه لم يحدث عمل فعليًا.",
+            "Note: the figures above cover only sources recorded in the system (attendance, leaves, advances, staff actions, payroll). A zero means no records in those sources; it does not show that no work actually happened.",
+            "说明：以上数字仅涵盖系统中已记录的来源（考勤、请假、预支、员工操作、工资）。零表示这些来源中没有记录，并不代表实际没有发生工作。",
+        ))
+
     latest = report["latest_payroll"]
     if latest:
+        status = _payroll_status_label(latest["status"], language)
         lines.append(m(
-            f"أحدث مسير رواتب: {latest['period']} — الحالة: {latest['status']}.",
-            f"Latest payroll run: {latest['period']} — status: {latest['status']}.",
-            f"最近工资批次：{latest['period']}——状态：{latest['status']}。",
+            f"أحدث مسير رواتب: {latest['period']} — الحالة: {status}.",
+            f"Latest payroll run: {latest['period']} — status: {status}.",
+            f"最近工资批次：{latest['period']}——状态：{status}。",
         ))
+        lines.append(f"{link}: /payroll")
     else:
         lines.append(m(
             "لا يوجد مسير رواتب منشأ بعد.",

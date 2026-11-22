@@ -6,6 +6,7 @@ from decimal import Decimal
 from pathlib import Path
 from urllib.parse import urlencode, urlsplit
 from uuid import uuid4
+import re
 import secrets
 import time as time_module
 
@@ -331,6 +332,23 @@ templates.env.filters["fmt_dt"] = _fmt_dt
 templates.env.filters["fmt_d"] = _fmt_d
 templates.env.filters["fmt_m"] = _fmt_m
 templates.env.filters["status_label"] = _status_label
+
+
+_ANSWER_LINK_LINE = re.compile(r"^([^\n:]{1,80}):\s*(/[A-Za-z0-9_\-/]+)\s*$")
+
+
+def _answer_links(text):
+    """Extract in-app record links from assistant answer lines like
+    'label: /path' so the UI renders them as real clickable links."""
+    links = []
+    for line in (text or "").splitlines():
+        match = _ANSWER_LINK_LINE.match(line.strip())
+        if match:
+            links.append((match.group(1).strip(), match.group(2)))
+    return links
+
+
+templates.env.filters["answer_links"] = _answer_links
 templates.env.filters["field_label"] = _field_label
 
 from app.audit_display import detail_label as _audit_detail_label, reason_label as _audit_reason_label, system_reason as _system_reason_label, STATUS_LABELS_AR as _STATUS_AR

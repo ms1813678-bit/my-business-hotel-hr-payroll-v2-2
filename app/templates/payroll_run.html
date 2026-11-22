@@ -161,15 +161,25 @@
       <td>{{ row.net_after }}</td>
       <td>{{ row.net_delta }}</td>
       {% else %}
+      {% if row.infeasible_reason == "absence_bounds" %}
+      <td colspan="2">غير ممكن: القيمة خارج نطاق أيام الشهر</td>
+      {% elif row.infeasible_reason == "net_negative" %}
       <td colspan="2">غير ممكن: الخصومات تتجاوز المستحق</td>
+      {% else %}
+      <td colspan="2">غير ممكن: القيمة مرفوضة من محرك الرواتب</td>
+      {% endif %}
       {% endif %}
     </tr>
     {% endfor %}
     <tr>
       <td><strong>الإجمالي</strong></td><td colspan="2"></td>
       <td><strong>{{ simulation.total_net_before }}</strong></td>
+      {% if simulation.totals_complete %}
       <td><strong>{{ simulation.total_net_after }}</strong></td>
       <td><strong>{{ simulation.total_net_delta }}</strong></td>
+      {% else %}
+      <td colspan="2"><strong>غير مكتمل: توجد بنود غير ممكنة</strong></td>
+      {% endif %}
     </tr>
     </tbody></table></div>
     {% if simulation.infeasible_items %}

@@ -101,9 +101,12 @@ def test_infeasible_is_reported_never_clamped(factory):
             assert row["feasible"] is False
             assert row["net_after"] is None
             assert row["net_delta"] is None
-        # totals count only feasible items: zero here
-        assert result["total_net_after"] == "0.00"
+        # totals are withheld as incomplete, never a misleading partial sum
+        assert result["totals_complete"] is False
+        assert result["total_net_after"] is None
+        assert result["total_net_delta"] is None
         assert result["total_net_before"] == "12300.00"
+        assert all(row["infeasible_reason"] == "net_negative" for row in result["rows"])
 
 
 def test_employee_scope_limits_the_comparison(factory):
@@ -219,3 +222,54 @@ def test_simulation_route_renders_results_and_stays_read_only(monkeypatch):
     finally:
         app.dependency_overrides.clear()
         engine.dispose()
+
+
+def _run_id(db):
+    return db.scalars(select(PayrollRun)).first().id
+
+
+def test_invalid_values_are_rejected_before_the_engine(factory):
+    with factory.begin() as db:
+        run_id = _run_id(db)
+        for bad in ("NaN", "Infinity", "-Infinity", "abc"):
+            with pytest.raises(ValueError):
+                simulate_run_adjustment(db, run_id, field="taxes", mode="add", value=bad)
+        with pytest.raises(ValueError, match="value_negative"):
+            simulate_run_adjustment(db, run_id, field="taxes", mode="add", value="-1")
+        with pytest.raises(ValueError, match="value_too_large"):
+            simulate_run_adjustment(db, run_id, field="taxes", mode="set", value="1e999999")
+        with pytest.raises(ValueError, match="value_too_large"):
+            simulate_run_adjustment(db, run_id, field="taxes", mode="set", value="1000000000")
+
+
+def test_absence_beyond_month_bounds_reports_the_accurate_reason(factory):
+    with factory.begin() as db:
+        result = simulate_run_adjustment(
+            db, _run_id(db), field="absence_days", mode="set", value="31")
+    assert result["infeasible_items"] == len(result["rows"]) > 0
+    assert all(row["infeasible_reason"] == "absence_bounds" for row in result["rows"])
+    assert result["totals_complete"] is False
+    assert result["total_net_after"] is None
+    assert result["total_net_delta"] is None
+
+
+def test_negative_net_reports_its_own_reason(factory):
+    with factory.begin() as db:
+        result = simulate_run_adjustment(
+            db, _run_id(db), field="taxes", mode="set", value="999999")
+    assert result["infeasible_items"] == len(result["rows"]) > 0
+    assert all(row["infeasible_reason"] == "net_negative" for row in result["rows"])
+    assert result["totals_complete"] is False
+
+
+def test_helper_never_autoflushes_dirty_session_state(factory):
+    from sqlalchemy.orm import sessionmaker as _sm
+    engine = factory.kw["bind"]
+    auto = _sm(bind=engine, autoflush=True, autocommit=False)
+    with auto.begin() as db:
+        run_id = _run_id(db)
+        employee = db.scalars(select(Employee)).first()
+        employee.full_name = "اسم متسخ لم يُحفظ"
+        result = simulate_run_adjustment(db, run_id, field="taxes", mode="add", value="10")
+        assert result["rows"]
+        assert employee in db.dirty  # pending change survived: nothing was flushed

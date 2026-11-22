@@ -99,6 +99,60 @@ def test_formatter_is_trilingual(seeded):
     # the figures are identical across languages
     for text in (ar, en, zh):
         assert "2026-11-01" in text
+    # the payroll status is localized, never the raw enum
+    assert "الحالة: معتمد" in ar
+    assert "status: approved" in en
+    assert "状态：已批准" in zh
+    # no activity qualifier while the window has records
+    assert "تغطي السجلات المسجلة في النظام فقط" not in ar
+    # every section links its records page (each point opens its record)
+    assert "فتح السجلات: /attendance/review" in ar
+    assert "فتح السجلات: /payroll" in ar
+    assert "Open the records: /attendance/review" in en
+    assert "Open the records: /leave" in en
+    assert "Open the records: /advances" in en
+    assert "打开记录: /attendance/review" in zh
+
+
+def test_staff_actions_bucketed_by_cairo_calendar_day(seeded):
+    """created_at is UTC; a Cairo day must decide the bucket, not the DB day."""
+    from datetime import datetime, time, timezone
+    from sqlalchemy import select as _select
+    from app.models import StaffAction
+    today = date.today()
+    with seeded.begin() as db:
+        emp = db.scalars(_select(Employee)).first()
+        # 22:30 UTC on (today-7) = 00:30 Cairo on (today-6): inside the window
+        db.add(StaffAction(
+            employee_id=emp.id, kind="reward", category="general", title="t",
+            reason="t", status="approved", created_by="t", is_financial=False,
+            created_at=datetime.combine(today - timedelta(days=7), time(22, 30),
+                                        tzinfo=timezone.utc),
+        ))
+        # 20:30 UTC on (today-7) = 22:30 Cairo on (today-7): outside the window
+        db.add(StaffAction(
+            employee_id=emp.id, kind="reward", category="general", title="t",
+            reason="t", status="approved", created_by="t", is_financial=False,
+            created_at=datetime.combine(today - timedelta(days=7), time(20, 30),
+                                        tzinfo=timezone.utc),
+        ))
+    report = weekly.build_weekly_summary()
+    assert report["staff_actions"] == 1
+
+
+def test_empty_window_carries_source_coverage_qualifier():
+    report = {
+        "start": "2026-11-16", "end": "2026-11-22",
+        "attendance_review": 0, "attendance_approved": 0,
+        "leaves": {}, "advances": {}, "staff_actions": 0, "hires": 0,
+        "latest_payroll": None,
+    }
+    ar = weekly.format_weekly_summary(report, "ar")
+    en = weekly.format_weekly_summary(report, "en")
+    zh = weekly.format_weekly_summary(report, "zh")
+    assert "تغطي السجلات المسجلة في النظام فقط" in ar
+    assert "cover only sources recorded in the system" in en
+    assert "仅涵盖系统中已记录的来源" in zh
 
 
 def test_dispatch_through_structured_query(seeded):

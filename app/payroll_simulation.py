@@ -121,13 +121,24 @@ def simulate_run_adjustment(
         amount = Decimal(str(value))
     except (InvalidOperation, ValueError) as exc:
         raise ValueError("value_not_numeric") from exc
+    # Same bounds as the real item edit form: non-negative, finite, sane size.
+    # NaN/Infinity/huge exponents must never reach the engine (InvalidOperation).
+    if not amount.is_finite():
+        raise ValueError("value_not_finite")
+    if amount < 0:
+        raise ValueError("value_negative")
+    if amount > Decimal("999999999.99"):
+        raise ValueError("value_too_large")
 
-    run = db.get(PayrollRun, run_id)
-    if run is None:
-        raise ValueError("run_not_found")
-    items = db.scalars(
-        select(PayrollItem).where(PayrollItem.payroll_run_id == run.id)
-    ).all()
+    # Read-only invariant: no query inside the simulation may ever autoflush
+    # unrelated dirty session state; wrap the whole read/compare body.
+    with db.no_autoflush:
+        run = db.get(PayrollRun, run_id)
+        if run is None:
+            raise ValueError("run_not_found")
+        items = db.scalars(
+            select(PayrollItem).where(PayrollItem.payroll_run_id == run.id)
+        ).all()
 
     rows: list[dict[str, Any]] = []
     total_before = Decimal("0.00")
@@ -147,8 +158,16 @@ def simulate_run_adjustment(
             recompute_payroll_item(hypothetical, run)
             new_net = hypothetical.net_pay
             feasible = True
-        except ValueError:
-            # Engine rule: net may not go negative. Report, don't clamp.
+            reason = None
+        except ValueError as exc:
+            # Engine refuses: report the accurate reason, don't clamp.
+            detail = str(exc)
+            if detail.startswith("Payroll deductions exceed earnings"):
+                reason = "net_negative"
+            elif detail.startswith("Invalid salary or absence days"):
+                reason = "absence_bounds"
+            else:
+                reason = "engine"
             new_net = None
             feasible = False
             infeasible += 1
@@ -164,12 +183,16 @@ def simulate_run_adjustment(
                 "net_after": str(new_net) if feasible else None,
                 "net_delta": str(money(new_net - baseline.net_pay)) if feasible else None,
                 "feasible": feasible,
+                "infeasible_reason": reason,
             }
         )
         total_before += baseline.net_pay
         if feasible:
             total_after += new_net
 
+    # Aggregates are only meaningful when every compared item recomputed
+    # successfully; with infeasible items a partial total would be misleading.
+    complete = infeasible == 0
     return {
         "run_id": run.id,
         "run_status": run.status,
@@ -180,8 +203,9 @@ def simulate_run_adjustment(
         "scope": "selected_employees" if employee_ids is not None else "all_items",
         "items_compared": len(rows),
         "infeasible_items": infeasible,
+        "totals_complete": complete,
         "total_net_before": str(money(total_before)),
-        "total_net_after": str(money(total_after)),
-        "total_net_delta": str(money(total_after - total_before)),
+        "total_net_after": str(money(total_after)) if complete else None,
+        "total_net_delta": str(money(total_after - total_before)) if complete else None,
         "rows": rows,
     }
