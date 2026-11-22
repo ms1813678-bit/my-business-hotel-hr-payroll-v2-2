@@ -33,24 +33,32 @@ def test_bootstrap_refuses_second_admin(db):
         create_admin_account(db, "second-admin", "Another-Valid-Password-456!")
 
 
-def test_database_constraint_rejects_second_admin_row(db):
+def test_database_allows_named_accounts_and_rejects_unknown_role(db):
     create_admin_account(db, "first-admin", "Valid-Test-Password-123!")
     db.commit()
-    db.add(AdminAccount(singleton_key=1, username="second-admin", password_hash="fake", active=True))
+    db.add(AdminAccount(
+        username="finance-user", password_hash="fake", active=True,
+        role="finance", display_name="Finance Person",
+    ))
+    db.commit()
+    db.add(AdminAccount(
+        username="bogus-user", password_hash="fake", active=True, role="superuser",
+    ))
     with pytest.raises(IntegrityError):
         db.commit()
     db.rollback()
 
 
-def test_admin_cannot_be_deactivated_or_deleted(db):
+def test_admin_accounts_are_never_deleted(db):
     create_admin_account(db, "first-admin", "Valid-Test-Password-123!")
     db.commit()
     admin = db.scalar(select(AdminAccount))
+    # Deactivation is the supported retirement path; the sole active system
+    # administrator is protected at the account-management routes.
     admin.active = False
-    with pytest.raises(IntegrityError):
-        db.commit()
-    db.rollback()
-    admin = db.scalar(select(AdminAccount))
+    db.commit()
+    admin.active = True
+    db.commit()
     db.delete(admin)
     with pytest.raises(ValueError, match="cannot be deleted"):
         db.flush()

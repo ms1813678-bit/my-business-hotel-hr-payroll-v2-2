@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% set active_nav = "accounts" %}
+{% block title %}حسابات الدخول{% endblock %}
+{% block content %}
+<header class="page-header">
+  <div>
+    <p class="eyebrow">M.Y. BUSINESS HOTEL</p>
+    <h1>حسابات الدخول</h1>
+    <p class="muted">إنشاء الحسابات الشخصية وصلاحياتها. كل حساب باسم صاحبه، وكل إنشاء أو تعطيل يتسجل بسببه ووقته ومنفذه في سجل المراجعة.</p>
+  </div>
+</header>
+
+<section class="panel">
+  {% if error == "missing" %}<p class="error">أكمل كل الحقول بما فيها سبب الإجراء.</p>{% endif %}
+  {% if error == "role" %}<p class="error">الصلاحية غير معروفة. الحسابات الجديدة تكون مساعد مدير أو مدير مالية فقط.</p>{% endif %}
+  {% if error == "mismatch" %}<p class="error">كلمة المرور وتأكيدها غير متطابقين.</p>{% endif %}
+  {% if error == "exists" %}<p class="error">اسم المستخدم مستخدم بالفعل أو الحساب غير موجود.</p>{% endif %}
+  {% if error == "weak" %}<p class="error">كلمة المرور يجب ألا تقل عن 12 حرفًا.</p>{% endif %}
+  {% if error == "self" %}<p class="error">لا يمكنك تعطيل حسابك الحالي.</p>{% endif %}
+  {% if error == "last_admin" %}<p class="error">لا يمكن تعطيل حساب مدير النظام الوحيد.</p>{% endif %}
+  {% if saved == "created" %}<p class="success-note">تم إنشاء الحساب وتسجيل الإجراء.</p>{% endif %}
+  {% if saved == "deactivated" %}<p class="success-note">تم تعطيل الحساب وإغلاق جلساته وتسجيل الإجراء.</p>{% endif %}
+  {% if saved == "activated" %}<p class="success-note">تمت إعادة تفعيل الحساب وتسجيل الإجراء.</p>{% endif %}
+
+  <h2>الحسابات الحالية</h2>
+  <div class="table-scroll">
+    <table class="data-table">
+      <thead>
+        <tr><th>الاسم</th><th>اسم المستخدم</th><th>الصلاحية</th><th>الحالة</th><th>إجراء</th></tr>
+      </thead>
+      <tbody>
+        {% for account in accounts %}
+        <tr>
+          <td>{{ account.display_name }}</td>
+          <td>{{ account.username }}</td>
+          <td>{{ account.role_label }}</td>
+          <td>{{ "نشط" if account.active else "معطّل" }}</td>
+          <td>
+            {% if account.role != "system_admin" %}
+            <form method="post" action="/settings/accounts/{{ account.id }}/{{ 'deactivate' if account.active else 'activate' }}" class="inline-form">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <input name="reason" type="text" placeholder="سبب الإجراء" required maxlength="200" style="max-width:180px">
+              <button type="submit" class="{{ 'btn-danger' if account.active else 'btn-primary' }}">{{ "تعطيل" if account.active else "إعادة تفعيل" }}</button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="panel">
+  <h2>إنشاء حساب جديد</h2>
+  <p class="muted">يسلَّم الشخص كلمة المرور الأولية ويغيّرها بنفسه من صفحة «تغيير كلمة المرور» بعد أول دخول.</p>
+  <form method="post" action="/settings/accounts" class="form-grid" style="max-width:520px">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label>اسم الشخص
+      <input name="display_name" type="text" required maxlength="120">
+    </label>
+    <label>اسم المستخدم (للدخول)
+      <input name="username" type="text" required maxlength="80" autocomplete="off">
+    </label>
+    <label>الصلاحية
+      <select name="role" required>
+        <option value="assistant_manager">مساعد المدير — الحضور والإجازات وورديات الأمن فقط، دون أي ظهور للرواتب</option>
+        <option value="finance">مدير المالية — الرواتب والسلف والجزاءات كاملة، والحضور قراءة فقط</option>
+      </select>
+    </label>
+    <label>كلمة مرور أولية
+      <input name="password" type="password" autocomplete="new-password" required minlength="12" maxlength="200">
+    </label>
+    <label>تأكيد كلمة المرور
+      <input name="confirm_password" type="password" autocomplete="new-password" required minlength="12" maxlength="200">
+    </label>
+    <label>سبب الإنشاء
+      <input name="reason" type="text" required maxlength="200">
+    </label>
+    <div><button type="submit" class="btn-primary">إنشاء الحساب</button></div>
+  </form>
+</section>
+{% endblock %}

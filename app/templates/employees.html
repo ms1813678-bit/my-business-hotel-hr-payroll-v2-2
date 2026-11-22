@@ -11,6 +11,7 @@
   <a class="button-link" href="/">لوحة التحكم</a>
 </header>
 
+{% if request.state.admin_role == 'system_admin' %}
 <section class="notice">
   <div class="section-heading" style="margin-top:0">
     <div><span class="section-kicker">تسجيل جديد</span><h2>إضافة موظف جديد</h2></div>
@@ -38,6 +39,7 @@
     <button type="submit" class="btn-primary">حفظ الموظف</button>
   </form>
 </section>
+{% endif %}
 
 <section>
   <div class="section-heading">
@@ -112,6 +114,7 @@
         </div>
       </div>
 
+      {% if request.state.admin_role == 'system_admin' %}
       <div class="employee-actions">
         <details class="action-panel">
           <summary>تعديل البيانات</summary>
@@ -200,6 +203,7 @@
           {% endif %}
         </div>
       </div>
+      {% endif %}
     </article>
     {% endfor %}
   </div>
@@ -217,6 +221,7 @@
   {% endif %}
 </section>
 
+{% if request.state.admin_role == 'system_admin' %}
 <section class="notice">
   <div class="section-heading" style="margin-top:0">
     <div><span class="section-kicker">مراجعة</span><h2>طلبات تصحيح البيانات الشخصية</h2></div>
@@ -255,7 +260,9 @@
   </nav>
   {% endif %}
 </section>
+{% endif %}
 
+{% if request.state.admin_role == 'system_admin' %}
 <section class="notice">
   <div class="section-heading" style="margin-top:0">
     <div><span class="section-kicker">الهيكل</span><h2>الأقسام والفروع</h2></div>
@@ -293,4 +300,5 @@
   </form>
   {% endfor %}
 </section>
+{% endif %}
 {% endblock %}

@@ -183,17 +183,31 @@ def prevent_audit_log_deletion(mapper, connection, target):
     raise ValueError("Audit log records cannot be deleted.")
 
 
+ACCOUNT_ROLES = ("system_admin", "finance", "assistant_manager")
+
+
 class AdminAccount(Base):
+    """A named login account. Exactly one historical row existed (the HR
+    manager / system administrator); named assistant-manager and finance
+    accounts were added later. Accounts are never deleted (audit history
+    depends on the actor name); they are deactivated instead, and at least
+    one active system administrator must always remain."""
+
     __tablename__ = "admin_accounts"
     __table_args__ = (
-        UniqueConstraint("singleton_key", name="uq_admin_accounts_singleton_key"),
-        CheckConstraint("singleton_key = 1", name="ck_admin_accounts_singleton_key"),
-        CheckConstraint("active IS TRUE", name="ck_admin_accounts_must_remain_active"),
+        CheckConstraint(
+            "role IN ('system_admin', 'finance', 'assistant_manager')",
+            name="ck_admin_accounts_role",
+        ),
     )
     id: Mapped[int] = mapped_column(primary_key=True)
     singleton_key: Mapped[int] = mapped_column(Integer, default=1, server_default="1", nullable=False)
     username: Mapped[str] = mapped_column(String(80), unique=True)
     password_hash: Mapped[str] = mapped_column(String(255))
+    # Person's real name shown in audit and account lists (accounts are named
+    # after their people per the owner's account policy).
+    display_name: Mapped[str | None] = mapped_column(String(120))
+    role: Mapped[str] = mapped_column(String(20), default="system_admin", server_default="system_admin", nullable=False)
     active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true", nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     session_version: Mapped[int] = mapped_column(Integer, default=0, server_default="0", nullable=False)
@@ -201,7 +215,7 @@ class AdminAccount(Base):
 
 @event.listens_for(AdminAccount, "before_delete")
 def prevent_admin_deletion(mapper, connection, target):
-    raise ValueError("The sole administrator account cannot be deleted.")
+    raise ValueError("Accounts cannot be deleted; deactivate them instead.")
 
 
 class AttendanceImportBatch(Base):

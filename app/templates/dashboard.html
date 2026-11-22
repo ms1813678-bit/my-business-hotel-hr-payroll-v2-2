@@ -50,7 +50,7 @@
     <article class="metric-card"><span>الموظفون النشطون</span><strong>{{ metrics.active_employees }}</strong><a href="/employees">إدارة الموظفين ←</a></article>
     <article class="metric-card"><span>الموظفون السابقون</span><strong>{{ metrics.former_employees }}</strong><a href="/employees">السجل الوظيفي ←</a></article>
     <article class="metric-card"><span>حضور يحتاج مراجعة</span><strong>{{ metrics.attendance_review }}</strong><a href="/attendance/review">مراجعة الحضور ←</a></article>
-    <article class="metric-card"><span>إجازات غير مؤكدة</span><strong>{{ metrics.leave_drafts }}</strong><a href="/leave">فتح الإجازات ←</a></article>
+    {% if request.state.admin_role != 'finance' %}<article class="metric-card"><span>إجازات غير مؤكدة</span><strong>{{ metrics.leave_drafts }}</strong><a href="/leave">فتح الإجازات ←</a></article>{% endif %}
     <article class="metric-card"><span>سلف قيد الإجراء</span><strong>{{ metrics.advance_pending }}</strong><a href="/advances">فتح السلف ←</a></article>
     <article class="metric-card"><span>جزاءات ومكافآت للمراجعة</span><strong>{{ metrics.staff_action_drafts }}</strong><a href="/staff-actions">فتح الإجراءات ←</a></article>
     <article class="metric-card"><span>مسيرات رواتب مفتوحة</span><strong>{{ metrics.payroll_drafts }}</strong><a href="/payroll">فتح الرواتب ←</a></article>
@@ -65,7 +65,7 @@
     <a class="action-card" href="/attendance/import"><span>01</span><h3>استيراد الحضور والبصمة</h3><p>رفع الملفات الأصلية ومراجعة مشاكل الاستيراد.</p></a>
     <a class="action-card" href="/attendance/reconcile"><span>02</span><h3>مطابقة الحضور الشهرية</h3><p>مراجعة الفجوات والاستثناءات قبل الاعتماد.</p></a>
     <a class="action-card" href="/payroll"><span>03</span><h3>مراجعة الرواتب</h3><p>معاينة المسير قبل الاعتماد والإغلاق.</p></a>
-    <a class="action-card" href="/settings/backup"><span>04</span><h3>النسخ الاحتياطي</h3><p>حماية البيانات والتحقق من النسخ.</p></a>
+    {% if request.state.admin_role == 'system_admin' %}<a class="action-card" href="/settings/backup"><span>04</span><h3>النسخ الاحتياطي</h3><p>حماية البيانات والتحقق من النسخ.</p></a>{% endif %}
   </div>
 </section>
 
@@ -76,7 +76,7 @@
   <div class="module-grid">
     <a class="module-card" href="/employees"><strong>الموظفون</strong><span>البيانات والهيكل الإداري</span></a>
     <a class="module-card" href="/attendance/import"><strong>الحضور والانصراف</strong><span>الاستيراد والمراجعة والمطابقة</span></a>
-    <a class="module-card" href="/leave"><strong>الإجازات</strong><span>الأرصدة والطلبات والسجل</span></a>
+    {% if request.state.admin_role != 'finance' %}<a class="module-card" href="/leave"><strong>الإجازات</strong><span>الأرصدة والطلبات والسجل</span></a>{% endif %}
     <a class="module-card" href="/payroll"><strong>الرواتب</strong><span>المعاينة والاعتماد والصرف</span></a>
     <a class="module-card" href="/advances"><strong>السلف</strong><span>الطلبات والأقساط والخصومات</span></a>
     <a class="module-card" href="/staff-actions"><strong>الجزاءات والمكافآت</strong><span>التسجيل والاعتماد والتاريخ</span></a>
@@ -85,6 +85,7 @@
   </div>
 </section>
 
+{% if request.state.admin_role == 'system_admin' %}
 <section class="ai-callout">
   <div>
     <span class="section-kicker">ذكاء محلي اختياري</span>
@@ -93,4 +94,5 @@
   </div>
   <a class="button-link primary-link" href="/ai">فتح المساعد</a>
 </section>
+{% endif %}
 {% endblock %}

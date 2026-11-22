@@ -41,6 +41,7 @@
       <p>مشكلات استيراد البرنامج: {{ month.program_issues if month.program_issues is not none else "الملف غير مكتمل" }}</p>
       <p>مشكلات استيراد البصمة: {{ month.fingerprint_issues if month.fingerprint_issues is not none else "الملف غير مكتمل" }}</p>
       {% if month.status == "under_review" %}
+      {% if request.state.admin_role != 'finance' %}
       <form method="post" action="/attendance/months/{{ month.id }}/approve">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <label for="reason-{{ month.id }}">سبب إغلاق الشهر</label>
@@ -51,6 +52,7 @@
         </label>
         <button type="submit">اعتماد الشهر نهائيًا</button>
       </form>
+      {% endif %}
       {% elif month.status == "approved" %}
       <p>اعتمد الشهر بواسطة: {{ month.approved_by }}</p>
       {% else %}

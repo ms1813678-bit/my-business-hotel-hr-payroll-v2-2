@@ -16,6 +16,7 @@
     <section class="notice">
       <h2>إضافة حضور يدوي</h2>
       <p>هذا الإدخال يسجل كحضور يدوي بواسطة مسؤول HR ولا يغيّر البصمة الأصلية. سيظل اليوم بحاجة إلى المراجعة والاعتماد قبل استخدامه في الرواتب.</p>
+      {% if request.state.admin_role != 'finance' %}
       <form method="post" action="/attendance/manual">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <label for="manual-employee">الموظف</label>
@@ -35,6 +36,7 @@
         <input id="manual-reason" name="reason" type="text" minlength="3" maxlength="500" required>
         <button type="submit">إضافة الحضور للمراجعة</button>
       </form>
+      {% endif %}
     </section>
     {% if not records %}
     <section class="notice">
@@ -65,6 +67,7 @@
       <p>الدقائق المقترحة: {{ record.worked_minutes if record.worked_minutes is not none else "غير محسوبة" }}</p>
       {% if record.review_notes and 'dst_wall_clock_duration_uncertain' in record.review_notes %}<p class="error">أحد وقتَي الحضور يقع داخل ساعة تغيير التوقيت الصيفي، لذلك لا يمكن تحديد اللحظة الفعلية؛ المدة معروضة بفرق الساعة المحلية الظاهرة وليست الزمن الفعلي المؤكد. راجع الوقتين قبل الاعتماد.</p>{% endif %}
       {% if record.review_notes %}<p><span>ملاحظات:</span> {{ record.review_notes_display }}</p>{% endif %}
+      {% if request.state.admin_role != 'finance' %}
       <form method="post" action="/attendance/{{ record.id }}/approve">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <label for="in-{{ record.id }}">وقت الدخول المعتمد بعد المراجعة</label>
@@ -77,6 +80,7 @@
         <input id="reason-{{ record.id }}" name="reason" type="text" minlength="3" maxlength="500" required>
         <button type="submit">اعتماد هذا اليوم</button>
       </form>
+      {% endif %}
     </section>
     {% endfor %}
 {% endblock %}

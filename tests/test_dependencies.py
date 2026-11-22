@@ -14,7 +14,7 @@ def make_db(admin):
 
 
 def make_request(session):
-    return SimpleNamespace(session=session)
+    return SimpleNamespace(session=session, state=SimpleNamespace())
 
 
 def test_get_current_admin_returns_active_account():
@@ -22,6 +22,8 @@ def test_get_current_admin_returns_active_account():
         username="test-admin",
         active=True,
         session_version=0,
+        role="system_admin",
+        display_name="Test Admin",
     )
     request = make_request({
         "admin_username": " test-admin ",

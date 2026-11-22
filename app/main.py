@@ -24,7 +24,18 @@ from app.auth import authenticate, change_admin_password
 from app.config import settings
 from app.csrf import csrf_protect, get_csrf_token
 from app.db import SessionLocal, engine, get_db
-from app.dependencies import get_current_admin
+from app.dependencies import (
+    ROLE_ASSISTANT,
+    ROLE_FINANCE,
+    ROLE_LABELS,
+    ROLE_SYSTEM_ADMIN,
+    get_current_admin,
+    require_attendance_read,
+    require_attendance_write,
+    require_employee_read,
+    require_payroll_access,
+    require_system_admin,
+)
 from app.login_security import (
     FAILED_ATTEMPTS_LIMIT,
     LOCKOUT_MINUTES,
@@ -43,7 +54,7 @@ from app.telegram_alerts import (
     send_test_message as send_telegram_test_message,
     verify_token as verify_telegram_token,
 )
-from app.security import verify_password
+from app.security import hash_password, verify_password
 from app.employee_codes import allocate_employee_code
 from app.leave_workflow import add_balance_entry, cancel_leave, confirm_leave, leave_balance
 from app.advance_workflow import approve_advance, create_advance, mark_advance_paid, reject_advance
@@ -58,10 +69,14 @@ from app.staff_actions_workflow import (
 )
 from app.reports import build_hr_pdf, build_hr_workbook
 from app.report_builder import (
+    ATTENDANCE_FIELD_DEFS,
     DEFAULT_FIELDS,
+    EMPLOYEE_FIELD_DEFS,
     FIELD_GROUP_DEFS,
     FIELD_GROUPS_BY_TYPE,
     PAYROLL_BREAKDOWN_DEFS,
+    PAYROLL_FIELD_DEFS,
+    REPORT_TYPE_ATTENDANCE,
     REPORT_TYPE_COMPREHENSIVE,
     REPORT_TYPE_LABELS,
     REPORT_TYPES,
@@ -659,7 +674,8 @@ def login(request: Request, username: str = Form(...), password: str = Form(...)
         get_csrf_token(request)
     send_login_alert("login_success", admin.username)
     send_telegram_login_event("login_success", admin.username, app_name=settings.app_name)
-    return RedirectResponse("/", status_code=303)
+    destination = "/attendance/import" if admin.role == ROLE_ASSISTANT else "/"
+    return RedirectResponse(destination, status_code=303)
 
 
 @app.post("/logout", dependencies=[Depends(csrf_protect)])
@@ -673,6 +689,10 @@ def logout(request: Request):
 
 @app.get("/", response_class=HTMLResponse)
 def dashboard(request: Request, admin: AdminAccount = Depends(get_current_admin)):
+    if admin.role == ROLE_ASSISTANT:
+        # The dashboard carries payroll/advance counters; the assistant
+        # manager's home is attendance instead.
+        return RedirectResponse("/attendance/import", status_code=303)
     with SessionLocal() as db:
         metrics = {
             "active_employees": db.scalar(
@@ -704,44 +724,45 @@ def dashboard(request: Request, admin: AdminAccount = Depends(get_current_admin)
             ) or 0,
         }
         alerts = []
-        backup_root = get_backup_root(db)
-        if backup_root is None:
-            alerts.append({
-                "pre": "لم يتم ضبط موقع النسخ الاحتياطي على قرص خارجي بعد.",
-                "value": None, "post": "",
-                "link": "/settings/backup", "link_label": "فتح النسخ الاحتياطي ←",
-            })
-        last_success = db.scalars(
-            select(BackupRun).where(BackupRun.status == "success")
-            .order_by(BackupRun.created_at.desc(), BackupRun.id.desc()).limit(1)
-        ).first()
-        if backup_root is not None and last_success is None:
-            alerts.append({
-                "pre": "لا توجد نسخة احتياطية ناجحة بعد.",
-                "value": None, "post": "",
-                "link": "/settings/backup", "link_label": "فتح النسخ الاحتياطي ←",
-            })
-        elif last_success is not None:
-            created = last_success.created_at
-            if created.tzinfo is None:
-                created = created.replace(tzinfo=timezone.utc)
-            days = (datetime.now(timezone.utc) - created).days
-            if days >= 7:
+        if admin.role == "system_admin":
+            backup_root = get_backup_root(db)
+            if backup_root is None:
                 alerts.append({
-                    "pre": "آخر نسخة احتياطية ناجحة منذ",
-                    "value": days,
-                    "post": "أيام." if days <= 10 else "يومًا.",
+                    "pre": "لم يتم ضبط موقع النسخ الاحتياطي على قرص خارجي بعد.",
+                    "value": None, "post": "",
                     "link": "/settings/backup", "link_label": "فتح النسخ الاحتياطي ←",
                 })
-        last_run = db.scalars(
-            select(BackupRun).order_by(BackupRun.created_at.desc(), BackupRun.id.desc()).limit(1)
-        ).first()
-        if last_run is not None and last_run.status == "failed":
-            alerts.append({
-                "pre": "فشلت آخر محاولة نسخ احتياطي؛ راجع صفحة النسخ الاحتياطي.",
-                "value": None, "post": "",
-                "link": "/settings/backup", "link_label": "فتح النسخ الاحتياطي ←",
-            })
+            last_success = db.scalars(
+                select(BackupRun).where(BackupRun.status == "success")
+                .order_by(BackupRun.created_at.desc(), BackupRun.id.desc()).limit(1)
+            ).first()
+            if backup_root is not None and last_success is None:
+                alerts.append({
+                    "pre": "لا توجد نسخة احتياطية ناجحة بعد.",
+                    "value": None, "post": "",
+                    "link": "/settings/backup", "link_label": "فتح النسخ الاحتياطي ←",
+                })
+            elif last_success is not None:
+                created = last_success.created_at
+                if created.tzinfo is None:
+                    created = created.replace(tzinfo=timezone.utc)
+                days = (datetime.now(timezone.utc) - created).days
+                if days >= 7:
+                    alerts.append({
+                        "pre": "آخر نسخة احتياطية ناجحة منذ",
+                        "value": days,
+                        "post": "أيام." if days <= 10 else "يومًا.",
+                        "link": "/settings/backup", "link_label": "فتح النسخ الاحتياطي ←",
+                    })
+            last_run = db.scalars(
+                select(BackupRun).order_by(BackupRun.created_at.desc(), BackupRun.id.desc()).limit(1)
+            ).first()
+            if last_run is not None and last_run.status == "failed":
+                alerts.append({
+                    "pre": "فشلت آخر محاولة نسخ احتياطي؛ راجع صفحة النسخ الاحتياطي.",
+                    "value": None, "post": "",
+                    "link": "/settings/backup", "link_label": "فتح النسخ الاحتياطي ←",
+                })
         missing_fingerprint = db.scalar(
             select(func.count(Employee.id)).where(
                 Employee.status == "active",
@@ -758,7 +779,7 @@ def dashboard(request: Request, admin: AdminAccount = Depends(get_current_admin)
             request=request, name="dashboard.html",
             context={
                 "app_name": settings.app_name,
-                "admin": admin.username,
+                "admin": admin.display_name or admin.username,
                 "csrf_token": get_csrf_token(request),
                 "metrics": metrics,
                 "alerts": alerts,
@@ -767,12 +788,12 @@ def dashboard(request: Request, admin: AdminAccount = Depends(get_current_admin)
 
 
 @app.get("/ai", response_class=HTMLResponse)
-def ai_page(request: Request, admin: AdminAccount = Depends(get_current_admin)):
+def ai_page(request: Request, admin: AdminAccount = Depends(require_system_admin)):
     return templates.TemplateResponse(
         request=request,
         name="ai.html",
         context={
-            "admin": admin.username,
+            "admin": admin.display_name or admin.username,
             "csrf_token": get_csrf_token(request),
             "status": local_model_status(request.state.language),
             "scan": build_smart_scan(request.state.language),
@@ -788,7 +809,7 @@ def ai_page(request: Request, admin: AdminAccount = Depends(get_current_admin)):
 def ai_ask(
     request: Request,
     question: str = Form(...),
-    admin: AdminAccount = Depends(get_current_admin),
+    admin: AdminAccount = Depends(require_system_admin),
 ):
     question = question.strip()
     if not question or len(question) > 2000:
@@ -852,7 +873,7 @@ def ai_ask(
         request=request,
         name="ai.html",
         context={
-            "admin": admin.username,
+            "admin": admin.display_name or admin.username,
             "csrf_token": get_csrf_token(request),
             "status": local_model_status(request.state.language),
             "scan": build_smart_scan(request.state.language),
@@ -870,7 +891,7 @@ def ai_ask(
 def ai_approve(
     request: Request,
     token: str = Form(...),
-    admin: AdminAccount = Depends(get_current_admin),
+    admin: AdminAccount = Depends(require_system_admin),
 ):
     history = recent_memory(admin.username)
     try:
@@ -885,7 +906,7 @@ def ai_approve(
         request=request,
         name="ai.html",
         context={
-            "admin": admin.username,
+            "admin": admin.display_name or admin.username,
             "csrf_token": get_csrf_token(request),
             "status": local_model_status(request.state.language),
             "scan": build_smart_scan(request.state.language),
@@ -903,7 +924,7 @@ def ai_approve(
 def ai_reject(
     request: Request,
     token: str = Form(...),
-    admin: AdminAccount = Depends(get_current_admin),
+    admin: AdminAccount = Depends(require_system_admin),
 ):
     history = recent_memory(admin.username)
     try:
@@ -917,7 +938,7 @@ def ai_reject(
         request=request,
         name="ai.html",
         context={
-            "admin": admin.username,
+            "admin": admin.display_name or admin.username,
             "csrf_token": get_csrf_token(request),
             "status": local_model_status(request.state.language),
             "scan": build_smart_scan(request.state.language),
@@ -934,13 +955,13 @@ def ai_reject(
 @app.get("/security-roster", response_class=HTMLResponse)
 def security_roster_page(
     request: Request,
-    admin: AdminAccount = Depends(get_current_admin),
+    admin: AdminAccount = Depends(require_attendance_read),
 ):
     return templates.TemplateResponse(
         request=request,
         name="security_roster.html",
         context={
-            "admin": admin.username,
+            "admin": admin.display_name or admin.username,
             "csrf_token": get_csrf_token(request),
             "days": [],
             "issues": [],
@@ -1073,7 +1094,7 @@ def _read_attendance_upload(upload: UploadFile) -> bytes:
 @app.get("/attendance/import/{batch_id}/download")
 def attendance_import_download(
     batch_id: int,
-    admin: AdminAccount = Depends(get_current_admin),
+    admin: AdminAccount = Depends(require_attendance_read),
 ):
     """Return the exact original workbook retained with an attendance import batch."""
     with SessionLocal() as db:
@@ -1103,12 +1124,12 @@ def attendance_import_download(
 @app.get("/attendance/import", response_class=HTMLResponse)
 def attendance_import_page(
     request: Request,
-    admin: AdminAccount = Depends(get_current_admin),
+    admin: AdminAccount = Depends(require_attendance_read),
 ):
     return templates.TemplateResponse(
         request=request,
         name="attendance_import.html",
-        context={"admin": admin.username, "csrf_token": get_csrf_token(request),
+        context={"admin": admin.display_name or admin.username, "csrf_token": get_csrf_token(request),
                  "error": None, "batch": None, "issues": []},
     )
 
@@ -1118,10 +1139,10 @@ def attendance_import_upload(
     request: Request,
     source_type: str = Form(...),
     file: UploadFile = File(...),
-    admin: AdminAccount = Depends(get_current_admin),
+    admin: AdminAccount = Depends(require_attendance_write),
 ):
     context = {
-        "admin": admin.username, "csrf_token": get_csrf_token(request),
+        "admin": admin.display_name or admin.username, "csrf_token": get_csrf_token(request),
         "error": None, "batch": None, "issues": [],
         "issue_labels": {
             "unknown_employee": "رقم أو اسم الموظف غير معروف",
@@ -1186,7 +1207,7 @@ def _attendance_import_batch_options():
 def attendance_import_issues_page(
     request: Request,
     batch_id: int,
-    admin: AdminAccount = Depends(get_current_admin),
+    admin: AdminAccount = Depends(require_attendance_read),
 ):
     with SessionLocal() as db:
         batch = db.get(AttendanceImportBatch, batch_id)
@@ -1202,7 +1223,7 @@ def attendance_import_issues_page(
         request=request,
         name="attendance_import_issues.html",
         context={
-            "admin": admin.username, "csrf_token": get_csrf_token(request),
+            "admin": admin.display_name or admin.username, "csrf_token": get_csrf_token(request),
             "batch": batch, "issues": issues, "employees": employees, "error": None,
         },
     )
@@ -1218,7 +1239,7 @@ def attendance_import_issue_resolve(
     batch_id: int,
     issue_id: int,
     employee_id: int = Form(...),
-    admin: AdminAccount = Depends(get_current_admin),
+    admin: AdminAccount = Depends(require_attendance_write),
 ):
     try:
         with SessionLocal.begin() as db:
@@ -1241,7 +1262,7 @@ def attendance_import_issue_resolve(
             request=request,
             name="attendance_import_issues.html",
             context={
-                "admin": admin.username, "csrf_token": get_csrf_token(request),
+                "admin": admin.display_name or admin.username, "csrf_token": get_csrf_token(request),
                 "batch": batch, "issues": issues, "employees": employees,
                 "error": str(exc),
             },
@@ -1253,14 +1274,14 @@ def attendance_import_issue_resolve(
 @app.get("/attendance/reconcile", response_class=HTMLResponse)
 def attendance_reconcile_page(
     request: Request,
-    admin: AdminAccount = Depends(get_current_admin),
+    admin: AdminAccount = Depends(require_attendance_read),
 ):
     batches = _attendance_import_batch_options()
     return templates.TemplateResponse(
         request=request,
         name="attendance_reconcile.html",
         context={
-            "admin": admin.username, "csrf_token": get_csrf_token(request),
+            "admin": admin.display_name or admin.username, "csrf_token": get_csrf_token(request),
             "batches": batches, "error": None, "summary": None,
         },
     )
@@ -1273,10 +1294,10 @@ def attendance_reconcile_upload(
     fingerprint_batch_id: int = Form(...),
     period_start: str = Form(...),
     period_end: str = Form(...),
-    admin: AdminAccount = Depends(get_current_admin),
+    admin: AdminAccount = Depends(require_attendance_write),
 ):
     context = {
-        "admin": admin.username, "csrf_token": get_csrf_token(request),
+        "admin": admin.display_name or admin.username, "csrf_token": get_csrf_token(request),
         "batches": _attendance_import_batch_options(), "error": None, "summary": None,
     }
     try:
@@ -1307,7 +1328,7 @@ def attendance_reconcile_upload(
 def attendance_review_page(
     request: Request,
     page: int = 1,
-    admin: AdminAccount = Depends(get_current_admin),
+    admin: AdminAccount = Depends(require_attendance_read),
 ):
     page_size = 100
     page = max(1, page)
@@ -1366,7 +1387,7 @@ def attendance_review_page(
     ).all()
     return templates.TemplateResponse(
         request=request, name="attendance_review.html",
-        context={"admin": admin.username, "csrf_token": get_csrf_token(request),
+        context={"admin": admin.display_name or admin.username, "csrf_token": get_csrf_token(request),
                  "records": records, "employees": employees, "error": None, "page": page,
                  "total_pages": total_pages, "total_records": total_records,
                  "page_size": page_size},
@@ -1381,7 +1402,7 @@ def attendance_manual_entry(
     clock_in: str = Form(...),
     clock_out: str = Form(...),
     reason: str = Form(...),
-    admin: AdminAccount = Depends(get_current_admin),
+    admin: AdminAccount = Depends(require_attendance_write),
 ):
     try:
         entered_date = date.fromisoformat(work_date)
@@ -1409,7 +1430,7 @@ def attendance_approve(
     clock_in: str = Form(...),
     clock_out: str = Form(...),
     reason: str = Form(...),
-    admin: AdminAccount = Depends(get_current_admin),
+    admin: AdminAccount = Depends(require_attendance_write),
 ):
     try:
         approved_in = datetime.fromisoformat(clock_in)
@@ -1427,7 +1448,7 @@ def attendance_approve(
 @app.get("/attendance/months", response_class=HTMLResponse)
 def attendance_months_page(
     request: Request,
-    admin: AdminAccount = Depends(get_current_admin),
+    admin: AdminAccount = Depends(require_attendance_read),
 ):
     with SessionLocal() as db:
         months = db.scalars(
@@ -1465,7 +1486,7 @@ def attendance_months_page(
             })
     return templates.TemplateResponse(
         request=request, name="attendance_months.html",
-        context={"admin": admin.username, "csrf_token": get_csrf_token(request),
+        context={"admin": admin.display_name or admin.username, "csrf_token": get_csrf_token(request),
                  "months": summaries, "error": None},
     )
 
@@ -1476,7 +1497,7 @@ def attendance_month_approve(
     request: Request,
     reason: str = Form(...),
     coverage_confirmed: bool = Form(False),
-    admin: AdminAccount = Depends(get_current_admin),
+    admin: AdminAccount = Depends(require_attendance_write),
 ):
     try:
         with SessionLocal.begin() as db:
@@ -1493,7 +1514,7 @@ def attendance_month_approve(
 def security_roster_preview(
     request: Request,
     file: UploadFile = File(...),
-    admin: AdminAccount = Depends(get_current_admin),
+    admin: AdminAccount = Depends(require_attendance_write),
 ):
     try:
         raw = _read_security_roster_upload(file)
@@ -1506,7 +1527,7 @@ def security_roster_preview(
             request=request,
             name="security_roster.html",
             context={
-                "admin": admin.username,
+                "admin": admin.display_name or admin.username,
                 "csrf_token": get_csrf_token(request),
                 "days": prepared["days"],
                 "issues": prepared["import_issues"],
@@ -1520,7 +1541,7 @@ def security_roster_preview(
             request=request,
             name="security_roster.html",
             context={
-                "admin": admin.username,
+                "admin": admin.display_name or admin.username,
                 "csrf_token": get_csrf_token(request),
                 "days": [],
                 "issues": [],
@@ -1537,7 +1558,7 @@ def security_roster_confirm(
     work_date: str = Form(...),
     stage_token: str = Form(...),
     reviewed: str = Form(""),
-    admin: AdminAccount = Depends(get_current_admin),
+    admin: AdminAccount = Depends(require_attendance_write),
 ):
     from datetime import date
     if reviewed != "yes":
@@ -1586,7 +1607,7 @@ def security_roster_confirm(
             request=request,
             name="security_roster.html",
             context={
-                "admin": admin.username,
+                "admin": admin.display_name or admin.username,
                 "csrf_token": get_csrf_token(request),
                 "days": refreshed_preview["days"],
                 "issues": refreshed_preview["import_issues"],
@@ -1601,7 +1622,7 @@ def security_roster_confirm(
             request=request,
             name="security_roster.html",
             context={
-                "admin": admin.username,
+                "admin": admin.display_name or admin.username,
                 "csrf_token": get_csrf_token(request),
                 "days": [],
                 "issues": [],
@@ -1615,7 +1636,7 @@ def security_roster_confirm(
 @app.post("/departments", dependencies=[Depends(csrf_protect)])
 def create_department(
     name: str = Form(...),
-    admin: AdminAccount = Depends(get_current_admin),
+    admin: AdminAccount = Depends(require_system_admin),
 ):
     name = name.strip()
     if not name:
@@ -1639,7 +1660,7 @@ def edit_department(
     department_id: int,
     name: str = Form(...),
     active: bool = Form(False),
-    admin: AdminAccount = Depends(get_current_admin),
+    admin: AdminAccount = Depends(require_system_admin),
 ):
     name = name.strip()
     if not name:
@@ -1675,7 +1696,7 @@ def edit_department(
 def create_branch(
     department_id: int = Form(...),
     name: str = Form(...),
-    admin: AdminAccount = Depends(get_current_admin),
+    admin: AdminAccount = Depends(require_system_admin),
 ):
     name = name.strip()
     if not name:
@@ -1706,7 +1727,7 @@ def edit_branch(
     department_id: int = Form(...),
     name: str = Form(...),
     active: bool = Form(False),
-    admin: AdminAccount = Depends(get_current_admin),
+    admin: AdminAccount = Depends(require_system_admin),
 ):
     name = name.strip()
     if not name:
@@ -1793,7 +1814,7 @@ def employee_photo(
 
 
 @app.get("/leave", response_class=HTMLResponse)
-def leave_page(request: Request, page: int = 1, admin: AdminAccount = Depends(get_current_admin)):
+def leave_page(request: Request, page: int = 1, admin: AdminAccount = Depends(require_attendance_write)):
     page_size = 100
     page = max(1, page)
     with SessionLocal() as db:
@@ -1863,7 +1884,7 @@ def create_leave_type(
     name_zh: str | None = Form(None),
     is_paid: str | None = Form(None),
     tracks_balance: str | None = Form(None),
-    admin: AdminAccount = Depends(get_current_admin),
+    admin: AdminAccount = Depends(require_attendance_write),
 ):
     normalized_code = code.strip().lower()
     if not name_ar.strip() or not name_en.strip():
@@ -1900,7 +1921,7 @@ def record_leave_balance(
     transaction_type: str = Form(...),
     days_delta: Decimal = Form(...),
     reason: str = Form(...),
-    admin: AdminAccount = Depends(get_current_admin),
+    admin: AdminAccount = Depends(require_attendance_write),
 ):
     if transaction_type not in {"opening", "adjustment"} or not reason.strip():
         return RedirectResponse("/leave?error=balance", status_code=303)
@@ -1928,7 +1949,7 @@ def create_leave_record(
     end_date: date = Form(...),
     charged_days: Decimal = Form(...),
     reason: str = Form(...),
-    admin: AdminAccount = Depends(get_current_admin),
+    admin: AdminAccount = Depends(require_attendance_write),
 ):
     if end_date < start_date or charged_days <= 0 or not reason.strip():
         return RedirectResponse("/leave?error=dates", status_code=303)
@@ -1980,7 +2001,7 @@ def create_leave_record(
 @app.post("/leave/records/{record_id}/confirm", dependencies=[Depends(csrf_protect)])
 def confirm_leave_record(
     record_id: int,
-    admin: AdminAccount = Depends(get_current_admin),
+    admin: AdminAccount = Depends(require_attendance_write),
 ):
     try:
         with SessionLocal.begin() as db:
@@ -2007,7 +2028,7 @@ def confirm_leave_record(
 def cancel_leave_record(
     record_id: int,
     reason: str = Form(...),
-    admin: AdminAccount = Depends(get_current_admin),
+    admin: AdminAccount = Depends(require_attendance_write),
 ):
     if not reason.strip():
         return RedirectResponse("/leave?error=cancel", status_code=303)
@@ -2023,7 +2044,7 @@ def cancel_leave_record(
 
 
 @app.get("/advances", response_class=HTMLResponse)
-def advances_page(request: Request, page: int = 1, admin: AdminAccount = Depends(get_current_admin)):
+def advances_page(request: Request, page: int = 1, admin: AdminAccount = Depends(require_payroll_access)):
     with SessionLocal() as db:
         employees = db.scalars(
             select(Employee).where(Employee.status == "active").order_by(Employee.code)
@@ -2134,7 +2155,7 @@ def create_advance_request(
     advance_type: str = Form("regular"),
     reason: str = Form(...),
     submission_key: str = Form(..., min_length=32, max_length=80),
-    admin: AdminAccount = Depends(get_current_admin),
+    admin: AdminAccount = Depends(require_payroll_access),
 ):
     try:
         with SessionLocal.begin() as db:
@@ -2157,7 +2178,7 @@ def create_advance_request(
 def approve_advance_request(
     request_id: int,
     installment_count: int = Form(1),
-    admin: AdminAccount = Depends(get_current_admin),
+    admin: AdminAccount = Depends(require_payroll_access),
 ):
     try:
         with SessionLocal.begin() as db:
@@ -2179,7 +2200,7 @@ def approve_advance_request(
 def reject_advance_request(
     request_id: int,
     reason: str = Form(...),
-    admin: AdminAccount = Depends(get_current_admin),
+    admin: AdminAccount = Depends(require_payroll_access),
 ):
     try:
         with SessionLocal.begin() as db:
@@ -2199,7 +2220,7 @@ def reject_advance_request(
 @app.post("/advances/{request_id}/paid", dependencies=[Depends(csrf_protect)])
 def mark_advance_request_paid(
     request_id: int,
-    admin: AdminAccount = Depends(get_current_admin),
+    admin: AdminAccount = Depends(require_payroll_access),
 ):
     try:
         with SessionLocal.begin() as db:
@@ -2217,7 +2238,7 @@ def mark_advance_request_paid(
 
 
 @app.get("/staff-actions", response_class=HTMLResponse)
-def staff_actions_page(request: Request, page: int = 1, admin: AdminAccount = Depends(get_current_admin)):
+def staff_actions_page(request: Request, page: int = 1, admin: AdminAccount = Depends(require_payroll_access)):
     page_size = 100
     page = max(1, page)
     with SessionLocal() as db:
@@ -2259,7 +2280,7 @@ def create_staff_action_route(
     amount: Decimal | None = Form(None),
     payroll_month: date | None = Form(None),
     reason: str = Form(...),
-    admin: AdminAccount = Depends(get_current_admin),
+    admin: AdminAccount = Depends(require_payroll_access),
 ):
     try:
         with SessionLocal.begin() as db:
@@ -2283,7 +2304,7 @@ def create_staff_action_route(
 @app.post("/staff-actions/{action_id}/approve", dependencies=[Depends(csrf_protect)])
 def approve_staff_action_route(
     action_id: int,
-    admin: AdminAccount = Depends(get_current_admin),
+    admin: AdminAccount = Depends(require_payroll_access),
 ):
     try:
         with SessionLocal.begin() as db:
@@ -2304,7 +2325,7 @@ def approve_staff_action_route(
 def cancel_staff_action_route(
     action_id: int,
     reason: str = Form(...),
-    admin: AdminAccount = Depends(get_current_admin),
+    admin: AdminAccount = Depends(require_payroll_access),
 ):
     try:
         with SessionLocal.begin() as db:
@@ -2326,7 +2347,7 @@ def staff_action_acknowledgement_route(
     action_id: int,
     status: str = Form(...),
     note: str = Form(""),
-    admin: AdminAccount = Depends(get_current_admin),
+    admin: AdminAccount = Depends(require_payroll_access),
 ):
     try:
         with SessionLocal.begin() as db:
@@ -2346,7 +2367,7 @@ def staff_action_acknowledgement_route(
 
 
 @app.get("/payroll", response_class=HTMLResponse)
-def payroll_page(request: Request, admin: AdminAccount = Depends(get_current_admin)):
+def payroll_page(request: Request, admin: AdminAccount = Depends(require_payroll_access)):
     with SessionLocal() as db:
         runs = db.scalars(
             select(PayrollRun).order_by(PayrollRun.period_start.desc())
@@ -2366,7 +2387,7 @@ def payroll_page(request: Request, admin: AdminAccount = Depends(get_current_adm
 def create_payroll_run_route(
     year: int = Form(...),
     month: int = Form(...),
-    admin: AdminAccount = Depends(get_current_admin),
+    admin: AdminAccount = Depends(require_payroll_access),
 ):
     try:
         with SessionLocal.begin() as db:
@@ -2381,7 +2402,7 @@ def create_payroll_run_route(
 def payroll_run_page(
     run_id: int,
     request: Request,
-    admin: AdminAccount = Depends(get_current_admin),
+    admin: AdminAccount = Depends(require_payroll_access),
 ):
     with SessionLocal() as db:
         run = db.get(PayrollRun, run_id)
@@ -2545,7 +2566,7 @@ def payroll_item_payslip(
     run_id: int,
     item_id: int,
     request: Request,
-    admin: AdminAccount = Depends(get_current_admin),
+    admin: AdminAccount = Depends(require_payroll_access),
 ):
     from app.payslip import build_payslip_pdf
 
@@ -2567,7 +2588,7 @@ def payroll_item_payslip(
 @app.post("/payroll/runs/{run_id}/approve", dependencies=[Depends(csrf_protect)])
 def approve_payroll_run_route(
     run_id: int,
-    admin: AdminAccount = Depends(get_current_admin),
+    admin: AdminAccount = Depends(require_payroll_access),
 ):
     try:
         with SessionLocal.begin() as db:
@@ -2589,7 +2610,7 @@ def approve_payroll_run_route(
 @app.post("/payroll/items/{item_id}/absence-leave-review", dependencies=[Depends(csrf_protect)])
 def absence_leave_review_route(
     item_id: int,
-    admin: AdminAccount = Depends(get_current_admin),
+    admin: AdminAccount = Depends(require_payroll_access),
 ):
     with SessionLocal() as db:
         item = db.get(PayrollItem, item_id)
@@ -2607,7 +2628,7 @@ def absence_leave_review_route(
 @app.post("/payroll/runs/{run_id}/close", dependencies=[Depends(csrf_protect)])
 def close_payroll_run_route(
     run_id: int,
-    admin: AdminAccount = Depends(get_current_admin),
+    admin: AdminAccount = Depends(require_payroll_access),
 ):
     try:
         with SessionLocal.begin() as db:
@@ -2626,7 +2647,7 @@ def close_payroll_run_route(
 def reopen_payroll_run_route(
     run_id: int,
     reason: str = Form(...),
-    admin: AdminAccount = Depends(get_current_admin),
+    admin: AdminAccount = Depends(require_payroll_access),
 ):
     try:
         with SessionLocal.begin() as db:
@@ -2655,7 +2676,7 @@ def update_payroll_item_route(
     taxes: Decimal = Form(Decimal("0")),
     other_deductions: Decimal = Form(Decimal("0")),
     note: str = Form(""),
-    admin: AdminAccount = Depends(get_current_admin),
+    admin: AdminAccount = Depends(require_payroll_access),
 ):
     run_id = None
     try:
@@ -2692,7 +2713,7 @@ def update_payroll_item_route(
 @app.post("/payroll/items/{item_id}/overtime-approve", dependencies=[Depends(csrf_protect)])
 def approve_overtime_route(
     item_id: int,
-    admin: AdminAccount = Depends(get_current_admin),
+    admin: AdminAccount = Depends(require_payroll_access),
 ):
     run_id = None
     try:
@@ -2716,7 +2737,7 @@ def add_payroll_payment_route(
     paid_date: date = Form(...),
     method: str = Form(...),
     reference: str = Form(""),
-    admin: AdminAccount = Depends(get_current_admin),
+    admin: AdminAccount = Depends(require_payroll_access),
 ):
     run_id = None
     try:
@@ -2746,7 +2767,7 @@ def correct_payroll_payment_route(
     payment_id: int,
     corrected_amount: Decimal = Form(...),
     reason: str = Form(...),
-    admin: AdminAccount = Depends(get_current_admin),
+    admin: AdminAccount = Depends(require_payroll_access),
 ):
     run_id = None
     try:
@@ -2794,12 +2815,22 @@ def reports_page(
         if params.get("report_type") or params.get("period") or params.get("start_date"):
             # A submitted request form (or the view page's edit link) repopulates everything.
             selection = selection_from_params(params)
+            _assistant_default_fields(params, selection, admin)
         elif active_preset is not None:
             selection = ReportSelection.from_config(preset_config(active_preset))
+        elif admin.role == ROLE_ASSISTANT:
+            selection.report_type = REPORT_TYPE_ATTENDANCE
+            selection.fields = set(_ATTENDANCE_SAFE_FIELDS)
+        _enforce_report_scope(selection, admin)
         start, end = resolve_period(selection)
         employees = db.scalars(select(Employee).order_by(Employee.code)).all()
         departments = db.scalars(select(Department).order_by(Department.name)).all()
         presets = list_presets(db)
+        if admin.role == ROLE_ASSISTANT:
+            presets = [
+                preset for preset in presets
+                if preset_config(preset).get("report_type") == REPORT_TYPE_ATTENDANCE
+            ]
     return templates.TemplateResponse(
         request=request,
         name="reports.html",
@@ -2813,7 +2844,7 @@ def reports_page(
             "active_preset": active_preset,
             "field_group_defs": FIELD_GROUP_DEFS,
             "field_groups_by_type": FIELD_GROUPS_BY_TYPE,
-            "report_types": REPORT_TYPES,
+            "report_types": [REPORT_TYPE_ATTENDANCE] if admin.role == ROLE_ASSISTANT else REPORT_TYPES,
             "report_type_labels": REPORT_TYPE_LABELS,
             "csrf_token": get_csrf_token(request),
             "error": params.get("error"),
@@ -2829,6 +2860,8 @@ def view_hr_report(
     admin: AdminAccount = Depends(get_current_admin),
 ):
     selection = selection_from_params(request.query_params)
+    _assistant_default_fields(request.query_params, selection, admin)
+    _enforce_report_scope(selection, admin)
     if selection.report_type == REPORT_TYPE_COMPREHENSIVE:
         return RedirectResponse(f"/reports?error=comprehensive&{request.url.query}", status_code=303)
     try:
@@ -2863,6 +2896,7 @@ async def save_report_preset_route(
     form = await request.form()
     name = str(form.get("preset_name", "")).strip()
     config = preset_config_from_params(form)
+    _enforce_report_scope(ReportSelection.from_config(config), admin)
     try:
         with SessionLocal() as db:
             preset = save_preset(db, name, config, admin.username)
@@ -2881,6 +2915,7 @@ def delete_report_preset_route(
     with SessionLocal() as db:
         preset = load_preset(db, preset_id)
         if preset is not None:
+            _enforce_report_scope(ReportSelection.from_config(preset_config(preset)), admin)
             db.delete(preset)
             db.commit()
     return RedirectResponse("/reports?deleted=1", status_code=303)
@@ -2888,6 +2923,30 @@ def delete_report_preset_route(
 
 def _custom_report_requested(params) -> bool:
     return bool(params.get("report_type") or params.get("fields"))
+
+
+_PAYROLL_REPORT_FIELD_KEYS = {key for key, _label in PAYROLL_FIELD_DEFS}
+_ATTENDANCE_SAFE_FIELDS = {key for key, _label in EMPLOYEE_FIELD_DEFS + ATTENDANCE_FIELD_DEFS}
+
+
+def _assistant_default_fields(params, selection: ReportSelection, admin: AdminAccount) -> None:
+    """An assistant request with no explicit field choice gets the attendance-safe
+    default set; an explicit payroll field choice stays visible so the scope check
+    refuses it instead of silently trimming."""
+    if admin.role != ROLE_ASSISTANT:
+        return
+    explicit = params.getlist("fields") if hasattr(params, "getlist") else params.get("fields")
+    if not explicit:
+        selection.fields = set(_ATTENDANCE_SAFE_FIELDS)
+
+
+def _enforce_report_scope(selection: ReportSelection, admin: AdminAccount) -> None:
+    """The assistant manager may run attendance reports only, and the saved or
+    requested selection must not smuggle payroll fields into it."""
+    if admin.role != ROLE_ASSISTANT:
+        return
+    if selection.report_type != REPORT_TYPE_ATTENDANCE or (selection.fields & _PAYROLL_REPORT_FIELD_KEYS):
+        raise HTTPException(status_code=403, detail="هذا الجزء غير متاح لصلاحية حسابك.")
 
 
 @app.get("/reports/export.xlsx")
@@ -2899,10 +2958,15 @@ def export_hr_reports(
     admin: AdminAccount = Depends(get_current_admin),
 ):
     params = request.query_params
+    if admin.role == ROLE_ASSISTANT and not _custom_report_requested(params):
+        # The all-modules workbook includes payroll sheets.
+        raise HTTPException(status_code=403, detail="هذا الجزء غير متاح لصلاحية حسابك.")
     try:
         with SessionLocal() as db:
             if _custom_report_requested(params):
                 selection = selection_from_params(params)
+                _assistant_default_fields(params, selection, admin)
+                _enforce_report_scope(selection, admin)
                 if selection.report_type == REPORT_TYPE_COMPREHENSIVE:
                     content = build_hr_workbook(db, start_date, end_date, employee_id=selection.employee_id, language=request.state.language)
                 else:
@@ -2933,10 +2997,15 @@ def export_hr_reports_pdf(
     admin: AdminAccount = Depends(get_current_admin),
 ):
     params = request.query_params
+    if admin.role == ROLE_ASSISTANT and not _custom_report_requested(params):
+        # The all-modules PDF includes payroll sections.
+        raise HTTPException(status_code=403, detail="هذا الجزء غير متاح لصلاحية حسابك.")
     try:
         with SessionLocal() as db:
             if _custom_report_requested(params):
                 selection = selection_from_params(params)
+                _assistant_default_fields(params, selection, admin)
+                _enforce_report_scope(selection, admin)
                 if selection.report_type == REPORT_TYPE_COMPREHENSIVE:
                     content = build_hr_pdf(db, start_date, end_date, employee_id=selection.employee_id, language=request.state.language)
                 else:
@@ -3001,7 +3070,7 @@ def telegram_settings_save(
     chat_id: str = Form(""),
     language: str = Form("ar"),
     enabled: str = Form(""),
-    admin: AdminAccount = Depends(get_current_admin),
+    admin: AdminAccount = Depends(require_system_admin),
 ):
     with SessionLocal.begin() as db:
         current = telegram_get_config(db)
@@ -3035,7 +3104,7 @@ def telegram_settings_save(
 
 
 @app.post("/settings/telegram/bind-link", dependencies=[Depends(csrf_protect)])
-def telegram_bind_link(request: Request, admin: AdminAccount = Depends(get_current_admin)):
+def telegram_bind_link(request: Request, admin: AdminAccount = Depends(require_system_admin)):
     with SessionLocal.begin() as db:
         nonce = generate_telegram_bind_nonce(db, actor=admin.username)
         if nonce is None:
@@ -3053,7 +3122,7 @@ def telegram_bind_link(request: Request, admin: AdminAccount = Depends(get_curre
 
 
 @app.post("/settings/telegram/bind-confirm", dependencies=[Depends(csrf_protect)])
-def telegram_bind_confirm(request: Request, admin: AdminAccount = Depends(get_current_admin)):
+def telegram_bind_confirm(request: Request, admin: AdminAccount = Depends(require_system_admin)):
     with SessionLocal.begin() as db:
         status = bind_telegram_chat_from_nonce(db, actor=admin.username)
         if status == "bound":
@@ -3074,7 +3143,7 @@ def telegram_bind_confirm(request: Request, admin: AdminAccount = Depends(get_cu
 
 
 @app.post("/settings/telegram/test", dependencies=[Depends(csrf_protect)])
-def telegram_test_message(request: Request, admin: AdminAccount = Depends(get_current_admin)):
+def telegram_test_message(request: Request, admin: AdminAccount = Depends(require_system_admin)):
     with SessionLocal() as db:
         sent = send_telegram_test_message(db)
     return RedirectResponse(f"/settings/password?tg={'test_ok' if sent else 'test_failed'}", status_code=303)
@@ -3120,6 +3189,147 @@ def change_password_route(
     return render(None, success=True)
 
 
+@app.get("/settings/accounts", response_class=HTMLResponse)
+def accounts_page(request: Request, admin: AdminAccount = Depends(require_system_admin)):
+    with SessionLocal() as db:
+        accounts = db.scalars(select(AdminAccount).order_by(AdminAccount.id)).all()
+        rows = [
+            {
+                "id": account.id,
+                "username": account.username,
+                "display_name": account.display_name or account.username,
+                "role": account.role,
+                "role_label": ROLE_LABELS.get(account.role, account.role),
+                "active": account.active,
+                "created_at": account.created_at,
+            }
+            for account in accounts
+        ]
+    return templates.TemplateResponse(
+        request=request,
+        name="accounts.html",
+        context={
+            "accounts": rows,
+            "csrf_token": get_csrf_token(request),
+            "error": request.query_params.get("error"),
+            "saved": request.query_params.get("saved"),
+        },
+    )
+
+
+@app.post("/settings/accounts", dependencies=[Depends(csrf_protect)])
+def create_account(
+    display_name: str = Form(...),
+    username: str = Form(...),
+    role: str = Form(...),
+    password: str = Form(...),
+    confirm_password: str = Form(...),
+    reason: str = Form(...),
+    admin: AdminAccount = Depends(require_system_admin),
+):
+    display_name = display_name.strip()
+    username = username.strip()
+    reason = reason.strip()
+    if not display_name or not username or not reason:
+        return RedirectResponse("/settings/accounts?error=missing", status_code=303)
+    # Exactly one system administrator exists (the HR manager); new accounts
+    # are finance or assistant-manager only.
+    if role not in (ROLE_FINANCE, ROLE_ASSISTANT):
+        return RedirectResponse("/settings/accounts?error=role", status_code=303)
+    if password != confirm_password:
+        return RedirectResponse("/settings/accounts?error=mismatch", status_code=303)
+    try:
+        with SessionLocal.begin() as db:
+            existing = db.scalar(select(AdminAccount).where(AdminAccount.username == username))
+            if existing is not None:
+                return RedirectResponse("/settings/accounts?error=exists", status_code=303)
+            account = AdminAccount(
+                username=username,
+                password_hash=hash_password(password),
+                display_name=display_name,
+                role=role,
+                active=True,
+            )
+            db.add(account)
+            db.flush()
+            db.add(AuditLog(
+                actor=admin.username,
+                action="account_created",
+                entity_type="admin_account",
+                entity_id=str(account.id),
+                old_value=None,
+                new_value=f"{display_name} ({username}) - {role}",
+                reason=reason,
+            ))
+    except ValueError:
+        return RedirectResponse("/settings/accounts?error=weak", status_code=303)
+    return RedirectResponse("/settings/accounts?saved=created", status_code=303)
+
+
+@app.post("/settings/accounts/{account_id}/deactivate", dependencies=[Depends(csrf_protect)])
+def deactivate_account(
+    account_id: int,
+    reason: str = Form(...),
+    admin: AdminAccount = Depends(require_system_admin),
+):
+    reason = reason.strip()
+    if not reason:
+        return RedirectResponse("/settings/accounts?error=missing", status_code=303)
+    with SessionLocal.begin() as db:
+        target = db.get(AdminAccount, account_id)
+        if target is None:
+            return RedirectResponse("/settings/accounts?error=exists", status_code=303)
+        if target.id == admin.id:
+            return RedirectResponse("/settings/accounts?error=self", status_code=303)
+        if target.role == ROLE_SYSTEM_ADMIN and target.active:
+            active_admins = db.scalar(
+                select(func.count(AdminAccount.id)).where(
+                    AdminAccount.role == ROLE_SYSTEM_ADMIN,
+                    AdminAccount.active.is_(True),
+                )
+            ) or 0
+            if active_admins <= 1:
+                return RedirectResponse("/settings/accounts?error=last_admin", status_code=303)
+        target.active = False
+        target.session_version += 1
+        db.add(AuditLog(
+            actor=admin.username,
+            action="account_deactivated",
+            entity_type="admin_account",
+            entity_id=str(target.id),
+            old_value=f"{target.display_name or target.username} - active",
+            new_value="inactive",
+            reason=reason,
+        ))
+    return RedirectResponse("/settings/accounts?saved=deactivated", status_code=303)
+
+
+@app.post("/settings/accounts/{account_id}/activate", dependencies=[Depends(csrf_protect)])
+def activate_account(
+    account_id: int,
+    reason: str = Form(...),
+    admin: AdminAccount = Depends(require_system_admin),
+):
+    reason = reason.strip()
+    if not reason:
+        return RedirectResponse("/settings/accounts?error=missing", status_code=303)
+    with SessionLocal.begin() as db:
+        target = db.get(AdminAccount, account_id)
+        if target is None:
+            return RedirectResponse("/settings/accounts?error=exists", status_code=303)
+        target.active = True
+        db.add(AuditLog(
+            actor=admin.username,
+            action="account_activated",
+            entity_type="admin_account",
+            entity_id=str(target.id),
+            old_value=f"{target.display_name or target.username} - inactive",
+            new_value="active",
+            reason=reason,
+        ))
+    return RedirectResponse("/settings/accounts?saved=activated", status_code=303)
+
+
 AUDIT_PAGE_SIZE = 50
 
 
@@ -3131,7 +3341,7 @@ def audit_log_page(
     from_date: str = "",
     to_date: str = "",
     page: int = 1,
-    admin: AdminAccount = Depends(get_current_admin),
+    admin: AdminAccount = Depends(require_system_admin),
 ):
     from app.audit_display import ACTION_LABELS, ENTITY_LABELS
 
@@ -3182,7 +3392,7 @@ def audit_log_page(
 @app.get("/settings/backup", response_class=HTMLResponse)
 def backup_settings_page(
     request: Request,
-    admin: AdminAccount = Depends(get_current_admin),
+    admin: AdminAccount = Depends(require_system_admin),
 ):
     with SessionLocal() as db:
         root = get_backup_root(db)
@@ -3208,7 +3418,7 @@ def update_backup_passphrase_route(
     new_passphrase: str = Form(...),
     confirm_passphrase: str = Form(...),
     current_passphrase: str = Form(""),
-    admin: AdminAccount = Depends(get_current_admin),
+    admin: AdminAccount = Depends(require_system_admin),
 ):
     if new_passphrase != confirm_passphrase:
         return RedirectResponse("/settings/backup?error=passphrase_mismatch", status_code=303)
@@ -3233,7 +3443,7 @@ def update_backup_passphrase_route(
 @app.post("/settings/backup/root", dependencies=[Depends(csrf_protect)])
 def update_backup_root_route(
     backup_root: str = Form(...),
-    admin: AdminAccount = Depends(get_current_admin),
+    admin: AdminAccount = Depends(require_system_admin),
 ):
     try:
         with SessionLocal.begin() as db:
@@ -3246,7 +3456,7 @@ def update_backup_root_route(
 @app.post("/settings/backup/create", dependencies=[Depends(csrf_protect)])
 def create_backup_route(
     backup_type: str = Form("manual"),
-    admin: AdminAccount = Depends(get_current_admin),
+    admin: AdminAccount = Depends(require_system_admin),
 ):
     if backup_type not in {"daily", "weekly", "quarterly", "manual"}:
         return RedirectResponse("/settings/backup?error=type", status_code=303)
@@ -3266,7 +3476,7 @@ def restore_backup_route(
     reason: str = Form(...),
     passphrase: str = Form(""),
     db: Session = Depends(get_db),
-    admin: AdminAccount = Depends(get_current_admin),
+    admin: AdminAccount = Depends(require_system_admin),
 ):
     if confirm_text.strip() != "RESTORE" or not reason.strip():
         return RedirectResponse("/settings/backup?error=confirm", status_code=303)
@@ -3306,7 +3516,7 @@ def employees_page(
     status: str = "",
     page: int = 1,
     req_page: int = 1,
-    admin: AdminAccount = Depends(get_current_admin),
+    admin: AdminAccount = Depends(require_employee_read),
 ):
     with SessionLocal() as db:
         departments = db.scalars(select(Department).where(Department.active.is_(True)).order_by(Department.name)).all()
@@ -3392,7 +3602,7 @@ def create_employee(
     daily_hours: Decimal = Form(...),
     fingerprint_id: str = Form(""),
     photo: UploadFile | None = File(None),
-    admin: AdminAccount = Depends(get_current_admin),
+    admin: AdminAccount = Depends(require_system_admin),
 ):
     if basic_salary < 0 or daily_hours <= 0 or daily_hours > 24:
         return HTMLResponse("بيانات الراتب أو ساعات العمل غير صحيحة.", status_code=400)
@@ -3468,7 +3678,7 @@ def edit_employee(
     probation_end_date: date | None = Form(None),
     effective_date: date = Form(...),
     reason: str = Form(...),
-    admin: AdminAccount = Depends(get_current_admin),
+    admin: AdminAccount = Depends(require_system_admin),
 ):
     reason = reason.strip()
     full_name = full_name.strip()
@@ -3581,7 +3791,7 @@ def create_employee_data_change_request(
     field_name: str = Form(...),
     requested_value: str = Form(...),
     request_reason: str = Form(...),
-    admin: AdminAccount = Depends(get_current_admin),
+    admin: AdminAccount = Depends(require_system_admin),
 ):
     requested_value = requested_value.strip()
     request_reason = request_reason.strip()
@@ -3612,7 +3822,7 @@ def review_employee_data_change_request(
     decision: str = Form(...),
     decision_reason: str = Form(...),
     effective_date: date | None = Form(None),
-    admin: AdminAccount = Depends(get_current_admin),
+    admin: AdminAccount = Depends(require_system_admin),
 ):
     decision_reason = decision_reason.strip()
     if decision not in {"apply", "reject"} or not decision_reason:
@@ -3677,7 +3887,7 @@ def transfer_employee(
     branch_id: int | None = Form(None),
     effective_date: date = Form(...),
     reason: str = Form(...),
-    admin: AdminAccount = Depends(get_current_admin),
+    admin: AdminAccount = Depends(require_system_admin),
 ):
     reason = reason.strip()
     if not reason:
@@ -3732,7 +3942,7 @@ def transfer_employee(
 def archive_employee(
     employee_id: int,
     reason: str = Form(...),
-    admin: AdminAccount = Depends(get_current_admin),
+    admin: AdminAccount = Depends(require_system_admin),
 ):
     reason = reason.strip()
     if not reason:
@@ -3769,7 +3979,7 @@ def rehire_employee(
     employee_id: int,
     new_hire_date: date = Form(...),
     reason: str = Form(...),
-    admin: AdminAccount = Depends(get_current_admin),
+    admin: AdminAccount = Depends(require_system_admin),
 ):
     reason = reason.strip()
     if not reason:

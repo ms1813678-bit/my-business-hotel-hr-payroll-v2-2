@@ -25,30 +25,33 @@
 
       <div class="nav-group">
         <div class="nav-group-title">الرئيسية</div>
-        <a class="nav-link {% if active_nav == 'dashboard' %}active{% endif %}" href="/"><span class="dot"></span>لوحة التحكم</a>
-        <a class="nav-link {% if active_nav == 'ai' %}active{% endif %}" href="/ai"><span class="dot"></span>مساعد الذكاء الاصطناعي</a>
+        {% if request.state.admin_role != 'assistant_manager' %}<a class="nav-link {% if active_nav == 'dashboard' %}active{% endif %}" href="/"><span class="dot"></span>لوحة التحكم</a>{% endif %}
+        {% if request.state.admin_role == 'system_admin' %}<a class="nav-link {% if active_nav == 'ai' %}active{% endif %}" href="/ai"><span class="dot"></span>مساعد الذكاء الاصطناعي</a>{% endif %}
       </div>
 
       <div class="nav-group">
         <div class="nav-group-title">الموارد البشرية</div>
-        <a class="nav-link {% if active_nav == 'employees' %}active{% endif %}" href="/employees"><span class="dot"></span>الموظفون</a>
+        {% if request.state.admin_role != 'assistant_manager' %}<a class="nav-link {% if active_nav == 'employees' %}active{% endif %}" href="/employees"><span class="dot"></span>الموظفون</a>{% endif %}
         <a class="nav-link {% if active_nav == 'attendance' %}active{% endif %}" href="/attendance/import"><span class="dot"></span>الحضور والانصراف</a>
-        <a class="nav-link {% if active_nav == 'leave' %}active{% endif %}" href="/leave"><span class="dot"></span>الإجازات</a>
-        <a class="nav-link {% if active_nav == 'staff_actions' %}active{% endif %}" href="/staff-actions"><span class="dot"></span>الجزاءات والمكافآت</a>
+        {% if request.state.admin_role != 'finance' %}<a class="nav-link {% if active_nav == 'leave' %}active{% endif %}" href="/leave"><span class="dot"></span>الإجازات</a>{% endif %}
+        {% if request.state.admin_role != 'assistant_manager' %}<a class="nav-link {% if active_nav == 'staff_actions' %}active{% endif %}" href="/staff-actions"><span class="dot"></span>الجزاءات والمكافآت</a>{% endif %}
         <a class="nav-link {% if active_nav == 'security_roster' %}active{% endif %}" href="/security-roster"><span class="dot"></span>جدول الأمن</a>
       </div>
 
       <div class="nav-group">
-        <div class="nav-group-title">الرواتب والمالية</div>
-        <a class="nav-link {% if active_nav == 'payroll' %}active{% endif %}" href="/payroll"><span class="dot"></span>مسيرات الرواتب</a>
-        <a class="nav-link {% if active_nav == 'advances' %}active{% endif %}" href="/advances"><span class="dot"></span>السلف</a>
+        {% if request.state.admin_role != 'assistant_manager' %}<div class="nav-group-title">الرواتب والمالية</div>{% endif %}
+        {% if request.state.admin_role != 'assistant_manager' %}<a class="nav-link {% if active_nav == 'payroll' %}active{% endif %}" href="/payroll"><span class="dot"></span>مسيرات الرواتب</a>
+        <a class="nav-link {% if active_nav == 'advances' %}active{% endif %}" href="/advances"><span class="dot"></span>السلف</a>{% endif %}
         <a class="nav-link {% if active_nav == 'reports' %}active{% endif %}" href="/reports"><span class="dot"></span>التقارير</a>
       </div>
 
       <div class="nav-group">
         <div class="nav-group-title">النظام</div>
+        {% if request.state.admin_role == 'system_admin' %}
         <a class="nav-link {% if active_nav == 'backup' %}active{% endif %}" href="/settings/backup"><span class="dot"></span>النسخ الاحتياطي</a>
         <a class="nav-link {% if active_nav == 'audit' %}active{% endif %}" href="/settings/audit"><span class="dot"></span>سجل المراجعة</a>
+        <a class="nav-link {% if active_nav == 'accounts' %}active{% endif %}" href="/settings/accounts"><span class="dot"></span>حسابات الدخول</a>
+        {% endif %}
         <a class="nav-link {% if active_nav == 'password' %}active{% endif %}" href="/settings/password"><span class="dot"></span>تغيير كلمة المرور</a>
       </div>
     </aside>

@@ -15,6 +15,7 @@
       <h2>إنشاء مسودة مراجعة الشهر</h2>
       <p>اختر تقرير البرنامج باعتباره المصدر الأساسي، وملف البصمة لاستكمال النواقص. يمكن متابعة المطابقة حتى مع وجود ملاحظات استيراد؛ لكن وجود أي ملاحظة سيحوّل جميع المقترحات إلى «تحتاج مراجعة» حتى يراجعها مسؤول الموارد البشرية.</p>
       <p>يُنشئ النظام سجلات مقترحة لكل موظف وأيام الفترة، ويحدد الورديات الليلية بتاريخ بداية الوردية. أيام الأمن المعتمدة التي يظهر فيها الموظف OFF لا تُسجل كغياب.</p>
+      {% if request.state.admin_role != 'finance' %}
       <form method="post" action="/attendance/reconcile">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <label for="program_batch_id">دفعة تقرير البرنامج</label>
@@ -37,6 +38,7 @@
         <input id="period_end" name="period_end" type="date" required>
         <button type="submit">إنشاء مسودة المطابقة</button>
       </form>
+      {% endif %}
     </section>
 
     {% if error %}

@@ -162,7 +162,7 @@ def test_fresh_postgres_install_repeated_upgrade_rollback_and_admin_guards(postg
     assert len(codes) == 24
     assert len(set(codes)) == 24
 
-    # Database constraints and trigger protect the only administrator without ORM help.
+    # Database constraints and trigger protect administrator accounts without ORM help.
     with test_engine.begin() as connection:
         connection.execute(
             text("""
@@ -170,19 +170,26 @@ def test_fresh_postgres_install_repeated_upgrade_rollback_and_admin_guards(postg
                 VALUES ('migration-admin', 'test-hash', TRUE)
             """)
         )
+        # Named accounts are allowed; the role must be one of the approved values.
+        connection.execute(
+            text("""
+                INSERT INTO admin_accounts (username, password_hash, active, role, display_name)
+                VALUES ('migration-finance', 'test-hash', TRUE, 'finance', 'Finance Person')
+            """)
+        )
         with pytest.raises(IntegrityError):
             with connection.begin_nested():
                 connection.execute(
                     text("""
-                        INSERT INTO admin_accounts (username, password_hash, active)
-                        VALUES ('second-admin', 'test-hash', TRUE)
+                        INSERT INTO admin_accounts (username, password_hash, active, role)
+                        VALUES ('bogus-admin', 'test-hash', TRUE, 'superuser')
                     """)
                 )
-        with pytest.raises(IntegrityError):
-            with connection.begin_nested():
-                connection.execute(
-                    text("UPDATE admin_accounts SET active = FALSE WHERE username = 'migration-admin'")
-                )
+        # Deactivation is allowed at the database level; the account-management
+        # routes protect the sole active system administrator.
+        connection.execute(
+            text("UPDATE admin_accounts SET active = FALSE WHERE username = 'migration-finance'")
+        )
         with pytest.raises(DBAPIError):
             with connection.begin_nested():
                 connection.execute(

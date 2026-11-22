@@ -15,6 +15,7 @@
       <h2>رفع تقرير الحضور أو البصمة</h2>
       <p>ارفع ملف البرنامج أولًا باعتباره المصدر الأساسي، ثم ارفع ملف البصمة لاستكمال النواقص. يدعم النظام CSV وXLS وXLSX، ويتعامل مع عناوين الأعمدة العربية والإنجليزية، ويقرأ كل أوراق الملف وكل أوقات البصمة الموجودة في الخلية الواحدة.</p>
       <p>الاستيراد يحفظ الأدلة الخام وملاحظات المطابقة فقط. لا يعتمد الحضور ولا يرسل بيانات إلى الرواتب.</p>
+      {% if request.state.admin_role != 'finance' %}
       <form method="post" action="/attendance/import" enctype="multipart/form-data">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <label for="source_type">نوع الملف</label>
@@ -26,6 +27,7 @@
         <input id="file" type="file" name="file" accept=".csv,.xls,.xlsx" required>
         <button type="submit">استيراد وحفظ الأدلة للمراجعة</button>
       </form>
+      {% endif %}
       <details class="hint"><summary>تعليمات</summary>
         <p class="muted">الحد الأقصى لحجم الملف 5 ميجابايت. لا يتم تخمين هوية موظف غير معروف.</p>
       </details>
