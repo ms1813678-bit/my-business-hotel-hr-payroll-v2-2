@@ -195,3 +195,84 @@ def test_ai_dispatch_trilingual(monkeypatch):
             assert "500" in text
     finally:
         engine.dispose()
+
+
+def test_missing_attendance_distinguished_and_leave_excused(monkeypatch):
+    from app.models import LeaveRecord, LeaveType, SecurityShiftAssignment, ShiftPattern
+    engine, factory = _session()
+    try:
+        with factory() as db:
+            emp = _employee(db)
+            run = _run(db, date(2026, 11, 1))
+            _item(db, run, emp)
+            pattern = ShiftPattern(
+                department_id=emp.department_id, code="SEC-A", name="Security A",
+                start_time=datetime(2026, 1, 1, 0, 0).time(),
+                end_time=datetime(2026, 1, 1, 8, 0).time(),
+            )
+            db.add(pattern)
+            db.flush()
+            # assigned 3 days: one with a record (settled), one on confirmed
+            # leave (excused), one with nothing (missing)
+            for d in (2, 3, 4):
+                db.add(SecurityShiftAssignment(employee_id=emp.id, work_date=date(2026, 11, d), shift_pattern_id=pattern.id))
+            db.add(AttendanceDailyRecord(employee_id=emp.id, work_date=date(2026, 11, 2), status="approved"))
+            lt = LeaveType(code="ANN", name_en="Annual", name_ar="سنوية", name_zh="年假")
+            db.add(lt)
+            db.flush()
+            db.add(LeaveRecord(employee_id=emp.id, leave_type_id=lt.id,
+                               start_date=date(2026, 11, 3), end_date=date(2026, 11, 3),
+                               calendar_days=1, charged_days=Decimal("1"), reason="x",
+                               status="confirmed", created_by="t"))
+            db.commit()
+        _patched(factory, monkeypatch)
+        report = review.build_pre_payroll_review(date(2026, 11, 1))
+        assert len(report["missing_attendance"]) == 1
+        assert [d["work_date"] for d in report["missing_attendance"][0]["days"]] == ["2026-11-04"]
+        assert report["coverage_unproven"] == []
+        text = review.format_pre_payroll_review(report, "en")
+        assert "2026-11-04" in text and "2026-11-03" not in text
+    finally:
+        engine.dispose()
+
+
+def test_employee_without_assignments_is_coverage_unproven(monkeypatch):
+    engine, factory = _session()
+    try:
+        with factory() as db:
+            emp = _employee(db)
+            run = _run(db, date(2026, 11, 1))
+            _item(db, run, emp)
+            db.commit()
+        _patched(factory, monkeypatch)
+        report = review.build_pre_payroll_review(date(2026, 11, 1))
+        assert report["missing_attendance"] == []
+        assert len(report["coverage_unproven"]) == 1
+        text = review.format_pre_payroll_review(report, "ar")
+        assert "تغطية الحضور غير مثبتة" in text and "ليست تأكيدًا بالانتظام" in text
+    finally:
+        engine.dispose()
+
+
+def test_heuristics_visible_and_configurable(monkeypatch):
+    engine, factory = _session()
+    try:
+        with factory() as db:
+            emp = _employee(db)
+            prev_run = _run(db, date(2026, 10, 1), status="approved")
+            _item(db, prev_run, emp, lateness="50")
+            run = _run(db, date(2026, 11, 1))
+            _item(db, run, emp, lateness="120")
+            db.commit()
+        _patched(factory, monkeypatch)
+        # default floor 100: 120 >= 2*50 but 120-50 < 100 -> not flagged
+        report = review.build_pre_payroll_review(date(2026, 11, 1))
+        assert report["unusual_deductions"] == []
+        # same data flagged when management lowers the floor
+        report2 = review.build_pre_payroll_review(date(2026, 11, 1), abs_floor=Decimal("50"))
+        assert len(report2["unusual_deductions"]) == 1
+        text = review.format_pre_payroll_review(report, "en")
+        assert "not adopted HR policy" in text
+        assert "does not mean the deductions are correct" in text
+    finally:
+        engine.dispose()
