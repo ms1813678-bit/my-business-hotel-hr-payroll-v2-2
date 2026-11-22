@@ -88,6 +88,8 @@ from app.backup_crypto import (
 )
 from app.backup_workflow import create_backup, export_key_file, get_backup_root, restore_backup, save_backup_root
 from app.payroll_workflow import (
+    AbsenceLeaveConflictError,
+    absence_leave_conflicts,
     add_payroll_payment,
     approve_payroll_run,
     close_payroll_run,
@@ -95,6 +97,7 @@ from app.payroll_workflow import (
     approve_overtime,
     payment_totals,
     reopen_payroll_run,
+    review_absence_leave_conflict,
     update_payroll_item,
 )
 from app.models import AdvanceRequest, BackupRun, SystemSetting, StaffAction, PayrollRun, PayrollItem, PayrollPayment, AdminAccount, AttendanceDailyRecord, AttendanceImportBatch, AttendanceImportIssue, AttendancePunch, AttendanceMonth, AuditLog, Branch, Department, Employee, EmployeeChange, EmployeeDataChangeRequest, EmployeeServicePeriod, LeaveBalanceTransaction, LeaveRecord, LeaveType
@@ -2421,6 +2424,38 @@ def payroll_run_page(
             .where(PayrollPayment.payroll_item_id.in_([item.id for item in items] or {-1}))
             .order_by(PayrollPayment.paid_at.desc(), PayrollPayment.id.desc())
         ).all()
+        # Protection 1: absence deduction vs confirmed paid leave (review gate).
+        conflict_map = {}
+        if run.status in {"draft", "reopened"}:
+            for item in items:
+                conflicts = absence_leave_conflicts(db, item, run)
+                if conflicts:
+                    conflict_map[item.id] = conflicts
+        # Protection 2: warn when the item snapshot no longer matches the
+        # employee's effective compensation for the period (entered after the
+        # draft was created), or when a mid-period change now exists.
+        from app.payroll_workflow import _employee_snapshot_on_date
+        stale_codes = []
+        if run.status in {"draft", "reopened"}:
+            for item in items:
+                employee = db.get(Employee, item.employee_id)
+                if employee is None:
+                    continue
+                try:
+                    snapshot, changes = _employee_snapshot_on_date(db, employee, run.period_start)
+                except ValueError:
+                    stale_codes.append(item.employee_code_snapshot)
+                    continue
+                if (
+                    Decimal(snapshot["basic_salary"]) != Decimal(item.salary_basis)
+                    or Decimal(snapshot["daily_hours"]) != Decimal(item.daily_hours)
+                    or any(
+                        change.field_name in {"basic_salary", "daily_hours"}
+                        and run.period_start < change.effective_date <= run.period_end
+                        for change in changes
+                    )
+                ):
+                    stale_codes.append(item.employee_code_snapshot)
         # What-if simulation (GET, read-only): transient copies recomputed by
         # the payroll engine; nothing is written, approved or audited.
         from app.payroll_simulation import (
@@ -2455,6 +2490,8 @@ def payroll_run_page(
                 "summaries": summaries,
                 "financials": financials,
                 "payments": payments,
+                "conflict_map": conflict_map,
+                "stale_codes": stale_codes,
                 "csrf_token": get_csrf_token(request),
                 "error": request.query_params.get("error"),
                 "simulation": simulation,
@@ -2503,8 +2540,30 @@ def approve_payroll_run_route(
             if run is None:
                 return RedirectResponse("/payroll?error=run", status_code=303)
             approve_payroll_run(db, run, admin.username)
+    except AbsenceLeaveConflictError:
+        return RedirectResponse(
+            f"/payroll/runs/{run_id}?error=absence_leave_conflict", status_code=303
+        )
     except (ValueError, SQLAlchemyError):
         return RedirectResponse(f"/payroll/runs/{run_id}?error=approve", status_code=303)
+    return RedirectResponse(f"/payroll/runs/{run_id}", status_code=303)
+
+
+@app.post("/payroll/items/{item_id}/absence-leave-review", dependencies=[Depends(csrf_protect)])
+def absence_leave_review_route(
+    item_id: int,
+    admin: AdminAccount = Depends(get_current_admin),
+):
+    with SessionLocal() as db:
+        item = db.get(PayrollItem, item_id)
+        if item is None:
+            return RedirectResponse("/payroll?error=run", status_code=303)
+        run_id = item.payroll_run_id
+    try:
+        with SessionLocal.begin() as db:
+            review_absence_leave_conflict(db, db.get(PayrollItem, item_id), admin.username)
+    except (ValueError, SQLAlchemyError):
+        return RedirectResponse(f"/payroll/runs/{run_id}?error=item", status_code=303)
     return RedirectResponse(f"/payroll/runs/{run_id}", status_code=303)
 
 

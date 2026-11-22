@@ -635,6 +635,10 @@ class PayrollItem(Base):
     staff_reward_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=0, nullable=False)
     staff_sanction_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=0, nullable=False)
     net_pay: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=0, nullable=False)
+    absence_leave_reviewed: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="false", nullable=False
+    )
+    absence_leave_review_fingerprint: Mapped[str | None] = mapped_column(String(64))
     note: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(

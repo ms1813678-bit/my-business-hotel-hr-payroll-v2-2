@@ -13,6 +13,7 @@
     {% elif error == "close" %}تعذر إغلاق المسير. يجب اعتماده أولًا.
     {% elif error == "reopen" %}تعذر إعادة فتح المسير. يجب إدخال سبب واضح وأن تكون الحالة مغلقة.
     {% elif error == "item" %}تعذر تعديل بند الراتب. تأكد أن المسير في حالة مسودة أو معاد فتحه وأن الخصومات لا تتجاوز المستحق.
+    {% elif error == "absence_leave_conflict" %}تعذر الاعتماد: يوجد خصم غياب قد يتعارض مع إجازة مدفوعة معتمدة ولم تتم مراجعته بعد. راجع البنود المعلَّمة بالأسفل.
     {% elif error == "payment" %}تعذر تسجيل الدفعة. تحقق من أن المسير مغلق وأن المبلغ لا يتجاوز المتبقي.
     {% else %}تعذر تنفيذ العملية.{% endif %}
   </section>
@@ -24,7 +25,13 @@
       <p class="muted">المسودة ← اعتماد الموارد البشرية ← إغلاق الشهر ← تسجيل الصرف النقدي أو التحويل البنكي. إعادة فتح مسير مغلق تتطلب سببًا مسجلًا في سجل المراجعة.</p>
     </details>
     {% if run.status in ["draft", "reopened"] %}
-    <form method="post" action="/payroll/runs/{{ run.id }}/approve" class="inline-form">
+    <span id="review-unsaved-warning" hidden>لديك تعديلات غير محفوظة في بند الراتب. تأكيد المراجعة الآن سيتجاهلها ويراجع القيم المحفوظة فقط. احفظ التعديلات أولًا أو أكّد للمتابعة.</span>
+  {% if stale_codes %}
+  <section class="notice error">
+    <p><span>تنبيه: بيانات المرتب أو ساعات العمل اتغيرت بعد تجهيز هذا الكشف للموظفين:</span> {{ stale_codes|join("، ") }}. <span>الكشف مبني على اللقطة القديمة. راجع بنودهم قبل الاعتماد.</span></p>
+  </section>
+  {% endif %}
+  <form method="post" action="/payroll/runs/{{ run.id }}/approve" class="inline-form">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button type="submit">اعتماد المسير</button>
     </form>
     {% endif %}
@@ -68,7 +75,7 @@
     </tr>
     {% if run.status in ["draft", "reopened"] %}
     <tr><td colspan="10">
-      <form method="post" action="/payroll/items/{{ item.id }}/update">
+      <form method="post" action="/payroll/items/{{ item.id }}/update" class="payroll-item-edit">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <div class="form-grid">
           <label>مكافأة حضور<input type="number" name="attendance_bonus" min="0" step="0.01" value="{{ item.attendance_bonus }}"></label>
@@ -92,6 +99,24 @@
         {% endif %}
         {% endif %}
       </form>
+      {% if conflict_map.get(item.id) %}
+      <div class="notice error">
+        <p><span>احتمال تعارض يحتاج مراجعة: لهذا الموظف إجازة مدفوعة معتمدة في نفس الشهر، ومسجل عليه</span> {{ item.absence_days }} <span>يوم غياب. أيام الغياب تُسجل كعدد للشهر بدون تواريخ، فقد تتطابق مع أيام الإجازة وقد لا تتطابق. تأكد أن الخصم صحيح ثم أكّد المراجعة.</span></p>
+        <ul>
+          {% for leave in conflict_map[item.id] %}
+          <li><span>إجازة من</span> {{ leave.start_date|fmt_d }} <span>إلى</span> {{ leave.end_date|fmt_d }}</li>
+          {% endfor %}
+        </ul>
+        {% if item.absence_leave_reviewed %}
+        <p class="muted">تمت مراجعة التعارض. يمكن اعتماد المسير.</p>
+        {% else %}
+        <form method="post" action="/payroll/items/{{ item.id }}/absence-leave-review" onsubmit="return payrollReviewSubmit();">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button type="submit">تأكيد مراجعة التعارض</button>
+        </form>
+        {% endif %}
+      </div>
+      {% endif %}
     </td></tr>
     {% endif %}
     {% if run.status == "closed" and p[1] > 0 %}
@@ -192,4 +217,18 @@
     <p><strong>ملاحظات الحساب:</strong> الأساسي الشهري ثابت، وساعات العمل لا تخفضه. سعر الساعة = الأساسي ÷ (ساعات اليوم × 30). خصم الغياب = الأساسي ÷ أيام الشهر الفعلية × أيام الغياب. الأوفر تايم بنفس سعر الساعة دون مضاعف، ولا يدخل في الصافي إلا بعد اعتماد ساعات الإضافي من الإدارة. التأمين والضرائب يدويان دون حساب قانوني تلقائي.</p>
     <p>خصم السلف والمكافآت والجزاءات المالية يظهر من السجلات المعتمدة للشهر. لا تعتبر السلفة مخصومة إلا بعد إغلاق المسير.</p>
   </section>
+  <script>
+    document.querySelectorAll("form.payroll-item-edit").forEach(function (f) {
+      f.addEventListener("input", function () { f.dataset.dirty = "1"; });
+      f.addEventListener("submit", function () { delete f.dataset.dirty; });
+    });
+    function payrollReviewSubmit() {
+      var dirty = Array.prototype.some.call(
+        document.querySelectorAll("form.payroll-item-edit"),
+        function (f) { return f.dataset.dirty === "1"; }
+      );
+      if (!dirty) { return true; }
+      return confirm(document.getElementById("review-unsaved-warning").textContent);
+    }
+  </script>
 {% endblock %}

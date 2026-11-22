@@ -17,6 +17,8 @@ from app.models import (
     Employee,
     EmployeeChange,
     EmployeeServicePeriod,
+    LeaveRecord,
+    LeaveType,
     PayrollItem,
     PayrollPayment,
     PayrollRun,
@@ -158,6 +160,72 @@ def _attendance_lateness(
             early_grace_minutes=5,
         )
     return late_total, early_total, money(deduction)
+
+
+class AbsenceLeaveConflictError(ValueError):
+    """Approval blocked: unreviewed absence/paid-leave conflicts."""
+
+    def __init__(self, employee_codes: list[str]):
+        super().__init__("Unreviewed absence/paid-leave conflicts: " + ", ".join(employee_codes))
+        self.employee_codes = employee_codes
+
+
+def absence_leave_conflicts(db: Session, item: PayrollItem, run: PayrollRun) -> list[LeaveRecord]:
+    """Confirmed paid leave overlapping the run period while absence days are entered.
+
+    Absence days are a manual month-level entry; a confirmed paid leave record in
+    the same period means the deduction may double-charge the employee. This is a
+    review trigger, never an automatic verdict: HR reviews and either corrects the
+    absence days or explicitly confirms the deduction stands.
+    """
+    if Decimal(item.absence_days) <= 0:
+        return []
+    return db.scalars(
+        select(LeaveRecord)
+        .join(LeaveType, LeaveType.id == LeaveRecord.leave_type_id)
+        .where(
+            LeaveRecord.employee_id == item.employee_id,
+            LeaveRecord.status == "confirmed",
+            LeaveType.is_paid.is_(True),
+            LeaveRecord.start_date <= run.period_end,
+            LeaveRecord.end_date >= run.period_start,
+        )
+        .order_by(LeaveRecord.start_date)
+    ).all()
+
+
+def _absence_leave_fingerprint(
+    item: PayrollItem, run: PayrollRun, conflicts: list[LeaveRecord]
+) -> str:
+    """Bind a review confirmation to the exact inputs it covered.
+
+    Any later change to the conflicting leave set (added, cancelled, edited) or
+    to the absence days invalidates the fingerprint, so approval requires a
+    fresh human review instead of silently reusing a stale confirmation.
+    """
+    import hashlib
+    leave_parts = ",".join(
+        f"{leave.id}:{leave.start_date}:{leave.end_date}" for leave in conflicts
+    )
+    raw = f"{item.employee_id}|{run.period_start}|{Decimal(item.absence_days)}|{leave_parts}"
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+
+def review_absence_leave_conflict(db: Session, item: PayrollItem, actor: str) -> None:
+    run = db.get(PayrollRun, item.payroll_run_id)
+    if run is None or run.status not in {"draft", "reopened"}:
+        raise ValueError("Conflict review is possible only while payroll is draft or reopened.")
+    conflicts = absence_leave_conflicts(db, item, run)
+    if not conflicts:
+        raise ValueError("لا يوجد تعارض غياب مع إجازة مدفوعة قائم لهذا البند.")
+    item.absence_leave_reviewed = True
+    item.absence_leave_review_fingerprint = _absence_leave_fingerprint(item, run, conflicts)
+    _audit(
+        db, actor=actor, action="absence_leave_conflict_reviewed",
+        entity_type="payroll_item", entity_id=str(item.id),
+        old_value="false", new_value="true",
+        reason="HR reviewed absence deduction against confirmed paid leave.",
+    )
 
 
 def recompute_payroll_item(item: PayrollItem, run: PayrollRun) -> None:
@@ -399,6 +467,9 @@ def update_payroll_item(
         old[key] = str(getattr(item, key))
         new[key] = str(normalized)
         setattr(item, key, normalized)
+    if "absence_days" in values and Decimal(old["absence_days"]) != Decimal(new["absence_days"]):
+        item.absence_leave_reviewed = False
+        item.absence_leave_review_fingerprint = None
     if "overtime_hours" in values:
         item.overtime_approved = False
         item.overtime_approved_by = None
@@ -431,6 +502,18 @@ def approve_payroll_run(db: Session, run: PayrollRun, actor: str) -> None:
     ).all()
     if not items:
         raise ValueError("A payroll run without employee items cannot be approved.")
+    conflicted = []
+    for item in items:
+        conflicts = absence_leave_conflicts(db, item, run)
+        if not conflicts:
+            continue
+        if not item.absence_leave_reviewed:
+            conflicted.append(item.employee_code_snapshot)
+            continue
+        if item.absence_leave_review_fingerprint != _absence_leave_fingerprint(item, run, conflicts):
+            conflicted.append(item.employee_code_snapshot)
+    if conflicted:
+        raise AbsenceLeaveConflictError(sorted(conflicted))
     for item in items:
         recompute_payroll_item(item, run)
     old = run.status
