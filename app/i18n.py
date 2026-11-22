@@ -692,6 +692,42 @@ ZH.update({
   "إذا لم يكن المساعد متاحًا، يمكنك متابعة العمل من أقسام النظام الأساسية.": "如果助手暂时不可用，您仍可继续使用系统的主要功能模块。"
 })
 
+EN.update({
+    'كلمتا السر الجديدتان غير متطابقتين.': 'The two new passphrases do not match.',
+    'كلمة سر التشفير قصيرة؛ استخدم 8 أحرف على الأقل.': 'The backup passphrase is too short; use at least 8 characters.',
+    'كلمة سر التشفير غير صحيحة.': 'The backup passphrase is incorrect.',
+    'تم حفظ كلمة سر تشفير النسخ الاحتياطي.': 'The backup encryption passphrase was saved.',
+    'التشفير مفعّل.': 'Encryption is on.',
+    'كل النسخ الجديدة تُحفظ مشفّرة، وتطلب الاستعادة كلمة سر التشفير.': 'New backups are stored encrypted, and restoring asks for the backup passphrase.',
+    'التشفير غير مفعّل بعد.': 'Encryption is not set up yet.',
+    'عيّن كلمة سر لحماية النسخ على القرص الخارجي.': 'Set a passphrase to protect the backups on the external drive.',
+    'كلمة سر التشفير هي طريقة فتح النسخ المشفّرة وقت الاستعادة. احفظها في مكان آمن تعرفه أنت فقط: لو نسيتها فلن نستطيع فتح النسخ المشفّرة نهائيًا، ولا توجد طريقة لاسترجاعها.': 'The backup passphrase is how encrypted backups are opened during a restore. Keep it somewhere safe that only you know: if you forget it, encrypted backups can never be opened and there is no way to recover it.',
+    'تشفير النسخ الاحتياطية / Backup encryption': 'Backup Encryption',
+    'كلمة السر الحالية / Current passphrase': 'Current Passphrase',
+    'كلمة السر الجديدة / New passphrase': 'New Passphrase',
+    'تأكيد كلمة السر الجديدة / Confirm new passphrase': 'Confirm New Passphrase',
+    'حفظ كلمة سر التشفير / Save passphrase': 'Save Passphrase',
+    'كلمة سر التشفير / Backup passphrase': 'Backup Passphrase',
+})
+
+ZH.update({
+    'كلمتا السر الجديدتان غير متطابقتين.': '两次输入的新密码不一致。',
+    'كلمة سر التشفير قصيرة؛ استخدم 8 أحرف على الأقل.': '备份加密密码太短，请至少使用 8 个字符。',
+    'كلمة سر التشفير غير صحيحة.': '备份加密密码不正确。',
+    'تم حفظ كلمة سر تشفير النسخ الاحتياطي.': '备份加密密码已保存。',
+    'التشفير مفعّل.': '加密已启用。',
+    'كل النسخ الجديدة تُحفظ مشفّرة، وتطلب الاستعادة كلمة سر التشفير.': '新备份将以加密方式保存，恢复时需要输入备份加密密码。',
+    'التشفير غير مفعّل بعد.': '加密尚未设置。',
+    'عيّن كلمة سر لحماية النسخ على القرص الخارجي.': '请设置密码以保护外部驱动器上的备份。',
+    'كلمة سر التشفير هي طريقة فتح النسخ المشفّرة وقت الاستعادة. احفظها في مكان آمن تعرفه أنت فقط: لو نسيتها فلن نستطيع فتح النسخ المشفّرة نهائيًا، ولا توجد طريقة لاسترجاعها.': '备份加密密码是在恢复时打开加密备份的唯一方式。请把它保存在只有您自己知道的安全位置：一旦忘记，加密备份将永远无法打开，也无法找回。',
+    'تشفير النسخ الاحتياطية / Backup encryption': '备份加密',
+    'كلمة السر الحالية / Current passphrase': '当前密码',
+    'كلمة السر الجديدة / New passphrase': '新密码',
+    'تأكيد كلمة السر الجديدة / Confirm new passphrase': '确认新密码',
+    'حفظ كلمة سر التشفير / Save passphrase': '保存密码',
+    'كلمة سر التشفير / Backup passphrase': '备份加密密码',
+})
+
 LANGUAGES = {"ar": "العربية", "en": "English", "zh": "中文"}
 
 def _translate_value(value: str, language: str) -> str:

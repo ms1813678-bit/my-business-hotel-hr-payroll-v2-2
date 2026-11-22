@@ -62,7 +62,13 @@ from app.report_builder import (
     save_preset,
     selection_from_params,
 )
-from app.backup_workflow import create_backup, get_backup_root, restore_backup, save_backup_root
+from app.backup_crypto import (
+    PassphraseRequiredError,
+    WrongPassphraseError,
+    has_passphrase as backup_has_passphrase,
+    set_passphrase as set_backup_passphrase,
+)
+from app.backup_workflow import create_backup, export_key_file, get_backup_root, restore_backup, save_backup_root
 from app.payroll_workflow import (
     add_payroll_payment,
     approve_payroll_run,
@@ -2557,11 +2563,39 @@ def backup_settings_page(
             context={
                 "backup_root": str(root) if root else "",
                 "runs": runs,
+                "encryption_enabled": backup_has_passphrase(db),
                 "csrf_token": get_csrf_token(request),
                 "error": request.query_params.get("error"),
                 "success": request.query_params.get("success"),
             },
         )
+
+
+@app.post("/settings/backup/passphrase", dependencies=[Depends(csrf_protect)])
+def update_backup_passphrase_route(
+    new_passphrase: str = Form(...),
+    confirm_passphrase: str = Form(...),
+    current_passphrase: str = Form(""),
+    admin: AdminAccount = Depends(get_current_admin),
+):
+    if new_passphrase != confirm_passphrase:
+        return RedirectResponse("/settings/backup?error=passphrase_mismatch", status_code=303)
+    try:
+        with SessionLocal.begin() as db:
+            set_backup_passphrase(
+                db,
+                new_passphrase,
+                admin.username,
+                current_passphrase=current_passphrase or None,
+            )
+            export_key_file(db)
+    except WrongPassphraseError:
+        return RedirectResponse("/settings/backup?error=passphrase_wrong", status_code=303)
+    except ValueError as exc:
+        if str(exc) == "passphrase_too_short":
+            return RedirectResponse("/settings/backup?error=passphrase_short", status_code=303)
+        return RedirectResponse("/settings/backup?error=passphrase_wrong", status_code=303)
+    return RedirectResponse("/settings/backup?success=passphrase", status_code=303)
 
 
 @app.post("/settings/backup/root", dependencies=[Depends(csrf_protect)])
@@ -2598,6 +2632,7 @@ def restore_backup_route(
     backup_id: int = Form(...),
     confirm_text: str = Form(...),
     reason: str = Form(...),
+    passphrase: str = Form(""),
     db: Session = Depends(get_db),
     admin: AdminAccount = Depends(get_current_admin),
 ):
@@ -2615,7 +2650,10 @@ def restore_backup_route(
             expected_sha256,
             actor=admin.username,
             reason=reason,
+            passphrase=passphrase or None,
         )
+    except (PassphraseRequiredError, WrongPassphraseError):
+        return RedirectResponse("/settings/backup?error=passphrase_wrong", status_code=303)
     except Exception:
         return RedirectResponse("/settings/backup?error=restore", status_code=303)
     return RedirectResponse("/login?restored=1", status_code=303)

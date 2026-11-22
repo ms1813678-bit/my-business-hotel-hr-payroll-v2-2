@@ -16,6 +16,18 @@ from sqlalchemy import delete, select, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session
 
+from app.backup_crypto import (
+    ENCRYPTED_SUFFIX,
+    PassphraseRequiredError,
+    decrypt_file,
+    encrypt_file,
+    export_public_record,
+    has_passphrase,
+    is_encrypted_archive,
+    load_data_key,
+    unwrap_data_key_for_restore,
+    unwrap_data_key_from_record,
+)
 from app.config import settings
 from app.models import BackupRun, SystemSetting
 
@@ -23,6 +35,22 @@ from app.models import BackupRun, SystemSetting
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 PHOTO_DIRECTORY = PROJECT_ROOT / "var" / "employee_photos"
 BACKUP_SETTING_KEY = "backup_root"
+KEY_FILE_NAME = "backup_encryption_key.json"
+
+
+def export_key_file(db: Session) -> Path | None:
+    """Write the passphrase-wrapped key file next to the backups.
+
+    Contains no plaintext data key: it lets a reinstall unlock encrypted
+    archives with the passphrase after the original database is lost.
+    """
+    payload = export_public_record(db)
+    backup_root = get_backup_root(db)
+    if payload is None or backup_root is None:
+        return None
+    key_path = backup_root / KEY_FILE_NAME
+    key_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    return key_path
 
 
 def sha256_file(path: Path) -> str:
@@ -107,8 +135,12 @@ def _find_pg_tool(name: str) -> str:
 def _database_args() -> tuple[list[str], dict[str, str]]:
     url = make_url(settings.database_url)
     args: list[str] = []
-    if url.host:
-        args.extend(["--host", url.host])
+    # A psycopg-style ?host= query override (e.g. a Unix socket directory) wins
+    # over the netloc host, matching how the application itself connects.
+    query_host = (url.query or {}).get("host")
+    host = str(query_host) if query_host else url.host
+    if host:
+        args.extend(["--host", host])
     if url.port:
         args.extend(["--port", str(url.port)])
     if url.username:
@@ -221,25 +253,51 @@ def _read_manifest(archive_path: Path) -> dict:
         return manifest
 
 
-def verify_backup_archive(archive_path: str | Path, expected_sha256: str | None = None) -> dict:
+def verify_backup_archive(
+    archive_path: str | Path,
+    expected_sha256: str | None = None,
+    data_key: bytes | None = None,
+) -> dict:
     path = Path(archive_path)
     if not path.is_file():
         raise FileNotFoundError("The selected backup file does not exist.")
     actual_hash = sha256_file(path)
     if expected_sha256 and actual_hash != expected_sha256:
         raise ValueError("The backup archive hash does not match its saved record.")
-    manifest = _read_manifest(path)
+    if is_encrypted_archive(path):
+        if data_key is None:
+            raise PassphraseRequiredError("The selected backup is encrypted and needs its passphrase.")
+        with tempfile.TemporaryDirectory(prefix="myhotel_verify_") as work_dir:
+            plain_path = Path(work_dir) / "archive.zip"
+            decrypt_file(data_key, path, plain_path)
+            manifest = _read_manifest(plain_path)
+    else:
+        manifest = _read_manifest(path)
     if manifest.get("format_version") != 1:
         raise ValueError("Unsupported backup format version.")
     return manifest
 
 
-def cleanup_retention(backup_root: Path, now: datetime | None = None) -> list[str]:
+def cleanup_retention(
+    backup_root: Path,
+    now: datetime | None = None,
+    data_key: bytes | None = None,
+) -> list[str]:
     current = now or datetime.now(timezone.utc)
     removed = []
-    for archive_path in backup_root.rglob("*.zip"):
+    archives = list(backup_root.rglob("*.zip")) + list(backup_root.rglob(f"*{ENCRYPTED_SUFFIX}"))
+    for archive_path in archives:
         try:
-            manifest = _read_manifest(archive_path)
+            if is_encrypted_archive(archive_path):
+                if data_key is None:
+                    # Never delete an archive we cannot read automatically.
+                    continue
+                with tempfile.TemporaryDirectory(prefix="myhotel_retention_") as work_dir:
+                    plain_path = Path(work_dir) / "archive.zip"
+                    decrypt_file(data_key, archive_path, plain_path)
+                    manifest = _read_manifest(plain_path)
+            else:
+                manifest = _read_manifest(archive_path)
             backup_type = manifest.get("backup_type")
             created = datetime.fromisoformat(manifest["created_at"])
             if created.tzinfo is None:
@@ -313,10 +371,12 @@ def create_backup(db: Session, backup_type: str, actor: str) -> BackupRun:
                 "employee_photos_sha256": photos_hash,
                 "employee_photo_count": photo_count,
             }
+            data_key = load_data_key(db) if has_passphrase(db) else None
             archive_dir = backup_root / backup_type
             archive_dir.mkdir(parents=True, exist_ok=True)
             stamp = created_at.strftime("%Y%m%d_%H%M%S_%f")
-            archive_path = archive_dir / f"mybusinesshotel_{backup_type}_{stamp}.zip"
+            suffix = ENCRYPTED_SUFFIX if data_key else ".zip"
+            archive_path = archive_dir / f"mybusinesshotel_{backup_type}_{stamp}{suffix}"
             temporary_archive = work / "verified_backup.zip"
             with zipfile.ZipFile(temporary_archive, "w", compression=zipfile.ZIP_DEFLATED) as archive:
                 archive.write(dump_path, "database.dump")
@@ -333,12 +393,19 @@ def create_backup(db: Session, backup_type: str, actor: str) -> BackupRun:
                 verified_manifest = json.loads(archive.read("manifest.json"))
                 if verified_manifest.get("database_sha256") != database_hash:
                     raise RuntimeError("The database dump hash changed during archive creation.")
+            if data_key:
+                encrypted_archive = work / "verified_backup.zip.enc"
+                encrypt_file(data_key, temporary_archive, encrypted_archive)
+                temporary_archive.unlink()
+                temporary_archive = encrypted_archive
             archive_hash = sha256_file(temporary_archive)
             archive_size = temporary_archive.stat().st_size
             os.replace(temporary_archive, archive_path)
         # Verify the exact persisted archive before recording a successful run.
-        verify_backup_archive(archive_path, archive_hash)
-        expired_paths = cleanup_retention(backup_root)
+        verify_backup_archive(archive_path, archive_hash, data_key)
+        if data_key:
+            export_key_file(db)
+        expired_paths = cleanup_retention(backup_root, data_key=data_key)
         if expired_paths:
             db.execute(delete(BackupRun).where(BackupRun.archive_path.in_(expired_paths)))
         run = BackupRun(
@@ -372,8 +439,13 @@ def _extract_verified_archive(
     archive_path: Path,
     destination: Path,
     expected_sha256: str | None = None,
+    data_key: bytes | None = None,
 ) -> tuple[Path, Path]:
-    verify_backup_archive(archive_path, expected_sha256)
+    verify_backup_archive(archive_path, expected_sha256, data_key)
+    if is_encrypted_archive(archive_path):
+        plain_archive = destination / "decrypted_backup.zip"
+        decrypt_file(data_key, archive_path, plain_archive)
+        archive_path = plain_archive
     destination_resolved = destination.resolve()
     with zipfile.ZipFile(archive_path, "r") as archive:
         for member in archive.infolist():
@@ -392,6 +464,7 @@ def _restore_archive_contents(
     archive_path: Path,
     backup_root: Path,
     expected_sha256: str | None = None,
+    data_key: bytes | None = None,
 ) -> None:
     import psycopg
     import sys
@@ -402,7 +475,7 @@ def _restore_archive_contents(
     connection_args, env = _database_args()
     with tempfile.TemporaryDirectory(prefix="myhotel_restore_", dir=backup_root) as work_dir:
         work = Path(work_dir)
-        dump_path, photos_path = _extract_verified_archive(archive_path, work, expected_sha256)
+        dump_path, photos_path = _extract_verified_archive(archive_path, work, expected_sha256, data_key)
         _run([pg_restore, "--list", str(dump_path)], env)
 
         # Close pooled application connections before replacing the public schema.
@@ -487,6 +560,7 @@ def restore_backup(
     *,
     actor: str,
     reason: str,
+    passphrase: str | None = None,
 ) -> dict:
     """Restore a verified archive after first creating a separate pre-restore backup."""
     from app.db import SessionLocal
@@ -495,14 +569,42 @@ def restore_backup(
     if not reason.strip():
         raise ValueError("A restore reason is required.")
     selected = Path(archive_path).resolve()
-    manifest = verify_backup_archive(selected, expected_sha256)
     with SessionLocal() as db:
         backup_root = get_backup_root(db)
     if backup_root is None:
         raise ValueError("External backup location is not configured.")
     backup_root = backup_root.resolve()
+    data_key: bytes | None = None
+    if is_encrypted_archive(selected):
+        if not passphrase:
+            raise PassphraseRequiredError("The selected backup is encrypted; enter the backup passphrase to restore it.")
+        with SessionLocal() as db:
+            # Unwrap with the owner's passphrase and keep the data key in memory,
+            # since the schema (and its settings) is dropped during the restore.
+            try:
+                data_key = unwrap_data_key_for_restore(db, passphrase)
+            except ValueError:
+                # Disaster recovery: the database has no encryption record (fresh
+                # install or partial loss), so unwrap via the key file kept next
+                # to the backups.
+                key_file = backup_root / KEY_FILE_NAME
+                if not key_file.is_file():
+                    raise
+                try:
+                    record = json.loads(key_file.read_text(encoding="utf-8"))
+                except json.JSONDecodeError as exc:
+                    raise ValueError("Backup encryption key file is invalid.") from exc
+                data_key = unwrap_data_key_from_record(record, passphrase)
+    else:
+        with SessionLocal() as db:
+            # The pre-restore snapshot is encrypted when a passphrase is set,
+            # so the rollback path needs the data key even for plain archives.
+            data_key = load_data_key(db) if has_passphrase(db) else None
+    manifest = verify_backup_archive(selected, expected_sha256, data_key)
     if not selected.is_relative_to(backup_root):
         raise ValueError("The selected archive is outside the configured backup drive.")
+
+
 
     with SessionLocal.begin() as db:
         pre_restore = create_backup(db, "pre_restore", actor)
@@ -513,10 +615,10 @@ def restore_backup(
         pre_restore_hash = pre_restore.sha256
 
     try:
-        _restore_archive_contents(selected, backup_root, expected_sha256)
+        _restore_archive_contents(selected, backup_root, expected_sha256, data_key)
     except Exception as restore_error:
         try:
-            _restore_archive_contents(pre_restore_path, backup_root, pre_restore_hash)
+            _restore_archive_contents(pre_restore_path, backup_root, pre_restore_hash, data_key)
             with SessionLocal.begin() as db:
                 _ensure_pre_restore_run_record(
                     db,

@@ -16,10 +16,14 @@
     {% elif error == "confirm" %}للاستعادة أدخل كلمة RESTORE وسبب الاستعادة.
     {% elif error == "archive" %}النسخة المحددة غير موجودة أو لم يتم التحقق من سلامتها.
     {% elif error == "restore" %}تعذرت الاستعادة. حاول النظام الرجوع إلى نسخة ما قبل الاستعادة؛ راجع السجل قبل أي محاولة جديدة.
+    {% elif error == "passphrase_mismatch" %}كلمتا السر الجديدتان غير متطابقتين.
+    {% elif error == "passphrase_short" %}كلمة سر التشفير قصيرة؛ استخدم 8 أحرف على الأقل.
+    {% elif error == "passphrase_wrong" %}كلمة سر التشفير غير صحيحة.
     {% else %}تعذر تنفيذ العملية.{% endif %}
   </section>
   {% endif %}
   {% if success == "path" %}<section class="notice">تم حفظ مسار النسخ الاحتياطي.</section>{% endif %}
+  {% if success == "passphrase" %}<section class="notice">تم حفظ كلمة سر تشفير النسخ الاحتياطي.</section>{% endif %}
   {% if success == "backup" %}<section class="notice">اكتمل إنشاء النسخة الاحتياطية والتحقق منها. رقم العملية: {{ request.query_params.get("run") }}</section>{% endif %}
 
   <section class="notice">
@@ -35,6 +39,33 @@
       <button type="submit">حفظ المسار / Save location</button>
     </form>
     {% if backup_root %}<p><strong>المسار الحالي:</strong> <code>{{ backup_root }}</code></p>{% else %}<p class="error">لم يتم تحديد قرص النسخ الاحتياطي بعد.</p>{% endif %}
+  </section>
+
+  <section class="notice">
+    <h2>تشفير النسخ الاحتياطية / Backup encryption</h2>
+    {% if encryption_enabled %}
+    <p><strong>التشفير مفعّل.</strong> كل النسخ الجديدة تُحفظ مشفّرة، وتطلب الاستعادة كلمة سر التشفير.</p>
+    {% else %}
+    <p class="error"><strong>التشفير غير مفعّل بعد.</strong> عيّن كلمة سر لحماية النسخ على القرص الخارجي.</p>
+    {% endif %}
+    <details class="hint"><summary>تعليمات</summary>
+      <p class="muted">كلمة سر التشفير هي طريقة فتح النسخ المشفّرة وقت الاستعادة. احفظها في مكان آمن تعرفه أنت فقط: لو نسيتها فلن نستطيع فتح النسخ المشفّرة نهائيًا، ولا توجد طريقة لاسترجاعها.</p>
+    </details>
+    <form method="post" action="/settings/backup/passphrase">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      {% if encryption_enabled %}
+      <label>كلمة السر الحالية / Current passphrase
+        <input type="password" name="current_passphrase" required autocomplete="current-password">
+      </label>
+      {% endif %}
+      <label>كلمة السر الجديدة / New passphrase
+        <input type="password" name="new_passphrase" required minlength="8" autocomplete="new-password">
+      </label>
+      <label>تأكيد كلمة السر الجديدة / Confirm new passphrase
+        <input type="password" name="confirm_passphrase" required minlength="8" autocomplete="new-password">
+      </label>
+      <button type="submit">حفظ كلمة سر التشفير / Save passphrase</button>
+    </form>
   </section>
 
   <section class="notice">
@@ -89,6 +120,9 @@
         <div class="form-grid">
           <label>سبب الاستعادة / Restore reason<input name="reason" required maxlength="1000" placeholder="مثال: استعادة بعد تلف قاعدة البيانات"></label>
           <label>اكتب RESTORE للتأكيد<input name="confirm_text" required autocomplete="off" placeholder="RESTORE"></label>
+          {% if run.archive_path.endswith('.enc') %}
+          <label>كلمة سر التشفير / Backup passphrase<input type="password" name="passphrase" required autocomplete="off"></label>
+          {% endif %}
         </div>
         <button type="submit">استعادة هذه النسخة / Restore this backup</button>
       </form>
