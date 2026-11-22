@@ -90,7 +90,7 @@
         {% endif %}
       </td>
     </tr>
-    <tr><td colspan="7"><span class="muted">السبب: {{ r.reason }}{% if r.cancellation_reason %} · سبب الإلغاء: {{ r.cancellation_reason }}{% endif %}</span></td></tr>
+    <tr><td colspan="7"><span class="muted"><span>السبب:</span> {{ r.reason }}{% if r.cancellation_reason %} <span>·</span> <span>سبب الإلغاء:</span> {{ r.cancellation_reason }}{% endif %}</span></td></tr>
     {% else %}<tr><td colspan="7">لا توجد إجازات مسجلة بعد.</td></tr>{% endfor %}
     </tbody></table></div>
   </section>

@@ -101,3 +101,11 @@ def test_official_seed_leave_types_render_true_zh():
         assert rendered not in (name_ar, name_en), (
             f"seed type {name_ar!r} must render true ZH, got {rendered!r}"
         )
+
+
+def test_audit_detail_leave_record_pipe_payload():
+    from app.audit_display import detail_label
+    assert detail_label("2026-11-27|2026-11-28|2.00", "ar") == "من 27/11/2026 إلى 28/11/2026 · عدد الأيام: 2.00"
+    assert detail_label("2026-11-27|2026-11-28|2.00", "en") == "From 27/11/2026 to 28/11/2026 · Days: 2.00"
+    assert detail_label("2026-11-27|2026-11-28|2.00", "zh") == "从 27/11/2026 到 28/11/2026 · 天数：2.00"
+    assert detail_label("a|b|c", "en") == "a|b|c"

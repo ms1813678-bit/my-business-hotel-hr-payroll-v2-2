@@ -161,6 +161,13 @@ def detail_label(value: str, language: str) -> str:
     status_ar = STATUS_LABELS_AR.get(value.strip())
     if status_ar is not None:
         return _translate_text(status_ar, language)
+    # Leave-record payloads "YYYY-MM-DD|YYYY-MM-DD|days" render as a readable
+    # event line; unknown pipe payloads fall through untouched.
+    pipe = _re.fullmatch(r"(?P<d1>\d{4}-\d{2}-\d{2})\|(?P<d2>\d{4}-\d{2}-\d{2})\|(?P<days>[\d.]+)", value.strip())
+    if pipe is not None:
+        fmt = lambda iso: f"{iso[8:10]}/{iso[5:7]}/{iso[0:4]}"
+        template = _translate_text("من {d1} إلى {d2} · عدد الأيام: {days}", language)
+        return template.format(d1=fmt(pipe.group("d1")), d2=fmt(pipe.group("d2")), days=pipe.group("days"))
 
     def _replace(match):
         prefix, key = match.group(1), match.group(2)
