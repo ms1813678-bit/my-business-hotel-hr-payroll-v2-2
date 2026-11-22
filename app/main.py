@@ -758,11 +758,14 @@ def ai_approve(
     admin: AdminAccount = Depends(get_current_admin),
 ):
     history = recent_memory(admin.username)
-    answer_language = "ar"  # execution results are generated in Arabic (known residual)
     try:
         answer = approve_command(token.strip(), admin.username, language=request.state.language)
+        # structured execution results render fully in the UI language
+        answer_language = request.state.language
     except (RuntimeError, ValueError, SQLAlchemyError) as exc:
+        # translated prefix + original (Arabic) error detail: mixed, no badge
         answer = _translate_text("لم يتم تنفيذ العملية", request.state.language) + f": {exc}"
+        answer_language = "unknown"
     return templates.TemplateResponse(
         request=request,
         name="ai.html",
@@ -790,8 +793,11 @@ def ai_reject(
     history = recent_memory(admin.username)
     try:
         answer = reject_command(token.strip(), admin.username, language=request.state.language)
+        answer_language = request.state.language
     except (RuntimeError, ValueError, SQLAlchemyError) as exc:
+        # translated prefix + original (Arabic) error detail: mixed, no badge
         answer = _translate_text("لم يتم رفض العملية", request.state.language) + f": {exc}"
+        answer_language = "unknown"
     return templates.TemplateResponse(
         request=request,
         name="ai.html",
@@ -802,7 +808,7 @@ def ai_reject(
             "scan": build_smart_scan(request.state.language),
             "question": "",
             "answer": answer,
-            "answer_language": request.state.language,
+            "answer_language": answer_language,
             "pending": None,
             "memory": history,
             "ui_language": request.state.language,

@@ -16,6 +16,7 @@ from typing import Any
 from sqlalchemy import select
 
 from app.ai_agent import build_plan, execute_plan
+from app.ai_execution_render import render_execution_result
 from app.db import SessionLocal
 from app.leave_workflow import leave_balance
 from app.models import (
@@ -302,34 +303,13 @@ def _memory(actor: str, role: str, content: str, language: str = "unknown") -> N
         ))
 
 
-def detect_text_language(text: str) -> str:
-    """Ground an authored text's language in its script, never in the UI
-    locale: Arabic letters -> ar (even with embedded codes), CJK -> zh,
-    Latin letters -> en (the system's only Latin-script UI language),
-    anything else -> unknown. UI language is never evidence of authorship."""
-    for ch in text:
-        if (
-            "\u0600" <= ch <= "\u06ff"
-            or "\u0750" <= ch <= "\u077f"
-            or "\ufb50" <= ch <= "\ufdff"
-            or "\ufe70" <= ch <= "\ufeff"
-        ):
-            return "ar"
-    for ch in text:
-        if "\u4e00" <= ch <= "\u9fff" or "\u3400" <= ch <= "\u4dbf":
-            return "zh"
-    for ch in text:
-        if "a" <= ch.lower() <= "z":
-            return "en"
-    return "unknown"
-
-
 def record_exchange(actor: str, question: str, answer: str, language: str = "ar") -> None:
     """Persist an ordinary Q&A exchange so the conversation thread is real,
-    not just command history. The assistant answer's language is the UI
-    language it was generated in (grounded); the user's question is labeled
-    from its own script, not from the interface locale."""
-    _memory(actor, "user", question, detect_text_language(question))
+    not just command history. The assistant answer's language is the locale it
+    was generated in (grounded, known). The user's typed question keeps
+    language "unknown": the UI locale is not the authored language and script
+    heuristics mislabel, so user text honestly carries no origin badge."""
+    _memory(actor, "user", question, "unknown")
     _memory(actor, "assistant", answer, language)
 
 
@@ -385,7 +365,7 @@ def prepare_command(question: str, actor: str, language: str = "ar") -> dict[str
             new_value=f"action={plan.get('action')}; plan_hash={plan_hash(plan)}",
             reason=question,
         ))
-    _memory(actor, "user", question, detect_text_language(question))
+    _memory(actor, "user", question, "unknown")
     _memory(actor, "assistant", _msg(
         language,
         "خطة معلقة تحتاج موافقة: ",
@@ -556,7 +536,7 @@ def approve_command(token: str, actor: str, language: str = "ar") -> str:
             "批准后未准备有效的执行计划。",
         ))
     try:
-        message = execute_plan(plan, actor)
+        result = execute_plan(plan, actor)
     except Exception as exc:
         with SessionLocal.begin() as db:
             approval = db.scalar(
@@ -591,9 +571,9 @@ def approve_command(token: str, actor: str, language: str = "ar") -> str:
         db.add(AuditLog(
             actor=actor, action="ai_command_executed", entity_type="ai_command",
             entity_id=str(approval.id), new_value=f"plan_hash={approval.plan_hash}",
-            reason=message,
+            reason=result.audit,
         ))
-    # Execution result text is generated in Arabic by the workflow layer
-    # (known residual); it is stored labeled as Arabic so the UI can mark it.
-    _memory(actor, "assistant", message, "ar")
-    return message
+    # The Arabic audit original is stored verbatim in memory (labeled ar);
+    # the caller renders the same structured result in the UI language.
+    _memory(actor, "assistant", result.audit, "ar")
+    return render_execution_result(result, language)

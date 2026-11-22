@@ -7,6 +7,7 @@ can mutate the database, and every operation uses existing workflow rules.
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass, field
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Any
@@ -227,7 +228,28 @@ def build_plan(question: str, language: str = "ar") -> dict[str, Any]:
         return _json_plan(question, _plan_context(db), language=language)
 
 
-def execute_plan(plan: dict[str, Any], actor: str) -> str:
+@dataclass(frozen=True)
+class ExecutionResult:
+    """Structured execution outcome: renderer key + display params.
+
+    The Arabic rendering of these params is the audit original, stored
+    verbatim in the audit log and conversation memory; other languages are
+    presentation-only renderings by app.ai_execution_render."""
+
+    key: str
+    params: dict[str, Any] = field(default_factory=dict)
+
+    @property
+    def audit(self) -> str:
+        from app.ai_execution_render import render_execution_result
+
+        return render_execution_result(self, "ar")
+
+    def __str__(self) -> str:
+        return self.audit
+
+
+def execute_plan(plan: dict[str, Any], actor: str) -> ExecutionResult:
     action = plan.get("action")
     reason = str(plan.get("reason") or "").strip() or "تنفيذ بأمر صريح من مسؤول الموارد البشرية عبر المساعد المحلي."
     if action not in ALLOWED_ACTIONS:
@@ -250,7 +272,7 @@ def execute_plan(plan: dict[str, Any], actor: str) -> str:
                 reason=reason,
                 actor=actor,
             )
-            return f"تم تسجيل حضور يدوي للموظف في سجل رقم {record.id}، والحالة تنتظر المراجعة والاعتماد."
+            return ExecutionResult(action, {"record_id": record.id})
 
         if action == "create_employee":
             full_name = str(plan.get("full_name") or "").strip()
@@ -285,7 +307,7 @@ def execute_plan(plan: dict[str, Any], actor: str) -> str:
             db.add(EmployeeServicePeriod(employee_id=employee.id, start_date=hire_date, start_reason=reason))
             db.add(AuditLog(actor=actor, action="employee_created_by_ai", entity_type="employee",
                 entity_id=str(employee.id), new_value=f"code={employee.code}; name={employee.full_name}", reason=reason))
-            return f"تم إنشاء الموظف {employee.full_name} برقم {employee.id} وكود {employee.code}."
+            return ExecutionResult(action, {"name": employee.full_name, "employee_id": employee.id, "code": employee.code})
 
         if action == "edit_employee":
             employee = db.get(Employee, int(plan["employee_id"]))
@@ -336,7 +358,7 @@ def execute_plan(plan: dict[str, Any], actor: str) -> str:
                             reason=reason))
             db.add(AuditLog(actor=actor, action="employee_updated_by_ai", entity_type="employee",
                 entity_id=str(employee.id), reason=reason))
-            return f"تم تعديل بيانات الموظف {employee.full_name}."
+            return ExecutionResult(action, {"name": employee.full_name})
 
         if action == "transfer_employee":
             employee = db.get(Employee, int(plan["employee_id"]))
@@ -359,7 +381,7 @@ def execute_plan(plan: dict[str, Any], actor: str) -> str:
                         effective_date=effective, reason=reason))
             db.add(AuditLog(actor=actor, action="employee_transferred_by_ai", entity_type="employee",
                 entity_id=str(employee.id), reason=reason))
-            return f"تم نقل الموظف {employee.full_name}."
+            return ExecutionResult(action, {"name": employee.full_name})
 
         if action == "archive_employee":
             employee = db.get(Employee, int(plan["employee_id"]))
@@ -370,7 +392,7 @@ def execute_plan(plan: dict[str, Any], actor: str) -> str:
             period.end_date = date.today(); period.end_reason = reason; employee.status = "archived"
             db.add(AuditLog(actor=actor, action="employee_archived_by_ai", entity_type="employee",
                 entity_id=str(employee.id), old_value="active", new_value="archived", reason=reason))
-            return f"تمت أرشفة الموظف {employee.full_name}."
+            return ExecutionResult(action, {"name": employee.full_name})
 
         if action == "rehire_employee":
             employee = db.get(Employee, int(plan["employee_id"]))
@@ -384,7 +406,7 @@ def execute_plan(plan: dict[str, Any], actor: str) -> str:
             db.add(EmployeeServicePeriod(employee_id=employee.id, start_date=new_hire, start_reason=reason))
             db.add(AuditLog(actor=actor, action="employee_rehired_by_ai", entity_type="employee",
                 entity_id=str(employee.id), old_value="archived", new_value="active", reason=reason))
-            return f"تمت إعادة تعيين الموظف {employee.full_name}."
+            return ExecutionResult(action, {"name": employee.full_name})
 
         if action == "create_leave":
             employee = db.get(Employee, int(plan["employee_id"]))
@@ -412,19 +434,19 @@ def execute_plan(plan: dict[str, Any], actor: str) -> str:
             db.add(record); db.flush()
             db.add(AuditLog(actor=actor, action="ai_leave_record_created", entity_type="leave_record",
                             entity_id=str(record.id), new_value=f"{start}|{end}|{charged}", reason=reason))
-            return f"تم إنشاء مسودة إجازة رقم {record.id} للموظف {employee.full_name}."
+            return ExecutionResult(action, {"record_id": record.id, "name": employee.full_name})
 
         if action == "confirm_leave":
             record = db.scalar(select(LeaveRecord).where(LeaveRecord.id == int(plan["record_id"])).with_for_update())
             if record is None: raise ValueError("سجل الإجازة غير موجود.")
             confirm_leave(db, record, actor)
-            return f"تم اعتماد الإجازة رقم {record.id}."
+            return ExecutionResult(action, {"record_id": record.id})
 
         if action == "cancel_leave":
             record = db.scalar(select(LeaveRecord).where(LeaveRecord.id == int(plan["record_id"])).with_for_update())
             if record is None: raise ValueError("سجل الإجازة غير موجود.")
             cancel_leave(db, record, actor, reason)
-            return f"تم إلغاء الإجازة رقم {record.id}."
+            return ExecutionResult(action, {"record_id": record.id})
 
         if action == "delete_draft_leave":
             record = db.scalar(select(LeaveRecord).where(LeaveRecord.id == int(plan["record_id"])).with_for_update())
@@ -448,7 +470,7 @@ def execute_plan(plan: dict[str, Any], actor: str) -> str:
                 entity_id=str(record_id), old_value=old_value, new_value="deleted",
                 reason=reason,
             ))
-            return f"تم حذف مسودة الإجازة رقم {record_id} فقط، مع الاحتفاظ بسجل التدقيق."
+            return ExecutionResult(action, {"record_id": record_id})
 
         if action == "adjust_leave_balance":
             employee = db.get(Employee, int(plan["employee_id"]))
@@ -467,7 +489,7 @@ def execute_plan(plan: dict[str, Any], actor: str) -> str:
             add_balance_entry(db, employee_id=employee.id, leave_type=leave_type,
                               transaction_type=str(plan.get("transaction_type") or "adjustment"),
                               days_delta=days, reason=reason, actor=actor)
-            return f"تم تعديل رصيد {leave_type.name_ar} للموظف {employee.full_name} بمقدار {days}."
+            return ExecutionResult(action, {"leave_type": leave_type.name_ar, "name": employee.full_name, "days": days})
 
         if action in {"create_advance", "approve_advance", "reject_advance", "mark_advance_paid"}:
             req = db.get(AdvanceRequest, int(plan.get("advance_id") or 0))
@@ -476,16 +498,16 @@ def execute_plan(plan: dict[str, Any], actor: str) -> str:
                 req = create_advance(db, employee_id=int(plan["employee_id"]), request_date=request_date,
                                      amount=_decimal(plan["amount"], "المبلغ"), reason=reason,
                                      advance_type=str(plan.get("advance_type") or "regular"), actor=actor)
-                return f"تم إنشاء طلب سلفة رقم {req.id}."
+                return ExecutionResult(action, {"request_id": req.id})
             if req is None: raise ValueError("طلب السلفة غير موجود.")
             if action == "approve_advance":
                 approve_advance(db, req, actor, int(plan.get("installment_count") or 1))
-                return f"تم اعتماد السلفة رقم {req.id}."
+                return ExecutionResult(action, {"request_id": req.id})
             if action == "reject_advance":
                 reject_advance(db, req, actor, reason)
-                return f"تم رفض السلفة رقم {req.id}."
+                return ExecutionResult(action, {"request_id": req.id})
             mark_advance_paid(db, req, actor)
-            return f"تم تسجيل سداد السلفة رقم {req.id}."
+            return ExecutionResult(action, {"request_id": req.id})
 
         if action in {"create_staff_action", "approve_staff_action", "cancel_staff_action"}:
             if action == "create_staff_action":
@@ -497,11 +519,11 @@ def execute_plan(plan: dict[str, Any], actor: str) -> str:
                     amount=_decimal(plan["amount"], "المبلغ") if plan.get("amount") is not None else None,
                     payroll_month=_parse_date(plan["payroll_month"], "شهر الرواتب") if plan.get("payroll_month") else None,
                     reason=reason, actor=actor)
-                return f"تم إنشاء إجراء موظف رقم {item.id}."
+                return ExecutionResult(action, {"item_id": item.id})
             item = db.get(StaffAction, int(plan.get("staff_action_id") or 0))
             if item is None: raise ValueError("إجراء الموظف غير موجود.")
-            if action == "approve_staff_action": approve_staff_action(db, item, actor); return f"تم اعتماد إجراء الموظف رقم {item.id}."
-            cancel_staff_action(db, item, actor, reason); return f"تم إلغاء إجراء الموظف رقم {item.id}."
+            if action == "approve_staff_action": approve_staff_action(db, item, actor); return ExecutionResult(action, {"item_id": item.id})
+            cancel_staff_action(db, item, actor, reason); return ExecutionResult(action, {"item_id": item.id})
 
         if action == "approve_attendance_day":
             record = db.get(AttendanceDailyRecord, int(plan["attendance_record_id"]))
@@ -510,19 +532,19 @@ def execute_plan(plan: dict[str, Any], actor: str) -> str:
                 clock_in=__import__("datetime").datetime.fromisoformat(str(plan["clock_in"])),
                 clock_out=__import__("datetime").datetime.fromisoformat(str(plan["clock_out"])),
                 actor=actor, reason=reason)
-            return f"تم اعتماد سجل الحضور رقم {record.id}."
+            return ExecutionResult(action, {"record_id": record.id})
 
         if action == "approve_attendance_month":
             approve_attendance_month(db, month_id=int(plan["month_id"]), actor=actor,
                                      reason=reason, coverage_confirmed=bool(plan.get("coverage_confirmed")))
-            return f"تم اعتماد شهر الحضور رقم {plan['month_id']}."
+            return ExecutionResult(action, {"month_id": plan["month_id"]})
 
         if action in {"approve_payroll_run", "close_payroll_run", "reopen_payroll_run"}:
             run = db.scalar(select(PayrollRun).where(PayrollRun.id == int(plan["payroll_run_id"])).with_for_update())
             if run is None: raise ValueError("مسير الرواتب غير موجود.")
-            if action == "approve_payroll_run": approve_payroll_run(db, run, actor); return f"تم اعتماد مسير الرواتب رقم {run.id}."
-            if action == "close_payroll_run": close_payroll_run(db, run, actor); return f"تم إغلاق مسير الرواتب رقم {run.id}."
-            reopen_payroll_run(db, run, actor, reason); return f"تم إعادة فتح مسير الرواتب رقم {run.id}."
+            if action == "approve_payroll_run": approve_payroll_run(db, run, actor); return ExecutionResult(action, {"run_id": run.id})
+            if action == "close_payroll_run": close_payroll_run(db, run, actor); return ExecutionResult(action, {"run_id": run.id})
+            reopen_payroll_run(db, run, actor, reason); return ExecutionResult(action, {"run_id": run.id})
 
     raise ValueError("لم يتم تنفيذ الأمر.")
 

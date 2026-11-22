@@ -658,3 +658,52 @@ def test_ai_conversation_history_migration_creates_actor_index(postgres_schema):
     assert {"id", "actor", "role", "content", "created_at"}.issubset(columns)
     indexes = {item["name"] for item in inspector.get_indexes("ai_conversation_messages")}
     assert "ix_ai_conversation_messages_actor" in indexes
+
+
+def test_ai_language_provenance_migration_repairs_already_stamped_0031_databases(postgres_schema):
+    """A database that already applied the first 0031 (default 'ar', rows
+    stamped ar/en by the interim code) must be repaired reproducibly by
+    upgrading to head: every pre-existing row's provenance becomes 'unknown',
+    the column default becomes 'unknown', and message texts stay untouched."""
+    migrate(postgres_schema, "0031_ai_conversation_language")
+
+    with postgres_schema.begin() as connection:
+        # Simulate the old 0031 state: Arabic default and false stamps.
+        connection.execute(text(
+            "ALTER TABLE ai_conversation_messages ALTER COLUMN language SET DEFAULT 'ar'"
+        ))
+        connection.execute(
+            text("""
+                INSERT INTO ai_conversation_messages (actor, role, content, language, created_at)
+                VALUES
+                    ('hr-admin', 'user', 'سؤال قديم', 'ar', NOW()),
+                    ('hr-admin', 'assistant', 'جواب قديم', 'ar', NOW()),
+                    ('hr-admin', 'user', 'Old English question', 'en', NOW())
+            """)
+        )
+
+    migrate(postgres_schema, "head")
+
+    with postgres_schema.connect() as connection:
+        rows = connection.execute(
+            text("SELECT content, language FROM ai_conversation_messages ORDER BY id")
+        ).all()
+        assert [row[1] for row in rows] == ["unknown", "unknown", "unknown"]
+        # original texts are preserved byte-identically
+        assert [row[0] for row in rows] == ["سؤال قديم", "جواب قديم", "Old English question"]
+        # the corrected default no longer fabricates Arabic origin
+        default = connection.execute(text("""
+            SELECT column_default FROM information_schema.columns
+            WHERE table_schema = current_schema()
+              AND table_name = 'ai_conversation_messages' AND column_name = 'language'
+        """)).scalar_one()
+        assert "unknown" in default
+        connection.execute(
+            text("""
+                INSERT INTO ai_conversation_messages (actor, role, content, created_at)
+                VALUES ('hr-admin', 'user', 'نص جديد بلا لغة مثبتة', NOW())
+            """)
+        )
+        assert connection.execute(
+            text("SELECT language FROM ai_conversation_messages ORDER BY id DESC LIMIT 1")
+        ).scalar_one() == "unknown"

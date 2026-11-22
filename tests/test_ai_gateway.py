@@ -218,7 +218,7 @@ def test_record_exchange_persists_user_and_assistant(monkeypatch):
         gateway.record_exchange("tester", "سؤال تجريبي", "جواب تجريبي", language="ar")
         memory = gateway.recent_memory("tester")
         assert memory == [
-            {"role": "user", "content": "سؤال تجريبي", "language": "ar"},
+            {"role": "user", "content": "سؤال تجريبي", "language": "unknown"},
             {"role": "assistant", "content": "جواب تجريبي", "language": "ar"},
         ]
         # other actors see nothing
@@ -227,14 +227,17 @@ def test_record_exchange_persists_user_and_assistant(monkeypatch):
         engine.dispose()
 
 
-def test_record_exchange_stores_the_rendering_language(monkeypatch):
+def test_record_exchange_stores_the_assistant_generation_language(monkeypatch):
+    """The generated assistant answer keeps its grounded generation locale; the
+    user's typed question stays 'unknown' (no false origin from UI locale or
+    script heuristics)."""
     import app.ai_gateway as gateway
 
     engine = _memory_engine(monkeypatch)
     try:
         gateway.record_exchange("tester", "How many employees?", "There are 5.", language="en")
         memory = gateway.recent_memory("tester")
-        assert [item["language"] for item in memory] == ["en", "en"]
+        assert [item["language"] for item in memory] == ["unknown", "en"]
     finally:
         engine.dispose()
 
@@ -382,3 +385,88 @@ def test_security_report_renders_trilingually_with_data_untouched():
     for text in (ar, en, zh):
         assert "MY-0007" in text and "اسم تجريبي" in text and "08:25" in text
     assert "review only" in en or "for review only" in en
+
+
+def test_user_text_language_is_unknown_whatever_the_script(monkeypatch):
+    """Arabic, Chinese, Latin, mixed or digit-only user input all keep
+    language 'unknown': authorship cannot be grounded, so no origin badge."""
+    import app.ai_gateway as gateway
+
+    engine = _memory_engine(monkeypatch)
+    try:
+        for text in ("كم عدد الموظفين؟", "目前有多少员工？", "How many?", "أضف سلفة MY-0004", "2026-11-01"):
+            gateway.record_exchange("tester", text, "ok", language="ar")
+        memory = gateway.recent_memory("tester", limit=10)
+        assert [item["language"] for item in memory if item["role"] == "user"] == ["unknown"] * 5
+    finally:
+        engine.dispose()
+
+
+def test_execution_result_renders_trilingual_and_audit_is_arabic():
+    """Structured results: the Arabic render is the audit original; EN/ZH are
+    presentation-only renderings of the same params."""
+    from app.ai_agent import ExecutionResult
+    from app.ai_execution_render import render_execution_result
+
+    result = ExecutionResult("create_employee", {"name": "Test User", "employee_id": 7, "code": "MY-0007"})
+    assert result.audit == "تم إنشاء الموظف Test User برقم 7 وكود MY-0007."
+    assert "created" in render_execution_result(result, "en")
+    assert "Test User" in render_execution_result(result, "en")
+    assert "Test User" in render_execution_result(result, "zh")
+    # unknown action key renders the audit original in every language
+    foreign = ExecutionResult("unknown_future_action", {"audit": "نص تدقيق حر"})
+    assert render_execution_result(foreign, "en") == "نص تدقيق حر"
+    # unsupported language falls back to the Arabic audit original
+    assert render_execution_result(result, "fr") == result.audit
+
+
+def test_execution_renderer_covers_every_allowed_action():
+    """Every executable action has a renderer template, so no execution result
+    ever falls back to an unlabeled blob."""
+    from app.ai_agent import ALLOWED_ACTIONS
+    from app.ai_execution_render import _TEMPLATES
+
+    missing = sorted(action for action in ALLOWED_ACTIONS if action not in _TEMPLATES)
+    assert missing == []
+
+
+def test_approve_command_returns_ui_language_but_stores_arabic_audit(monkeypatch):
+    """approve_command stores the Arabic audit original in memory (labeled ar)
+    while returning the EN rendering to an English UI."""
+    import app.ai_gateway as gateway
+    from app.ai_agent import ExecutionResult
+    from app.models import AICommandApproval
+
+    engine = _memory_engine(monkeypatch)
+    token = "structured-token"
+    now = datetime.now(timezone.utc)
+    plan = {"action": "approve_payroll_run", "payroll_run_id": 9}
+    try:
+        from sqlalchemy.orm import sessionmaker
+        factory = sessionmaker(bind=engine, autoflush=False, autocommit=False)
+        with factory.begin() as db:
+            db.add(AICommandApproval(
+                token_hash=gateway._token_hash(token),
+                actor="tester",
+                question="Approve payroll run 9.",
+                plan_json=gateway._canonical_json(plan),
+                plan_hash=gateway.plan_hash(plan),
+                status="pending",
+                created_at=now,
+                expires_at=now + timedelta(minutes=10),
+            ))
+        monkeypatch.setattr(gateway, "build_confirmation_preview", lambda candidate: None)
+        monkeypatch.setattr(
+            gateway, "execute_plan",
+            lambda plan_, actor: ExecutionResult("approve_payroll_run", {"run_id": plan_["payroll_run_id"]}),
+        )
+        message = gateway.approve_command(token, "tester", language="en")
+        assert message == "Payroll run #9 was approved."
+        memory = gateway.recent_memory("tester")
+        assert memory[-1] == {
+            "role": "assistant",
+            "content": "تم اعتماد مسير الرواتب رقم 9.",
+            "language": "ar",
+        }
+    finally:
+        engine.dispose()

@@ -2347,13 +2347,15 @@ def test_ai_command_turn_does_not_duplicate_bubbles(client, monkeypatch):
 
 def test_ai_approve_turn_does_not_duplicate_bubbles(client, monkeypatch):
     """Regression: approve_command persists the result; pre-turn fetch keeps
-    the rendered thread to one copy."""
+    the rendered thread to one copy. The returned answer renders in the UI
+    language; the stored memory bubble keeps the Arabic audit original."""
     gateway, engine = _real_gateway_memory(monkeypatch)
     try:
         def fake_approve(token, actor, language="ar"):
-            message = "تم تنفيذ العملية التجريبية."
-            gateway._memory(actor, "assistant", message, "ar")
-            return message
+            # mirrors the real gateway: Arabic audit original stored verbatim,
+            # UI-language rendering returned to the page
+            gateway._memory(actor, "assistant", "تم تنفيذ العملية التجريبية.", "ar")
+            return "Test operation completed."
 
         monkeypatch.setattr("app.main.approve_command", fake_approve)
         assert login(client).status_code == 303
@@ -2365,10 +2367,12 @@ def test_ai_approve_turn_does_not_duplicate_bubbles(client, monkeypatch):
         )
         assert response.status_code == 200
         assert response.text.count("ai-msg-assistant") == 1
-        # execution results are Arabic originals: the EN page marks them
-        assert "Original in Arabic" in response.text
+        # the answer bubble is rendered in the UI language: no origin badge
+        assert "Test operation completed." in response.text
+        assert "Original in Arabic" not in response.text
         page2 = client.get("/ai")
         assert page2.text.count("ai-msg-assistant") == 1
+        # on reload the stored Arabic audit original carries its honest badge
         assert "Original in Arabic" in page2.text
     finally:
         engine.dispose()

@@ -141,3 +141,12 @@ def test_day_report_and_arabic_formatting():
     assert "تقرير مقارنة جدول الأمن مع البصمة" in text
     assert "لم يتم اعتماد أي حضور" in text
     assert "MY-0001" in text
+
+
+def test_is_security_comparison_request_detects_english_and_chinese():
+    assert is_security_comparison_request("Compare the security roster with fingerprint punches for 2026-11-02")
+    assert is_security_comparison_request("Compare guard shifts with attendance")
+    assert is_security_comparison_request("对比保安排班和打卡记录 2026-11-02")
+    assert is_security_comparison_request("比较安保考勤和班次")
+    # security word alone without a compare/roster intent does not fire
+    assert not is_security_comparison_request("How many security guards are active?")

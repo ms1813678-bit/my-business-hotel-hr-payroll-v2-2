@@ -38,10 +38,18 @@ def is_security_comparison_request(question: str) -> bool:
     q = " ".join((question or "").casefold().split())
     if not q:
         return False
-    security_terms = ("أمن", "الامن", "الأمن", "حراس", "حارس", "security")
+    # Arabic, English and Chinese phrasings; matching is language-agnostic and
+    # only gates the deterministic comparison, it never mutates data.
+    security_terms = (
+        "أمن", "الامن", "الأمن", "حراس", "حارس", "security", "guards", "guard",
+        "保安", "安保",
+    )
     compare_terms = (
         "قارن", "مقارنة", "مطابقة", "بصم", "بصمة", "fingerprint",
         "جدول", "وردية", "ورديات", "حضور الأمن", "حضور الامن",
+        "compare", "comparison", "roster", "schedule", "shift", "shifts",
+        "punch", "punches", "attendance", "mismatch",
+        "对比", "比较", "排班", "班表", "班次", "打卡", "考勤", "排班表",
     )
     has_security = any(term in q for term in security_terms)
     has_compare = any(term in q for term in compare_terms)

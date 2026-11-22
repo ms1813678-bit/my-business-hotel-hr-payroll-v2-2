@@ -130,7 +130,7 @@ def test_ai_can_delete_only_unconfirmed_draft_leave_with_audit(monkeypatch):
             {"action": "delete_draft_leave", "record_id": leave_id, "reason": "اختبار حذف مسودة"},
             "admin",
         )
-        assert "تم حذف مسودة الإجازة" in result
+        assert "تم حذف مسودة الإجازة" in result.audit
         with factory() as db:
             assert db.get(LeaveRecord, leave_id) is None
             audit = db.scalar(select(AuditLog).where(AuditLog.action == "ai_draft_leave_deleted"))
