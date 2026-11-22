@@ -339,6 +339,7 @@ def is_structured_hr_query(question: str) -> bool:
         or is_staff_action_query_request(question)
         or is_pre_payroll_review_request(question)
         or _is_weekly_summary(question)
+        or _usage_guide_topic(question) is not None
     )
 
 
@@ -678,6 +679,12 @@ def format_staff_actions_ar(report: dict[str, Any]) -> str:
     return format_staff_actions(report, "ar")
 
 
+def _usage_guide_topic(question: str):
+    from app.usage_guide import is_usage_guide_request
+
+    return is_usage_guide_request(question)
+
+
 def _is_weekly_summary(question: str) -> bool:
     from app.weekly_summary import is_weekly_summary_request
 
@@ -690,6 +697,11 @@ def answer_structured_hr_query(question: str, language: str = "ar") -> str:
         from app.weekly_summary import build_weekly_summary, format_weekly_summary
 
         return format_weekly_summary(build_weekly_summary(), language)
+    topic = _usage_guide_topic(question)
+    if topic is not None:
+        from app.usage_guide import format_usage_guide
+
+        return format_usage_guide(topic, language)
     if is_employee_query_request(question):
         return format_employee_report(build_employee_report(question), language)
     if is_pre_payroll_review_request(question):
