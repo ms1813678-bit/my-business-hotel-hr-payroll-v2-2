@@ -13,10 +13,10 @@
 
 
 
+    {% if request.state.admin_role != 'finance' %}
     <section class="notice">
       <h2>إضافة حضور يدوي</h2>
       <p>هذا الإدخال يسجل كحضور يدوي بواسطة مسؤول HR ولا يغيّر البصمة الأصلية. سيظل اليوم بحاجة إلى المراجعة والاعتماد قبل استخدامه في الرواتب.</p>
-      {% if request.state.admin_role != 'finance' %}
       <form method="post" action="/attendance/manual">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <label for="manual-employee">الموظف</label>
@@ -36,8 +36,8 @@
         <input id="manual-reason" name="reason" type="text" minlength="3" maxlength="500" required>
         <button type="submit">إضافة الحضور للمراجعة</button>
       </form>
-      {% endif %}
     </section>
+      {% endif %}
     {% if not records %}
     <section class="notice">
       <h2>لا توجد سجلات معلقة</h2>
