@@ -8,8 +8,21 @@ from app.dependencies import get_current_admin
 
 
 def make_db(admin):
+    from app.models import AdminSession
+
     db = MagicMock()
     db.query.return_value.filter.return_value.one_or_none.return_value = admin
+    # get_current_admin validates the live server-side session record and
+    # reads the post-restore regeneration flag; stub both lookups.
+    def _get(model, key):
+        if model is AdminSession:
+            return SimpleNamespace(
+                admin_account_id=getattr(admin, "id", None),
+                last_seen_at=None,
+            )
+        return None  # SystemSetting flags absent
+
+    db.get.side_effect = _get
     return db
 
 
@@ -19,6 +32,7 @@ def make_request(session):
 
 def test_get_current_admin_returns_active_account():
     admin = SimpleNamespace(
+        id=1,
         username="test-admin",
         active=True,
         session_version=0,
@@ -28,6 +42,7 @@ def test_get_current_admin_returns_active_account():
     request = make_request({
         "admin_username": " test-admin ",
         "admin_session_version": 0,
+        "admin_session_id": "test-session-id",
     })
 
     assert get_current_admin(request, make_db(admin)) is admin

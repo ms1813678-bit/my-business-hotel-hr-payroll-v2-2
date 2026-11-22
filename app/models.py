@@ -173,6 +173,22 @@ class AuditLog(Base):
     reason: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
+class AdminSession(Base):
+    """Server-side record of one signed-in session so open sessions can be
+    listed and individually terminated. The signed cookie carries this id;
+    deleting the row ends the session. user_agent/ip_address are informational
+    metadata from the request, not verified device identity."""
+
+    __tablename__ = "admin_sessions"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    admin_account_id: Mapped[int] = mapped_column(ForeignKey("admin_accounts.id"), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    user_agent: Mapped[str | None] = mapped_column(String(300))
+    ip_address: Mapped[str | None] = mapped_column(String(45))
+
+
 class RecoveryCode(Base):
     """One-use forgotten-password recovery code for the system administrator.
 
@@ -184,6 +200,10 @@ class RecoveryCode(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     admin_account_id: Mapped[int] = mapped_column(ForeignKey("admin_accounts.id"), nullable=False)
     code_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    # Keyed HMAC of the normalized code for O(1) lookup: recovery finds the
+    # one candidate row without verifying every hash, keeping failure timing
+    # identical for unknown users and wrong codes (one verify either way).
+    code_lookup: Mapped[str | None] = mapped_column(String(64), index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 

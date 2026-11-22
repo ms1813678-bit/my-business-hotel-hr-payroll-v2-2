@@ -3,8 +3,10 @@
 from fastapi import Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
+from datetime import datetime, timezone
+
 from app.db import get_db
-from app.models import AdminAccount
+from app.models import AdminAccount, AdminSession, SystemSetting
 
 ROLE_SYSTEM_ADMIN = "system_admin"
 ROLE_FINANCE = "finance"
@@ -49,6 +51,33 @@ def get_current_admin(
             headers={"WWW-Authenticate": "Session"},
         )
 
+    # The signed cookie must reference a live server-side session record;
+    # deleting that record (logout, manual termination, account revocation)
+    # ends the session even if the cookie itself is still validly signed.
+    session_id = request.session.get("admin_session_id")
+    session_row = (
+        db.get(AdminSession, session_id)
+        if isinstance(session_id, str) and session_id
+        else None
+    )
+    if session_row is not None and session_row.admin_account_id == admin.id:
+        now = datetime.now(timezone.utc)
+        last_seen = session_row.last_seen_at
+        if last_seen is not None and last_seen.tzinfo is None:
+            last_seen = last_seen.replace(tzinfo=timezone.utc)
+        if last_seen is None or (now - last_seen).total_seconds() > 60:
+            session_row.last_seen_at = now
+            db.commit()
+    else:
+        session_row = None
+    if session_row is None:
+        request.session.clear()
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="الجلسة غير صالحة. يرجى تسجيل الدخول مرة أخرى.",
+            headers={"WWW-Authenticate": "Session"},
+        )
+
     # An account holding a one-time reset password may only open the
     # password page (and logout) until it sets a personal password.
     if getattr(admin, "must_change_password", False):
@@ -65,6 +94,29 @@ def get_current_admin(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="يجب تغيير كلمة المرور المؤقتة قبل المتابعة.",
             )
+
+    # After a backup restore, the system administrator must regenerate
+    # recovery codes (invalidating any resurrected ones) before anything else.
+    if admin.role == ROLE_SYSTEM_ADMIN:
+        regen = db.get(SystemSetting, "post_restore_regen_required")
+        if regen is not None and regen.value:
+            path = request.url.path
+            allowed = (
+                path in ("/settings/accounts", "/settings/accounts/recovery-codes",
+                          "/settings/password", "/logout")
+                or path.startswith(("/static/", "/i18n/"))
+            )
+            if not allowed:
+                if "text/html" in request.headers.get("accept", ""):
+                    raise HTTPException(
+                        status_code=status.HTTP_303_SEE_OTHER,
+                        detail="post-restore-reconciliation",
+                        headers={"Location": "/settings/accounts?error=regen_required"},
+                    )
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="أعد إنشاء رموز الاستعادة أولًا بعد استرجاع النسخة الاحتياطية.",
+                )
 
     # Expose identity to templates without threading it through every context.
     request.state.admin_role = admin.role

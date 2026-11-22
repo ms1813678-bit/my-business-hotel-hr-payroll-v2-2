@@ -110,3 +110,45 @@ def test_password_page_shows_reauth_field_and_error(admin_client):
     assert 'name="current_password"' in page.text
     page = admin_client.get("/settings/password?tg=auth")
     assert "كلمة مرورك غير صحيحة" in page.text
+
+
+def test_reauth_throttle_locks_after_five_and_blocks_even_correct_password(admin_client):
+    """F4: a hijacked session gets five password guesses, then the sensitive
+    action is paused for everyone — including the correct password."""
+    for _ in range(5):
+        response = tg_post(admin_client, "/settings/telegram", "wrong-password")
+        assert response.headers["location"] == "/settings/password?tg=auth"
+
+    locked = tg_post(admin_client, "/settings/telegram", ADMIN_PW)
+    assert locked.headers["location"] == "/settings/password?tg=auth_locked"
+    with admin_client.test_session_factory() as db:
+        assert get_config(db)["bot_token"] == "", "locked gate must not save"
+
+    page = admin_client.get("/settings/password?tg=auth_locked")
+    assert "أُوقفت هذه العملية مؤقتًا" in page.text
+
+
+def test_reauth_throttle_is_isolated_from_login_and_recovery(admin_client):
+    """The shared reauth counter never touches the login lockout (2/2h) or
+    the recovery throttle (5/30min), and a successful proof resets it."""
+    for _ in range(4):
+        tg_post(admin_client, "/settings/telegram", "wrong-password")
+
+    # login page unaffected after 4 reauth failures
+    client = admin_client
+    assert "إيقاف الدخول" not in client.get("/login").text
+    assert "إيقاف الاستعادة" not in client.get("/login/recover").text
+
+    # one success clears the counter: four more failures do not lock
+    ok = tg_post(client, "/settings/telegram", ADMIN_PW, bot_token="123:abc")
+    assert ok.headers["location"] == "/settings/password?tg=bad_token"
+    for _ in range(4):
+        response = tg_post(client, "/settings/telegram", "wrong-password")
+        assert response.headers["location"] == "/settings/password?tg=auth"
+
+
+def test_accounts_page_shows_auth_locked_message(admin_client):
+    for _ in range(5):
+        tg_post(admin_client, "/settings/telegram", "wrong-password")
+    page = admin_client.get("/settings/accounts?error=auth_locked")
+    assert "أُوقفت هذه العملية مؤقتًا" in page.text

@@ -12,7 +12,7 @@ import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
 
-from sqlalchemy import select, text
+from sqlalchemy import delete, select, text, update
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session
 
@@ -608,6 +608,25 @@ def restore_backup(
 
     completed_at = datetime.now(timezone.utc)
     with SessionLocal.begin() as db:
+        # A restore rolls the whole security state back to archive time, which
+        # would otherwise resurrect sessions terminated after the backup (the
+        # signing secret is unchanged). Drop every live session record so all
+        # accounts sign in again on the restored state.
+        from app.models import AdminAccount, AdminSession, SystemSetting
+
+        db.execute(delete(AdminSession))
+        # Restored password hashes and consumed recovery codes are valid again
+        # until rotated, so reconciliation is enforced, not advisory: every
+        # account must set a fresh password at its next login (the restored
+        # password still signs in, so nobody is locked out), and the system
+        # administrator is confined to the accounts page until recovery codes
+        # are regenerated, which invalidates every resurrected code.
+        db.execute(update(AdminAccount).values(must_change_password=True))
+        db.merge(SystemSetting(
+            key="post_restore_regen_required",
+            value=completed_at.isoformat(),
+            updated_by=actor,
+        ))
         _ensure_pre_restore_run_record(
             db,
             archive_path=pre_restore_path,

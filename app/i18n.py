@@ -3628,3 +3628,51 @@ ZH.update({
 "كلمة مرورك أنت (إثبات هوية قبل أي تغيير)": "您本人的密码（任何更改前的身份验证）",
 "كلمة مرورك غير صحيحة؛ لم يُنفَّذ أي تغيير.": "密码不正确；未做任何更改。",
 })
+
+# Server-side session inventory and manual termination
+EN.update({
+"الجلسات المفتوحة": "Open sessions",
+"كل دخول ناجح يسجَّل هنا ويمكن إنهاؤه فورًا فيسقط حتى لو كان الكوكي ما زال صالحًا. بيانات المتصفح وعنوان IP وصفية من الطلب نفسه وقد لا تكون دقيقة، وليست إثباتًا لهوية جهاز.": "Every successful sign-in is recorded here and can be ended immediately; the session then dies even if its cookie is still valid. Browser and IP data are informational, taken from the request itself, may be inaccurate, and are not proof of a device's identity.",
+"أنشئت": "Created",
+"آخر ظهور": "Last seen",
+"المتصفح": "Browser",
+"عنوان IP": "IP address",
+"جلستك الحالية": "your current session",
+"إنهاء": "End",
+"لا توجد جلسات مفتوحة.": "There are no open sessions.",
+"إنهاء جلسة دخول": "Sign-in session ended",
+})
+ZH.update({
+"الجلسات المفتوحة": "活动会话",
+"كل دخول ناجح يسجَّل هنا ويمكن إنهاؤه فورًا فيسقط حتى لو كان الكوكي ما زال صالحًا. بيانات المتصفح وعنوان IP وصفية من الطلب نفسه وقد لا تكون دقيقة، وليست إثباتًا لهوية جهاز.": "每次成功登录都会记录在此，可立即终止；即使Cookie仍然有效，会话也会失效。浏览器和IP信息来自请求本身，仅供参考，可能不准确，不能作为设备身份的证明。",
+"أنشئت": "创建时间",
+"آخر ظهور": "最近活动",
+"المتصفح": "浏览器",
+"عنوان IP": "IP地址",
+"جلستك الحالية": "您当前的会话",
+"إنهاء": "终止",
+"لا توجد جلسات مفتوحة.": "没有活动会话。",
+"إنهاء جلسة دخول": "登录会话已终止",
+})
+
+# Reauthentication throttle
+EN.update({
+"أُوقفت هذه العملية مؤقتًا بعد كثرة محاولات كلمة المرور الخاطئة. حاول مرة أخرى بعد 30 دقيقة.": "This action is paused after too many wrong password attempts. Try again in 30 minutes.",
+"إيقاف إثبات الهوية مؤقتًا بعد كثرة المحاولات": "Reauthentication paused after too many attempts",
+})
+ZH.update({
+"أُوقفت هذه العملية مؤقتًا بعد كثرة محاولات كلمة المرور الخاطئة. حاول مرة أخرى بعد 30 دقيقة.": "密码错误次数过多，此操作已暂时停用。请30分钟后重试。",
+"إيقاف إثبات الهوية مؤقتًا بعد كثرة المحاولات": "尝试次数过多，身份验证已暂停",
+})
+
+# Post-restore reconciliation
+EN.update({
+"مطلوب بعد استرجاع النسخة الاحتياطية": "Required after the backup restore",
+"استُرجعت نسخة احتياطية، فعادت كلمات المرور ورموز الاستعادة إلى حالتها وقت النسخة — أي رمز استُهلك بعدها قد يعمل مجددًا حتى الآن. أعد إنشاء رموز الاستعادة فورًا من الأسفل لإبطال كل الرموز القديمة، وسيُطلب من كل حساب تعيين كلمة مرور جديدة عند دخوله القادم. لن تستطيع فتح صفحة أخرى حتى تُنجز هذا.": "A backup was restored, so passwords and recovery codes returned to their state at backup time — any code consumed after it may work again until now. Regenerate the recovery codes immediately below to invalidate all old codes; every account will be asked to set a new password at its next sign-in. You cannot open any other page until this is done.",
+"أعد إنشاء رموز الاستعادة أولًا بعد استرجاع النسخة الاحتياطية.": "Regenerate the recovery codes first after the backup restore.",
+})
+ZH.update({
+"مطلوب بعد استرجاع النسخة الاحتياطية": "恢复备份后的必要操作",
+"استُرجعت نسخة احتياطية، فعادت كلمات المرور ورموز الاستعادة إلى حالتها وقت النسخة — أي رمز استُهلك بعدها قد يعمل مجددًا حتى الآن. أعد إنشاء رموز الاستعادة فورًا من الأسفل لإبطال كل الرموز القديمة، وسيُطلب من كل حساب تعيين كلمة مرور جديدة عند دخوله القادم. لن تستطيع فتح صفحة أخرى حتى تُنجز هذا.": "系统已恢复备份，密码和恢复代码已回到备份时的状态——备份后使用过的代码可能暂时再次有效。请立即在下方重新生成恢复代码以使所有旧代码失效；每个账户下次登录时都将被要求设置新密码。完成此操作前，您无法打开其他页面。",
+"أعد إنشاء رموز الاستعادة أولًا بعد استرجاع النسخة الاحتياطية.": "恢复备份后请先重新生成恢复代码。",
+})

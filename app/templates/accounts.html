@@ -13,6 +13,7 @@
 <section class="panel">
   {% if error == "missing" %}<p class="error">أكمل كل الحقول بما فيها سبب الإجراء.</p>{% endif %}
   {% if error == "auth" %}<p class="error">كلمة مرورك غير صحيحة؛ لم تتم إعادة التعيين.</p>{% endif %}
+  {% if error == "auth_locked" %}<p class="error">أُوقفت هذه العملية مؤقتًا بعد كثرة محاولات كلمة المرور الخاطئة. حاول مرة أخرى بعد 30 دقيقة.</p>{% endif %}
   {% if error == "role" %}<p class="error">الصلاحية غير معروفة. الحسابات الجديدة تكون مساعد مدير أو مدير مالية فقط.</p>{% endif %}
   {% if error == "mismatch" %}<p class="error">كلمة المرور وتأكيدها غير متطابقين.</p>{% endif %}
   {% if error == "exists" %}<p class="error">اسم المستخدم مستخدم بالفعل أو الحساب غير موجود.</p>{% endif %}
@@ -67,6 +68,13 @@
 </section>
 
 <section class="panel">
+  {% if regen_required %}
+  <section class="alert-panel">
+    <h2>مطلوب بعد استرجاع النسخة الاحتياطية</h2>
+    <p>استُرجعت نسخة احتياطية، فعادت كلمات المرور ورموز الاستعادة إلى حالتها وقت النسخة — أي رمز استُهلك بعدها قد يعمل مجددًا حتى الآن. أعد إنشاء رموز الاستعادة فورًا من الأسفل لإبطال كل الرموز القديمة، وسيُطلب من كل حساب تعيين كلمة مرور جديدة عند دخوله القادم. لن تستطيع فتح صفحة أخرى حتى تُنجز هذا.</p>
+  </section>
+  {% endif %}
+
   <h2>رموز استعادة مدير النظام</h2>
   <p class="muted">لو نسيت كلمة مرورك، تستعيد الدخول من صفحة تسجيل الدخول برمز من رموز الاستعادة؛ كل رمز يعمل مرة واحدة. الرموز غير المستخدمة حاليًا: <bdi>{{ unused_recovery_codes }}</bdi>. إنشاء رموز جديدة يبطل كل الرموز السابقة.</p>
   <form method="post" action="/settings/accounts/recovery-codes" class="inline-form">
@@ -74,6 +82,33 @@
     <input name="current_password" type="password" placeholder="كلمة مرورك أنت" required autocomplete="off">
     <button type="submit" class="btn-soft">إنشاء رموز استعادة جديدة</button>
   </form>
+
+  <h2>الجلسات المفتوحة</h2>
+  <p class="muted">كل دخول ناجح يسجَّل هنا ويمكن إنهاؤه فورًا فيسقط حتى لو كان الكوكي ما زال صالحًا. بيانات المتصفح وعنوان IP وصفية من الطلب نفسه وقد لا تكون دقيقة، وليست إثباتًا لهوية جهاز.</p>
+  {% if sessions %}
+  <table class="data-table">
+    <thead><tr><th>الحساب</th><th>أنشئت</th><th>آخر ظهور</th><th>المتصفح</th><th>عنوان IP</th><th>إجراء</th></tr></thead>
+    <tbody>
+      {% for session in sessions %}
+      <tr>
+        <td>{{ session.account_name }}{% if session.is_current %} <span class="muted small">(جلستك الحالية)</span>{% endif %}</td>
+        <td><bdi>{{ session.created_at | fmt_dt }}</bdi></td>
+        <td><bdi>{{ session.last_seen_at | fmt_dt }}</bdi></td>
+        <td class="muted small" dir="ltr">{{ session.user_agent }}</td>
+        <td dir="ltr">{{ session.ip_address }}</td>
+        <td>
+          <form method="post" action="/settings/accounts/sessions/{{ session.id }}/end" class="inline-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button type="submit" class="btn-soft">إنهاء</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted">لا توجد جلسات مفتوحة.</p>
+  {% endif %}
 
   <h2>إنشاء حساب جديد</h2>
   <p class="muted">يسلَّم الشخص كلمة المرور الأولية ويغيّرها بنفسه من صفحة «تغيير كلمة المرور» بعد أول دخول.</p>

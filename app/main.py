@@ -1,4 +1,7 @@
 import asyncio
+import functools
+import hashlib
+import hmac
 import math
 from contextlib import asynccontextmanager
 from datetime import date, datetime, timedelta, timezone
@@ -14,7 +17,7 @@ from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, Upload
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from sqlalchemy import func, or_, select, text, update
+from sqlalchemy import delete, func, or_, select, text, update
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
 from PIL import Image, ImageOps, UnidentifiedImageError
@@ -44,6 +47,9 @@ from app.login_security import (
     clear_attempts,
     clear_recovery_attempts,
     record_failed_recovery,
+    reauth_lockout_remaining,
+    record_failed_reauth,
+    clear_reauth_attempts,
     recovery_lockout_remaining,
     lockout_remaining,
     record_failed_attempt,
@@ -125,7 +131,7 @@ from app.payroll_workflow import (
     review_absence_leave_conflict,
     update_payroll_item,
 )
-from app.models import AdvanceRequest, BackupRun, SystemSetting, StaffAction, PayrollRun, PayrollItem, PayrollPayment, AdminAccount, AttendanceDailyRecord, AttendanceImportBatch, AttendanceImportIssue, AttendancePunch, AttendanceMonth, AuditLog, Branch, RecoveryCode, Department, Employee, EmployeeChange, EmployeeDataChangeRequest, EmployeeServicePeriod, LeaveBalanceTransaction, LeaveRecord, LeaveType
+from app.models import AdvanceRequest, BackupRun, SystemSetting, StaffAction, PayrollRun, PayrollItem, PayrollPayment, AdminAccount, AttendanceDailyRecord, AttendanceImportBatch, AttendanceImportIssue, AttendancePunch, AttendanceMonth, AuditLog, Branch, RecoveryCode, AdminSession, Department, Employee, EmployeeChange, EmployeeDataChangeRequest, EmployeeServicePeriod, LeaveBalanceTransaction, LeaveRecord, LeaveType
 from app.security_roster_import import parse_security_roster_xlsx
 from app.attendance_import import parse_attendance_workbook, normalize as normalize_attendance_alias
 from app.attendance_workflow import persist_attendance_import, prepare_and_persist_monthly_reconciliation, approve_attendance_day, approve_attendance_month, add_manual_attendance, resolve_unknown_attendance_employee, summarize_attendance_month_coverage
@@ -681,9 +687,18 @@ def login(request: Request, username: str = Form(...), password: str = Form(...)
         staged_token = request.session.get("security_roster_stage")
         if isinstance(staged_token, str):
             _clear_staged_security_roster(staged_token, request)
+        session_id = secrets.token_hex(16)
+        db.add(AdminSession(
+            id=session_id,
+            admin_account_id=admin.id,
+            user_agent=(request.headers.get("user-agent") or "")[:300] or None,
+            ip_address=request.client.host if request.client else None,
+        ))
+        db.commit()
         request.session.clear()
         request.session["admin_username"] = admin.username
         request.session["admin_session_version"] = admin.session_version
+        request.session["admin_session_id"] = session_id
         get_csrf_token(request)
     send_login_alert("login_success", admin.username)
     send_telegram_login_event("login_success", admin.username, app_name=settings.app_name)
@@ -696,6 +711,10 @@ def login(request: Request, username: str = Form(...), password: str = Form(...)
 
 @app.post("/logout", dependencies=[Depends(csrf_protect)])
 def logout(request: Request):
+    session_id = request.session.get("admin_session_id")
+    if isinstance(session_id, str) and session_id:
+        with SessionLocal.begin() as db:
+            db.execute(delete(AdminSession).where(AdminSession.id == session_id))
     staged_token = request.session.get("security_roster_stage")
     if isinstance(staged_token, str):
         _clear_staged_security_roster(staged_token, request)
@@ -3114,10 +3133,20 @@ def password_page(request: Request, admin: AdminAccount = Depends(get_current_ad
     )
 
 
-def _telegram_reauthenticated(admin: AdminAccount, current_password: str) -> bool:
-    """Telegram alert settings redirect where login alerts go, so changing them
-    requires the administrator's own password, not just an unlocked session."""
-    return bool(current_password) and verify_password(current_password, admin.password_hash)
+def _sensitive_reauth(admin: AdminAccount, current_password: str) -> str:
+    """Gate for sensitive in-session actions: the administrator's own current
+    password, with its own failure throttle so a hijacked unlocked session
+    cannot guess without limit. Returns "ok", "failed" or "locked"."""
+    with SessionLocal() as db:
+        if reauth_lockout_remaining(db) is not None:
+            return "locked"
+    if current_password and verify_password(current_password, admin.password_hash):
+        with SessionLocal() as db:
+            clear_reauth_attempts(db, actor=admin.username)
+        return "ok"
+    with SessionLocal() as db:
+        record_failed_reauth(db, actor=admin.username)
+    return "failed"
 
 
 @app.post("/settings/telegram", dependencies=[Depends(csrf_protect)])
@@ -3130,8 +3159,9 @@ def telegram_settings_save(
     current_password: str = Form(""),
     admin: AdminAccount = Depends(require_system_admin),
 ):
-    if not _telegram_reauthenticated(admin, current_password):
-        return RedirectResponse("/settings/password?tg=auth", status_code=303)
+    reauth = _sensitive_reauth(admin, current_password)
+    if reauth != "ok":
+        return RedirectResponse(f"/settings/password?tg={'auth_locked' if reauth == 'locked' else 'auth'}", status_code=303)
     with SessionLocal.begin() as db:
         current = telegram_get_config(db)
         token = bot_token.strip() or current["bot_token"]
@@ -3165,8 +3195,9 @@ def telegram_settings_save(
 
 @app.post("/settings/telegram/bind-link", dependencies=[Depends(csrf_protect)])
 def telegram_bind_link(request: Request, current_password: str = Form(""), admin: AdminAccount = Depends(require_system_admin)):
-    if not _telegram_reauthenticated(admin, current_password):
-        return RedirectResponse("/settings/password?tg=auth", status_code=303)
+    reauth = _sensitive_reauth(admin, current_password)
+    if reauth != "ok":
+        return RedirectResponse(f"/settings/password?tg={'auth_locked' if reauth == 'locked' else 'auth'}", status_code=303)
     with SessionLocal.begin() as db:
         nonce = generate_telegram_bind_nonce(db, actor=admin.username)
         if nonce is None:
@@ -3185,8 +3216,9 @@ def telegram_bind_link(request: Request, current_password: str = Form(""), admin
 
 @app.post("/settings/telegram/bind-confirm", dependencies=[Depends(csrf_protect)])
 def telegram_bind_confirm(request: Request, current_password: str = Form(""), admin: AdminAccount = Depends(require_system_admin)):
-    if not _telegram_reauthenticated(admin, current_password):
-        return RedirectResponse("/settings/password?tg=auth", status_code=303)
+    reauth = _sensitive_reauth(admin, current_password)
+    if reauth != "ok":
+        return RedirectResponse(f"/settings/password?tg={'auth_locked' if reauth == 'locked' else 'auth'}", status_code=303)
     with SessionLocal.begin() as db:
         status = bind_telegram_chat_from_nonce(db, actor=admin.username)
         if status == "bound":
@@ -3208,8 +3240,9 @@ def telegram_bind_confirm(request: Request, current_password: str = Form(""), ad
 
 @app.post("/settings/telegram/test", dependencies=[Depends(csrf_protect)])
 def telegram_test_message(request: Request, current_password: str = Form(""), admin: AdminAccount = Depends(require_system_admin)):
-    if not _telegram_reauthenticated(admin, current_password):
-        return RedirectResponse("/settings/password?tg=auth", status_code=303)
+    reauth = _sensitive_reauth(admin, current_password)
+    if reauth != "ok":
+        return RedirectResponse(f"/settings/password?tg={'auth_locked' if reauth == 'locked' else 'auth'}", status_code=303)
     with SessionLocal() as db:
         sent = send_telegram_test_message(db)
     return RedirectResponse(f"/settings/password?tg={'test_ok' if sent else 'test_failed'}", status_code=303)
@@ -3258,6 +3291,13 @@ def change_password_route(
         new_session_version = db_admin.session_version
     # The rotation invalidates every other session; keep this one signed in.
     request.session["admin_session_version"] = new_session_version
+    with SessionLocal.begin() as db:
+        db.execute(
+            delete(AdminSession).where(
+                AdminSession.admin_account_id == admin.id,
+                AdminSession.id != (request.session.get("admin_session_id") or ""),
+            )
+        )
     return render(None, success=True)
 
 
@@ -3341,6 +3381,7 @@ def deactivate_account(
                 return RedirectResponse("/settings/accounts?error=last_admin", status_code=303)
         target.active = False
         target.session_version += 1
+        db.execute(delete(AdminSession).where(AdminSession.admin_account_id == target.id))
         db.add(AuditLog(
             actor=admin.username,
             action="account_deactivated",
@@ -3411,6 +3452,25 @@ def _accounts_page_response(request: Request, reset_reveal: dict | None = None):
             .select_from(RecoveryCode)
             .where(RecoveryCode.used_at.is_(None))
         ) or 0
+        session_rows = db.scalars(
+            select(AdminSession).order_by(AdminSession.created_at.desc())
+        ).all()
+        account_names = {row["id"]: row["display_name"] for row in rows}
+        current_session_id = request.session.get("admin_session_id")
+        sessions = [
+            {
+                "id": row.id,
+                "account_name": account_names.get(row.admin_account_id, "؟"),
+                "created_at": row.created_at,
+                "last_seen_at": row.last_seen_at,
+                "user_agent": (row.user_agent or "")[:80],
+                "ip_address": row.ip_address or "",
+                "is_current": row.id == current_session_id,
+            }
+            for row in session_rows
+        ]
+        regen_flag = db.get(SystemSetting, _RECOVERY_REGEN_SETTING_KEY)
+        regen_required = bool(regen_flag is not None and regen_flag.value)
     return templates.TemplateResponse(
         request=request,
         name="accounts.html",
@@ -3421,8 +3481,30 @@ def _accounts_page_response(request: Request, reset_reveal: dict | None = None):
             "saved": request.query_params.get("saved"),
             "reset_reveal": reset_reveal,
             "unused_recovery_codes": unused_codes,
+            "sessions": sessions,
+            "regen_required": regen_required,
         },
     )
+
+
+@app.post("/settings/accounts/sessions/{session_id}/end", dependencies=[Depends(csrf_protect)])
+def end_admin_session(session_id: str, admin: AdminAccount = Depends(require_system_admin)):
+    """Terminate one open session; its cookie dies even if still validly signed."""
+    with SessionLocal.begin() as db:
+        row = db.get(AdminSession, session_id)
+        if row is not None:
+            owner = db.get(AdminAccount, row.admin_account_id)
+            db.add(AuditLog(
+                actor=admin.username,
+                action="session_ended",
+                entity_type="admin_account",
+                entity_id=str(row.admin_account_id),
+                old_value=None,
+                new_value=(owner.display_name or owner.username) if owner else "؟",
+                reason=None,
+            ))
+            db.delete(row)
+    return RedirectResponse("/settings/accounts?saved=1", status_code=303)
 
 
 @app.post("/settings/accounts/{account_id}/reset-password", dependencies=[Depends(csrf_protect)])
@@ -3441,8 +3523,9 @@ def reset_account_password(
     # Reauthentication: whoever holds this session must prove they know the
     # administrator's own password before any account password is reset, so an
     # unlocked session alone cannot take over an account.
-    if not verify_password(current_password, admin.password_hash):
-        return RedirectResponse("/settings/accounts?error=auth", status_code=303)
+    reauth = _sensitive_reauth(admin, current_password)
+    if reauth != "ok":
+        return RedirectResponse(f"/settings/accounts?error={'auth_locked' if reauth == 'locked' else 'auth'}", status_code=303)
     temporary_password = _generate_temporary_password()
     with SessionLocal.begin() as db:
         target = db.get(AdminAccount, account_id)
@@ -3450,6 +3533,7 @@ def reset_account_password(
             return RedirectResponse("/settings/accounts?error=exists", status_code=303)
         target.password_hash = hash_password(temporary_password)
         target.session_version += 1
+        db.execute(delete(AdminSession).where(AdminSession.admin_account_id == target.id))
         target.must_change_password = True
         db.add(AuditLog(
             actor=admin.username,
@@ -3473,6 +3557,39 @@ def reset_account_password(
 RECOVERY_CODE_COUNT = 10
 
 
+_RECOVERY_PEPPER_SETTING_KEY = "recovery_lookup_pepper"
+_RECOVERY_REGEN_SETTING_KEY = "post_restore_regen_required"
+
+
+def _recovery_lookup(db, normalized_code: str) -> str:
+    """Keyed HMAC of a normalized recovery code: an index that finds the one
+    candidate row without running Argon2 against every stored hash. The key is
+    a random pepper stored in the database (created on first generation), so
+    changing SESSION_SECRET never invalidates existing codes, and a backup
+    restore rolls the pepper back together with the codes it indexes."""
+    setting = db.get(SystemSetting, _RECOVERY_PEPPER_SETTING_KEY)
+    if setting is None or not setting.value:
+        setting = SystemSetting(
+            key=_RECOVERY_PEPPER_SETTING_KEY,
+            value=secrets.token_hex(32),
+            updated_by="system",
+        )
+        db.add(setting)
+        db.flush()
+    return hmac.new(
+        setting.value.encode("utf-8"),
+        normalized_code.encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+
+
+@functools.lru_cache(maxsize=1)
+def _dummy_recovery_hash() -> str:
+    """One constant Argon2 hash verified on every failed recovery attempt so
+    unknown users and wrong codes cost the same work (no existence oracle)."""
+    return hash_password("recovery-timing-equalizer")
+
+
 def _generate_recovery_codes() -> list[str]:
     """Ten readable one-use codes, four groups of four unambiguous characters."""
     return [
@@ -3492,15 +3609,20 @@ def generate_recovery_codes(
 ):
     """Regenerate the system administrator's one-use recovery codes. Requires
     the administrator's own password; all previous codes die immediately."""
-    if not verify_password(current_password, admin.password_hash):
-        return RedirectResponse("/settings/accounts?error=auth", status_code=303)
+    reauth = _sensitive_reauth(admin, current_password)
+    if reauth != "ok":
+        return RedirectResponse(f"/settings/accounts?error={'auth_locked' if reauth == 'locked' else 'auth'}", status_code=303)
     codes = _generate_recovery_codes()
     with SessionLocal.begin() as db:
         db.query(RecoveryCode).filter(
             RecoveryCode.admin_account_id == admin.id
         ).delete(synchronize_session=False)
         for code in codes:
-            db.add(RecoveryCode(admin_account_id=admin.id, code_hash=hash_password(code)))
+            db.add(RecoveryCode(admin_account_id=admin.id, code_hash=hash_password(code), code_lookup=_recovery_lookup(db, code)))
+        regen_flag = db.get(SystemSetting, _RECOVERY_REGEN_SETTING_KEY)
+        if regen_flag is not None:
+            regen_flag.value = ""
+            regen_flag.updated_by = admin.username
         db.add(AuditLog(
             actor=admin.username,
             action="recovery_codes_generated",
@@ -3577,18 +3699,42 @@ def recover_account(
                 AdminAccount.active == True,  # noqa: E712
             )
         )
+        # Codes are case-sensitive; only surrounding whitespace is ignored.
+        normalized_code = recovery_code.strip()
         matched_id = None
+        verified_once = False
         if account is not None:
-            unused = db.scalars(
+            candidate = db.scalar(
                 select(RecoveryCode).where(
                     RecoveryCode.admin_account_id == account.id,
                     RecoveryCode.used_at.is_(None),
+                    RecoveryCode.code_lookup == _recovery_lookup(db, normalized_code),
                 )
-            ).all()
-            for candidate in unused:
-                if verify_password(recovery_code.strip(), candidate.code_hash):
+            )
+            if candidate is not None:
+                verified_once = True
+                if verify_password(normalized_code, candidate.code_hash):
                     matched_id = candidate.id
-                    break
+            else:
+                # Rows predating the lookup column still verify one by one.
+                legacy = db.scalars(
+                    select(RecoveryCode).where(
+                        RecoveryCode.admin_account_id == account.id,
+                        RecoveryCode.used_at.is_(None),
+                        RecoveryCode.code_lookup.is_(None),
+                    )
+                ).all()
+                for candidate in legacy:
+                    verified_once = True
+                    if verify_password(normalized_code, candidate.code_hash):
+                        matched_id = candidate.id
+                        break
+
+        if matched_id is None and not verified_once:
+            # Equalize failure work: unknown user, inactive account and wrong
+            # code all pay exactly one Argon2 verification, so response timing
+            # does not reveal whether the account exists.
+            verify_password(normalized_code, _dummy_recovery_hash())
 
         if account is None or matched_id is None:
             record_failed_recovery(db, actor="recovery")
@@ -3607,6 +3753,7 @@ def recover_account(
         account.password_hash = hash_password(new_password)
         account.session_version += 1
         account.must_change_password = False
+        db.execute(delete(AdminSession).where(AdminSession.admin_account_id == account.id))
         db.add(AuditLog(
             actor=account.username,
             action="admin_password_recovered",

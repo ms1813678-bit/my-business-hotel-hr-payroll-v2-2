@@ -101,6 +101,8 @@ ACTION_LABELS = {
     "recovery_codes_generated": "إنشاء رموز استعادة مدير النظام",
     "admin_password_recovered": "استعادة كلمة مرور مدير النظام برمز استعادة",
     "recovery_lockout": "إيقاف الاستعادة مؤقتًا بعد كثرة المحاولات",
+    "session_ended": "إنهاء جلسة دخول",
+    "reauth_lockout": "إيقاف إثبات الهوية مؤقتًا بعد كثرة المحاولات",
     "payroll_run_approved": "اعتماد مسير رواتب",
     "payroll_run_closed": "إغلاق مسير رواتب",
     "payroll_run_created": "إنشاء مسير رواتب",

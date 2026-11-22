@@ -14,6 +14,7 @@ import json
 import urllib.request
 from datetime import datetime, timedelta, timezone
 
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.config import settings
@@ -39,8 +40,14 @@ def _now() -> datetime:
     return datetime.now(timezone.utc)
 
 
-def _read_state(db: Session, key: str = _SETTING_KEY) -> dict:
-    setting = db.get(SystemSetting, key)
+def _read_state(db: Session, key: str = _SETTING_KEY, *, for_update: bool = False) -> dict:
+    query = db.query(SystemSetting).filter(SystemSetting.key == key)
+    if for_update:
+        # Serialize concurrent counters on this row: without the row lock a
+        # burst of parallel failures reads the same state and both loses
+        # attempts and writes duplicate lockout audit rows.
+        query = query.with_for_update()
+    setting = query.one_or_none()
     if setting is None:
         return {"failed_attempts": 0, "locked_until": None}
     try:
@@ -152,25 +159,101 @@ def recovery_lockout_remaining(db: Session, *, now: datetime | None = None) -> t
     return remaining if remaining.total_seconds() > 0 else None
 
 
-def record_failed_recovery(db: Session, *, actor: str = "system", now: datetime | None = None) -> bool:
-    """Count one failed recovery attempt. Returns True when the lockout engages."""
-    now = now or _now()
-    state = _read_state(db, _RECOVERY_SETTING_KEY)
+def _record_failure_locked(db: Session, key: str, limit: int, duration: timedelta,
+                           audit_action: str, audit_reason: str,
+                           *, actor: str, now: datetime) -> bool:
+    """Atomic read/modify/write of one throttle counter. The state row is
+    locked FOR UPDATE (created first when missing, retrying on the unique
+    race), and the lockout audit row is written only on the transition into
+    the lock, never for attempts that arrive while it is already engaged."""
+    for _ in range(3):
+        setting = db.query(SystemSetting).filter(SystemSetting.key == key).with_for_update().one_or_none()
+        if setting is not None:
+            break
+        try:
+            with db.begin_nested():
+                db.add(SystemSetting(key=key, value='{"failed_attempts": 0, "locked_until": null}', updated_by=actor))
+            db.flush()
+        except IntegrityError:
+            continue
+    state = _read_state(db, key, for_update=True)
+    now_locked_until = state.get("locked_until")
+    already_locked = False
+    if now_locked_until:
+        try:
+            parsed = datetime.fromisoformat(now_locked_until)
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=timezone.utc)
+            already_locked = parsed > now
+        except (ValueError, TypeError):
+            already_locked = False
     state["failed_attempts"] += 1
     engaged = False
-    if state["failed_attempts"] >= RECOVERY_FAILED_LIMIT:
-        state["locked_until"] = (now + RECOVERY_LOCKOUT_DURATION).isoformat()
+    if state["failed_attempts"] >= limit and not already_locked:
+        state["locked_until"] = (now + duration).isoformat()
         engaged = True
         db.add(AuditLog(
             actor=actor,
-            action="recovery_lockout",
+            action=audit_action,
             entity_type="admin_account",
             entity_id="admin",
-            reason=f"{state['failed_attempts']} failed recovery attempts",
+            reason=audit_reason.format(count=state["failed_attempts"]),
         ))
-    _write_state(db, state, actor, _RECOVERY_SETTING_KEY)
+    _write_state(db, state, actor, key)
     db.commit()
     return engaged
+
+
+def record_failed_recovery(db: Session, *, actor: str = "system", now: datetime | None = None) -> bool:
+    """Count one failed recovery attempt. Returns True when the lockout engages."""
+    now = now or _now()
+    return _record_failure_locked(
+        db, _RECOVERY_SETTING_KEY, RECOVERY_FAILED_LIMIT, RECOVERY_LOCKOUT_DURATION,
+        "recovery_lockout", "{count} failed recovery attempts", actor=actor, now=now,
+    )
+
+
+# Failed reauthentication on sensitive in-session actions (account reset,
+# recovery-code generation, Telegram alert settings) gets its own throttle so
+# a hijacked unlocked session cannot guess the administrator's password
+# without limit.
+REAUTH_FAILED_LIMIT = 5
+REAUTH_LOCKOUT_DURATION = timedelta(minutes=30)
+REAUTH_LOCKOUT_MINUTES = int(REAUTH_LOCKOUT_DURATION.total_seconds() // 60)
+_REAUTH_SETTING_KEY = "reauth_security"
+
+
+def reauth_lockout_remaining(db: Session, *, now: datetime | None = None) -> timedelta | None:
+    """Remaining reauth lockout, or None when reauthentication is allowed."""
+    now = now or _now()
+    raw = _read_state(db, _REAUTH_SETTING_KEY)["locked_until"]
+    if not raw:
+        return None
+    try:
+        locked_until = datetime.fromisoformat(raw)
+    except (ValueError, TypeError):
+        return None
+    if locked_until.tzinfo is None:
+        locked_until = locked_until.replace(tzinfo=timezone.utc)
+    remaining = locked_until - now
+    return remaining if remaining.total_seconds() > 0 else None
+
+
+def record_failed_reauth(db: Session, *, actor: str = "system", now: datetime | None = None) -> bool:
+    """Count one failed reauthentication. Returns True when the lockout engages."""
+    now = now or _now()
+    return _record_failure_locked(
+        db, _REAUTH_SETTING_KEY, REAUTH_FAILED_LIMIT, REAUTH_LOCKOUT_DURATION,
+        "reauth_lockout", "{count} failed reauthentication attempts", actor=actor, now=now,
+    )
+
+
+def clear_reauth_attempts(db: Session, *, actor: str = "system") -> None:
+    """Reset the reauthentication failure counter after a successful proof."""
+    state = _read_state(db, _REAUTH_SETTING_KEY)
+    if state["failed_attempts"] or state["locked_until"]:
+        _write_state(db, {"failed_attempts": 0, "locked_until": None}, actor, _REAUTH_SETTING_KEY)
+        db.commit()
 
 
 def clear_recovery_attempts(db: Session, *, actor: str = "system") -> None:
