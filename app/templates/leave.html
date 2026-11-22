@@ -4,7 +4,7 @@
 {% block content %}
   <header class="topbar">
     <div><p class="eyebrow">M.Y. BUSINESS HOTEL</p><h1>إدارة الإجازات والأرصدة</h1>
-      <p class="muted">Leave management · HR administrator only</p></div>
+      <p class="muted">إدارة الإجازات · مسؤول الموارد البشرية فقط</p></div>
     <nav><a href="/">الرئيسية</a> · <a href="/employees">الموظفون</a></nav>
   </header>
 
@@ -80,7 +80,7 @@
     <tr><td>{{ employee_codes.get(r.employee_id, "—") }} — {{ employee_names.get(r.employee_id, "—") }}</td>
       <td>{{ type_names.get(r.leave_type_id, "—") }}</td>
       <td>{{ r.start_date.strftime("%d/%m/%Y") }} – {{ r.end_date.strftime("%d/%m/%Y") }}</td>
-      <td>{{ r.calendar_days }}</td><td>{{ r.charged_days }}</td><td>{{ r.status }}</td>
+      <td>{{ r.calendar_days }}</td><td>{{ r.charged_days }}</td><td>{{ r.status|status_label }}</td>
       <td>
         {% if r.status == "draft" %}
         <form method="post" action="/leave/records/{{ r.id }}/confirm" class="inline-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button type="submit">اعتماد وخصم الرصيد</button></form>
@@ -116,7 +116,7 @@
   <section class="notice">
     <h2>آخر حركات الأرصدة</h2>
     <div class="table-wrap"><table><thead><tr><th>التاريخ</th><th>الموظف</th><th>النوع</th><th>الحركة</th><th>الأيام</th><th>السبب</th></tr></thead><tbody>
-    {% for tx in transactions %}<tr><td>{{ tx.created_at.strftime("%d/%m/%Y %H:%M") }}</td><td>{{ employee_codes.get(tx.employee_id, "—") }}</td><td>{{ type_names.get(tx.leave_type_id, "—") }}</td><td>{{ tx.transaction_type }}</td><td>{{ tx.days_delta }}</td><td>{{ tx.reason }}</td></tr>
+    {% for tx in transactions %}<tr><td>{{ tx.created_at|fmt_dt }}</td><td>{{ employee_codes.get(tx.employee_id, "—") }}</td><td>{{ type_names.get(tx.leave_type_id, "—") }}</td><td>{{ tx.transaction_type|status_label }}</td><td>{{ tx.days_delta }}</td><td>{{ tx.reason }}</td></tr>
     {% else %}<tr><td colspan="6">لا توجد حركات أرصدة بعد.</td></tr>{% endfor %}
     </tbody></table></div>
   </section>

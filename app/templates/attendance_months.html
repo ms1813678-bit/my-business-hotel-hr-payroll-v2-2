@@ -21,9 +21,9 @@
     {% endif %}
     {% for month in months %}
     <section class="notice">
-      <h2>{{ month.period_start }} إلى {{ month.period_end }}</h2>
-      <p>حالة الشهر: <strong>{{ month.status }}</strong></p>
-      <p>سجلات الأيام: {{ month.total }} — المعتمد: {{ month.approved }} — المعلّق: {{ month.pending }}</p>
+      <h2>{{ month.period_start|fmt_d }} <span>إلى</span> {{ month.period_end|fmt_d }}</h2>
+      <p><span>حالة الشهر:</span> <strong>{{ month.status|status_label }}</strong></p>
+      <p><span>سجلات الأيام:</span> {{ month.total }} — <span>المعتمد:</span> {{ month.approved }} — <span>المعلّق:</span> {{ month.pending }}</p>
       <p><strong>أيام موظفين بلا سجل مطابقة: {{ month.unrepresented_employee_days }}</strong></p>
       <details class="hint"><summary>تعليمات</summary>
         <p class="muted">هذه فجوات تغطية تحتاج مراجعة التقرير الأساسي وملف البصمة. لا يصنفها النظام غيابًا أو راحة تلقائيًا.</p>

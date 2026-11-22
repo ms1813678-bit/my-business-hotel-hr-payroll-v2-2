@@ -3,8 +3,8 @@
 {% block title %}مسير الرواتب | M.Y. Business Hotel{% endblock %}
 {% block content %}
   <header class="topbar">
-    <div><p class="eyebrow">M.Y. BUSINESS HOTEL</p><h1>مسير رواتب {{ run.period_start.strftime("%m/%Y") }}</h1>
-      <p class="muted">موعد الصرف المخطط: {{ run.pay_date.strftime("%d/%m/%Y") }} · الحالة: {{ run.status }}</p></div>
+    <div><p class="eyebrow">M.Y. BUSINESS HOTEL</p><h1><span>مسير رواتب</span> {{ run.period_start|fmt_m }}</h1>
+      <p class="muted"><span>موعد الصرف المخطط:</span> {{ run.pay_date|fmt_d }} · <span>الحالة:</span> {{ run.status|status_label }}</p></div>
     <nav><a href="/payroll">كل المسيرات</a> · <a href="/">الرئيسية</a></nav>
   </header>
   {% if error %}
@@ -86,7 +86,7 @@
         <button type="submit">حفظ ومراجعة الصافي</button>
         {% if item.overtime_hours > 0 %}
         {% if item.overtime_approved %}
-        <span class="muted">تم اعتماد الإضافي بواسطة {{ item.overtime_approved_by }} في {{ item.overtime_approved_at.strftime("%d/%m/%Y %H:%M") }}.</span>
+        <span class="muted"><span>تم اعتماد الإضافي بواسطة</span> {{ item.overtime_approved_by }} <span>في</span> {{ item.overtime_approved_at|fmt_dt }}.</span>
         {% else %}
         <button type="submit" formaction="/payroll/items/{{ item.id }}/overtime-approve">اعتماد ساعات الإضافي</button>
         {% endif %}

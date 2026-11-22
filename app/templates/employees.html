@@ -81,7 +81,7 @@
             <div class="employee-title-row">
               <strong>{{ e.full_name }}</strong>
               <span class="badge {% if e.status == 'active' %}badge-success{% else %}badge-muted{% endif %}">
-                {% if e.status == 'active' %}نشط{% else %}{{ e.status }}{% endif %}
+                {{ e.status|status_label }}
               </span>
             </div>
             <span class="code">{{ e.code }} · {{ e.position }}</span>
@@ -104,7 +104,7 @@
         </div>
         <div class="meta-item">
           <span>ساعات يومية</span>
-          <strong>{{ e.daily_hours }} ساعة</strong>
+          <strong>{{ e.daily_hours }} <span>ساعة</span></strong>
         </div>
         <div class="meta-item">
           <span>رقم البصمة</span>
@@ -224,10 +224,10 @@
   {% for r in data_change_requests %}
   <article class="employee-card request-card">
     <div class="employee-title-row">
-      <strong>طلب #{{ r.id }} — {{ r.field_name }}</strong>
-      <span class="badge">{{ r.status }}</span>
+      <strong><span>طلب #</span>{{ r.id }} — {{ r.field_name|field_label }}</strong>
+      <span class="badge">{{ r.status|status_label }}</span>
     </div>
-    <p class="muted">الموظف #{{ r.employee_id }} · {{ r.recorded_at }}</p>
+    <p class="muted"><span>الموظف #</span>{{ r.employee_id }} · {{ r.recorded_at|fmt_dt }}</p>
     <p>القيمة المطلوبة: <strong>{{ r.requested_value }}</strong></p>
     <p class="muted">السبب: {{ r.request_reason }}</p>
     {% if r.status == "pending" %}
@@ -241,7 +241,7 @@
       <button type="submit" name="decision" value="reject" class="btn-danger">رفض الطلب</button>
     </form>
     {% else %}
-    <p class="muted">قرار المراجعة: {{ r.decision_reason }} — بواسطة {{ r.reviewed_by }} — {{ r.reviewed_at }}</p>
+    <p class="muted"><span>قرار المراجعة:</span> {{ r.decision_reason }} — <span>بواسطة</span> {{ r.reviewed_by }} — {{ r.reviewed_at|fmt_dt }}</p>
     {% endif %}
   </article>
   {% else %}

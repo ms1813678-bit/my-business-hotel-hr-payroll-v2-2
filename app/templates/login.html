@@ -9,7 +9,7 @@
 <body>
   <main class="login-shell">
     <form class="login-card" method="post" action="/login">
-      <nav class="language-switch login-language" aria-label="Language"><a href="/language/ar">العربية</a><a href="/language/en">English</a><a href="/language/zh">中文</a></nav>
+      <nav class="language-switch login-language" aria-label="اللغة"><a href="/language/ar" {% if request.state.language == 'ar' %}class="active" aria-current="true"{% endif %}>العربية</a><a href="/language/en" {% if request.state.language == 'en' %}class="active" aria-current="true"{% endif %}>الإنجليزية</a><a href="/language/zh" {% if request.state.language == 'zh' %}class="active" aria-current="true"{% endif %}>الصينية</a></nav>
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <div class="login-brand">
         <img class="brand-logo" src="/static/logo.png" alt="M.Y. BUSINESS HOTEL">

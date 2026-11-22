@@ -5,7 +5,7 @@
 {% set state_labels = {"pending": "معلقة", "approved": "معتمدة", "paid": "مصروفة", "rejected": "مرفوضة"} %}
 <header class="topbar">
     <div><p class="eyebrow">M.Y. BUSINESS HOTEL</p><h1>إدارة السلف</h1>
-      <p class="muted">Salary advances · HR administrator only</p></div>
+      <p class="muted">سلف الرواتب · مسؤول الموارد البشرية فقط</p></div>
     <nav><a href="/">الرئيسية</a> · <a href="/employees">الموظفون</a> · <a href="/leave">الإجازات</a></nav>
   </header>
 
@@ -29,7 +29,7 @@
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <div class="form-grid">
         <label>الموظف
-          <select name="employee_id" required>{% for e in employees %}<option value="{{ e.id }}">{{ e.code }} — {{ e.full_name }} ({{ e.basic_salary }} جنيه)</option>{% endfor %}</select>
+          <select name="employee_id" required>{% for e in employees %}<option value="{{ e.id }}">{{ e.code }} — {{ e.full_name }} ({{ e.basic_salary }})</option>{% endfor %}</select>
         </label>
         <label>تاريخ الطلب<input type="date" name="request_date" max="{{ today }}" required></label>
         <label>نوع السلفة
@@ -54,13 +54,13 @@
     {% set s = advance_summary.get(e.id) %}
     <tr>
       <td>{{ e.code }} — {{ e.full_name }}</td>
-      <td>{% if s.latest %}{{ "%.2f"|format(s.latest.amount) }} ج · {{ s.latest.request_date.strftime("%d/%m/%Y") }}{% else %}—{% endif %}</td>
-      <td>{{ "%.2f"|format(s.total) }} ج</td>
-      <td>{{ "%.2f"|format(s.deducted) }} ج</td>
-      <td>{{ "%.2f"|format(s.regular_outstanding) }} ج</td>
-      <td>{{ "%.2f"|format(s.installment_outstanding) }} ج</td>
-      <td>{{ "%.2f"|format(s.limit) }} ج</td>
-      <td>{{ "%.2f"|format(s.available) }} ج</td>
+      <td>{% if s.latest %}{{ "%.2f"|format(s.latest.amount) }} <span>ج</span> · {{ s.latest.request_date|fmt_d }}{% else %}—{% endif %}</td>
+      <td>{{ "%.2f"|format(s.total) }} <span>ج</span></td>
+      <td>{{ "%.2f"|format(s.deducted) }} <span>ج</span></td>
+      <td>{{ "%.2f"|format(s.regular_outstanding) }} <span>ج</span></td>
+      <td>{{ "%.2f"|format(s.installment_outstanding) }} <span>ج</span></td>
+      <td>{{ "%.2f"|format(s.limit) }} <span>ج</span></td>
+      <td>{{ "%.2f"|format(s.available) }} <span>ج</span></td>
     </tr>
     {% else %}<tr><td colspan="8">لا يوجد موظفون حاليون.</td></tr>{% endfor %}
     </tbody></table></div>
@@ -74,12 +74,12 @@
     {% for a in requests %}
     <tr>
       <td>{{ employee_codes.get(a.employee_id, "—") }} — {{ employee_names.get(a.employee_id, "—") }}</td>
-      <td>{{ a.request_date.strftime("%d/%m/%Y") }}</td>
+      <td>{{ a.request_date|fmt_d }}</td>
       <td>{% if a.advance_type == "installment" %}مقسطة{% else %}عادية{% endif %}</td>
-      <td>{{ "%.2f"|format(a.amount) }} ج</td>
-      <td>{{ "%.2f"|format(a.salary_basis) }} ج</td>
-      <td>{% if a.advance_type == "installment" %}غير مطبق{% else %}{{ "%.2f"|format(a.salary_basis * 25 / 100) }} ج{% endif %}</td>
-      <td>{{ a.payroll_month.strftime("%m/%Y") }}</td>
+      <td>{{ "%.2f"|format(a.amount) }} <span>ج</span></td>
+      <td>{{ "%.2f"|format(a.salary_basis) }} <span>ج</span></td>
+      <td>{% if a.advance_type == "installment" %}غير مطبق{% else %}{{ "%.2f"|format(a.salary_basis * 25 / 100) }} <span>ج</span>{% endif %}</td>
+      <td>{{ a.payroll_month|fmt_m }}</td>
       <td>{{ state_labels.get(a.status, a.status) }}</td>
       <td>
         {% if a.status == "pending" %}

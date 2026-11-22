@@ -21,14 +21,14 @@
         <select id="program_batch_id" name="program_batch_id" required>
           <option value="">اختر ملف البرنامج</option>
           {% for batch in batches if batch.source_type == "program_report" %}
-          <option value="{{ batch.id }}">#{{ batch.id }} — {{ batch.original_filename }} — {{ batch.period_start }} إلى {{ batch.period_end }}</option>
+          <option value="{{ batch.id }}">#{{ batch.id }} — {{ batch.original_filename }} — {{ batch.period_start|fmt_d }} - {{ batch.period_end|fmt_d }}</option>
           {% endfor %}
         </select>
         <label for="fingerprint_batch_id">دفعة جهاز البصمة</label>
         <select id="fingerprint_batch_id" name="fingerprint_batch_id" required>
           <option value="">اختر ملف البصمة</option>
           {% for batch in batches if batch.source_type == "fingerprint" %}
-          <option value="{{ batch.id }}">#{{ batch.id }} — {{ batch.original_filename }} — {{ batch.period_start }} إلى {{ batch.period_end }}</option>
+          <option value="{{ batch.id }}">#{{ batch.id }} — {{ batch.original_filename }} — {{ batch.period_start|fmt_d }} - {{ batch.period_end|fmt_d }}</option>
           {% endfor %}
         </select>
         <label for="period_start">بداية الفترة</label>
@@ -46,7 +46,7 @@
     {% if summary %}
     <section class="notice">
       <h2>تم إنشاء مسودة المراجعة</h2>
-      <p>الفترة: {{ summary.period_start }} إلى {{ summary.period_end }}</p>
+      <p><span>الفترة:</span> {{ summary.period_start|fmt_d }} <span>إلى</span> {{ summary.period_end|fmt_d }}</p>
       <p>إجمالي سجلات الأيام: {{ summary.total }}</p>
       <p>جاهزة لمراجعة الموارد البشرية: {{ summary.ready_for_review }}</p>
       <p>تحتاج مراجعة أو استكمال: {{ summary.needs_review }}</p>

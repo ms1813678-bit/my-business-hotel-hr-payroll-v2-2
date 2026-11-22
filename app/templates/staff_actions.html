@@ -4,7 +4,7 @@
 {% block content %}
   <header class="topbar">
     <div><p class="eyebrow">M.Y. BUSINESS HOTEL</p><h1>الجزاءات والمكافآت</h1>
-      <p class="muted">Sanctions & rewards · HR administrator only</p></div>
+      <p class="muted">الجزاءات والمكافآت · مسؤول الموارد البشرية فقط</p></div>
     <nav><a href="/">الرئيسية</a> · <a href="/employees">الموظفون</a> · <a href="/leave">الإجازات</a> · <a href="/advances">السلف</a></nav>
   </header>
 
@@ -74,10 +74,10 @@
       <td>{{ "جزاء" if a.kind == "sanction" else "مكافأة" }}</td>
       <td>{{ a.category }}</td>
       <td>{{ a.title }}</td>
-      <td>{% if a.is_financial %}{{ "%.2f"|format(a.amount) }} ج{% else %}—{% endif %}</td>
-      <td>{% if a.payroll_month %}{{ a.payroll_month.strftime("%m/%Y") }}{% else %}—{% endif %}</td>
-      <td>{{ a.status }}</td>
-      <td>{{ a.acknowledgement_status }}</td>
+      <td>{% if a.is_financial %}{{ "%.2f"|format(a.amount) }} <span>ج</span>{% else %}—{% endif %}</td>
+      <td>{% if a.payroll_month %}{{ a.payroll_month|fmt_m }}{% else %}—{% endif %}</td>
+      <td>{{ a.status|status_label }}</td>
+      <td>{{ a.acknowledgement_status|status_label }}</td>
       <td>
         {% if a.status == "draft" %}
         <form method="post" action="/staff-actions/{{ a.id }}/approve" class="inline-form">

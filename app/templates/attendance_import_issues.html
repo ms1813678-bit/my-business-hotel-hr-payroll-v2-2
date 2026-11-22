@@ -17,20 +17,20 @@
 
     {% if batch %}
     <section class="notice">
-      <h2>دفعة الاستيراد رقم {{ batch.id }}</h2>
+      <h2><span>دفعة الاستيراد رقم</span> {{ batch.id }}</h2>
       <p>الملف: {{ batch.original_filename }}</p>
-      <p>الحالة: {{ batch.status }} — الملاحظات غير المحسومة: {{ batch.issue_count }}</p>
+      <p><span>الحالة:</span> {{ batch.status|status_label }} — <span>الملاحظات غير المحسومة:</span> {{ batch.issue_count }}</p>
       <p><a href="/attendance/import/{{ batch.id }}/download">تحميل الملف الأصلي</a></p>
     </section>
     {% endif %}
 
     {% for issue in issues %}
     <section class="notice">
-      <h2>المشكلة رقم {{ issue.id }} — {{ issue.reason }}</h2>
-      <p>الورقة: {{ issue.source_sheet or "غير محددة" }} — الصف: {{ issue.source_row or "غير محدد" }}</p>
+      <h2><span>المشكلة رقم</span> {{ issue.id }} — {{ issue.reason }}</h2>
+      <p><span>الورقة:</span> {{ issue.source_sheet or "غير محددة" }} — <span>الصف:</span> {{ issue.source_row or "غير محدد" }}</p>
       <p>القيمة الأصلية: {{ issue.raw_value or "غير متاحة" }}</p>
       {% if issue.resolved_at %}
-        <p>تم الحل: الموظف رقم {{ issue.resolved_employee_id }} بواسطة {{ issue.resolved_by }} في {{ issue.resolved_at }}</p>
+        <p><span>تم الحل: الموظف رقم</span> {{ issue.resolved_employee_id }} <span>بواسطة</span> {{ issue.resolved_by }} <span>في</span> {{ issue.resolved_at|fmt_dt }}</p>
       {% elif issue.reason == "unknown_employee" %}
         <form method="post" action="/attendance/import/{{ batch.id }}/issues/{{ issue.id }}/resolve">
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">

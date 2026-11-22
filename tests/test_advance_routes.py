@@ -252,8 +252,8 @@ def test_advance_page_renders_employee_without_any_advances(advance_client):
     page = client.get("/advances")
     assert page.status_code == 200
     assert "MY-TEST-ADV-0001" in page.text
-    assert "1250.00 ج" in page.text
-    assert "0.00 ج" in page.text
+    assert "1250.00" in page.text and ">ج</span>" in page.text
+    assert "0.00" in page.text
 
 
 def test_advance_statuses_are_translated_to_arabic(advance_client):

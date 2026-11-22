@@ -338,13 +338,13 @@ def test_attendance_review_page_is_paginated(client):
 
     first = client.get("/attendance/review")
     assert first.status_code == 200
-    assert "عرض 100 سجلًا من إجمالي 105 سجلًا" in first.text
-    assert "الصفحة 1 من 2" in first.text
+    assert "<span>عرض</span> 100 / 105 <span>سجلًا معلقًا</span>" in first.text
+    assert "<span>صفحة</span> 1 / 2" in first.text
     assert 'href="/attendance/review?page=2"' in first.text
     second = client.get("/attendance/review?page=2")
     assert second.status_code == 200
-    assert "عرض 5 سجلًا من إجمالي 105 سجلًا" in second.text
-    assert "الصفحة 2 من 2" in second.text
+    assert "<span>عرض</span> 5 / 105 <span>سجلًا معلقًا</span>" in second.text
+    assert "<span>صفحة</span> 2 / 2" in second.text
 
 
 

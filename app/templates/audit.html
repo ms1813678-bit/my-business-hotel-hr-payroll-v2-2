@@ -43,7 +43,7 @@
   </tr></thead><tbody>
     {% for entry in entries %}
     <tr>
-      <td style="white-space:nowrap">{{ entry.created_at.strftime("%d/%m/%Y %H:%M") }}</td>
+      <td style="white-space:nowrap">{{ entry.created_at|fmt_dt }}</td>
       <td><bdi>{{ entry.actor }}</bdi></td>
       <td>{{ action_labels.get(entry.action, entry.action) }}</td>
       <td>{{ entity_labels.get(entry.entity_type, entry.entity_type) }}</td>
@@ -55,7 +55,7 @@
   {% if pages > 1 %}
   <nav class="pagination">
     {% if page > 1 %}<a class="button-link btn-soft" href="/settings/audit?q={{ filters.q }}&entity_type={{ filters.entity_type }}&from_date={{ filters.from_date }}&to_date={{ filters.to_date }}&page={{ page - 1 }}">السابق ←</a>{% endif %}
-    <span class="muted">صفحة {{ page }} / {{ pages }}</span>
+    <span class="muted"><span>صفحة</span> {{ page }} / {{ pages }}</span>
     {% if page < pages %}<a class="button-link btn-soft" href="/settings/audit?q={{ filters.q }}&entity_type={{ filters.entity_type }}&from_date={{ filters.from_date }}&to_date={{ filters.to_date }}&page={{ page + 1 }}">→ التالي</a>{% endif %}
   </nav>
   {% endif %}

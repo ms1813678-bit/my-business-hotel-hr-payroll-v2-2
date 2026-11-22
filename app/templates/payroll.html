@@ -4,7 +4,7 @@
 {% block content %}
 <header class="topbar">
     <div><p class="eyebrow">M.Y. BUSINESS HOTEL</p><h1>إدارة الرواتب</h1>
-      <p class="muted">Payroll management · HR administrator only</p></div>
+      <p class="muted">إدارة الرواتب · مسؤول الموارد البشرية فقط</p></div>
     <nav><a href="/">الرئيسية</a> · <a href="/employees">الموظفون</a> · <a href="/advances">السلف</a></nav>
   </header>
   {% if error %}
@@ -36,10 +36,10 @@
     </tr></thead><tbody>
     {% for r in runs %}
     <tr>
-      <td>{{ r.period_start.strftime("%m/%Y") }}</td>
-      <td>{{ r.pay_date.strftime("%d/%m/%Y") }}</td>
-      <td>{{ r.status }}</td>
-      <td>{{ r.created_at.strftime("%d/%m/%Y %H:%M") }}</td>
+      <td>{{ r.period_start|fmt_m }}</td>
+      <td>{{ r.pay_date|fmt_d }}</td>
+      <td>{{ r.status|status_label }}</td>
+      <td>{{ r.created_at|fmt_dt }}</td>
       <td><a href="/payroll/runs/{{ r.id }}">فتح المسير</a></td>
     </tr>
     {% else %}<tr><td colspan="5">لا توجد مسيرات رواتب حتى الآن.</td></tr>{% endfor %}

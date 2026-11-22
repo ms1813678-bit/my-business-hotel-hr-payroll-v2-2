@@ -230,6 +230,96 @@ from app.report_builder import _fmt_number as _report_fmt_number
 
 templates.env.filters["fmtnum"] = _report_fmt_number
 
+from app.models import CAIRO_TZ
+
+
+def _fmt_dt(value):
+    """Display datetimes in Africa/Cairo wall time; naive values are already Cairo wall time."""
+    if value is None:
+        return "—"
+    if isinstance(value, datetime):
+        if value.tzinfo is not None:
+            value = value.astimezone(CAIRO_TZ)
+        return value.strftime("%d/%m/%Y %H:%M")
+    if isinstance(value, date):
+        return value.strftime("%d/%m/%Y")
+    return str(value)
+
+
+def _fmt_d(value):
+    if value is None:
+        return "—"
+    if isinstance(value, (datetime, date)):
+        return value.strftime("%d/%m/%Y")
+    return str(value)
+
+
+def _fmt_m(value):
+    if value is None:
+        return "—"
+    if isinstance(value, (datetime, date)):
+        return value.strftime("%m/%Y")
+    return str(value)
+
+
+# System enum values rendered as Arabic labels; the translate_html middleware
+# then localizes the Arabic label into EN/ZH from the catalogs.
+_STATUS_AR = {
+    "active": "نشط",
+    "archived": "مؤرشف",
+    "approved": "معتمد",
+    "applied": "مطبق",
+    "cancelled": "ملغى",
+    "canceled": "ملغى",
+    "closed": "مغلق",
+    "confirmed": "مؤكد",
+    "declined": "مرفوض",
+    "deducted": "مخصوم",
+    "draft": "مسودة",
+    "failed": "فاشلة",
+    "imported": "مستوردة",
+    "needs_review": "تحتاج مراجعة",
+    "open": "مفتوح",
+    "paid": "مدفوع",
+    "parsed": "مقروءة",
+    "partially_paid": "مدفوع جزئيًا",
+    "pending": "معلق",
+    "rejected": "مرفوض",
+    "reopened": "معاد فتحه",
+    "scheduled": "مجدول",
+    "success": "ناجحة",
+    "unpaid": "غير مدفوع",
+    "opening": "رصيد افتتاحي",
+    "adjustment": "تسوية",
+    "leave_use": "استهلاك إجازة",
+    "leave_reversal": "استرجاع إجازة",
+}
+
+
+def _status_label(value):
+    return _STATUS_AR.get(value, value)
+
+
+# Employee field keys rendered as Arabic labels; translate_html localizes them.
+_FIELD_LABELS = {
+    "full_name": "الاسم الكامل",
+    "national_id": "الرقم القومي",
+    "phone": "الهاتف",
+    "address": "العنوان",
+    "position": "الوظيفة",
+}
+
+
+def _field_label(value):
+    return _FIELD_LABELS.get(value, value)
+
+
+templates.env.filters["fmt_dt"] = _fmt_dt
+templates.env.filters["fmt_d"] = _fmt_d
+templates.env.filters["fmt_m"] = _fmt_m
+templates.env.filters["status_label"] = _status_label
+templates.env.filters["field_label"] = _field_label
+
 from app.i18n import translate_html
 
 SUPPORTED_LANGUAGES = {"ar", "en", "zh"}

@@ -4,7 +4,7 @@
 {% block content %}
 <header class="topbar">
     <div><p class="eyebrow">M.Y. BUSINESS HOTEL</p><h1>النسخ الاحتياطي والاستعادة</h1>
-      <p class="muted">Backup & recovery · HR administrator only</p></div>
+      <p class="muted">النسخ الاحتياطي والاستعادة · مسؤول الموارد البشرية فقط</p></div>
     <nav><a href="/">الرئيسية</a> · <a href="/reports">التقارير</a></nav>
   </header>
 
@@ -101,12 +101,12 @@
     </tr></thead><tbody>
     {% for run in runs %}
     <tr>
-      <td>{{ run.created_at.strftime("%d/%m/%Y %H:%M") }}</td>
+      <td>{{ run.created_at|fmt_dt }}</td>
       <td>{{ run.backup_type }}</td>
-      <td>{{ run.status }}</td>
+      <td>{{ run.status|status_label }}</td>
       <td>{{ "%.2f"|format(run.size_bytes / 1048576) }} MB</td>
       <td><code>{{ run.archive_path or "—" }}</code></td>
-      <td>{% if run.verified_at %}{{ run.verified_at.strftime("%d/%m/%Y %H:%M") }}{% else %}—{% endif %}</td>
+      <td>{% if run.verified_at %}{{ run.verified_at|fmt_dt }}{% else %}—{% endif %}</td>
     </tr>
     {% if run.error_message %}<tr><td colspan="6"><span class="error">{{ run.error_message }}</span></td></tr>{% endif %}
     {% if run.status == "success" and run.archive_path and run.sha256 %}
