@@ -22,7 +22,7 @@
         <select id="manual-employee" name="employee_id" required>
           <option value="">اختر الموظف</option>
           {% for employee in employees %}
-          <option value="{{ employee.id }}">{{ employee.full_name }} — {{ employee.code }}</option>
+          <option value="{{ employee.id }}">{{ employee.full_name }} <span>—</span> {{ employee.code }}</option>
           {% endfor %}
         </select>
         <label for="manual-date">تاريخ العمل</label>
@@ -53,13 +53,13 @@
     {% endif %}
     {% for record in records %}
     <section class="notice">
-      <h2>{{ record.employee }} — {{ record.employee_code }}</h2>
+      <h2>{{ record.employee }} <span>—</span> {{ record.employee_code }}</h2>
       <p><span>تاريخ العمل:</span> {{ record.work_date|fmt_d }} | <span>الحالة:</span> {{ record.status|status_label }}</p>
       <p><span>الوردية:</span> {{ (record.scheduled_start_at or "غير محددة")|fmt_dt }} <span>إلى</span> {{ (record.scheduled_end_at or "غير محددة")|fmt_dt }}</p>
-      <p><span>تقرير البرنامج:</span> <span>دخول</span> {{ (record.program_clock_in or "غير موجود")|fmt_dt }} — <span>خروج</span> {{ (record.program_clock_out or "غير موجود")|fmt_dt }}</p>
-      <p><span>البصمة:</span> <span>أول حركة</span> {{ (record.fingerprint_in or "غير موجودة")|fmt_dt }} — <span>آخر حركة</span> {{ (record.fingerprint_out or "غير موجودة")|fmt_dt }}</p>
+      <p><span>تقرير البرنامج:</span> <span>دخول</span> {{ (record.program_clock_in or "غير موجود")|fmt_dt }} <span>—</span> <span>خروج</span> {{ (record.program_clock_out or "غير موجود")|fmt_dt }}</p>
+      <p><span>البصمة:</span> <span>أول حركة</span> {{ (record.fingerprint_in or "غير موجودة")|fmt_dt }} <span>—</span> <span>آخر حركة</span> {{ (record.fingerprint_out or "غير موجودة")|fmt_dt }}</p>
       {% if record.manual_clock_in or record.manual_clock_out %}
-      <p><span>الإدخال اليدوي:</span> <span>دخول</span> {{ (record.manual_clock_in or "غير مسجل")|fmt_dt }} — <span>خروج</span> {{ (record.manual_clock_out or "غير مسجل")|fmt_dt }}</p>
+      <p><span>الإدخال اليدوي:</span> <span>دخول</span> {{ (record.manual_clock_in or "غير مسجل")|fmt_dt }} <span>—</span> <span>خروج</span> {{ (record.manual_clock_out or "غير مسجل")|fmt_dt }}</p>
       <p><span>سبب الإدخال:</span> {{ record.manual_entry_reason or "غير مسجل" }} | <span>أدخله:</span> {{ record.manual_entered_by or "غير معروف" }} | <span>وقت التسجيل:</span> {{ (record.manual_entered_at or "غير معروف")|fmt_dt }}</p>
       {% endif %}
       <p>الدقائق المقترحة: {{ record.worked_minutes if record.worked_minutes is not none else "غير محسوبة" }}</p>

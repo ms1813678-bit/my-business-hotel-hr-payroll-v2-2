@@ -59,7 +59,7 @@
       <h2>ملاحظات الملف</h2>
       <ul>
         {% for issue in issues %}
-        <li><span>ورقة</span> {{ issue.sheet or "غير محددة" }} — <span>صف</span> {{ issue.row or "غير محدد" }} — {{ issue_labels.get(issue.reason, issue.reason) }}{% if issue.value %}: {{ issue.value }}{% endif %}</li>
+        <li><span>ورقة</span> {{ issue.sheet or "غير محددة" }} <span>—</span> <span>صف</span> {{ issue.row or "غير محدد" }} <span>—</span> {{ issue_labels.get(issue.reason, issue.reason) }}{% if issue.value %}: {{ issue.value }}{% endif %}</li>
         {% endfor %}
       </ul>
     </section>

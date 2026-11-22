@@ -19,15 +19,15 @@
     <section class="notice">
       <h2><span>دفعة الاستيراد رقم</span> {{ batch.id }}</h2>
       <p>الملف: {{ batch.original_filename }}</p>
-      <p><span>الحالة:</span> {{ batch.status|status_label }} — <span>الملاحظات غير المحسومة:</span> {{ batch.issue_count }}</p>
+      <p><span>الحالة:</span> {{ batch.status|status_label }} <span>—</span> <span>الملاحظات غير المحسومة:</span> {{ batch.issue_count }}</p>
       <p><a href="/attendance/import/{{ batch.id }}/download">تحميل الملف الأصلي</a></p>
     </section>
     {% endif %}
 
     {% for issue in issues %}
     <section class="notice">
-      <h2><span>المشكلة رقم</span> {{ issue.id }} — {{ issue.reason }}</h2>
-      <p><span>الورقة:</span> {{ issue.source_sheet or "غير محددة" }} — <span>الصف:</span> {{ issue.source_row or "غير محدد" }}</p>
+      <h2><span>المشكلة رقم</span> {{ issue.id }} <span>—</span> {{ issue.reason }}</h2>
+      <p><span>الورقة:</span> {{ issue.source_sheet or "غير محددة" }} <span>—</span> <span>الصف:</span> {{ issue.source_row or "غير محدد" }}</p>
       <p>القيمة الأصلية: {{ issue.raw_value or "غير متاحة" }}</p>
       {% if issue.resolved_at %}
         <p><span>تم الحل: الموظف رقم</span> {{ issue.resolved_employee_id }} <span>بواسطة</span> {{ issue.resolved_by }} <span>في</span> {{ issue.resolved_at|fmt_dt }}</p>
@@ -38,7 +38,7 @@
           <select id="employee-{{ issue.id }}" name="employee_id" required>
             <option value="">اختر الموظف</option>
             {% for employee in employees %}
-            <option value="{{ employee.id }}">{{ employee.code }} — {{ employee.full_name }}</option>
+            <option value="{{ employee.id }}">{{ employee.code }} <span>—</span> {{ employee.full_name }}</option>
             {% endfor %}
           </select>
           <button type="submit">تأكيد ربط البصمات بهذا الموظف وتسجيل المراجعة</button>
