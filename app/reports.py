@@ -296,13 +296,17 @@ def build_hr_workbook(
         [(name, count, float(total)) for name, count, total in department_rows],
     )
 
-    if language != "en":
-        for sheet in workbook.worksheets:
+    for sheet in workbook.worksheets:
+        if language != "en":
             sheet.title = _legacy_L(sheet.title, language)[:31]
             sheet.sheet_view.rightToLeft = language == "ar"
             for header_cell in sheet[1]:
                 if isinstance(header_cell.value, str):
                     header_cell.value = _legacy_L(header_cell.value, language)
+        for data_row in sheet.iter_rows(min_row=2):
+            for data_cell in data_row:
+                if isinstance(data_cell.value, str):
+                    data_cell.value = _legacy_enum(data_cell.value, language)
 
     output = BytesIO()
     workbook.save(output)
@@ -406,6 +410,52 @@ _LEGACY_LABELS = {
     "Employee count": ("عدد الموظفين", "员工数"),
     "Current monthly basic payroll": ("إجمالي الرواتب الأساسية الشهرية الحالية", "当前月基本工资总额"),
 }
+
+
+# Internal status/type codes stored in the database. Exports translate the
+# display value only; stored values are never changed.
+_LEGACY_ENUMS = {
+    "active": ("نشط", "Active", "在职"),
+    "archived": ("مؤرشف", "Archived", "已存档"),
+    "draft": ("مسودة", "Draft", "草稿"),
+    "approved": ("معتمد", "Approved", "已批准"),
+    "pending": ("معلق", "Pending", "待处理"),
+    "rejected": ("مرفوض", "Rejected", "已拒绝"),
+    "cancelled": ("ملغي", "Cancelled", "已取消"),
+    "closed": ("مغلق", "Closed", "已关闭"),
+    "reopened": ("معاد فتحه", "Reopened", "已重新打开"),
+    "under_review": ("قيد المراجعة", "Under Review", "审核中"),
+    "needs_review": ("يحتاج مراجعة", "Needs Review", "需要审核"),
+    "ready_for_review": ("جاهز للمراجعة", "Ready for Review", "待审核"),
+    "success": ("ناجح", "Successful", "成功"),
+    "failed": ("فاشل", "Failed", "失败"),
+    "regular": ("عادية", "Regular", "普通"),
+    "installment": ("مقسطة", "Installment", "分期"),
+    "sanction": ("جزاء", "Sanction", "处罚"),
+    "reward": ("مكافأة", "Reward", "奖励"),
+    "viewed": ("تم الاطلاع", "Viewed", "已告知"),
+    "declined": ("مرفوض", "Declined", "拒绝确认"),
+    "unpaid": ("غير مدفوع", "Unpaid", "未支付"),
+    "partially_paid": ("مدفوع جزئيًا", "Partially Paid", "部分支付"),
+    "paid": ("مدفوع", "Paid", "已支付"),
+    "deducted": ("مخصومة", "Deducted", "已扣除"),
+    "confirmed": ("مؤكدة", "Confirmed", "已确认"),
+    "scheduled": ("مجدول", "Scheduled", "已排班"),
+    "imported": ("مستورد", "Imported", "已导入"),
+    "uploaded": ("مرفوع", "Uploaded", "已上传"),
+    "applied": ("مطبَّق", "Applied", "已应用"),
+    "present": ("حاضر", "Present", "出勤"),
+    "absent": ("غائب", "Absent", "缺勤"),
+}
+_LEGACY_ENUM_INDEX = {"ar": 0, "en": 1, "zh": 2}
+
+
+def _legacy_enum(value: str, language: str) -> str:
+    """Translate a stored status/type code for display; anything else passes through."""
+    translations = _LEGACY_ENUMS.get(value)
+    if translations is None:
+        return value
+    return translations[_LEGACY_ENUM_INDEX.get(language, 1)]
 
 
 def _legacy_L(text: str, language: str) -> str:

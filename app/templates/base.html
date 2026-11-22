@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="/static/app.css">
   {% block head %}{% endblock %}
 </head>
-<body>
+<body class="{% block body_class %}{% endblock %}">
   <div class="app-layout">
     <aside class="sidebar">
       <nav class="language-switch" aria-label="Language"><a href="/language/ar" {% if request.state.language == 'ar' %}class="active" aria-current="true"{% endif %}>العربية</a><a href="/language/en" {% if request.state.language == 'en' %}class="active" aria-current="true"{% endif %}>English</a><a href="/language/zh" {% if request.state.language == 'zh' %}class="active" aria-current="true"{% endif %}>中文</a></nav>
