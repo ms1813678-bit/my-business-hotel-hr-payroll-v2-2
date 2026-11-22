@@ -6,7 +6,7 @@ from decimal import Decimal
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
-from app.models import utcnow
+from app.models import CAIRO_TZ, utcnow
 from app.models import (
     AdvanceInstallment,
     AdvanceRequest,
@@ -608,7 +608,7 @@ def add_payroll_payment(
     payment = PayrollPayment(
         payroll_item_id=item.id,
         amount=money(amount),
-        paid_at=datetime.combine(paid_date, time(12, 0)),
+        paid_at=datetime.combine(paid_date, time(12, 0), tzinfo=CAIRO_TZ),
         method=method,
         reference=(reference or "").strip() or None,
         created_by=actor,

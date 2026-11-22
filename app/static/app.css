@@ -141,7 +141,7 @@ a:hover { text-decoration: underline; }
 .nav-link.active { background: rgba(201,162,39,0.16); color: #f3d98b; font-weight: 700; }
 .nav-link .dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; opacity: 0.55; flex-shrink: 0; }
 
-.content { padding: 28px 32px 40px; max-width: 1280px; }
+.content { padding: 28px 32px 40px; max-width: 1280px; min-width: 0; width: 100%; box-sizing: border-box; }
 
 .page-header {
   display: flex;
@@ -484,6 +484,11 @@ textarea { resize: vertical; min-height: 88px; }
 /* Wide data tables (advances): let headers wrap and keep the employee column readable */
 .wide-table thead th { white-space: normal; }
 .wide-table td:first-child, .wide-table th:first-child { min-width: 150px; }
+
+/* Narrow viewports: long option text must not force page-wide min-content */
+form select, form input, form textarea { min-width: 0; max-width: 100%; box-sizing: border-box; }
+form select { text-overflow: ellipsis; }
+.form-grid > *, .inline-form > * { min-width: 0; }
 table { width: 100%; border-collapse: collapse; font-size: 14px; }
 thead th {
   background: var(--surface-2); text-align: start; padding: 12px 14px;
@@ -583,7 +588,7 @@ code, .code-ltr {
 
 @media (max-width: 1100px) {
   .metric-grid, .action-grid, .module-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .employee-grid { grid-template-columns: 1fr; }
+  .employee-grid { grid-template-columns: minmax(0, 1fr); }
   .app-layout { grid-template-columns: minmax(0, 1fr); }
   .sidebar { position: relative; height: auto; }
 }
@@ -592,7 +597,7 @@ code, .code-ltr {
   .page-header, .topbar, .hero-panel, .ai-callout, .employee-card-top { flex-direction: column; align-items: flex-start; }
   .employee-salary { width: 100%; }
   h1 { font-size: 22px; }
-  .metric-grid, .action-grid, .module-grid, .form-grid, .employee-grid, .employee-meta { grid-template-columns: 1fr; }
+  .metric-grid, .action-grid, .module-grid, .form-grid, .employee-grid, .employee-meta { grid-template-columns: minmax(0, 1fr); }
   .meta-item { border-inline-end: none !important; }
   .meta-item:last-child { border-bottom: none; }
 }

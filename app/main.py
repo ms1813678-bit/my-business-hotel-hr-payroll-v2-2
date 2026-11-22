@@ -395,6 +395,32 @@ async def authentication_exception_handler(request: Request, exc: HTTPException)
     return JSONResponse(status_code=exc.status_code, content={"detail": detail}, headers=exc.headers)
 
 
+from fastapi.exceptions import RequestValidationError
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    """Localize 422 payloads; keep type/loc/msg structure, never echo inputs."""
+    from fastapi.responses import JSONResponse
+    from app.i18n import translate_text
+    from app.validation_labels import FIELD_LABELS_AR, MSG_INVALID_AR, MSG_REQUIRED_AR
+
+    language = getattr(request.state, "language", "ar")
+    detail = []
+    for error in exc.errors():
+        loc = [str(part) for part in error.get("loc", [])]
+        field_key = loc[-1] if loc else ""
+        label_ar = FIELD_LABELS_AR.get(field_key, field_key)
+        msg_ar = MSG_REQUIRED_AR if error.get("type") == "missing" else MSG_INVALID_AR
+        detail.append({
+            "type": error.get("type"),
+            "loc": loc,
+            "field": translate_text(label_ar, language),
+            "msg": translate_text(msg_ar, language),
+        })
+    return JSONResponse(status_code=422, content={"detail": detail})
+
+
 @app.get("/health")
 def health():
     try:
