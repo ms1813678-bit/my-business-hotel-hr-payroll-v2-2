@@ -534,3 +534,21 @@ def test_run_totals_rendered_on_page(guard_client):
     assert "إجمالي المتبقي" in page.text
     # single synthetic employee: 6000.00 net + 100.00 bonus
     assert "6100.00" in page.text
+
+
+def test_edit_rows_collapsed_and_conflict_row_stays_open(guard_client):
+    client = guard_client
+    login(client)
+    run_id, item_id = create_run(client)
+    client.test_run_id = run_id
+    page = client.get(f"/payroll/runs/{run_id}")
+    assert 'id="employee-search"' in page.text
+    assert '<tr class="payroll-edit-row" hidden>' in page.text
+    assert '<tr class="payroll-edit-row">' not in page.text
+
+    set_absence(client, item_id, 1)
+    add_leave(client, "ANNUAL", "confirmed")
+    page = client.get(f"/payroll/runs/{run_id}")
+    # a row with an unresolved absence/leave conflict stays expanded so the
+    # review gate is never hidden behind a collapsed row
+    assert '<tr class="payroll-edit-row">' in page.text

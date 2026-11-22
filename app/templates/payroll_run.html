@@ -57,14 +57,15 @@
   <section class="notice">
     <h2>تفاصيل الرواتب</h2>
     <p><span>عدد الموظفين</span>: {{ totals.count }} · <span>إجمالي المستحقات</span>: {{ "%.2f"|format(totals.gross) }} · <span>إجمالي الخصومات</span>: {{ "%.2f"|format(totals.deductions) }} · <span>إجمالي الصافي</span>: <strong>{{ "%.2f"|format(totals.net) }}</strong> · <span>إجمالي المدفوع</span>: {{ "%.2f"|format(totals.paid) }} · <span>إجمالي المتبقي</span>: {{ "%.2f"|format(totals.due) }}</p>
+    <p><input type="search" id="employee-search" placeholder="ابحث بالاسم أو الكود" aria-label="ابحث بالاسم أو الكود"></p>
     <div class="table-wrap"><table><thead><tr>
       <th>الموظف</th><th>الأساسي</th><th>بعد التناسب</th><th>إجمالي المستحقات</th><th>إجمالي الخصومات</th><th>الصافي</th><th>المدفوع</th><th>المتبقي</th><th>حالة الصرف</th><th>قسيمة المرتب</th>
     </tr></thead><tbody>
     {% for item in items %}
     {% set p = summaries.get(item.id) %}
     {% set f = financials.get(item.id) %}
-    <tr>
-      <td>{{ item.employee_code_snapshot }} — {{ item.employee_name_snapshot }}</td>
+    <tr class="payroll-summary-row" data-search="{{ item.employee_code_snapshot }} {{ item.employee_name_snapshot }}">
+      <td>{% if run.status in ["draft", "reopened"] %}<button type="button" class="payroll-edit-toggle">تعديل</button> {% endif %}{{ item.employee_code_snapshot }} — {{ item.employee_name_snapshot }}</td>
       <td>{{ "%.2f"|format(item.salary_basis) }}</td>
       <td>{{ "%.2f"|format(item.base_salary) }}</td>
       <td>{{ "%.2f"|format(f.gross) }}</td>
@@ -80,7 +81,7 @@
       <td><a href="/payroll/runs/{{ run.id }}/items/{{ item.id }}/payslip.pdf" target="_blank">قسيمة PDF</a></td>
     </tr>
     {% if run.status in ["draft", "reopened"] %}
-    <tr><td colspan="10">
+    <tr class="payroll-edit-row"{% if not conflict_map.get(item.id) %} hidden{% endif %}><td colspan="10">
       <form method="post" action="/payroll/items/{{ item.id }}/update" class="payroll-item-edit">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <div class="form-grid">
@@ -228,6 +229,24 @@
       f.addEventListener("input", function () { f.dataset.dirty = "1"; });
       f.addEventListener("submit", function () { delete f.dataset.dirty; });
     });
+    document.querySelectorAll(".payroll-edit-toggle").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var row = btn.closest("tr").nextElementSibling;
+        if (row && row.classList.contains("payroll-edit-row")) { row.hidden = !row.hidden; }
+      });
+    });
+    var searchBox = document.getElementById("employee-search");
+    if (searchBox) {
+      searchBox.addEventListener("input", function () {
+        var q = searchBox.value.trim().toLowerCase();
+        document.querySelectorAll(".payroll-summary-row").forEach(function (row) {
+          var match = !q || (row.dataset.search || "").toLowerCase().indexOf(q) !== -1;
+          row.hidden = !match;
+          var edit = row.nextElementSibling;
+          if (!match && edit && edit.classList.contains("payroll-edit-row")) { edit.hidden = true; }
+        });
+      });
+    }
     function payrollReviewSubmit() {
       var dirty = Array.prototype.some.call(
         document.querySelectorAll("form.payroll-item-edit"),
