@@ -145,7 +145,7 @@ def is_attendance_analysis_request(question: str) -> bool:
         for term in (
             "تحليل", "حلّل", "حلل", "ملخص", "ملاحظات", "مراجعة",
             "مشاكل", "تقرير", "summary", "analyze", "analysis", "review", "report", "分析", "汇总", "问题",
-            "مين", "من الغائب", "who", "谁",
+            "مين", "من الغائب", "كام", "who", "how many", "谁", "多少", "几个",
         )
     )
     if "أمن" in q and "بصم" in q:
@@ -202,6 +202,15 @@ def is_employee_query_request(question: str) -> bool:
     ))
 
 
+_COUNT_DOMAIN_TERMS = (
+    "حضور", "انصراف", "تأخير", "اتأخر", "غياب", "غايب", "بصم", "وردية", "شيفت",
+    "إجاز", "اجاز", "سلف", "مرتب", "راتب", "رواتب", "جزاء", "مكاف",
+    "attendance", "absent", "late", "leave", "vacation", "advance",
+    "salary", "payroll", "sanction", "reward", "punch", "shift",
+    "考勤", "出勤", "迟到", "缺席", "请假", "预支", "工资", "薪资", "处罚", "奖励", "打卡", "班次",
+)
+
+
 def is_employee_count_request(question: str) -> bool:
     q = " ".join((question or "").casefold().split())
     count_word = any(term in q for term in (
@@ -210,7 +219,11 @@ def is_employee_count_request(question: str) -> bool:
     employee_word = any(term in q for term in (
         "موظف", "عامل", "شغال", "employee", "staff", "员工", "职员",
     ))
-    return count_word and employee_word
+    if not (count_word and employee_word):
+        return False
+    # A count question qualified by a domain (late today, on leave, with an
+    # advance...) asks about that domain's records, never the headcount.
+    return not any(term in q for term in _COUNT_DOMAIN_TERMS)
 
 
 def build_employee_count_report() -> dict[str, Any]:
@@ -469,6 +482,7 @@ def build_attendance_analysis(*, work_date: date | None, month_start: date | Non
             })
         return {
             "period": period_label,
+            "day_mode": work_date is not None,
             "reviewed_rows": len(rows),
             "flagged_rows": len(items),
             "items": items,
@@ -487,6 +501,13 @@ def format_attendance_analysis(report: dict[str, Any], language: str = "ar") -> 
              f"Rows checked: {report['reviewed_rows']} — need attention: {report['flagged_rows']}.",
              f"已检查记录：{report['reviewed_rows']} — 需要注意：{report['flagged_rows']}。"),
     ]
+    if report.get("day_mode"):
+        # Honest coverage: a day analysis sees entered records only. It cannot
+        # tell whether someone with no record was absent or just not entered.
+        lines.append(_msg(language,
+            "التغطية: التحليل يشمل السجلات المدخلة لهذا اليوم فقط؛ لا يمكن الجزم بغياب من لا سجل له — قد يكون غير مسجل أصلًا.",
+            "Coverage: this analysis reads only the records entered for this day; it cannot determine whether someone with no record was absent or simply not entered.",
+            "覆盖范围：此分析仅读取当日已录入的记录；无法判断没有记录的人是缺勤还是尚未录入。"))
     if not report["items"]:
         lines.append(_msg(language,
             "لا توجد ملاحظات ظاهرة في السجلات المتاحة لهذه الفترة.",

@@ -183,3 +183,34 @@ def test_count_report_is_db_grounded(seeded):
     assert "2" in queries.format_employee_count_report(report, "en")
     assert "2" in queries.format_employee_count_report(report, "ar")
     assert "2" in queries.format_employee_count_report(report, "zh")
+
+
+SCOPED_COUNT_PHRASINGS = [
+    "كام موظف اتأخر النهارده؟",
+    "كام موظف غايب النهارده؟",
+    "how many staff were late today?",
+    "how many employees are on leave this month?",
+    "今天有多少员工迟到？",
+]
+
+
+def test_scoped_count_questions_route_to_their_domain_not_headcount(seeded):
+    for phrase in SCOPED_COUNT_PHRASINGS:
+        assert not queries.is_employee_count_request(phrase), phrase
+    # late/absent scoped counts land on the attendance analysis
+    assert queries.is_attendance_analysis_request("كام موظف اتأخر النهارده؟")
+    assert queries.is_attendance_analysis_request("how many staff were late today?")
+    assert queries.is_attendance_analysis_request("今天有多少员工迟到？")
+
+
+def test_day_analysis_states_its_coverage_limit(seeded):
+    for language, needle in (("ar", "لا يمكن الجزم بغياب من لا سجل له"),
+                             ("en", "cannot determine whether someone with no record was absent"),
+                             ("zh", "无法判断没有记录的人是缺勤还是尚未录入")):
+        answer = queries.answer_structured_hr_query("مين غايب النهارده؟", language)
+        assert needle in answer, language
+
+
+def test_month_analysis_has_no_day_coverage_line(seeded):
+    answer = queries.answer_structured_hr_query("حلّل حضور شهر 2026-11", "ar")
+    assert "لا يمكن الجزم بغياب" not in answer
