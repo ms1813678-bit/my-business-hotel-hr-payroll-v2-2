@@ -174,12 +174,12 @@ def test_mutation_phrasings_never_match_read_only_detectors():
 
 def test_count_report_is_db_grounded(seeded):
     report = queries.build_employee_count_report()
-    assert report == {"active": 3, "total": 3}
+    assert report == {"scope": "all", "active": 3, "total": 3}
     with seeded.begin() as db:
         employee = db.scalars(select(Employee).where(Employee.code == "MY-0003")).one()
         employee.status = "terminated"
     report = queries.build_employee_count_report()
-    assert report == {"active": 2, "total": 3}
+    assert report == {"scope": "all", "active": 2, "total": 3}
     assert "2" in queries.format_employee_count_report(report, "en")
     assert "2" in queries.format_employee_count_report(report, "ar")
     assert "2" in queries.format_employee_count_report(report, "zh")
@@ -214,3 +214,77 @@ def test_day_analysis_states_its_coverage_limit(seeded):
 def test_month_analysis_has_no_day_coverage_line(seeded):
     answer = queries.answer_structured_hr_query("حلّل حضور شهر 2026-11", "ar")
     assert "لا يمكن الجزم بغياب" not in answer
+def test_department_scoped_count_answers_the_department(seeded):
+    answer = queries.answer_structured_hr_query("كام موظف في قسم الاستقبال؟", language="ar")
+    assert "قسم الاستقبال" in answer
+    assert ": 3" in answer
+    assert "إجمالي المسجلين" not in answer  # not the whole-hotel headcount
+
+
+def test_unknown_department_count_declines_honestly(seeded):
+    answer = queries.answer_structured_hr_query("كام موظف في قسم الصيانة؟", language="ar")
+    assert "لم أتعرّف على القسم" in answer
+    assert "إجمالي المسجلين" not in answer
+
+
+def test_inactive_count_answers_terminated_not_active(seeded):
+    answer = queries.answer_structured_hr_query("كام موظف غير نشط؟", language="ar")
+    assert "غير النشطين" in answer
+    assert ": 0" in answer
+    assert "النشطين حاليًا: 3" not in answer
+
+
+def test_historical_dated_count_is_declined_not_answered_with_today(seeded):
+    for question in (
+        "كام موظف كان شغال في 2020؟",
+        "how many employees did we have in 2019?",
+        "كم عدد الموظفين بتاريخ 2020-01-15؟",
+    ):
+        assert not queries.is_employee_count_request(question)
+        assert not queries.is_structured_hr_query(question)
+
+
+def test_yesterday_absence_routes_to_yesterday_day_mode(seeded):
+    yesterday = (date.today() - timedelta(days=1)).isoformat()
+    answer = queries.answer_structured_hr_query("مين غايب امبارح؟", language="ar")
+    assert yesterday in answer
+    assert "لا يمكن الجزم بغياب من لا سجل له" in answer
+
+
+def test_tomorrow_absence_routes_to_tomorrow_day_mode(seeded):
+    tomorrow = (date.today() + timedelta(days=1)).isoformat()
+    answer = queries.answer_structured_hr_query("مين غايب بكرة؟", language="ar")
+    assert tomorrow in answer
+
+
+def test_negated_absence_is_declined_not_answered_with_flagged_rows(seeded):
+    for question in (
+        "مين مش غايب النهارده؟",
+        "مين حضر النهارده؟",
+        "who is not absent today?",
+        "今天谁没有缺席？",
+    ):
+        assert not queries.is_attendance_analysis_request(question)
+        assert not queries.is_structured_hr_query(question)
+
+
+def test_unknown_employee_target_in_analysis_is_honest_not_found(seeded):
+    answer = queries.answer_structured_hr_query("حلل حضور MY-9999 النهارده", language="ar")
+    assert "لم يتم العثور على الموظف المحدد" in answer
+    assert "MY-0001" not in answer  # never substitute another employee
+
+
+def test_known_employee_target_filters_the_analysis(seeded):
+    answer = queries.answer_structured_hr_query("حلل حضور MY-0001 النهارده", language="ar")
+    assert "MY-0001" in answer
+    assert "MY-0002" not in answer
+
+
+def test_guide_marker_does_not_hijack_leave_balance_read(seeded):
+    question = "can i check MY-0001 leave balance?"
+    assert not is_usage_guide_request(question)
+    assert queries.is_structured_hr_query(question)
+def test_scoped_count_never_treated_as_unknown_employee_name(seeded):
+    answer = queries.answer_structured_hr_query("كام موظف اتأخر النهارده؟", language="ar")
+    assert "لم يتم العثور على الموظف المحدد" not in answer
+    assert "تحليل حضور" in answer

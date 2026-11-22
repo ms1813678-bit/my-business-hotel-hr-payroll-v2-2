@@ -150,6 +150,15 @@ def is_attendance_analysis_request(question: str) -> bool:
     )
     if "أمن" in q and "بصم" in q:
         return False
+    # Negated absence ("who is NOT absent") is a different question the
+    # record-based analysis cannot answer; decline instead of reusing rows.
+    negated_absence = any(term in q for term in (
+        "مش غايب", "مش غائب", "ما غابش", "ماغابش", "موجود النهارده", "حضر النهارده",
+        "not absent", "did not miss", "didn't miss", "came today", "present today",
+        "没有缺席", "没缺席", "今天来了",
+    ))
+    if negated_absence:
+        return False
     return attendance and analysis
 
 
@@ -221,21 +230,79 @@ def is_employee_count_request(question: str) -> bool:
     ))
     if not (count_word and employee_word):
         return False
+    # A historical or dated count is a different question (we only know the
+    # current register); decline instead of answering with today's numbers.
+    if re.search(r"\b(19|20)\d{2}\b", q) or any(
+        term in q for term in ("السنة اللي فاتت", "السنة الماضية", "last year", "في 20", "去年", "去年")
+    ):
+        return False
     # A count question qualified by a domain (late today, on leave, with an
     # advance...) asks about that domain's records, never the headcount.
     return not any(term in q for term in _COUNT_DOMAIN_TERMS)
 
 
-def build_employee_count_report() -> dict[str, Any]:
+_INACTIVE_TERMS = (
+    "غير نشط", "مش نشط", "موقوف", "ساب الشغل", "ترك العمل", "انتهت خدمته",
+    "inactive", "terminated", "former", "left",
+    "离职", "已离职",
+)
+
+_DEPARTMENT_TERMS = ("قسم", "department", "部门")
+
+
+def build_employee_count_report(question: str = "") -> dict[str, Any]:
+    q = " ".join((question or "").casefold().split())
     with SessionLocal() as db:
-        active = db.scalar(
-            select(func.count(Employee.id)).where(Employee.status == "active")
-        ) or 0
+        base = select(func.count(Employee.id))
+        active = db.scalar(base.where(Employee.status == "active")) or 0
         total = db.scalar(select(func.count(Employee.id))) or 0
-    return {"active": int(active), "total": int(total)}
+        inactive = total - int(active)
+        if any(term in q for term in _DEPARTMENT_TERMS):
+            departments = db.scalars(
+                select(Department).where(Department.active.is_(True))
+            ).all()
+            matched = [d for d in departments if d.name and d.name.casefold() in q]
+            if not matched:
+                return {"scope": "department_unknown"}
+            department = matched[0]
+            dept_active = db.scalar(
+                select(func.count(Employee.id)).where(
+                    Employee.status == "active",
+                    Employee.department_id == department.id,
+                )
+            ) or 0
+            return {
+                "scope": "department", "department": department.name,
+                "active": int(dept_active),
+            }
+    if any(term in q for term in _INACTIVE_TERMS):
+        return {"scope": "inactive", "inactive": int(inactive), "total": int(total)}
+    return {"scope": "all", "active": int(active), "total": int(total)}
 
 
 def format_employee_count_report(report: dict[str, Any], language: str = "ar") -> str:
+    scope = report.get("scope", "all")
+    if scope == "department_unknown":
+        return _msg(
+            language,
+            "لم أتعرّف على القسم المطلوب بالاسم في سؤالك؛ الأقسام المسجلة تظهر في صفحة الموظفين.",
+            "I could not recognize the department named in your question; the registered departments are listed on the Employees page.",
+            "无法识别您问题中的部门名称；已登记的部门请在员工页面查看。",
+        )
+    if scope == "department":
+        return _msg(
+            language,
+            f"عدد الموظفين النشطين في قسم {report['department']} حاليًا: {report['active']}.",
+            f"Active employees in the {report['department']} department right now: {report['active']}.",
+            f"{report['department']} 部门当前在职员工数：{report['active']}。",
+        )
+    if scope == "inactive":
+        return _msg(
+            language,
+            f"الموظفون غير النشطين حاليًا: {report['inactive']} (إجمالي المسجلين: {report['total']}).",
+            f"Inactive employees right now: {report['inactive']} (total on record: {report['total']}).",
+            f"当前非在职员工数：{report['inactive']}（登记总数：{report['total']}）。",
+        )
     return _msg(
         language,
         f"عدد الموظفين النشطين حاليًا: {report['active']} (إجمالي المسجلين: {report['total']}).",
@@ -448,7 +515,7 @@ def _format_attendance_flag(flag: tuple[str, object], language: str) -> str:
     return _msg(language, f"ملاحظة محفوظة: {value}", f"Saved note: {value}", f"已存备注：{value}")
 
 
-def build_attendance_analysis(*, work_date: date | None, month_start: date | None) -> dict[str, Any]:
+def build_attendance_analysis(*, work_date: date | None, month_start: date | None, question: str = "") -> dict[str, Any]:
     with SessionLocal() as db:
         query = select(AttendanceDailyRecord, Employee).join(
             Employee, Employee.id == AttendanceDailyRecord.employee_id
@@ -465,6 +532,27 @@ def build_attendance_analysis(*, work_date: date | None, month_start: date | Non
             )
             period_label = f"{month_start.isoformat()} → {end.isoformat()}"
 
+        # An explicit employee code is a verifiable target: when it matches
+        # nobody, say so instead of showing another employee's rows. A
+        # name-like phrase only narrows the report when it actually matches.
+        if question and _CODE_RE.search(question):
+            employees = _find_employees(db, question)
+            if not employees:
+                return {
+                    "period": period_label,
+                    "day_mode": work_date is not None,
+                    "reviewed_rows": 0,
+                    "flagged_rows": 0,
+                    "items": [],
+                    "note": "note_employee_not_found",
+                }
+            query = query.where(AttendanceDailyRecord.employee_id.in_(
+                [employee.id for employee in employees]))
+        elif question and _employee_filter_requested(question):
+            employees = _find_employees(db, question)
+            if employees:
+                query = query.where(AttendanceDailyRecord.employee_id.in_(
+                    [employee.id for employee in employees]))
         rows = db.execute(query.order_by(AttendanceDailyRecord.work_date, Employee.code)).all()
         items: list[dict[str, Any]] = []
         for record, employee in rows:
@@ -492,6 +580,12 @@ def build_attendance_analysis(*, work_date: date | None, month_start: date | Non
 
 def format_attendance_analysis(report: dict[str, Any], language: str = "ar") -> str:
     lang = language if language in _NOTE else "ar"
+    if report.get("note") == "note_employee_not_found":
+        return "\n".join([
+            _msg(language, f"تحليل حضور للفترة {report['period']}.",
+                 f"Attendance analysis for {report['period']}.", f"{report['period']} 考勤分析。"),
+            _NOTE[lang]["note_employee_not_found"],
+        ])
     lines = [
         _msg(language, f"تحليل حضور للفترة {report['period']}.",
              f"Attendance analysis for {report['period']}.", f"{report['period']} 考勤分析。"),
@@ -760,7 +854,7 @@ def answer_structured_hr_query(question: str, language: str = "ar") -> str:
 
         return format_usage_guide(topic, language)
     if is_employee_count_request(question):
-        return format_employee_count_report(build_employee_count_report(), language)
+        return format_employee_count_report(build_employee_count_report(question), language)
     if is_employee_query_request(question):
         return format_employee_report(build_employee_report(question), language)
     if is_pre_payroll_review_request(question):
@@ -772,13 +866,22 @@ def answer_structured_hr_query(question: str, language: str = "ar") -> str:
     if is_attendance_analysis_request(question):
         q = question or ""
         normalized = " ".join(q.casefold().split())
+        is_month = "شهر" in normalized or "month" in normalized or "月份" in normalized
         asks_today = any(term in normalized for term in ("النهارده", "النهاردة", "اليوم", "today", "今天", "今日"))
-        if asks_today and "شهر" not in normalized and "month" not in normalized and "月" not in normalized:
-            report = build_attendance_analysis(work_date=date.today(), month_start=None)
+        asks_yesterday = any(term in normalized for term in ("امبارح", "أمس", "امس", "yesterday", "昨天"))
+        asks_tomorrow = any(term in normalized for term in ("بكرة", "بكره", "غدا", "غدًا", "tomorrow", "明天"))
+        if asks_today and not is_month:
+            report = build_attendance_analysis(work_date=date.today(), month_start=None, question=q)
+        elif asks_yesterday and not is_month:
+            report = build_attendance_analysis(
+                work_date=date.today() - timedelta(days=1), month_start=None, question=q)
+        elif asks_tomorrow and not is_month:
+            report = build_attendance_analysis(
+                work_date=date.today() + timedelta(days=1), month_start=None, question=q)
         elif _DATE_RE.search(q) and "شهر" not in q:
-            report = build_attendance_analysis(work_date=_parse_date(q), month_start=None)
+            report = build_attendance_analysis(work_date=_parse_date(q), month_start=None, question=q)
         else:
-            report = build_attendance_analysis(work_date=None, month_start=_parse_month(q))
+            report = build_attendance_analysis(work_date=None, month_start=_parse_month(q), question=q)
         return format_attendance_analysis(report, language)
     if is_leave_balance_request(question):
         return format_leave_balance(build_leave_balance_report(question), language)

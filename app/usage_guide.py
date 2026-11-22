@@ -34,10 +34,10 @@ _TOPICS: list[dict[str, Any]] = [
         "zh": "添加新员工：打开「员工」页面，点击「添加员工」，填写基本信息（姓名、部门、职位、薪资、每日工时）并保存。工号自动生成，新的服务期从入职日期开始。",
     },
     {
-        "keys": ("إجازة لموظف", "اجازة لموظف", "أضيف إجازة", "طلب إجازة", "رصيد إجازة",
+        "keys": ("إجازة لموظف", "اجازة لموظف", "أضيف إجازة", "طلب إجازة",
                  "أديله إجازة", "اديله اجازة", "أسجل إجازة", "اسجل اجازة",
-                 "add leave", "leave request", "leave balance", "request leave", "give leave",
-                 "添加请假", "请假申请", "申请请假", "请假余额", "请假"),
+                 "add leave", "leave request", "request leave", "give leave",
+                 "添加请假", "请假申请", "申请请假", "请假"),
         "path": "/leave",
         "ar": "لتسجيل إجازة: افتح صفحة الإجازات، أنشئ طلبًا جديدًا وحدد الموظف ونوع الإجازة والتواريخ والأيام المحتسبة. الطلب يبدأ مسودة ولا يُخصم الرصيد إلا بعد اعتماده. رصيد الإجازة يظهر من نفس الصفحة.",
         "en": "To record leave: open the Leave page, create a new request with the employee, leave type, dates and charged days. The request starts as a draft and the balance is only deducted after approval. The leave balance is shown on the same page.",
