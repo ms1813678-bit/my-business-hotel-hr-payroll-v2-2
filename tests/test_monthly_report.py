@@ -221,3 +221,67 @@ def test_monthly_route_finance_gets_payroll_not_leave_only_modifier(client_facto
     assert response.status_code == 200
     response = client.get("/reports/monthly.pdf", params=[("month", "2026-10"), ("opt", "10")])
     assert response.status_code == 403  # modifier alone carries no data
+
+
+def test_previous_period_uses_exact_previous_calendar_month(db_session):
+    # An August run must not leak into October's previous-month comparison
+    # (the old 31/08 bound overlapped the August run and double-counted).
+    employee = db_session.scalars(select(Employee).where(Employee.code == "MY-M1")).one()
+    aug_run = PayrollRun(period_start=date(2026, 8, 1), period_end=date(2026, 8, 31),
+                         pay_date=date(2026, 9, 1), status="approved", created_by="test")
+    db_session.add(aug_run)
+    db_session.flush()
+    db_session.add(PayrollItem(payroll_run_id=aug_run.id, employee_id=employee.id,
+                               employee_name_snapshot=employee.full_name, employee_code_snapshot=employee.code,
+                               department_name_snapshot="قسم أ", position_snapshot="أمن",
+                               salary_basis=Decimal("5000"), base_salary=Decimal("5000"),
+                               daily_hours=Decimal("8"), net_pay=Decimal("999")))
+    db_session.commit()
+    selection = ReportSelection(
+        report_type=REPORT_TYPE_PAYROLL,
+        start_date=date(2026, 10, 1), end_date=date(2026, 10, 31),
+        period_choice="custom", compare_like_for_like=True,
+    )
+    result = build_report(db_session, selection, today=date(2026, 11, 15))
+    assert result.comparison["period_label"] == "01/09/2026 – 30/09/2026"
+    net_row = next(row for row in result.comparison["items"] if row[0] == "الصافي")
+    assert float(net_row[2]) == 12000.0  # September only, not August + September
+    assert float(result.comparison["like_for_like"]["continuing_previous_net"]) == 12000.0
+
+
+def test_payroll_month_summary_is_totals_only(db_session):
+    from app.report_builder import _payroll_month_summary
+    summary = _payroll_month_summary(db_session, date(2026, 10, 1), date(2026, 10, 31))
+    current, previous = summary["current"], summary["previous"]
+    assert float(current["base"]) == 12000.0
+    assert float(current["net"]) == 12000.0
+    assert float(current["allowances"]) == 0.0
+    assert float(current["deductions"]) == 0.0
+    assert float(current["advances"]) == 0.0
+    assert current["employees"] == 2
+    assert float(previous["net"]) == 12000.0
+    assert summary["period_label"] == "01/09/2026 – 30/09/2026"
+    # Draft runs never enter the summary, consistent with the monthly charts.
+    oct_run = db_session.scalars(
+        select(PayrollRun).where(PayrollRun.period_start == date(2026, 10, 1))
+    ).one()
+    oct_run.status = "draft"
+    db_session.commit()
+    draft_summary = _payroll_month_summary(db_session, date(2026, 10, 1), date(2026, 10, 31))
+    assert draft_summary["current"]["employees"] == 0
+
+
+def test_absence_series_counts_approved_run_absence_days(db_session):
+    from app.report_builder import _monthly_six_month_series
+    run = db_session.scalars(
+        select(PayrollRun).where(PayrollRun.period_start == date(2026, 10, 1))
+    ).one()
+    item = db_session.scalars(
+        select(PayrollItem).where(PayrollItem.payroll_run_id == run.id)
+    ).first()
+    item.absence_days = Decimal("2")
+    db_session.commit()
+    assert dict(_monthly_six_month_series(db_session, date(2026, 10, 1), "absence"))["10/2026"] == 2.0
+    run.status = "draft"  # unapproved runs never enter the chart
+    db_session.commit()
+    assert dict(_monthly_six_month_series(db_session, date(2026, 10, 1), "absence"))["10/2026"] == 0.0

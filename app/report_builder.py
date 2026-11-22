@@ -276,6 +276,11 @@ def preset_config_from_params(params) -> dict:
 
 
 def _previous_period(start: date, end: date) -> tuple[date, date]:
+    if start.day == 1 and _add_months(start, 1) - timedelta(days=1) == end:
+        # Full calendar month: compare against the previous calendar month.
+        # The payroll lookup matches runs by overlap, so an equal-length shift
+        # (ending 31/08 for an October period) would also catch the August run.
+        return _add_months(start, -1), start - timedelta(days=1)
     length = (end - start).days + 1
     prev_end = start - timedelta(days=1)
     return prev_end - timedelta(days=length - 1), prev_end
@@ -1324,7 +1329,7 @@ MONTHLY_OPTION_LABELS = {
     6: "الجزاءات والمكافآت",
     7: "الإجازات",
     8: "رسم إجمالي صافي الرواتب — آخر 6 أشهر",
-    9: "رسم أيام الحضور المعتمدة — آخر 6 أشهر",
+    9: "رسم الحضور والغياب — آخر 6 أشهر",
     10: "مقارنة بالشهر السابق",
     11: "تجميع حسب القسم",
 }
@@ -1387,6 +1392,18 @@ def _monthly_six_month_series(db: Session, month_start: date, report_type: str) 
                 )
             ) or 0
             series.append((start.strftime("%m/%Y"), float(value)))
+        elif report_type == "absence":
+            value = db.scalar(
+                select(func.coalesce(func.sum(PayrollItem.absence_days), 0))
+                .select_from(PayrollItem)
+                .join(PayrollRun, PayrollRun.id == PayrollItem.payroll_run_id)
+                .where(
+                    PayrollRun.status.in_(["approved", "closed"]),
+                    PayrollRun.period_start >= start,
+                    PayrollRun.period_start < end,
+                )
+            ) or 0
+            series.append((start.strftime("%m/%Y"), float(value)))
         else:
             value = db.scalar(
                 select(func.count(AttendanceDailyRecord.id)).where(
@@ -1415,6 +1432,82 @@ def _monthly_chart_drawing(series: list[tuple[str, float]], bar_color_hex: str):
         drawing.add(Rect(x, base_y, bar_w, bar_h, fillColor=_colors.HexColor(bar_color_hex), strokeColor=None))
         drawing.add(String(x + bar_w / 2, base_y - 12, label, fontName="Helvetica", fontSize=8, textAnchor="middle"))
         drawing.add(String(x + bar_w / 2, base_y + bar_h + 4, ("%0.0f" % value), fontName="Helvetica", fontSize=7, textAnchor="middle"))
+    return drawing
+
+
+def _payroll_month_summary(db: Session, start: date, end: date) -> dict:
+    """Totals-only payroll summary for one month (summary option, not detail)."""
+    from sqlalchemy import select as _select
+    from .models import Employee as _Employee
+
+    employee_ids = list(db.scalars(_select(_Employee.id)).all())
+
+    def totals(period_start: date, period_end: date) -> dict:
+        from .models import PayrollRun as _PayrollRun
+        items = list(
+            db.scalars(
+                _select(PayrollItem)
+                .join(_PayrollRun, PayrollItem.payroll_run_id == _PayrollRun.id)
+                .where(
+                    _PayrollRun.status.in_(["approved", "closed"]),
+                    _PayrollRun.period_start <= period_end,
+                    _PayrollRun.period_end >= period_start,
+                )
+                .where(PayrollItem.employee_id.in_(employee_ids))
+            ).all()
+        )
+        base = sum((i.base_salary for i in items), Decimal(0))
+        allowances = sum((_item_earnings(i) - i.base_salary for i in items), Decimal(0))
+        deductions = sum((_item_deductions(i, include_advances=False) for i in items), Decimal(0))
+        advances = sum((i.advance_deduction for i in items), Decimal(0))
+        net = sum((i.net_pay for i in items), Decimal(0))
+        return {
+            "base": base,
+            "allowances": allowances,
+            "deductions": deductions,
+            "advances": advances,
+            "net": net,
+            "employees": len({i.employee_id for i in items}),
+        }
+
+    current = totals(start, end)
+    prev_start, prev_end = _previous_period(start, end)
+    previous = totals(prev_start, prev_end)
+    return {
+        "current": current,
+        "previous": previous,
+        "period_label": f"{prev_start.strftime('%d/%m/%Y')} – {prev_end.strftime('%d/%m/%Y')}",
+    }
+
+
+def _monthly_chart_drawing_grouped(
+    series_a: list[tuple[str, float]],
+    series_b: list[tuple[str, float]],
+    color_a_hex: str,
+    color_b_hex: str,
+    legend_a: str,
+    legend_b: str,
+):
+    """Two series per month (attendance vs absence), with legend and values."""
+    from reportlab.graphics.shapes import Drawing, Rect, String
+    from reportlab.lib import colors as _colors
+
+    width, height, chart_h, base_y = 520, 170, 120, 30
+    drawing = Drawing(width, height)
+    maximum = max([v for _, v in series_a] + [v for _, v in series_b] + [0]) or 1
+    slot = width / max(1, len(series_a))
+    bar_w = min(22, slot * 0.28)
+    for index, (label, value) in enumerate(series_a):
+        center = width - (index + 1) * slot + slot / 2  # RTL: newest left
+        x_a, x_b = center - bar_w - 1.5, center + 1.5
+        h_a = (value / maximum) * chart_h if value > 0 else 0.0
+        v_b = series_b[index][1]
+        h_b = (v_b / maximum) * chart_h if v_b > 0 else 0.0
+        drawing.add(Rect(x_a, base_y, bar_w, h_a, fillColor=_colors.HexColor(color_a_hex), strokeColor=None))
+        drawing.add(Rect(x_b, base_y, bar_w, h_b, fillColor=_colors.HexColor(color_b_hex), strokeColor=None))
+        drawing.add(String(x_a + bar_w / 2, base_y + h_a + 3, ("%0.0f" % value), fontName="Helvetica", fontSize=6.5, textAnchor="middle"))
+        drawing.add(String(x_b + bar_w / 2, base_y + h_b + 3, ("%0.0f" % v_b), fontName="Helvetica", fontSize=6.5, textAnchor="middle"))
+        drawing.add(String(center, base_y - 12, label, fontName="Helvetica", fontSize=8, textAnchor="middle"))
     return drawing
 
 
@@ -1578,10 +1671,63 @@ def build_monthly_pdf(db: Session, month_start: date, options: set[int], languag
             report_type = MONTHLY_OPTION_TYPE[option]
             story.append(Paragraph(cell_(L(MONTHLY_OPTION_LABELS[option])), section_style))
             series = _monthly_six_month_series(db, month_start, report_type)
-            color = "#8a6d1a" if report_type == REPORT_TYPE_PAYROLL else "#14495c"
-            story.append(_monthly_chart_drawing(series, color))
-            if all(value == 0 for _, value in series):
-                story.append(Paragraph(cell_(L("لا توجد بيانات معتمدة في هذه الفترة بعد.")), meta_style))
+            if report_type == REPORT_TYPE_ATTENDANCE:
+                absence_series = _monthly_six_month_series(db, month_start, "absence")
+                story.append(_monthly_chart_drawing_grouped(
+                    series, absence_series, "#14495c", "#a33b32",
+                    L("الحضور"), L("الغياب"),
+                ))
+                story.append(Paragraph(cell_(L("الحضور (الشريط الأزرق): أيام بسجلات حضور معتمدة · الغياب (الشريط الأحمر): أيام غياب محتسبة في مسيرات رواتب معتمدة.")), meta_style))
+                if all(v == 0 for _, v in series) and all(v == 0 for _, v in absence_series):
+                    story.append(Paragraph(cell_(L("لا توجد بيانات معتمدة في هذه الفترة بعد.")), meta_style))
+            else:
+                color = "#8a6d1a"
+                story.append(_monthly_chart_drawing(series, color))
+                if all(value == 0 for _, value in series):
+                    story.append(Paragraph(cell_(L("لا توجد بيانات معتمدة في هذه الفترة بعد.")), meta_style))
+            continue
+        if option == 1:
+            if not first_section:
+                story.append(PageBreak())
+            first_section = False
+            summary = _payroll_month_summary(db, month_start, month_end)
+            story.append(Paragraph(cell_(L(MONTHLY_OPTION_LABELS[1])), section_style))
+            story.append(Paragraph(cell_(f"{L('ملخص إجمالي للشهر — بدون تفاصيل الموظفين')}"), meta_style))
+            story.append(Spacer(1, 2 * mm))
+            show_compare = compare and summary["previous"]["employees"] > 0
+            header = [L("البند"), L("الشهر الحالي")] + ([L("الشهر السابق"), L("التغير")] if show_compare else [])
+            table_rows = [[Paragraph(cell_(h), header_style) for h in header]]
+            for label, key in (
+                ("إجمالي الأساسي", "base"),
+                ("البدلات والحوافز", "allowances"),
+                ("الخصومات والجزاءات", "deductions"),
+                ("السلف المخصومة", "advances"),
+                ("صافي المرتبات", "net"),
+            ):
+                row = [Paragraph(cell_(L(label)), cell_style),
+                       Paragraph(cell_(f"{_fmt_number(summary['current'][key])} {L('ج.م')}"), cell_style)]
+                if show_compare:
+                    row.append(Paragraph(cell_(f"{_fmt_number(summary['previous'][key])} {L('ج.م')}"), cell_style))
+                    row.append(Paragraph(cell_(str(_pct_change(summary['current'][key], summary['previous'][key]) or "—")), cell_style))
+                table_rows.append(row)
+            row = [Paragraph(cell_(L("عدد الموظفين")), cell_style),
+                   Paragraph(cell_(str(summary["current"]["employees"])), cell_style)]
+            if show_compare:
+                row.append(Paragraph(cell_(str(summary["previous"]["employees"])), cell_style))
+                row.append(Paragraph(cell_(str(_pct_change(Decimal(summary["current"]["employees"]), Decimal(summary["previous"]["employees"])) or "—")), cell_style))
+            table_rows.append(row)
+            col_count = len(header)
+            table = LongTable(table_rows, colWidths=[available_width * 0.3] + [available_width * 0.18] * (col_count - 1), hAlign="RIGHT")
+            table.setStyle(TableStyle([
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#24415E")),
+                ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#AAB4BE")),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ]))
+            story.append(table)
+            if show_compare:
+                story.append(Paragraph(cell_(f"{L('الفترة السابقة:')} {summary['period_label']}"), meta_style))
+            elif compare:
+                story.append(Paragraph(cell_(L("لا توجد مسيرات في الفترة السابقة للمقارنة.")), meta_style))
             continue
         selection = ReportSelection(
             report_type=MONTHLY_OPTION_TYPE[option],
