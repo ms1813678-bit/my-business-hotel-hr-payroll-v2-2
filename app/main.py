@@ -2257,11 +2257,11 @@ def export_hr_reports(
             if _custom_report_requested(params):
                 selection = selection_from_params(params)
                 if selection.report_type == REPORT_TYPE_COMPREHENSIVE:
-                    content = build_hr_workbook(db, start_date, end_date, employee_id=selection.employee_id)
+                    content = build_hr_workbook(db, start_date, end_date, employee_id=selection.employee_id, language=request.state.language)
                 else:
                     content = build_custom_workbook(db, selection, language=request.state.language)
             else:
-                content = build_hr_workbook(db, start_date, end_date, employee_id=employee_id)
+                content = build_hr_workbook(db, start_date, end_date, employee_id=employee_id, language=request.state.language)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     except SQLAlchemyError:
@@ -2291,11 +2291,11 @@ def export_hr_reports_pdf(
             if _custom_report_requested(params):
                 selection = selection_from_params(params)
                 if selection.report_type == REPORT_TYPE_COMPREHENSIVE:
-                    content = build_hr_pdf(db, start_date, end_date, employee_id=selection.employee_id)
+                    content = build_hr_pdf(db, start_date, end_date, employee_id=selection.employee_id, language=request.state.language)
                 else:
                     content = build_custom_pdf(db, selection, language=request.state.language)
             else:
-                content = build_hr_pdf(db, start_date, end_date, employee_id=employee_id)
+                content = build_hr_pdf(db, start_date, end_date, employee_id=employee_id, language=request.state.language)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     except RuntimeError as exc:

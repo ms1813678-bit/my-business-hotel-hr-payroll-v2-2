@@ -662,7 +662,7 @@ html[dir="ltr"] textarea {
 }
 .strip h1 { font-size: 20px; margin: 0 0 4px; }
 .strip .meta { font-size: 13px; color: var(--text-muted); font-weight: 600; }
-.split { display: grid; grid-template-columns: 1fr 320px; gap: 18px; align-items: start; }
+.split { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 18px; align-items: start; }
 .sum-item { display: flex; justify-content: space-between; align-items: baseline; padding: 12px 0; border-bottom: 1px solid var(--border); }
 .sum-item:last-child { border-bottom: none; }
 .sum-item span { font-size: 13px; color: var(--text-muted); font-weight: 700; }
@@ -697,7 +697,7 @@ html[dir="ltr"] textarea {
   .sidebar, .language-switch, .strip .header-actions, .breakdown-toggle, footer { display: none !important; }
   .app-layout { display: block; }
   .content { margin: 0; padding: 0; }
-  .split { grid-template-columns: 1fr 300px; }
+  .split { grid-template-columns: minmax(0, 1fr) 300px; }
   .card, .strip, .warn-box { box-shadow: none; break-inside: avoid; }
   .print-meta { display: flex; justify-content: space-between; gap: 24px; margin-top: 36px; font-size: 13px; font-weight: 700; }
   .print-meta span { flex: 1; }

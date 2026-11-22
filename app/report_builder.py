@@ -1121,6 +1121,14 @@ def build_custom_pdf(db: Session, selection: ReportSelection, language: str = "a
         font_name = "STSong-Light"
     else:
         font_name = _pdf_font_name()
+    if language == "zh":
+        from app.reports import _pdf_cell_mixed
+        arabic_font = _pdf_font_name()
+
+        def cell_(value):
+            return _pdf_cell_mixed(value, arabic_font)
+    else:
+        cell_ = _pdf_cell
     base_styles = getSampleStyleSheet()
     title_style = ParagraphStyle("RPTitle", parent=base_styles["Title"], fontName=font_name, fontSize=15, leading=19, alignment=TA_RIGHT, spaceAfter=3 * mm)
     meta_style = ParagraphStyle("RPMeta", parent=base_styles["BodyText"], fontName=font_name, fontSize=9, leading=12, alignment=TA_RIGHT)
@@ -1141,18 +1149,18 @@ def build_custom_pdf(db: Session, selection: ReportSelection, language: str = "a
         author="M.Y. Business Hotel HR System",
     )
     story = [
-        Paragraph(_pdf_cell(f"{L(result.title)} — {L(result.period_label)}"), title_style),
-        Paragraph(_pdf_cell(f"{L('الفترة:')} {result.start_date.strftime('%d/%m/%Y')} {L('إلى')} {result.end_date.strftime('%d/%m/%Y')} · {L(result.scope_label)} · {L(result.status_label)} · {result.employee_count} {L('موظف')}"), meta_style),
+        Paragraph(cell_(f"{L(result.title)} — {L(result.period_label)}"), title_style),
+        Paragraph(cell_(f"{L('الفترة:')} {result.start_date.strftime('%d/%m/%Y')} {L('إلى')} {result.end_date.strftime('%d/%m/%Y')} · {L(result.scope_label)} · {L(result.status_label)} · {result.employee_count} {L('موظف')}"), meta_style),
         Spacer(1, 3 * mm),
     ]
 
-    table_rows = [[Paragraph(_pdf_cell(L(label)), header_style) for _, label, _ in result.columns]]
+    table_rows = [[Paragraph(cell_(L(label)), header_style) for _, label, _ in result.columns]]
     for group in result.groups:
-        dept_row = [Paragraph(_pdf_cell(group["department"]), cell_style)] + [Paragraph("", cell_style)] * (column_count - 1)
+        dept_row = [Paragraph(cell_(group["department"]), cell_style)] + [Paragraph("", cell_style)] * (column_count - 1)
         table_rows.append(dept_row)
         for row in group["rows"]:
             table_rows.append([
-                Paragraph(_pdf_cell(_fmt_number(row.get(key)) if numeric else L(row.get(key, ""))), cell_style)
+                Paragraph(cell_(_fmt_number(row.get(key)) if numeric else L(row.get(key, ""))), cell_style)
                 for key, _, numeric in result.columns
             ])
     if result.totals:
@@ -1160,9 +1168,9 @@ def build_custom_pdf(db: Session, selection: ReportSelection, language: str = "a
         first = True
         for key, _, numeric in result.columns:
             if numeric and key in result.totals:
-                totals_cells.append(Paragraph(_pdf_cell(_fmt_number(result.totals[key])), cell_style))
+                totals_cells.append(Paragraph(cell_(_fmt_number(result.totals[key])), cell_style))
             elif first:
-                totals_cells.append(Paragraph(_pdf_cell(L("الإجمالي")), cell_style))
+                totals_cells.append(Paragraph(cell_(L("الإجمالي")), cell_style))
                 first = False
             else:
                 totals_cells.append(Paragraph("", cell_style))
@@ -1184,8 +1192,8 @@ def build_custom_pdf(db: Session, selection: ReportSelection, language: str = "a
 
     if result.summary:
         story.append(Spacer(1, 4 * mm))
-        story.append(Paragraph(_pdf_cell(L("الملخص")), meta_style))
-        summary_rows = [[Paragraph(_pdf_cell(L(label)), cell_style), Paragraph(_pdf_cell(L(str(value))), cell_style)] for label, value in result.summary]
+        story.append(Paragraph(cell_(L("الملخص")), meta_style))
+        summary_rows = [[Paragraph(cell_(L(label)), cell_style), Paragraph(cell_(L(str(value))), cell_style)] for label, value in result.summary]
         summary_table = LongTable(summary_rows, colWidths=[available_width * 0.3, available_width * 0.2], hAlign="RIGHT")
         summary_table.setStyle(TableStyle([
             ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#AAB4BE")),
@@ -1196,14 +1204,14 @@ def build_custom_pdf(db: Session, selection: ReportSelection, language: str = "a
     if result.comparison and result.comparison.get("like_for_like"):
         lfl = result.comparison["like_for_like"]
         story.append(Spacer(1, 4 * mm))
-        story.append(Paragraph(_pdf_cell(f"{L('مقارنة مثل بمثل مع الفترة السابقة')} ({result.comparison['period_label']})"), meta_style))
+        story.append(Paragraph(cell_(f"{L('مقارنة مثل بمثل مع الفترة السابقة')} ({result.comparison['period_label']})"), meta_style))
         lfl_rows = [
-            [Paragraph(_pdf_cell(L("المستمرون في الفترتين")), cell_style), Paragraph(_pdf_cell(str(lfl["continuing_count"])), cell_style)],
-            [Paragraph(_pdf_cell(L("صافي المستمرين — الفترة الحالية")), cell_style), Paragraph(_pdf_cell(_fmt_number(lfl["continuing_current_net"])), cell_style)],
-            [Paragraph(_pdf_cell(L("صافي المستمرين — الفترة السابقة")), cell_style), Paragraph(_pdf_cell(_fmt_number(lfl["continuing_previous_net"])), cell_style)],
-            [Paragraph(_pdf_cell(L("التغير مثل بمثل")), cell_style), Paragraph(_pdf_cell(lfl["continuing_pct"] or "—"), cell_style)],
-            [Paragraph(_pdf_cell(L("منضمون في الفترة الحالية")), cell_style), Paragraph(_pdf_cell(f"{lfl['joiners_count']} · {L('صافي')} {_fmt_number(lfl['joiners_net'])}"), cell_style)],
-            [Paragraph(_pdf_cell(L("غير موجودين في الفترة الحالية")), cell_style), Paragraph(_pdf_cell(f"{lfl['leavers_count']} · {L('صافيهم السابق')} {_fmt_number(lfl['leavers_previous_net'])}"), cell_style)],
+            [Paragraph(cell_(L("المستمرون في الفترتين")), cell_style), Paragraph(cell_(str(lfl["continuing_count"])), cell_style)],
+            [Paragraph(cell_(L("صافي المستمرين — الفترة الحالية")), cell_style), Paragraph(cell_(_fmt_number(lfl["continuing_current_net"])), cell_style)],
+            [Paragraph(cell_(L("صافي المستمرين — الفترة السابقة")), cell_style), Paragraph(cell_(_fmt_number(lfl["continuing_previous_net"])), cell_style)],
+            [Paragraph(cell_(L("التغير مثل بمثل")), cell_style), Paragraph(cell_(lfl["continuing_pct"] or "—"), cell_style)],
+            [Paragraph(cell_(L("منضمون في الفترة الحالية")), cell_style), Paragraph(cell_(f"{lfl['joiners_count']} · {L('صافي')} {_fmt_number(lfl['joiners_net'])}"), cell_style)],
+            [Paragraph(cell_(L("غير موجودين في الفترة الحالية")), cell_style), Paragraph(cell_(f"{lfl['leavers_count']} · {L('صافيهم السابق')} {_fmt_number(lfl['leavers_previous_net'])}"), cell_style)],
         ]
         lfl_table = LongTable(lfl_rows, colWidths=[available_width * 0.3, available_width * 0.25], hAlign="RIGHT")
         lfl_table.setStyle(TableStyle([
@@ -1212,7 +1220,7 @@ def build_custom_pdf(db: Session, selection: ReportSelection, language: str = "a
         ]))
         story.append(lfl_table)
         if lfl["still_active_leavers"]:
-            story.append(Paragraph(_pdf_cell(f"{L('تنبيه:')} {lfl['still_active_leavers']} {L('ممن لا يظهرون في الفترة الحالية ما زالوا نشطين؛ قد يعني ذلك عدم إصدار مسير الفترة بعد وليس مغادرتهم.')}"), meta_style))
+            story.append(Paragraph(cell_(f"{L('تنبيه:')} {lfl['still_active_leavers']} {L('ممن لا يظهرون في الفترة الحالية ما زالوا نشطين؛ قد يعني ذلك عدم إصدار مسير الفترة بعد وليس مغادرتهم.')}"), meta_style))
 
     breakdown_rows = [
         (group["department"], row)
@@ -1222,13 +1230,13 @@ def build_custom_pdf(db: Session, selection: ReportSelection, language: str = "a
     ]
     if breakdown_rows:
         story.append(Spacer(1, 4 * mm))
-        story.append(Paragraph(_pdf_cell(L("تفصيل حساب كل موظف — كيف تكوّن الصافي")), meta_style))
+        story.append(Paragraph(cell_(L("تفصيل حساب كل موظف — كيف تكوّن الصافي")), meta_style))
         breakdown_header = [L("الموظف")] + [L(label) for _, label, _ in PAYROLL_BREAKDOWN_DEFS]
-        breakdown_table_rows = [[Paragraph(_pdf_cell(label), header_style) for label in breakdown_header]]
+        breakdown_table_rows = [[Paragraph(cell_(label), header_style) for label in breakdown_header]]
         for _, row in breakdown_rows:
             breakdown_table_rows.append(
-                [Paragraph(_pdf_cell(f"{row.get('emp_name', '')} ({row.get('emp_code', '')})"), cell_style)]
-                + [Paragraph(_pdf_cell(_fmt_number(value)), cell_style) for _, value, _ in row["breakdown"]]
+                [Paragraph(cell_(f"{row.get('emp_name', '')} ({row.get('emp_code', '')})"), cell_style)]
+                + [Paragraph(cell_(_fmt_number(value)), cell_style) for _, value, _ in row["breakdown"]]
             )
         column_count_b = len(breakdown_header)
         breakdown_table = LongTable(
@@ -1251,13 +1259,13 @@ def build_custom_pdf(db: Session, selection: ReportSelection, language: str = "a
     if result.warnings:
         story.append(Spacer(1, 3 * mm))
         for warning in result.warnings:
-            story.append(Paragraph(_pdf_cell(f"{L('تنبيه:')} {_warning_text_ar(warning, language)}"), meta_style))
+            story.append(Paragraph(cell_(f"{L('تنبيه:')} {_warning_text_ar(warning, language)}"), meta_style))
 
     story.append(Spacer(1, 10 * mm))
     signature_rows = [[
-        Paragraph(_pdf_cell(L("إعداد: ..............................")), meta_style),
-        Paragraph(_pdf_cell(L("مراجعة: ..............................")), meta_style),
-        Paragraph(_pdf_cell(L("اعتماد: ..............................")), meta_style),
+        Paragraph(cell_(L("إعداد: ..............................")), meta_style),
+        Paragraph(cell_(L("مراجعة: ..............................")), meta_style),
+        Paragraph(cell_(L("اعتماد: ..............................")), meta_style),
     ]]
     signature_table = LongTable(signature_rows, colWidths=[available_width / 3] * 3, hAlign="RIGHT")
     signature_table.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "BOTTOM")]))

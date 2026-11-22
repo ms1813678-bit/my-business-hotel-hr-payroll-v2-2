@@ -276,6 +276,8 @@ def test_excel_and_pdf_exports_are_saved_locally_without_overwriting(monkeypatch
     params = {"start_date": "2026-10-01", "end_date": "2026-10-31", "employee_id": "1"}
     try:
         with TestClient(app) as client:
+            # English UI language: legacy export sheet names stay English.
+            client.cookies.set("my_hr_language", "en")
             excel = client.get("/reports/export.xlsx", params=params)
             pdf = client.get("/reports/export.pdf", params=params)
         assert excel.status_code == 200

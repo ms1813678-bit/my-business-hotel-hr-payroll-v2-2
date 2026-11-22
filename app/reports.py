@@ -59,6 +59,7 @@ def build_hr_workbook(
     start_date: date,
     end_date: date,
     employee_id: int | None = None,
+    language: str = "en",
 ) -> bytes:
     if end_date < start_date:
         raise ValueError("End date must not precede start date.")
@@ -295,6 +296,14 @@ def build_hr_workbook(
         [(name, count, float(total)) for name, count, total in department_rows],
     )
 
+    if language != "en":
+        for sheet in workbook.worksheets:
+            sheet.title = _legacy_L(sheet.title, language)[:31]
+            sheet.sheet_view.rightToLeft = language == "ar"
+            for header_cell in sheet[1]:
+                if isinstance(header_cell.value, str):
+                    header_cell.value = _legacy_L(header_cell.value, language)
+
     output = BytesIO()
     workbook.save(output)
     return output.getvalue()
@@ -307,6 +316,106 @@ def validate_workbook(data: bytes) -> list[str]:
     finally:
         workbook.close()
 
+
+
+def _pdf_cell_mixed(value, arabic_font: str) -> str:
+    """PDF cell for CJK documents: Arabic data runs use the Arabic font inside the CJK one."""
+    import re as _re
+    from xml.sax.saxutils import escape
+    text = "" if value is None else str(value)
+    if not any("\u0600" <= char <= "\u06ff" for char in text):
+        return escape(text).replace("\n", "<br/>")
+    parts = _re.split(r"([\u0600-\u06ff][\u0600-\u06ff\s،؛.-]*)", text)
+    rendered = []
+    for part in parts:
+        if part and any("\u0600" <= c <= "\u06ff" for c in part):
+            rendered.append(f'<font name="{arabic_font}">{_pdf_cell(part)}</font>')
+        elif part:
+            rendered.append(escape(part))
+    return "".join(rendered)
+
+
+_LEGACY_LABELS = {
+    "Employees": ("الموظفون", "员工"),
+    "Attendance": ("الحضور", "考勤"),
+    "Leave": ("الإجازات", "请假"),
+    "Leave balances": ("أرصدة الإجازات", "请假余额"),
+    "Sanctions rewards": ("الجزاءات والمكافآت", "奖惩"),
+    "Advances": ("السلف", "预支款"),
+    "Payroll": ("الرواتب", "工资"),
+    "Departments": ("الأقسام", "部门"),
+    "Employee code": ("رقم الموظف", "员工编号"),
+    "Full name": ("الاسم الكامل", "全名"),
+    "Department": ("القسم", "部门"),
+    "Position": ("المسمى الوظيفي", "职位"),
+    "Hire date": ("تاريخ التعيين", "入职日期"),
+    "Status": ("الحالة", "状态"),
+    "Basic salary": ("الراتب الأساسي", "基本工资"),
+    "Daily hours": ("ساعات العمل اليومية", "每日工时"),
+    "Phone": ("الهاتف", "电话"),
+    "Work date": ("تاريخ العمل", "工作日期"),
+    "Employee": ("الموظف", "员工"),
+    "Scheduled in": ("الحضور المجدول", "应到时间"),
+    "Scheduled out": ("الانصراف المجدول", "应离时间"),
+    "Approved in": ("الحضور المعتمد", "实到时间"),
+    "Approved out": ("الانصراف المعتمد", "实离时间"),
+    "Worked minutes": ("دقائق العمل", "工作分钟数"),
+    "Review notes": ("ملاحظات المراجعة", "审核备注"),
+    "Leave type": ("نوع الإجازة", "请假类型"),
+    "Start": ("البداية", "开始"),
+    "End": ("النهاية", "结束"),
+    "Calendar days": ("أيام التقويم", "日历天数"),
+    "Charged days": ("الأيام المحتسبة", "计扣天数"),
+    "Reason": ("السبب", "原因"),
+    "Date": ("التاريخ", "日期"),
+    "Leave type ID": ("رقم نوع الإجازة", "请假类型编号"),
+    "Transaction": ("الحركة", "交易"),
+    "Days delta": ("تغير الأيام", "天数变动"),
+    "Recorded by": ("سُجل بواسطة", "记录人"),
+    "Type": ("النوع", "类型"),
+    "Category": ("التصنيف", "类别"),
+    "Title": ("العنوان", "标题"),
+    "Financial": ("مالي", "是否涉款"),
+    "Amount": ("المبلغ", "金额"),
+    "Payroll month": ("شهر الراتب", "工资月份"),
+    "Request date": ("تاريخ الطلب", "申请日期"),
+    "Salary basis": ("أساس الاحتساب", "计算基数"),
+    "Paid at": ("وقت الصرف", "发放时间"),
+    "Deducted at": ("وقت الخصم", "扣款时间"),
+    "Month": ("الشهر", "月份"),
+    "Pay date": ("تاريخ الصرف", "发放日期"),
+    "Run status": ("حالة المسير", "工资单状态"),
+    "Basic": ("الأساسي", "基本工资"),
+    "Base after proration": ("الأساسي بعد التناسب", "按比例折算后基本工资"),
+    "Attendance bonus": ("بدل حضور", "出勤津贴"),
+    "Performance bonus": ("بدل أداء", "绩效津贴"),
+    "Occupancy bonus": ("بدل إشغال", "入住率津贴"),
+    "Overtime": ("إضافي", "加班"),
+    "Other bonus": ("بدلات أخرى", "其他奖金"),
+    "Absence deduction": ("خصم غياب", "缺勤扣款"),
+    "Lateness deduction": ("خصم تأخير", "迟到扣款"),
+    "Insurance": ("تأمينات", "社保"),
+    "Taxes": ("ضرائب", "税费"),
+    "Other deductions": ("خصومات أخرى", "其他扣款"),
+    "Advance": ("خصم السلفة", "预支扣款"),
+    "Financial reward": ("مكافأة مالية", "奖金"),
+    "Financial sanction": ("جزاء مالي", "罚款"),
+    "Net pay": ("صافي المرتب", "实发工资"),
+    "Paid": ("المصروف", "已发放"),
+    "Remaining": ("المتبقي", "剩余"),
+    "Employee count": ("عدد الموظفين", "员工数"),
+    "Current monthly basic payroll": ("إجمالي الرواتب الأساسية الشهرية الحالية", "当前月基本工资总额"),
+}
+
+
+def _legacy_L(text: str, language: str) -> str:
+    """Translate a legacy export label (authored in English) to ar/zh; en stays as authored."""
+    if language == "en" or not isinstance(text, str):
+        return text
+    pair = _LEGACY_LABELS.get(text)
+    if pair is None:
+        return text
+    return pair[0] if language == "ar" else pair[1]
 
 
 def _pdf_font_name() -> str:
@@ -345,8 +454,9 @@ def build_hr_pdf(
     start_date: date,
     end_date: date,
     employee_id: int | None = None,
+    language: str = "en",
 ) -> bytes:
-    """Build a printable, Arabic-capable PDF companion to the complete Excel workbook."""
+    """Build a printable PDF companion to the complete Excel workbook, in the admin's language."""
     if end_date < start_date:
         raise ValueError("End date must not precede start date.")
 
@@ -357,8 +467,21 @@ def build_hr_pdf(
     from reportlab.lib.units import mm
     from reportlab.platypus import LongTable, PageBreak, Paragraph, SimpleDocTemplate, Spacer, TableStyle
 
-    font_name = _pdf_font_name()
-    workbook = load_workbook(BytesIO(build_hr_workbook(db, start_date, end_date, employee_id=employee_id)), read_only=True, data_only=True)
+    arabic_font = _pdf_font_name()
+    if language == "zh":
+        from reportlab.pdfbase import pdfmetrics
+        from reportlab.pdfbase.cidfonts import UnicodeCIDFont
+        if "STSong-Light" not in pdfmetrics.getRegisteredFontNames():
+            pdfmetrics.registerFont(UnicodeCIDFont("STSong-Light"))
+        font_name = "STSong-Light"
+    else:
+        font_name = arabic_font
+    if language == "zh":
+        def cell(value):
+            return _pdf_cell_mixed(value, arabic_font)
+    else:
+        cell = _pdf_cell
+    workbook = load_workbook(BytesIO(build_hr_workbook(db, start_date, end_date, employee_id=employee_id, language=language)), read_only=True, data_only=True)
     output = BytesIO()
     page_size = landscape(A3)
     document = SimpleDocTemplate(
@@ -389,21 +512,33 @@ def build_hr_pdf(
         alignment=TA_CENTER, textColor=colors.white,
     )
 
+    if language == "en":
+        intro_title = "M.Y. Business Hotel — HR Report"
+        intro_period = f"Period from {start_date.strftime('%d/%m/%Y')} to {end_date.strftime('%d/%m/%Y')}"
+        intro_note = "This report is for viewing and printing only; it does not change any data in the system."
+    elif language == "zh":
+        intro_title = "M.Y. Business Hotel — 人力资源报表"
+        intro_period = f"期间：{start_date.strftime('%d/%m/%Y')} 至 {end_date.strftime('%d/%m/%Y')}"
+        intro_note = "本报表仅供查看和打印，不会更改系统中的任何数据。"
+    else:
+        intro_title = "M.Y. Business Hotel — تقرير الموارد البشرية"
+        intro_period = f"الفترة من {start_date.strftime('%d/%m/%Y')} إلى {end_date.strftime('%d/%m/%Y')}"
+        intro_note = "هذا التقرير للعرض والطباعة فقط، ولا يغيّر أي بيانات داخل النظام."
     story = [
-        Paragraph(_pdf_cell("M.Y. Business Hotel — تقرير الموارد البشرية"), title_style),
-        Paragraph(_pdf_cell(f"الفترة من {start_date.strftime('%d/%m/%Y')} إلى {end_date.strftime('%d/%m/%Y')}"), section_style),
-        Paragraph(_pdf_cell("هذا التقرير للعرض والطباعة فقط، ولا يغيّر أي بيانات داخل النظام."), cell_style),
+        Paragraph(cell(intro_title), title_style),
+        Paragraph(cell(intro_period), section_style),
+        Paragraph(cell(intro_note), cell_style),
         Spacer(1, 4 * mm),
     ]
     for sheet_index, sheet in enumerate(workbook.worksheets):
         rows = list(sheet.iter_rows(values_only=True))
         if not rows:
             continue
-        story.append(Paragraph(_pdf_cell(sheet.title), section_style))
+        story.append(Paragraph(cell(sheet.title), section_style))
         formatted = []
         for row_index, row in enumerate(rows):
             style = header_style if row_index == 0 else cell_style
-            formatted.append([Paragraph(_pdf_cell(value), style) for value in row])
+            formatted.append([Paragraph(cell(value), style) for value in row])
         col_count = max(1, len(rows[0]))
         available_width = page_size[0] - document.leftMargin - document.rightMargin
         widths = [available_width / col_count] * col_count
