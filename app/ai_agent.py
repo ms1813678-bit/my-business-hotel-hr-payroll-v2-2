@@ -41,12 +41,27 @@ from app.payroll_workflow import approve_payroll_run, close_payroll_run, reopen_
 from app.staff_actions_workflow import approve_staff_action, cancel_staff_action
 
 
-WRITE_PREFIXES = ("نفذ ", "نفّذ ", "نفذ:", "نفّذ:")
+WRITE_PREFIXES = ("نفذ ", "نفّذ ", "نفذ:", "نفّذ:", "执行 ", "执行：", "执行:")
+# English execution prefixes are matched case-insensitively.
+EN_WRITE_PREFIXES = ("execute ", "execute:")
 COMMAND_WORDS = (
     "أنشئ", "انشئ", "أضف", "اضف", "عدّل", "عدل", "غيّر", "غير", "انقل",
     "أرشف", "ارشف", "أعد تعيين", "اعد تعيين", "سجّل", "سجل", "احذف", "اعتمد",
     "وافق", "ألغ", "الغ", "ادفع", "أغلق", "اغلق", "أعد فتح", "اعد فتح",
 )
+# English command verbs: matched on a word boundary against the casefolded text.
+EN_COMMAND_WORDS = (
+    "create", "add", "edit", "change", "transfer", "archive", "rehire",
+    "record", "delete", "approve", "reject", "cancel", "pay", "close", "reopen",
+)
+ZH_COMMAND_WORDS = (
+    "创建", "添加", "修改", "更改", "调动", "归档", "重新聘用", "记录",
+    "删除", "批准", "拒绝", "取消", "支付", "关闭", "重新打开",
+)
+
+
+def _msg(language: str, ar: str, en: str, zh: str) -> str:
+    return {"ar": ar, "en": en, "zh": zh}.get(language, ar)
 
 ALLOWED_ACTIONS = {
     "create_employee",
@@ -76,13 +91,22 @@ ALLOWED_ACTIONS = {
 
 
 def is_command_request(question: str) -> bool:
+    """Detect write intent in any UI language; only routes to the approval
+    gateway, which always requires explicit confirmation before anything runs."""
     q = " ".join(question.strip().split())
-    return q.startswith(WRITE_PREFIXES) or any(q.startswith(word) for word in COMMAND_WORDS)
+    folded = q.casefold()
+    return (
+        q.startswith(WRITE_PREFIXES)
+        or folded.startswith(EN_WRITE_PREFIXES)
+        or any(q.startswith(word) for word in COMMAND_WORDS)
+        or any(folded == word or folded.startswith(word + " ") for word in EN_COMMAND_WORDS)
+        or any(q.startswith(word) for word in ZH_COMMAND_WORDS)
+    )
 
 
 def wants_execution(question: str) -> bool:
     q = " ".join(question.strip().split())
-    return q.startswith(WRITE_PREFIXES)
+    return q.startswith(WRITE_PREFIXES) or q.casefold().startswith(EN_WRITE_PREFIXES)
 
 
 def _loopback_only(url: str) -> bool:
@@ -135,7 +159,14 @@ def _plan_context(db) -> dict[str, Any]:
     }
 
 
-def _json_plan(question: str, context: dict[str, Any]) -> dict[str, Any]:
+_SUMMARY_INSTRUCTIONS = {
+    "ar": "أعد أيضًا summary بالعربية قصيرة. ",
+    "en": "أعد أيضًا summary قصيرة باللغة الإنجليزية. ",
+    "zh": "أعد أيضًا summary قصيرة باللغة الصينية. ",
+}
+
+
+def _json_plan(question: str, context: dict[str, Any], language: str = "ar") -> dict[str, Any]:
     status = local_model_status()
     if not status["available"]:
         raise RuntimeError(status["message"])
@@ -149,8 +180,8 @@ def _json_plan(question: str, context: dict[str, Any]) -> dict[str, Any]:
         "attendance_record_id, clock_in, clock_out, work_date, month_id, payroll_run_id, reason, "
         "start_date, end_date, charged_days, full_name, national_id, phone, address, position, "
         "department_id, branch_id, hire_date, basic_salary, daily_hours, fingerprint_id, effective_date, request_date, payroll_month, coverage_confirmed. "
-        "أعد أيضًا summary بالعربية قصيرة. "
-        f"الأمر: {question}\nالبيانات المحلية: {json.dumps(context, ensure_ascii=False)}"
+        + _SUMMARY_INSTRUCTIONS.get(language, _SUMMARY_INSTRUCTIONS["ar"])
+        + f"الأمر: {question}\nالبيانات المحلية: {json.dumps(context, ensure_ascii=False)}"
     )
     from app.ai_assistant import _post_json
     response = _post_json(
@@ -175,15 +206,25 @@ def _json_plan(question: str, context: dict[str, Any]) -> dict[str, Any]:
     try:
         plan = json.loads(raw)
     except json.JSONDecodeError as exc:
-        raise ValueError("النموذج المحلي لم يُرجع أمرًا بصيغة JSON صحيحة.") from exc
+        raise ValueError(_msg(
+            language,
+            "النموذج المحلي لم يُرجع أمرًا بصيغة JSON صحيحة.",
+            "The local model did not return a valid JSON command.",
+            "本地模型未返回有效的 JSON 指令。",
+        )) from exc
     if not isinstance(plan, dict) or plan.get("action") not in ALLOWED_ACTIONS:
-        raise ValueError("الأمر المطلوب غير مسموح به في المساعد.")
+        raise ValueError(_msg(
+            language,
+            "الأمر المطلوب غير مسموح به في المساعد.",
+            "The requested command is not allowed in the assistant.",
+            "助手不允许该请求指令。",
+        ))
     return plan
 
 
-def build_plan(question: str) -> dict[str, Any]:
+def build_plan(question: str, language: str = "ar") -> dict[str, Any]:
     with SessionLocal() as db:
-        return _json_plan(question, _plan_context(db))
+        return _json_plan(question, _plan_context(db), language=language)
 
 
 def execute_plan(plan: dict[str, Any], actor: str) -> str:

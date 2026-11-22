@@ -772,3 +772,5 @@ html[dir="ltr"] textarea {
 [dir="ltr"] .ai-msg-user { align-self: flex-end; }
 [dir="ltr"] .ai-msg-assistant { align-self: flex-start; }
 .ai-msg-role { display: block; font-size: 0.75rem; opacity: 0.65; margin-bottom: 4px; }
+.ai-msg-lang { display: block; font-size: 0.7rem; opacity: 0.55; font-style: italic; margin-bottom: 2px; }
+.ai-msg-text { display: block; white-space: pre-wrap; }

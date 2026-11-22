@@ -13,7 +13,7 @@ from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 
 from app.ai_agent import build_plan, execute_plan
 from app.db import SessionLocal
@@ -289,16 +289,39 @@ def _as_utc(value: datetime) -> datetime:
     return value.astimezone(timezone.utc)
 
 
-def _memory(actor: str, role: str, content: str) -> None:
+def _msg(language: str, ar: str, en: str, zh: str) -> str:
+    return {"ar": ar, "en": en, "zh": zh}.get(language, ar)
+
+
+# Per-actor history is capped so the table stays small on a light device.
+_MEMORY_KEEP = 200
+
+
+def _memory(actor: str, role: str, content: str, language: str = "ar") -> None:
     with SessionLocal.begin() as db:
-        db.add(AIConversationMessage(actor=actor, role=role, content=content[:10000]))
+        db.add(AIConversationMessage(
+            actor=actor, role=role, content=content[:10000], language=language,
+        ))
+        db.flush()
+        keep_ids = db.scalars(
+            select(AIConversationMessage.id)
+            .where(AIConversationMessage.actor == actor)
+            .order_by(AIConversationMessage.id.desc())
+            .limit(_MEMORY_KEEP)
+        ).all()
+        db.execute(
+            delete(AIConversationMessage).where(
+                AIConversationMessage.actor == actor,
+                AIConversationMessage.id.not_in(keep_ids),
+            )
+        )
 
 
-def record_exchange(actor: str, question: str, answer: str) -> None:
+def record_exchange(actor: str, question: str, answer: str, language: str = "ar") -> None:
     """Persist an ordinary Q&A exchange so the conversation thread is real,
     not just command history. Stored in the language it was rendered in."""
-    _memory(actor, "user", question)
-    _memory(actor, "assistant", answer)
+    _memory(actor, "user", question, language)
+    _memory(actor, "assistant", answer, language)
 
 
 def recent_memory(actor: str, limit: int = 12) -> list[dict[str, str]]:
@@ -310,22 +333,30 @@ def recent_memory(actor: str, limit: int = 12) -> list[dict[str, str]]:
             .limit(limit)
         ).all()
     rows.reverse()
-    return [{"role": row.role, "content": row.content} for row in rows]
+    return [
+        {"role": row.role, "content": row.content, "language": row.language or "ar"}
+        for row in rows
+    ]
 
 
-def prepare_command(question: str, actor: str) -> dict[str, Any]:
+def prepare_command(question: str, actor: str, language: str = "ar") -> dict[str, Any]:
     history = recent_memory(actor, limit=8)
     history_text = "\n".join(f"{item['role']}: {item['content']}" for item in history)
     planning_question = question
     if history_text:
         planning_question = f"السياق السابق للمحادثة (للفهم فقط):\\n{history_text}\\n\\nالأمر الحالي: {question}"
-    plan = build_plan(planning_question)
+    plan = build_plan(planning_question, language=language)
     preview = build_confirmation_preview(plan)
     plan["_confirmation_snapshot"] = preview["snapshot"]
     token = secrets.token_urlsafe(32)
     now = datetime.now(timezone.utc)
     expires = now + timedelta(minutes=APPROVAL_TTL_MINUTES)
-    summary = str(plan.get("summary") or "تم إعداد خطة للتنفيذ بعد الموافقة.")
+    summary = str(plan.get("summary") or _msg(
+        language,
+        "تم إعداد خطة للتنفيذ بعد الموافقة.",
+        "A plan has been prepared and will run after your approval.",
+        "已准备好计划，将在您批准后执行。",
+    ))
     with SessionLocal.begin() as db:
         db.add(AICommandApproval(
             token_hash=_token_hash(token),
@@ -345,8 +376,13 @@ def prepare_command(question: str, actor: str) -> dict[str, Any]:
             new_value=f"action={plan.get('action')}; plan_hash={plan_hash(plan)}",
             reason=question,
         ))
-    _memory(actor, "user", question)
-    _memory(actor, "assistant", f"خطة معلقة تحتاج موافقة: {summary}")
+    _memory(actor, "user", question, language)
+    _memory(actor, "assistant", _msg(
+        language,
+        "خطة معلقة تحتاج موافقة: ",
+        "Pending plan awaiting your approval: ",
+        "待批准的计划，等待您确认：",
+    ) + summary, language)
     return {
         "token": token,
         "plan": {key: value for key, value in plan.items() if key != "_confirmation_snapshot"},
@@ -358,7 +394,12 @@ def prepare_command(question: str, actor: str) -> dict[str, Any]:
     }
 
 
-def reject_command(token: str, actor: str, reason: str = "رفض المسؤول العملية.") -> str:
+def reject_command(
+    token: str,
+    actor: str,
+    reason: str = "رفض المسؤول العملية.",
+    language: str = "ar",
+) -> str:
     now = datetime.now(timezone.utc)
     expired = False
     with SessionLocal.begin() as db:
@@ -368,9 +409,15 @@ def reject_command(token: str, actor: str, reason: str = "رفض المسؤول 
             .with_for_update()
         )
         if approval is None or approval.actor != actor:
-            raise ValueError("طلب الموافقة غير موجود.")
+            raise ValueError(_msg(
+                language, "طلب الموافقة غير موجود.",
+                "Approval request not found.", "未找到该批准请求。",
+            ))
         if approval.status != "pending":
-            raise ValueError("هذا الطلب لم يعد قابلًا للرفض.")
+            raise ValueError(_msg(
+                language, "هذا الطلب لم يعد قابلًا للرفض.",
+                "This request can no longer be rejected.", "该请求已无法拒绝。",
+            ))
         if _as_utc(approval.expires_at) <= now:
             approval.status = "expired"
             expired = True
@@ -387,12 +434,25 @@ def reject_command(token: str, actor: str, reason: str = "رفض المسؤول 
             ))
     # Raise only after the transaction commits, or the terminal state would roll back.
     if expired:
-        raise ValueError("انتهت صلاحية طلب الموافقة.")
-    _memory(actor, "assistant", "تم رفض العملية ولم يتم تغيير بيانات النظام.")
-    return "تم رفض العملية. لم يتم تغيير أي بيانات."
+        raise ValueError(_msg(
+            language, "انتهت صلاحية طلب الموافقة.",
+            "The approval request has expired.", "批准请求已过期。",
+        ))
+    _memory(actor, "assistant", _msg(
+        language,
+        "تم رفض العملية ولم يتم تغيير بيانات النظام.",
+        "The operation was rejected; system data was not changed.",
+        "操作已拒绝，系统数据未更改。",
+    ), language)
+    return _msg(
+        language,
+        "تم رفض العملية. لم يتم تغيير أي بيانات.",
+        "The operation was rejected. No data was changed.",
+        "操作已拒绝，未更改任何数据。",
+    )
 
 
-def approve_command(token: str, actor: str) -> str:
+def approve_command(token: str, actor: str, language: str = "ar") -> str:
     now = datetime.now(timezone.utc)
     plan: dict[str, Any] | None = None
     terminal_error: str | None = None
@@ -403,16 +463,27 @@ def approve_command(token: str, actor: str) -> str:
             .with_for_update()
         )
         if approval is None or approval.actor != actor:
-            raise ValueError("طلب الموافقة غير موجود.")
+            raise ValueError(_msg(
+                language, "طلب الموافقة غير موجود.",
+                "Approval request not found.", "未找到该批准请求。",
+            ))
         if approval.status != "pending":
-            raise ValueError("هذا الطلب سبق التعامل معه ولا يمكن تنفيذه مرة أخرى.")
+            raise ValueError(_msg(
+                language,
+                "هذا الطلب سبق التعامل معه ولا يمكن تنفيذه مرة أخرى.",
+                "This request was already handled and cannot be executed again.",
+                "该请求已处理，无法再次执行。",
+            ))
         if _as_utc(approval.expires_at) <= now:
             approval.status = "expired"
             db.add(AuditLog(
                 actor=actor, action="ai_command_expired", entity_type="ai_command",
                 entity_id=str(approval.id), reason="انتهت صلاحية طلب الموافقة.",
             ))
-            terminal_error = "انتهت صلاحية طلب الموافقة."
+            terminal_error = _msg(
+                language, "انتهت صلاحية طلب الموافقة.",
+                "The approval request has expired.", "批准请求已过期。",
+            )
         else:
             try:
                 candidate = json.loads(approval.plan_json)
@@ -429,7 +500,12 @@ def approve_command(token: str, actor: str) -> str:
                     entity_id=str(approval.id),
                     reason="خطة التنفيذ المخزنة غير صالحة أو لم تعد مطابقة للخطة المعروضة.",
                 ))
-                terminal_error = "خطة التنفيذ لم تعد مطابقة للخطة التي تم عرضها."
+                terminal_error = _msg(
+                    language,
+                    "خطة التنفيذ لم تعد مطابقة للخطة التي تم عرضها.",
+                    "The stored plan no longer matches the one that was shown.",
+                    "存储的执行计划与已展示的计划不一致。",
+                )
             else:
                 expected_snapshot = candidate.get("_confirmation_snapshot")
                 try:
@@ -445,7 +521,12 @@ def approve_command(token: str, actor: str) -> str:
                         entity_id=str(approval.id),
                         reason="تغيرت بيانات السجل بعد عرض المعاينة وقبل التأكيد.",
                     ))
-                    terminal_error = "تغيرت بيانات السجل منذ عرض المعاينة. جهّز الأمر مرة أخرى وراجع القيم الجديدة."
+                    terminal_error = _msg(
+                        language,
+                        "تغيرت بيانات السجل منذ عرض المعاينة. جهّز الأمر مرة أخرى وراجع القيم الجديدة.",
+                        "The record changed since the preview was shown. Prepare the command again and review the new values.",
+                        "自预览以来记录已变更。请重新准备指令并核对新值。",
+                    )
                 else:
                     plan = candidate
                     approval.status = "executing"
@@ -459,7 +540,12 @@ def approve_command(token: str, actor: str) -> str:
     if terminal_error is not None:
         raise ValueError(terminal_error)
     if plan is None:
-        raise RuntimeError("لم يتم تجهيز خطة تنفيذ صالحة بعد الموافقة.")
+        raise RuntimeError(_msg(
+            language,
+            "لم يتم تجهيز خطة تنفيذ صالحة بعد الموافقة.",
+            "No valid execution plan was prepared after approval.",
+            "批准后未准备有效的执行计划。",
+        ))
     try:
         message = execute_plan(plan, actor)
     except Exception as exc:
@@ -471,6 +557,7 @@ def approve_command(token: str, actor: str) -> str:
             )
             if approval is not None and approval.status == "executing":
                 approval.status = "failed"
+                # failure_reason stays in the original error language (audit record).
                 approval.failure_reason = str(exc)[:2000]
                 db.add(AuditLog(
                     actor=actor, action="ai_command_failed", entity_type="ai_command",
@@ -484,7 +571,12 @@ def approve_command(token: str, actor: str) -> str:
             .with_for_update()
         )
         if approval is None or approval.status != "executing":
-            raise RuntimeError("حالة الموافقة غير صالحة بعد التنفيذ.")
+            raise RuntimeError(_msg(
+                language,
+                "حالة الموافقة غير صالحة بعد التنفيذ.",
+                "Approval state is invalid after execution.",
+                "执行后批准状态无效。",
+            ))
         approval.status = "consumed"
         approval.consumed_at = datetime.now(timezone.utc)
         db.add(AuditLog(
@@ -492,5 +584,7 @@ def approve_command(token: str, actor: str) -> str:
             entity_id=str(approval.id), new_value=f"plan_hash={approval.plan_hash}",
             reason=message,
         ))
-    _memory(actor, "assistant", message)
+    # Execution result text is generated in Arabic by the workflow layer
+    # (known residual); it is stored labeled as Arabic so the UI can mark it.
+    _memory(actor, "assistant", message, "ar")
     return message

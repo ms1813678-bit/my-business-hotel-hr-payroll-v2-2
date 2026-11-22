@@ -2058,7 +2058,7 @@ def test_ai_pending_confirmation_uses_v22_routes_and_shows_before_after(monkeypa
     monkeypatch.setattr("app.main.is_command_request", lambda question: True)
     monkeypatch.setattr(
         "app.main.prepare_command",
-        lambda question, actor: {
+        lambda question, actor, language="ar": {
             "token": "single-use-test-token",
             "summary": "تحديث تجريبي",
             "plan": {"action": "edit_employee", "employee_id": 7},
@@ -2252,9 +2252,9 @@ def test_ai_qa_exchange_persists_and_loads_once(client, monkeypatch):
         "app.main.recent_memory", lambda actor, limit=12: list(store)
     )
 
-    def fake_record(actor, question, answer):
-        store.append({"role": "user", "content": question})
-        store.append({"role": "assistant", "content": answer})
+    def fake_record(actor, question, answer, language="ar"):
+        store.append({"role": "user", "content": question, "language": language})
+        store.append({"role": "assistant", "content": answer, "language": language})
 
     monkeypatch.setattr("app.main.record_exchange", fake_record)
     assert login(client).status_code == 303
@@ -2279,3 +2279,129 @@ def test_ai_qa_exchange_persists_and_loads_once(client, monkeypatch):
     assert response2.status_code == 200
     assert response2.text.count("ai-msg-user") == 2
     assert response2.text.count("ai-msg-assistant") == 2
+
+
+def _real_gateway_memory(monkeypatch):
+    """Bind the real gateway memory functions to a fresh in-memory DB and
+    point the route's recent_memory at them, so tests see real persistence
+    side effects instead of a stub."""
+    import app.ai_gateway as gateway
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+    from sqlalchemy.pool import StaticPool
+    from app.db import Base
+
+    engine = create_engine(
+        "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
+    )
+    Base.metadata.create_all(engine)
+    factory = sessionmaker(bind=engine, autoflush=False, autocommit=False)
+    monkeypatch.setattr(gateway, "SessionLocal", factory)
+    monkeypatch.setattr(
+        "app.main.recent_memory",
+        lambda actor, limit=12: gateway.recent_memory(actor, limit),
+    )
+    return gateway, engine
+
+
+def test_ai_command_turn_does_not_duplicate_bubbles(client, monkeypatch):
+    """Regression: prepare_command persists the turn; the route must render it
+    once (pre-turn history + live bubbles), not twice."""
+    gateway, engine = _real_gateway_memory(monkeypatch)
+    try:
+        def fake_prepare(question, actor, language="ar"):
+            gateway._memory(actor, "user", question, language)
+            gateway._memory(actor, "assistant", "Pending plan awaiting your approval: plan X", language)
+            from datetime import datetime, timedelta, timezone
+            return {
+                "token": "tok",
+                "plan": {"action": "approve_payroll_run", "payroll_run_id": 3},
+                "summary": "plan X",
+                "old_values": {},
+                "new_values": {},
+                "risks": [],
+                "expires_at": datetime.now(timezone.utc) + timedelta(minutes=10),
+            }
+
+        monkeypatch.setattr("app.main.prepare_command", fake_prepare)
+        assert login(client).status_code == 303
+        client.cookies.set("my_hr_language", "en")
+        page = client.get("/ai")
+        response = client.post(
+            "/ai",
+            data={"question": "Execute: approve payroll run 3.", "csrf_token": csrf_from(page)},
+        )
+        assert response.status_code == 200
+        # persisted turn appears in memory; live question bubble is hidden for
+        # command turns? No: live question+answer bubbles render too, so the
+        # stored turn must have been excluded from `memory` by the pre-turn fetch.
+        assert response.text.count("ai-msg-user") == 1
+        assert response.text.count("ai-msg-assistant") == 1
+        # reload shows the stored turn exactly once
+        page2 = client.get("/ai")
+        assert page2.text.count("ai-msg-user") == 1
+        assert page2.text.count("ai-msg-assistant") == 1
+    finally:
+        engine.dispose()
+
+
+def test_ai_approve_turn_does_not_duplicate_bubbles(client, monkeypatch):
+    """Regression: approve_command persists the result; pre-turn fetch keeps
+    the rendered thread to one copy."""
+    gateway, engine = _real_gateway_memory(monkeypatch)
+    try:
+        def fake_approve(token, actor, language="ar"):
+            message = "تم تنفيذ العملية التجريبية."
+            gateway._memory(actor, "assistant", message, "ar")
+            return message
+
+        monkeypatch.setattr("app.main.approve_command", fake_approve)
+        assert login(client).status_code == 303
+        client.cookies.set("my_hr_language", "en")
+        page = client.get("/ai")
+        response = client.post(
+            "/ai/approve",
+            data={"token": "tok", "csrf_token": csrf_from(page)},
+        )
+        assert response.status_code == 200
+        assert response.text.count("ai-msg-assistant") == 1
+        # execution results are Arabic originals: the EN page marks them
+        assert "Original in Arabic" in response.text
+        page2 = client.get("/ai")
+        assert page2.text.count("ai-msg-assistant") == 1
+        assert "Original in Arabic" in page2.text
+    finally:
+        engine.dispose()
+
+
+def test_ai_history_language_badge_only_on_mismatch(client, monkeypatch):
+    """Stored entries carry their generation language; the UI marks entries
+    whose language differs from the current page instead of rewriting them."""
+    store = [
+        {"role": "user", "content": "سؤال قديم", "language": "ar"},
+        {"role": "assistant", "content": "جواب قديم", "language": "ar"},
+        {"role": "user", "content": "Earlier question", "language": "en"},
+        # exact catalog-collision string: must stay Arabic on every page
+        {"role": "user", "content": "كم عدد الموظفين النشطين؟", "language": "ar"},
+    ]
+    monkeypatch.setattr(
+        "app.main.recent_memory", lambda actor, limit=12: list(store)
+    )
+    assert login(client).status_code == 303
+    client.cookies.set("my_hr_language", "en")
+    en_page = client.get("/ai")
+    assert en_page.text.count("Original in Arabic") == 3
+    # stored Arabic content is never catalog-translated
+    assert "كم عدد الموظفين النشطين؟" in en_page.text
+    # content direction follows the entry's own language
+    assert 'dir="auto" data-no-translate' in en_page.text
+    client.cookies.set("my_hr_language", "zh")
+    zh_page = client.get("/ai")
+    assert zh_page.text.count("原文为阿拉伯语") == 3
+    assert "原文为英语" in zh_page.text
+    client.cookies.set("my_hr_language", "ar")
+    ar_page = client.get("/ai")
+    # Arabic entries get no badge on the Arabic page; the English one does
+    assert "الأصل بالعربية" not in ar_page.text
+    assert ar_page.text.count("الأصل بالإنجليزية") == 1
+    assert "كم عدد الموظفين النشطين؟" in ar_page.text

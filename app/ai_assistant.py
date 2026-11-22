@@ -105,7 +105,7 @@ def ask_local_model(question: str, context: dict[str, Any], language: str = "ar"
     from app.ai_hr_queries import answer_structured_hr_query, is_structured_hr_query
     if is_security_comparison_request(question):
         # Deterministic review report; does not mutate attendance or payroll.
-        return answer_security_roster_comparison(question)
+        return answer_security_roster_comparison(question, language=language)
     if is_structured_hr_query(question):
         return answer_structured_hr_query(question, language=language)
     status = local_model_status(language)
@@ -144,7 +144,7 @@ def local_fallback_answer(question: str, context: dict[str, Any], language: str 
     )
     from app.ai_hr_queries import answer_structured_hr_query, is_structured_hr_query
     if is_security_comparison_request(question):
-        return answer_security_roster_comparison(question)
+        return answer_security_roster_comparison(question, language=language)
     if is_structured_hr_query(question):
         return answer_structured_hr_query(question, language=language)
     q = " ".join(question.casefold().split())

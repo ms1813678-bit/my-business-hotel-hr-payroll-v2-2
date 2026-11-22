@@ -33,6 +33,33 @@ def test_ai_command_requires_explicit_execute_prefix():
     assert wants_execution("نفذ: اعتمد مسير الرواتب رقم 1")
 
 
+def test_ai_command_intent_routing_is_trilingual():
+    """EN/ZH write intents route into the same approval gateway; detection
+    never executes anything by itself."""
+    from app.ai_agent import is_command_request, wants_execution
+
+    # English quick examples
+    assert is_command_request("Execute: approve payroll run 3.")
+    assert wants_execution("Execute: approve payroll run 3.")
+    assert is_command_request("Approve leave request 12 — preview only.")
+    assert not wants_execution("Approve leave request 12 — preview only.")
+    assert is_command_request("Add an installment advance of EGP 3,000 for employee MY-0004 over 6 months.")
+    # Chinese quick examples
+    assert is_command_request("执行：批准工资批次3。")
+    assert wants_execution("执行：批准工资批次3。")
+    assert is_command_request("批准第 12 号休假申请 — 仅预览。")
+    assert not wants_execution("批准第 12 号休假申请 — 仅预览。")
+    assert is_command_request("添加员工 MY-0004 的 3,000 埃镑分期预支，分 6 个月偿还。")
+    # ordinary questions in any language stay on the Q&A path
+    assert not is_command_request("How many active employees are there?")
+    assert not is_command_request("目前有多少名在职员工？")
+    assert not is_command_request("What needs review in attendance this month?")
+    assert not is_command_request("本月考勤有哪些需要复核？")
+    # case-insensitive English, word-boundary matched
+    assert is_command_request("approve payroll run 3")
+    assert not is_command_request("payroll runs overview")
+
+
 def test_ai_command_allowlist_does_not_include_arbitrary_operations():
     from app.ai_agent import ALLOWED_ACTIONS
     assert "approve_payroll_run" in ALLOWED_ACTIONS

@@ -597,6 +597,9 @@ EN = {
 "أمثلة سريعة": "Quick examples",
 "اعتمد الإجازة رقم 12 — للمعاينة فقط.": "Approve leave request 12 — preview only.",
 "أضف سلفة تقسيط للموظف MY-0004 بمبلغ 3000 على 6 أشهر.": "Add an installment advance of EGP 3,000 for employee MY-0004 over 6 months.",
+"الأصل بالعربية": "Original in Arabic",
+"الأصل بالإنجليزية": "Original in English",
+"الأصل بالصينية": "Original in Chinese",
 "مثال: نفذ: اعتمد مسير الرواتب رقم 3": "Example: Execute: approve payroll run number 3",
 "المبلغ": "Amount",
 "تم حفظ مسار النسخ الاحتياطي.": "Backup location saved.",
@@ -1592,7 +1595,10 @@ ZH = {
 "تفاصيل خطة التنفيذ": "执行计划详情",
 "أمثلة سريعة": "快速示例",
 "اعتمد الإجازة رقم 12 — للمعاينة فقط.": "批准第 12 号休假申请 — 仅预览。",
-"أضف سلفة تقسيط للموظف MY-0004 بمبلغ 3000 على 6 أشهر.": "为员工 MY-0004 添加 3,000 埃镑分期预支，分 6 个月偿还。",
+"أضف سلفة تقسيط للموظف MY-0004 بمبلغ 3000 على 6 أشهر.": "添加员工 MY-0004 的 3,000 埃镑分期预支，分 6 个月偿还。",
+"الأصل بالعربية": "原文为阿拉伯语",
+"الأصل بالإنجليزية": "原文为英语",
+"الأصل بالصينية": "原文为中文",
 "مثال: نفذ: اعتمد مسير الرواتب رقم 3": "示例：执行：批准第 3 号工资批次",
 "المبلغ": "金额",
 "ملاحظة:": "备注：",
@@ -2095,7 +2101,11 @@ class _Translator(HTMLParser):
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         raw = self.get_starttag_text()
-        if tag in {"script", "style", "textarea", "pre", "code"}:
+        if tag in {"script", "style", "textarea", "pre", "code"} or any(
+            name.lower() == "data-no-translate" for name, _ in attrs
+        ):
+            # Opt-out for user-entered and stored content: it must render
+            # byte-identical, never catalog-translated.
             self.skip_stack.append(tag)
         if tag == "html":
             lang = "ar" if self.language == "ar" else "en" if self.language == "en" else "zh-CN"
@@ -2118,9 +2128,8 @@ class _Translator(HTMLParser):
 
     def handle_endtag(self, tag: str) -> None:
         self.parts.append(f"</{tag}>")
-        if tag in {"script", "style", "textarea", "pre", "code"} and self.skip_stack:
-            if self.skip_stack[-1] == tag:
-                self.skip_stack.pop()
+        if self.skip_stack and self.skip_stack[-1] == tag:
+            self.skip_stack.pop()
 
     def handle_data(self, data: str) -> None:
         self.parts.append(data if self.skip_stack else escape(_translate_value(data, self.language), quote=False))

@@ -50,3 +50,27 @@ def test_base_layout_uses_no_remote_font_or_script_assets():
     assert "fonts.gstatic.com" not in base
     assert "https://" not in base
     assert "@import url(" not in css
+
+
+def test_data_no_translate_preserves_user_content():
+    """Stored/user text must render byte-identical even when it exactly
+    matches a catalog string; interface labels around it still translate."""
+    from app.i18n import translate_html
+
+    html = (
+        '<div class="ai-msg">'
+        '<span class="ai-msg-role">المساعد</span>'
+        '<span class="ai-msg-text" data-no-translate>كم عدد الموظفين النشطين؟</span>'
+        '</div>'
+    )
+    en = translate_html(html, "en")
+    assert "Assistant" in en  # interface label translated
+    assert "كم عدد الموظفين النشطين؟" in en  # user content untouched
+    assert "How many active employees" not in en
+    # translation resumes after the opted-out element
+    html2 = (
+        '<span data-no-translate>كم عدد الموظفين النشطين؟</span>'
+        '<span>المساعد</span>'
+    )
+    en2 = translate_html(html2, "en")
+    assert "كم عدد الموظفين النشطين؟" in en2 and "Assistant" in en2

@@ -368,56 +368,108 @@ def load_security_fingerprint_comparison(work_date: date) -> dict[str, Any]:
         )
 
 
-def format_security_comparison_report_ar(report: dict[str, Any]) -> str:
-    """Render the comparison report in clear Arabic for the administrator."""
+_TYPE_LABELS = {
+    "absence_despite_assigned_shift": ("غياب رغم وجود وردية", "Absence despite an assigned shift", "已排班但缺勤"),
+    "missing_departure_punch": ("نقص بصمة انصراف", "Missing departure punch", "缺少下班打卡"),
+    "late_arrival": ("تأخر حضور", "Late arrival", "迟到"),
+    "early_departure": ("انصراف مبكر", "Early departure", "早退"),
+    "duplicate_punches": ("بصمات مكررة", "Duplicate punches", "重复打卡"),
+    "unexpected_duration": ("مدة غير متوقعة", "Unexpected duration", "时长异常"),
+    "wrong_shift_association": ("ارتباط وردية غير متوقع", "Unexpected shift association", "班次关联异常"),
+    "punch_on_off_day": ("بصمة في يوم OFF", "Punch on an OFF day", "休息日打卡"),
+}
+
+
+def _msg(language: str, ar: str, en: str, zh: str) -> str:
+    return {"ar": ar, "en": en, "zh": zh}.get(language, ar)
+
+
+def format_security_comparison_report(report: dict[str, Any], language: str = "ar") -> str:
+    """Render the comparison report for the administrator; review-only wording,
+    data values (codes, names, times) stay exactly as recorded."""
     lines = [
-        f"تقرير مقارنة جدول الأمن مع البصمة لتاريخ {report.get('work_date')}.",
+        _msg(
+            language,
+            f"تقرير مقارنة جدول الأمن مع البصمة لتاريخ {report.get('work_date')}.",
+            f"Security roster vs fingerprint comparison report for {report.get('work_date')}.",
+            f"{report.get('work_date')} 安保排班与打卡对比报告。",
+        ),
         report.get("note") or "",
-        (
-            f"الورديات المعتمدة: {report.get('assigned_count', 0)} — "
-            f"المتطابقة: {report.get('matched_count', 0)} — "
-            f"الملاحظات: {report.get('mismatch_count', 0)}."
+        _msg(
+            language,
+            (
+                f"الورديات المعتمدة: {report.get('assigned_count', 0)} — "
+                f"المتطابقة: {report.get('matched_count', 0)} — "
+                f"الملاحظات: {report.get('mismatch_count', 0)}."
+            ),
+            (
+                f"Assigned shifts: {report.get('assigned_count', 0)} — "
+                f"Matched: {report.get('matched_count', 0)} — "
+                f"Findings: {report.get('mismatch_count', 0)}."
+            ),
+            (
+                f"已批准班次：{report.get('assigned_count', 0)} — "
+                f"匹配：{report.get('matched_count', 0)} — "
+                f"异常：{report.get('mismatch_count', 0)}。"
+            ),
         ),
     ]
     mismatches = report.get("mismatches") or []
     if not mismatches:
-        lines.append("لا توجد فروقات ظاهرة في البيانات المتاحة لهذا اليوم.")
+        lines.append(_msg(
+            language,
+            "لا توجد فروقات ظاهرة في البيانات المتاحة لهذا اليوم.",
+            "No visible differences in the available data for this day.",
+            "当日可用数据中未见明显差异。",
+        ))
         return "\n".join(line for line in lines if line)
 
-    type_labels = {
-        "absence_despite_assigned_shift": "غياب رغم وجود وردية",
-        "missing_departure_punch": "نقص بصمة انصراف",
-        "late_arrival": "تأخر حضور",
-        "early_departure": "انصراف مبكر",
-        "duplicate_punches": "بصمات مكررة",
-        "unexpected_duration": "مدة غير متوقعة",
-        "wrong_shift_association": "ارتباط وردية غير متوقع",
-        "punch_on_off_day": "بصمة في يوم OFF",
-    }
-    lines.append("تفاصيل الملاحظات (للمراجعة فقط):")
+    lines.append(_msg(
+        language,
+        "تفاصيل الملاحظات (للمراجعة فقط):",
+        "Findings detail (for review only):",
+        "异常明细（仅供审核）：",
+    ))
     for index, item in enumerate(mismatches, start=1):
-        label = type_labels.get(item.get("mismatch_type"), item.get("mismatch_type"))
+        labels = _TYPE_LABELS.get(item.get("mismatch_type"))
+        label = _msg(language, *labels) if labels else item.get("mismatch_type")
         diff = item.get("difference_minutes")
-        diff_text = f" — الفرق: {diff} دقيقة" if diff is not None else ""
+        diff_text = (
+            _msg(language, f" — الفرق: {diff} دقيقة", f" — difference: {diff} min", f" — 差值：{diff} 分钟")
+            if diff is not None else ""
+        )
         lines.append(
             f"{index}) {item.get('employee_code')} — {item.get('employee_name')} — "
             f"{label}{diff_text}."
         )
         if item.get("scheduled_start") and item.get("scheduled_end"):
             lines.append(
-                f"   الوردية: {item['scheduled_start']} → {item['scheduled_end']}"
+                _msg(language, "   الوردية: ", "   Shift: ", "   班次：")
+                + f"{item['scheduled_start']} → {item['scheduled_end']}"
             )
         punches = item.get("actual_punches") or []
         if punches:
-            lines.append(f"   البصمات: {', '.join(punches)}")
+            lines.append(
+                _msg(language, "   البصمات: ", "   Punches: ", "   打卡：") + ", ".join(punches)
+            )
         if item.get("detail"):
             lines.append(f"   {item['detail']}")
-    lines.append("لم يتم اعتماد أي حضور أو تعديل راتب. راجع الملاحظات ثم قرر يدويًا.")
+    lines.append(_msg(
+        language,
+        "لم يتم اعتماد أي حضور أو تعديل راتب. راجع الملاحظات ثم قرر يدويًا.",
+        "No attendance was approved and no payroll changed. Review the findings, then decide manually.",
+        "未批准任何考勤，也未修改任何工资。请审核异常后手动决定。",
+    ))
     return "\n".join(lines)
 
 
-def answer_security_roster_comparison(question: str) -> str:
+def format_security_comparison_report_ar(report: dict[str, Any]) -> str:
+    """Backward-compatible Arabic rendering (kept for existing callers/tests)."""
+    return format_security_comparison_report(report, language="ar")
+
+
+def answer_security_roster_comparison(question: str, language: str = "ar") -> str:
     """Entry point for the AI assistant analysis path."""
     work_date = parse_work_date_from_question(question)
     report = load_security_fingerprint_comparison(work_date)
-    return format_security_comparison_report_ar(report)
+    return format_security_comparison_report(report, language=language)

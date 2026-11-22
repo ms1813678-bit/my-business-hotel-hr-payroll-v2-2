@@ -15,7 +15,9 @@
 
 ### حدود معروفة
 - إجابات النموذج الحر (خارج الأسئلة المهيكلة) قد تخطئ؛ النص غير المؤكد يُوسم بذلك. الحسابات المالية تأتي دائمًا من محركات النظام الثابتة، لا من النموذج.
-- مقارنة جدول الأمن بالبصمات ما زالت بالعربية فقط حاليًا.
+- المحادثة محفوظة لكل مستخدم على جهازه (بحد أقصى 200 رسالة). كل رسالة تُعرض بلغتها الأصلية كما كُتبت، وتُوسم بلغتها إن اختلفت عن لغة الصفحة.
+- نتائج تنفيذ الأوامر (بعد الموافقة) تُعرض بالعربية حاليًا حتى لو كانت الواجهة بإنجليزية أو صينية؛ تُوسم كذلك في المحادثة.
+- اكتشاف أسئلة مقارنة جدول الأمن بالبصمات يتعرف على الصياغة العربية حاليًا، والتقرير نفسه يُعرض بلغة الواجهة.
 - إن كان النموذج غير متاح، يعمل المساعد بالردود المهيكلة من قاعدة البيانات، والنظام الأساسي لا يتأثر.
 
 ### النموذج والجهاز
@@ -40,7 +42,9 @@ A local AI assistant running **entirely on your machine** via Ollama. Hotel data
 
 ### Known limits
 - Free-form model answers (outside the structured questions) can be wrong; unverified model text is marked. Financial calculations always come from the system's deterministic engines, never from the model.
-- The security-roster/fingerprint comparison is currently Arabic-only.
+- Conversations are stored per user on the local device (capped at 200 messages). Each message renders in the language it was written in and is badged when that differs from the page language.
+- Command execution results (after approval) are still generated in Arabic on English/Chinese pages; they are badged as such in the thread.
+- Security-roster/fingerprint comparison questions are detected in Arabic phrasing for now; the report itself renders in the page language.
 - If the model is unavailable, the assistant still answers the structured questions from the database and the core system is unaffected.
 
 ### Model and hardware
@@ -65,7 +69,9 @@ A local AI assistant running **entirely on your machine** via Ollama. Hotel data
 
 ### 已知限制
 - 结构化问题之外的自由回答可能出错；未经验证的模型文本会标注。财务计算始终来自系统固定引擎，而非模型。
-- 安保排班与指纹对比目前仅支持阿拉伯语。
+- 对话按用户保存在本机（上限 200 条）。每条消息以原文语言显示；与页面语言不同时会标注原文语言。
+- 指令执行结果（批准后）目前仍以阿拉伯语生成；在对话中会标注原文语言。
+- 安保排班与指纹对比的问题目前识别阿拉伯语表述；报告本身以页面语言显示。
 - 模型不可用时，助手仍可用数据库回答结构化问题，核心系统不受影响。
 
 ### 模型与硬件

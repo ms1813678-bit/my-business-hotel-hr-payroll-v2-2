@@ -664,6 +664,7 @@ def ai_page(request: Request, admin: AdminAccount = Depends(get_current_admin)):
             "question": "",
             "answer": None,
             "memory": recent_memory(admin.username),
+            "ui_language": request.state.language,
         },
     )
 
@@ -680,9 +681,14 @@ def ai_ask(
 
     pending = None
     answer = None
+    answer_language = request.state.language
+    # Fetch the thread before the gateway persists this turn, so the template
+    # does not render the current exchange twice (once from memory, once as
+    # the live question/answer bubbles).
+    history = recent_memory(admin.username)
     if is_command_request(question):
         try:
-            result = prepare_command(question, admin.username)
+            result = prepare_command(question, admin.username, language=request.state.language)
             pending = {
                 "token": result["token"],
                 "summary": result["summary"],
@@ -695,6 +701,7 @@ def ai_ask(
             answer = _translate_text("تم إعداد خطة التنفيذ. لن يتم أي تعديل قبل موافقتك الصريحة.", request.state.language)
         except (RuntimeError, ValueError, SQLAlchemyError) as exc:
             answer = _translate_text("لم يتم إعداد العملية", request.state.language) + f": {exc}"
+            answer_language = "ar"  # raw suffix may come from deeper Arabic layers
     else:
         with SessionLocal() as db:
             context = {
@@ -724,9 +731,8 @@ def ai_ask(
             except RuntimeError:
                 answer = local_fallback_answer(question, context, language=request.state.language)
 
-    history = recent_memory(admin.username)
     if answer is not None and pending is None:
-        record_exchange(admin.username, question, answer)
+        record_exchange(admin.username, question, answer, language=answer_language)
     return templates.TemplateResponse(
         request=request,
         name="ai.html",
@@ -737,8 +743,10 @@ def ai_ask(
             "scan": build_smart_scan(request.state.language),
             "question": question,
             "answer": answer,
+            "answer_language": answer_language,
             "pending": pending,
             "memory": history,
+            "ui_language": request.state.language,
         },
     )
 
@@ -749,21 +757,25 @@ def ai_approve(
     token: str = Form(...),
     admin: AdminAccount = Depends(get_current_admin),
 ):
+    history = recent_memory(admin.username)
+    answer_language = "ar"  # execution results are generated in Arabic (known residual)
     try:
-        answer = approve_command(token.strip(), admin.username)
+        answer = approve_command(token.strip(), admin.username, language=request.state.language)
     except (RuntimeError, ValueError, SQLAlchemyError) as exc:
-        answer = f"لم يتم تنفيذ العملية: {exc}"
+        answer = _translate_text("لم يتم تنفيذ العملية", request.state.language) + f": {exc}"
     return templates.TemplateResponse(
         request=request,
         name="ai.html",
         context={
             "admin": admin.username,
             "csrf_token": get_csrf_token(request),
-            "status": local_model_status(),
+            "status": local_model_status(request.state.language),
             "question": "",
             "answer": answer,
+            "answer_language": answer_language,
             "pending": None,
-            "memory": recent_memory(admin.username),
+            "memory": history,
+            "ui_language": request.state.language,
         },
     )
 
@@ -774,21 +786,24 @@ def ai_reject(
     token: str = Form(...),
     admin: AdminAccount = Depends(get_current_admin),
 ):
+    history = recent_memory(admin.username)
     try:
-        answer = reject_command(token.strip(), admin.username)
+        answer = reject_command(token.strip(), admin.username, language=request.state.language)
     except (RuntimeError, ValueError, SQLAlchemyError) as exc:
-        answer = f"لم يتم رفض العملية: {exc}"
+        answer = _translate_text("لم يتم رفض العملية", request.state.language) + f": {exc}"
     return templates.TemplateResponse(
         request=request,
         name="ai.html",
         context={
             "admin": admin.username,
             "csrf_token": get_csrf_token(request),
-            "status": local_model_status(),
+            "status": local_model_status(request.state.language),
             "question": "",
             "answer": answer,
+            "answer_language": request.state.language,
             "pending": None,
-            "memory": recent_memory(admin.username),
+            "memory": history,
+            "ui_language": request.state.language,
         },
     )
 
