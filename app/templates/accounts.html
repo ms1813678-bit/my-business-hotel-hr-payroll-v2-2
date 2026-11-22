@@ -91,6 +91,7 @@
   <h2>الجلسات المفتوحة</h2>
   <p class="muted">كل دخول ناجح يسجَّل هنا ويمكن إنهاؤه فورًا فيسقط حتى لو كان الكوكي ما زال صالحًا. بيانات المتصفح وعنوان IP وصفية من الطلب نفسه وقد لا تكون دقيقة، وليست إثباتًا لهوية جهاز.</p>
   {% if sessions %}
+  <div class="table-scroll">
   <table class="data-table">
     <thead><tr><th>الحساب</th><th>أنشئت</th><th>آخر ظهور</th><th>المتصفح</th><th>عنوان IP</th><th>إجراء</th></tr></thead>
     <tbody>
@@ -111,6 +112,7 @@
       {% endfor %}
     </tbody>
   </table>
+  </div>
   {% else %}
   <p class="muted">لا توجد جلسات مفتوحة.</p>
   {% endif %}

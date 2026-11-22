@@ -1467,15 +1467,18 @@ def _monthly_leave_aggregate(db: Session, start: date, end: date) -> list[dict]:
 
 
 def _payroll_month_summary(db: Session, start: date, end: date) -> dict:
-    """Totals-only payroll summary for one month (summary option, not detail)."""
+    """Totals-only payroll summary for one month (summary option, not detail).
+
+    Source matches the monthly charts: approved/closed runs only. The custom
+    report engine keeps its own semantics; this helper is wrapper-only.
+    """
     from sqlalchemy import select as _select
-    from .models import Employee as _Employee
+    from .models import Employee as _Employee, PayrollRun as _PayrollRun
 
     employee_ids = list(db.scalars(_select(_Employee.id)).all())
 
-    def totals(period_start: date, period_end: date) -> dict:
-        from .models import PayrollRun as _PayrollRun
-        items = list(
+    def items_for(period_start: date, period_end: date):
+        return list(
             db.scalars(
                 _select(PayrollItem)
                 .join(_PayrollRun, PayrollItem.payroll_run_id == _PayrollRun.id)
@@ -1487,6 +1490,8 @@ def _payroll_month_summary(db: Session, start: date, end: date) -> dict:
                 .where(PayrollItem.employee_id.in_(employee_ids))
             ).all()
         )
+
+    def totals(items) -> dict:
         base = sum((i.base_salary for i in items), Decimal(0))
         allowances = sum((_item_earnings(i) - i.base_salary for i in items), Decimal(0))
         deductions = sum((_item_deductions(i, include_advances=False) for i in items), Decimal(0))
@@ -1501,13 +1506,28 @@ def _payroll_month_summary(db: Session, start: date, end: date) -> dict:
             "employees": len({i.employee_id for i in items}),
         }
 
-    current = totals(start, end)
+    def by_department(items) -> list[dict]:
+        buckets: dict[str, dict] = {}
+        for item in items:
+            bucket = buckets.setdefault(
+                item.department_name_snapshot,
+                {"department": item.department_name_snapshot, "net": Decimal(0), "employees": set()},
+            )
+            bucket["net"] += item.net_pay
+            bucket["employees"].add(item.employee_id)
+        return [
+            {"department": b["department"], "net": b["net"], "employees": len(b["employees"])}
+            for b in sorted(buckets.values(), key=lambda row: row["department"])
+        ]
+
+    current_items = items_for(start, end)
     prev_start, prev_end = _previous_period(start, end)
-    previous = totals(prev_start, prev_end)
+    previous_items = items_for(prev_start, prev_end)
     return {
-        "current": current,
-        "previous": previous,
+        "current": totals(current_items),
+        "previous": totals(previous_items),
         "period_label": f"{prev_start.strftime('%d/%m/%Y')} – {prev_end.strftime('%d/%m/%Y')}",
+        "by_department": by_department(current_items),
     }
 
 
@@ -1782,6 +1802,25 @@ def build_monthly_pdf(db: Session, month_start: date, options: set[int], languag
                 ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
             ]))
             story.append(table)
+            if grouped and summary["by_department"]:
+                story.append(Spacer(1, 3 * mm))
+                story.append(Paragraph(cell_(L("التوزيع حسب القسم — صافي المرتبات")), meta_style))
+                dept_rows = [[Paragraph(cell_(L("القسم")), header_style),
+                              Paragraph(cell_(L("صافي المرتبات")), header_style),
+                              Paragraph(cell_(L("عدد الموظفين")), header_style)]]
+                for row in summary["by_department"]:
+                    dept_rows.append([
+                        Paragraph(cell_(row["department"]), cell_style),
+                        Paragraph(cell_(f"{_fmt_number(row['net'])} {L('ج.م')}"), cell_style),
+                        Paragraph(cell_(str(row["employees"])), cell_style),
+                    ])
+                dept_table = LongTable(dept_rows, colWidths=[available_width * 0.4, available_width * 0.3, available_width * 0.2], hAlign="RIGHT")
+                dept_table.setStyle(TableStyle([
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#24415E")),
+                    ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#AAB4BE")),
+                    ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ]))
+                story.append(dept_table)
             if show_compare:
                 story.append(Paragraph(cell_(f"{L('الفترة السابقة:')} {summary['period_label']}"), meta_style))
             elif compare:

@@ -318,3 +318,21 @@ def test_leave_aggregate_totals_only(db_session):
 def test_monthly_pdf_assistant_aggregate_leave_builds(db_session):
     content = build_monthly_pdf(db_session, date(2026, 10, 1), {7}, aggregate_leave=True)
     assert content.startswith(b"%PDF")
+
+
+def test_summary_grouping_modifier_adds_department_breakdown(db_session):
+    from app.report_builder import _payroll_month_summary
+    summary = _payroll_month_summary(db_session, date(2026, 10, 1), date(2026, 10, 31))
+    departments = {row["department"]: row for row in summary["by_department"]}
+    assert float(departments["قسم أ"]["net"]) == 5000.0
+    assert float(departments["قسم ب"]["net"]) == 7000.0
+    assert departments["قسم أ"]["employees"] == 1
+    content = build_monthly_pdf(db_session, date(2026, 10, 1), {1, 11})
+    assert content.startswith(b"%PDF")
+
+
+def test_previous_period_custom_range_unchanged(db_session):
+    from app.report_builder import _previous_period
+    # Non-calendar-month selections keep the original equal-length shift.
+    assert _previous_period(date(2026, 10, 5), date(2026, 10, 19)) == (date(2026, 9, 20), date(2026, 10, 4))
+    assert _previous_period(date(2026, 10, 1), date(2026, 10, 31)) == (date(2026, 9, 1), date(2026, 9, 30))

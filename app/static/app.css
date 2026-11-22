@@ -478,6 +478,11 @@ textarea { resize: vertical; min-height: 88px; }
 .inline-form label { margin: 0; }
 .inline-form input, .inline-form select { width: auto; min-width: 160px; }
 
+.table-scroll {
+  overflow-x: auto; max-width: 100%; -webkit-overflow-scrolling: touch;
+}
+.table-scroll .data-table { min-width: 100%; }
+
 .table-wrap {
   overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface);
 }
