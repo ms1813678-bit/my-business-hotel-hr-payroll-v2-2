@@ -61,7 +61,7 @@ a:hover { text-decoration: underline; }
 
 .app-layout {
   display: grid;
-  grid-template-columns: var(--sidebar-w) 1fr;
+  grid-template-columns: var(--sidebar-w) minmax(0, 1fr);
   min-height: 100vh;
 }
 
@@ -481,6 +481,9 @@ textarea { resize: vertical; min-height: 88px; }
 .table-wrap {
   overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface);
 }
+/* Wide data tables (advances): let headers wrap and keep the employee column readable */
+.wide-table thead th { white-space: normal; }
+.wide-table td:first-child, .wide-table th:first-child { min-width: 150px; }
 table { width: 100%; border-collapse: collapse; font-size: 14px; }
 thead th {
   background: var(--surface-2); text-align: start; padding: 12px 14px;
@@ -581,7 +584,7 @@ code, .code-ltr {
 @media (max-width: 1100px) {
   .metric-grid, .action-grid, .module-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .employee-grid { grid-template-columns: 1fr; }
-  .app-layout { grid-template-columns: 1fr; }
+  .app-layout { grid-template-columns: minmax(0, 1fr); }
   .sidebar { position: relative; height: auto; }
 }
 @media (max-width: 700px) {

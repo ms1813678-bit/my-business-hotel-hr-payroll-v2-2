@@ -388,7 +388,11 @@ async def authentication_exception_handler(request: Request, exc: HTTPException)
     if exc.status_code == 401 and request.method in {"GET", "HEAD"} and wants_html:
         return RedirectResponse("/login", status_code=303)
     from fastapi.responses import JSONResponse
-    return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail}, headers=exc.headers)
+    detail = exc.detail
+    if isinstance(detail, str):
+        from app.i18n import translate_text
+        detail = translate_text(detail, getattr(request.state, "language", "ar"))
+    return JSONResponse(status_code=exc.status_code, content={"detail": detail}, headers=exc.headers)
 
 
 @app.get("/health")
