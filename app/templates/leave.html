@@ -4,7 +4,7 @@
 {% block content %}
   <header class="topbar">
     <div><p class="eyebrow">M.Y. BUSINESS HOTEL</p><h1>إدارة الإجازات والأرصدة</h1>
-      <p class="muted">إدارة الإجازات · مسؤول الموارد البشرية فقط</p></div>
+      <p class="muted">إدارة الإجازات والأرصدة{% if request.state.admin_role == 'finance' %} · اطلاع فقط{% endif %}</p></div>
     <nav><a href="/">الرئيسية</a> · <a href="/employees">الموظفون</a></nav>
   </header>
 
