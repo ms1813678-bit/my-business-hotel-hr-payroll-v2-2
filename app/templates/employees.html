@@ -221,9 +221,6 @@
   <div class="section-heading" style="margin-top:0">
     <div><span class="section-kicker">مراجعة</span><h2>طلبات تصحيح البيانات الشخصية</h2></div>
   </div>
-  {% if data_change_total > data_change_requests|length %}
-  <p class="muted"><span>يُعرض أحدث</span> {{ data_change_requests|length }} <span>طلبًا من إجمالي</span> {{ data_change_total }}.</p>
-  {% endif %}
   {% for r in data_change_requests %}
   <article class="employee-card request-card">
     <div class="employee-title-row">
@@ -250,6 +247,13 @@
   {% else %}
   <p class="muted">لا توجد طلبات تصحيح بيانات.</p>
   {% endfor %}
+  {% if req_pages > 1 %}
+  <nav class="pagination" style="display:flex; gap:0.75rem; align-items:center; justify-content:center; margin-top:1rem">
+    {% if req_page > 1 %}<a class="button-link" href="{{ req_page_url(req_page - 1) }}">السابق</a>{% endif %}
+    <span class="muted"><span>صفحة</span> <span>{{ req_page }}</span> <span>من</span> <span>{{ req_pages }}</span></span>
+    {% if req_page < req_pages %}<a class="button-link" href="{{ req_page_url(req_page + 1) }}">التالي</a>{% endif %}
+  </nav>
+  {% endif %}
 </section>
 
 <section class="notice">

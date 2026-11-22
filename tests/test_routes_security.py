@@ -2059,7 +2059,7 @@ def test_employees_list_search_filters_and_pagination(client, monkeypatch):
 
 
 def test_employees_page_bounds_change_and_correction_records(client, monkeypatch):
-    """The page never loads the full change history or correction-request table."""
+    """Change history is scoped to visible cards; correction requests paginate fully."""
     import app.main as main_module
     from app.models import EmployeeChange, EmployeeDataChangeRequest
 
@@ -2082,25 +2082,36 @@ def test_employees_page_bounds_change_and_correction_records(client, monkeypatch
         # loaded at all; one for a visible employee must still render.
         db.add(EmployeeChange(employee_id=other.id, field_name="phone", old_value="1", new_value="2", reason="offpage", effective_date=date(2025, 2, 1)))
         db.add(EmployeeChange(employee_id=visible.id, field_name="phone", old_value="3", new_value="4", reason="visible-reason", effective_date=date(2025, 2, 2)))
-        # Older than the cap, then newer: only the newest may be shown.
-        db.add(EmployeeDataChangeRequest(employee_id=visible.id, field_name="address", requested_value="old requested value", request_reason="r1", recorded_at=datetime(2025, 2, 1)))
-        db.add(EmployeeDataChangeRequest(employee_id=visible.id, field_name="phone", requested_value="newest requested value", request_reason="r2", recorded_at=datetime(2025, 2, 2)))
+        db.add(EmployeeDataChangeRequest(employee_id=visible.id, field_name="address", requested_value="oldest requested value", request_reason="r1", recorded_at=datetime(2025, 2, 1)))
+        db.add(EmployeeDataChangeRequest(employee_id=visible.id, field_name="phone", requested_value="middle requested value", request_reason="r2", recorded_at=datetime(2025, 2, 2)))
+        db.add(EmployeeDataChangeRequest(employee_id=visible.id, field_name="phone", requested_value="newest requested value", request_reason="r3", recorded_at=datetime(2025, 2, 3)))
         db.commit()
 
+    monkeypatch.setattr(main_module, "DATA_CHANGE_REQUESTS_PER_PAGE", 2)
+    first = client.get("/employees", params={"q": "EMP-201"})
+    assert first.status_code == 200
+    assert "visible-reason" in first.text
+    assert "offpage" not in first.text
+    assert "newest requested value" in first.text
+    assert "middle requested value" in first.text
+    assert "oldest requested value" not in first.text
+    # Every request stays reachable: the pager links to the next requests page
+    # and preserves the active employee filters.
+    assert "req_page=2" in first.text and "q=EMP-201" in first.text
+
+    second = client.get("/employees", params={"q": "EMP-201", "req_page": 2})
+    assert "oldest requested value" in second.text
+    assert "newest requested value" not in second.text
+    assert "req_page=1" in second.text
+
+    # The employee-card pager keeps the requests page in its links.
     monkeypatch.setattr(main_module, "EMPLOYEES_PER_PAGE", 1)
-    monkeypatch.setattr(main_module, "DATA_CHANGE_REQUESTS_SHOWN", 1)
-    page = client.get("/employees", params={"q": "EMP-201"})
-    assert page.status_code == 200
-    assert "visible-reason" in page.text
-    assert "offpage" not in page.text
-    assert "newest requested value" in page.text
-    assert "old requested value" not in page.text
-    # The truncation note tells the reviewer the list is capped, not complete.
-    assert "يُعرض أحدث" in page.text
+    cards = client.get("/employees", params={"req_page": 2})
+    assert "req_page=2" in cards.text
 
     client.cookies.set("my_hr_language", "en")
     en_page = client.get("/employees", params={"q": "EMP-201"})
-    assert "Showing latest" in en_page.text and "requests out of" in en_page.text
+    assert "Next" in en_page.text
     client.cookies.set("my_hr_language", "zh")
     zh_page = client.get("/employees", params={"q": "EMP-201"})
-    assert "显示最近" in zh_page.text
+    assert "下一页" in zh_page.text

@@ -2796,8 +2796,9 @@ def restore_backup_route(
 
 
 EMPLOYEES_PER_PAGE = 24
-# Bound the correction-request review list so the page never loads the full history.
-DATA_CHANGE_REQUESTS_SHOWN = 100
+# Paginate the correction-request review list so the page never loads the full
+# history while every request stays reachable.
+DATA_CHANGE_REQUESTS_PER_PAGE = 20
 
 
 @app.get("/employees", response_class=HTMLResponse)
@@ -2808,6 +2809,7 @@ def employees_page(
     branch_id: int = 0,
     status: str = "",
     page: int = 1,
+    req_page: int = 1,
     admin: AdminAccount = Depends(get_current_admin),
 ):
     with SessionLocal() as db:
@@ -2848,19 +2850,30 @@ def employees_page(
             .order_by(EmployeeChange.effective_date.desc(), EmployeeChange.id.desc())
         ).all()
         data_change_total = db.scalar(select(func.count()).select_from(EmployeeDataChangeRequest)) or 0
+        req_pages = max(1, math.ceil(data_change_total / DATA_CHANGE_REQUESTS_PER_PAGE))
+        req_page = min(max(1, req_page), req_pages)
         data_change_requests = db.scalars(
             select(EmployeeDataChangeRequest)
             .order_by(EmployeeDataChangeRequest.recorded_at.desc())
-            .limit(DATA_CHANGE_REQUESTS_SHOWN)
+            .offset((req_page - 1) * DATA_CHANGE_REQUESTS_PER_PAGE)
+            .limit(DATA_CHANGE_REQUESTS_PER_PAGE)
         ).all()
 
         def page_url(target: int) -> str:
             params = {"q": query, "department_id": department_id, "branch_id": branch_id, "status": status, "page": target}
+            if req_page > 1:
+                params["req_page"] = req_page
+            return "/employees?" + urlencode({k: v for k, v in params.items() if v not in ("", 0)})
+
+        def req_page_url(target: int) -> str:
+            params = {"q": query, "department_id": department_id, "branch_id": branch_id, "status": status, "req_page": target}
+            if page > 1:
+                params["page"] = page
             return "/employees?" + urlencode({k: v for k, v in params.items() if v not in ("", 0)})
 
         return templates.TemplateResponse(
             request=request, name="employees.html",
-            context={"departments": departments, "branches": branches, "all_departments": all_departments, "all_branches": all_branches, "employee_changes": employee_changes, "data_change_requests": data_change_requests, "employees": employees, "csrf_token": get_csrf_token(request), "q": query, "filter_department_id": department_id, "filter_branch_id": branch_id, "filter_status": status, "filters_active": bool(query or department_id or branch_id or status), "page": page, "pages": pages, "total": total, "page_url": page_url, "data_change_total": data_change_total},
+            context={"departments": departments, "branches": branches, "all_departments": all_departments, "all_branches": all_branches, "employee_changes": employee_changes, "data_change_requests": data_change_requests, "employees": employees, "csrf_token": get_csrf_token(request), "q": query, "filter_department_id": department_id, "filter_branch_id": branch_id, "filter_status": status, "filters_active": bool(query or department_id or branch_id or status), "page": page, "pages": pages, "total": total, "page_url": page_url, "req_page": req_page, "req_pages": req_pages, "req_page_url": req_page_url},
         )
 
 
