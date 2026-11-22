@@ -288,3 +288,82 @@ def test_scoped_count_never_treated_as_unknown_employee_name(seeded):
     answer = queries.answer_structured_hr_query("كام موظف اتأخر النهارده؟", language="ar")
     assert "لم يتم العثور على الموظف المحدد" not in answer
     assert "تحليل حضور" in answer
+def test_department_name_scopes_count_without_literal_marker(seeded):
+    answer = queries.answer_structured_hr_query("كام موظف في الاستقبال؟", language="ar")
+    assert "قسم الاستقبال" in answer
+    assert ": 3" in answer
+    assert "إجمالي المسجلين" not in answer
+
+
+def test_en_not_active_count_answers_inactive(seeded):
+    answer = queries.answer_structured_hr_query("how many employees are not active?", language="en")
+    assert "Inactive employees" in answer
+    assert ": 0" in answer
+    assert "Active employees right now: 3" not in answer
+
+
+def test_zh_inactive_count_variant(seeded):
+    answer = queries.answer_structured_hr_query("多少员工不在职？", language="zh")
+    assert "非在职" in answer
+    assert "0" in answer
+
+
+def test_combined_inactive_department_count_keeps_both_scopes(seeded):
+    answer = queries.answer_structured_hr_query("كام موظف غير نشط في قسم الاستقبال؟", language="ar")
+    assert "غير النشطين في قسم الاستقبال" in answer
+    assert "عدد الموظفين النشطين في قسم" not in answer
+    answer_en = queries.answer_structured_hr_query(
+        "how many inactive employees in الاستقبال?", language="en")
+    assert "Inactive employees in the الاستقبال department" in answer_en
+
+
+def test_relative_dated_count_is_declined(seeded):
+    for question in (
+        "how many employees worked yesterday?",
+        "كام موظف كان شغال امبارح؟",
+        "多少员工昨天在职？",
+        "كام موظف كان شغال بتاريخ 2020-01-15؟",
+    ):
+        assert not queries.is_employee_count_request(question)
+        assert not queries.is_structured_hr_query(question)
+
+
+def test_fallback_dated_count_states_explicit_uncertainty():
+    from app.ai_assistant import local_fallback_answer
+    for question, lang in (
+        ("how many employees did we have on 2020-01-01?", "en"),
+        ("كم عدد الموظفين بتاريخ 2020-01-15؟", "ar"),
+        ("2020年1月1日我们有多少员工？", "zh"),
+    ):
+        answer = local_fallback_answer(question, {"metrics": {"active_employees": 3}}, language=lang)
+        assert "3" not in answer.replace("2020", "").replace("01", "").replace("15", "")
+        assert {"ar": "لا أستطيع", "en": "cannot determine", "zh": "无法"}[lang] in answer
+
+
+def test_unknown_named_target_in_analysis_is_not_found(seeded):
+    answer = queries.answer_structured_hr_query("حلل حضور الموظف زيد النهارده", language="ar")
+    assert "لم يتم العثور على الموظف المحدد" in answer
+    assert "MY-0001" not in answer
+
+
+def test_zh_want_to_view_balance_is_a_read_not_a_guide(seeded):
+    question = "我想查看MY-0001的请假余额"
+    assert not is_usage_guide_request(question) or queries.is_leave_balance_request(question)
+    answer = queries.answer_structured_hr_query(question, language="zh")
+    assert "添加请假" not in answer  # not the create-leave guide
+
+
+def test_late_count_answered_when_clock_data_exists(seeded):
+    from datetime import datetime
+    with seeded.begin() as db:
+        row = db.scalars(select(AttendanceDailyRecord)).one()
+        row.scheduled_start_at = datetime(2026, 1, 1, 9, 0, 0)
+        row.first_clock_in = datetime(2026, 1, 1, 9, 30, 0)
+        db.commit()
+    answer = queries.answer_structured_hr_query("كام موظف اتأخر النهارده؟", language="ar")
+    assert "المتأخرون عن موعد بداية الوردية: 1." in answer
+
+
+def test_late_count_declines_explicitly_without_clock_data(seeded):
+    answer = queries.answer_structured_hr_query("كام موظف اتأخر النهارده؟", language="ar")
+    assert "لا يمكن تحديد عدد المتأخرين" in answer

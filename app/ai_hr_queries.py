@@ -232,8 +232,14 @@ def is_employee_count_request(question: str) -> bool:
         return False
     # A historical or dated count is a different question (we only know the
     # current register); decline instead of answering with today's numbers.
-    if re.search(r"\b(19|20)\d{2}\b", q) or any(
-        term in q for term in ("السنة اللي فاتت", "السنة الماضية", "last year", "في 20", "去年", "去年")
+    if re.search(r"(19|20)\d{2}", q) or any(
+        term in q for term in (
+            "السنة اللي فاتت", "السنة الماضية", "last year", "في 20", "去年",
+            "امبارح", "أمس", "امس", "yesterday", "昨天", "昨日",
+            "بكرة", "بكره", "غدا", "غدًا", "tomorrow", "明天",
+            "الشهر الماضي", "الشهر اللي فات", "last month", "上个月", "上月",
+            "الأسبوع الماضي", "الاسبوع الماضي", "last week", "上周",
+        )
     ):
         return False
     # A count question qualified by a domain (late today, on leave, with an
@@ -242,9 +248,9 @@ def is_employee_count_request(question: str) -> bool:
 
 
 _INACTIVE_TERMS = (
-    "غير نشط", "مش نشط", "موقوف", "ساب الشغل", "ترك العمل", "انتهت خدمته",
-    "inactive", "terminated", "former", "left",
-    "离职", "已离职",
+    "غير نشط", "غير فعال", "مش نشط", "موقوف", "ساب الشغل", "ترك العمل", "انتهت خدمته",
+    "inactive", "not active", "non-active", "terminated", "former",
+    "离职", "已离职", "不在职", "非在职", "不在岗",
 )
 
 _DEPARTMENT_TERMS = ("قسم", "department", "部门")
@@ -257,14 +263,27 @@ def build_employee_count_report(question: str = "") -> dict[str, Any]:
         active = db.scalar(base.where(Employee.status == "active")) or 0
         total = db.scalar(select(func.count(Employee.id))) or 0
         inactive = total - int(active)
-        if any(term in q for term in _DEPARTMENT_TERMS):
-            departments = db.scalars(
-                select(Department).where(Department.active.is_(True))
-            ).all()
-            matched = [d for d in departments if d.name and d.name.casefold() in q]
-            if not matched:
-                return {"scope": "department_unknown"}
+        departments = db.scalars(
+            select(Department).where(Department.active.is_(True))
+        ).all()
+        # A registered department name scopes the count even without the
+        # literal word "قسم/department/部门"; the marker without a match is
+        # an honest decline, never a substituted global number.
+        matched = [d for d in departments if d.name and d.name.casefold() in q]
+        wants_inactive = any(term in q for term in _INACTIVE_TERMS)
+        if matched:
             department = matched[0]
+            if wants_inactive:
+                dept_inactive = db.scalar(
+                    select(func.count(Employee.id)).where(
+                        Employee.status != "active",
+                        Employee.department_id == department.id,
+                    )
+                ) or 0
+                return {
+                    "scope": "department_inactive", "department": department.name,
+                    "inactive": int(dept_inactive),
+                }
             dept_active = db.scalar(
                 select(func.count(Employee.id)).where(
                     Employee.status == "active",
@@ -275,7 +294,9 @@ def build_employee_count_report(question: str = "") -> dict[str, Any]:
                 "scope": "department", "department": department.name,
                 "active": int(dept_active),
             }
-    if any(term in q for term in _INACTIVE_TERMS):
+        if any(term in q for term in _DEPARTMENT_TERMS):
+            return {"scope": "department_unknown"}
+    if wants_inactive:
         return {"scope": "inactive", "inactive": int(inactive), "total": int(total)}
     return {"scope": "all", "active": int(active), "total": int(total)}
 
@@ -288,6 +309,13 @@ def format_employee_count_report(report: dict[str, Any], language: str = "ar") -
             "لم أتعرّف على القسم المطلوب بالاسم في سؤالك؛ الأقسام المسجلة تظهر في صفحة الموظفين.",
             "I could not recognize the department named in your question; the registered departments are listed on the Employees page.",
             "无法识别您问题中的部门名称；已登记的部门请在员工页面查看。",
+        )
+    if scope == "department_inactive":
+        return _msg(
+            language,
+            f"الموظفون غير النشطين في قسم {report['department']} حاليًا: {report['inactive']}.",
+            f"Inactive employees in the {report['department']} department right now: {report['inactive']}.",
+            f"{report['department']} 部门当前非在职员工数：{report['inactive']}。",
         )
     if scope == "department":
         return _msg(
@@ -548,12 +576,39 @@ def build_attendance_analysis(*, work_date: date | None, month_start: date | Non
                 }
             query = query.where(AttendanceDailyRecord.employee_id.in_(
                 [employee.id for employee in employees]))
+        elif question and re.search(
+            r"(?:للموظف|الموظف|للحارس|الحارس)\s+\S", question.casefold()
+        ):
+            # A definite named target ("الموظف فلان") that matches nobody is
+            # answered with not-found, never the whole register.
+            employees = _find_employees(db, question)
+            if not employees:
+                return {
+                    "period": period_label,
+                    "day_mode": work_date is not None,
+                    "reviewed_rows": 0,
+                    "flagged_rows": 0,
+                    "items": [],
+                    "note": "note_employee_not_found",
+                }
+            query = query.where(AttendanceDailyRecord.employee_id.in_(
+                [employee.id for employee in employees]))
         elif question and _employee_filter_requested(question):
             employees = _find_employees(db, question)
             if employees:
                 query = query.where(AttendanceDailyRecord.employee_id.in_(
                     [employee.id for employee in employees]))
         rows = db.execute(query.order_by(AttendanceDailyRecord.work_date, Employee.code)).all()
+        late_count = 0
+        late_determinable = False
+        if work_date is not None:
+            for record, _employee in rows:
+                start = record.scheduled_start_at
+                clock = record.approved_clock_in or record.first_clock_in
+                if start and clock:
+                    late_determinable = True
+                    if clock > start:
+                        late_count += 1
         items: list[dict[str, Any]] = []
         for record, employee in rows:
             flags = _classify_attendance_row(record)
@@ -575,6 +630,8 @@ def build_attendance_analysis(*, work_date: date | None, month_start: date | Non
             "flagged_rows": len(items),
             "items": items,
             "note": "note_readonly_attendance",
+            "late_count": late_count,
+            "late_determinable": late_determinable,
         }
 
 
@@ -602,6 +659,16 @@ def format_attendance_analysis(report: dict[str, Any], language: str = "ar") -> 
             "التغطية: التحليل يشمل السجلات المدخلة لهذا اليوم فقط؛ لا يمكن الجزم بغياب من لا سجل له — قد يكون غير مسجل أصلًا.",
             "Coverage: this analysis reads only the records entered for this day; it cannot determine whether someone with no record was absent or simply not entered.",
             "覆盖范围：此分析仅读取当日已录入的记录；无法判断没有记录的人是缺勤还是尚未录入。"))
+        if report.get("late_determinable"):
+            lines.append(_msg(language,
+                f"المتأخرون عن موعد بداية الوردية: {report['late_count']}.",
+                f"Late after scheduled shift start: {report['late_count']}.",
+                f"晚于排班开始时间到岗：{report['late_count']} 人。"))
+        else:
+            lines.append(_msg(language,
+                "لا يمكن تحديد عدد المتأخرين: لا توجد بصمات ومواعيد كافية في سجلات هذا اليوم.",
+                "The late count cannot be determined: not enough clock-ins and schedules in this day's records.",
+                "无法确定迟到人数：当日记录中缺少足够的打卡和排班数据。"))
     if not report["items"]:
         lines.append(_msg(language,
             "لا توجد ملاحظات ظاهرة في السجلات المتاحة لهذه الفترة.",
@@ -849,7 +916,13 @@ def answer_structured_hr_query(question: str, language: str = "ar") -> str:
 
         return format_weekly_summary(build_weekly_summary(), language)
     topic = _usage_guide_topic(question)
-    if topic is not None:
+    data_read = (
+        is_employee_count_request(question) or is_employee_query_request(question)
+        or is_pre_payroll_review_request(question) or is_payroll_query_request(question)
+        or is_attendance_analysis_request(question) or is_leave_balance_request(question)
+        or is_advance_query_request(question) or is_staff_action_query_request(question)
+    )
+    if topic is not None and not data_read:
         from app.usage_guide import format_usage_guide
 
         return format_usage_guide(topic, language)

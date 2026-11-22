@@ -149,6 +149,29 @@ def local_fallback_answer(question: str, context: dict[str, Any], language: str 
         return answer_structured_hr_query(question, language=language)
     q = " ".join(question.casefold().split())
     metrics = context.get("metrics", {})
+    # A count question about a past or specific date is unsupported: answer
+    # with explicit uncertainty instead of today's numbers.
+    import re as _re
+    count_like = any(term in q for term in (
+        "كام موظف", "كم موظف", "عدد الموظفين", "كام واحد", "كم عدد",
+        "how many employees", "how many staff", "number of employees",
+        "多少员工", "几位员工", "员工数量", "在职员工",
+    ))
+    dated = bool(_re.search(r"(19|20)\d{2}", q)) or any(term in q for term in (
+        "امبارح", "أمس", "امس", "yesterday", "昨天", "昨日",
+        "بكرة", "بكره", "غدا", "غدًا", "tomorrow", "明天",
+        "last year", "السنة الماضية", "السنة اللي فاتت", "去年",
+        "last month", "الشهر الماضي", "الشهر اللي فات", "上个月", "上月",
+        "last week", "الأسبوع الماضي", "الاسبوع الماضي", "上周",
+        "بتاريخ", "في تاريخ",
+    ))
+    if count_like and dated:
+        unsupported = {
+            "ar": "لا أستطيع تحديد عدد الموظفين في تاريخ أو فترة سابقة من السجلات الحالية؛ الأعداد المتاحة لدي هي الحالية فقط. يمكنك سؤالي عن العدد الحالي أو عن حضور يوم محدد.",
+            "en": "I cannot determine the employee count for a past or specific date from the current records; only the current count is available to me. You can ask about the current count or about a specific day's attendance.",
+            "zh": "我无法根据现有记录确定过去或指定日期的员工人数；我只能提供当前人数。您可以询问当前人数或某一天的考勤情况。",
+        }
+        return unsupported.get(language, unsupported["ar"])
     active_terms = ("عدد الموظفين", "الموظفين النشطين", "الموظفون النشطون", "active employees", "how many employees", "在职员工", "员工数量")
     if any(term in q for term in active_terms):
         return translate_text("عدد الموظفين النشطين حاليًا", language) + f": {metrics.get('active_employees', 0)}."
