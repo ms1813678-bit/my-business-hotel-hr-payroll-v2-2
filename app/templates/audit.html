@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% set active_nav = "audit" %}
+{% block title %}سجل المراجعة{% endblock %}
+{% block content %}
+<header class="page-header">
+  <div>
+    <p class="eyebrow">M.Y. BUSINESS HOTEL</p>
+    <h1>سجل المراجعة</h1>
+    <p class="muted">كل إجراء مهم في النظام مرتبًا من الأحدث للأقدم. السجل غير قابل للتعديل أو الحذف.</p>
+  </div>
+</header>
+
+<section class="panel">
+  <form method="get" action="/settings/audit" class="form-grid">
+    <label>بحث في الإجراء أو المعرّف
+      <input name="q" value="{{ filters.q }}" maxlength="80" placeholder="مثال: رواتب أو MY-0001">
+    </label>
+    <label>نوع العنصر
+      <select name="entity_type">
+        <option value="">كل الأنواع</option>
+        {% for value, label in entity_options %}
+        <option value="{{ value }}" {% if filters.entity_type == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>من تاريخ
+      <input type="date" name="from_date" value="{{ filters.from_date }}">
+    </label>
+    <label>إلى تاريخ
+      <input type="date" name="to_date" value="{{ filters.to_date }}">
+    </label>
+    <div><button type="submit" class="btn-primary">تصفية</button> <a class="button-link btn-soft" href="/settings/audit">إظهار الكل</a></div>
+  </form>
+</section>
+
+<section class="panel">
+  <div class="section-heading">
+    <div><span class="section-kicker">السجل</span><h2>إجمالي الإدخالات: {{ total }}</h2></div>
+  </div>
+  {% if entries %}
+  <div class="table-wrap"><table><thead><tr>
+    <th>الوقت</th><th>المستخدم</th><th>الإجراء</th><th>العنصر</th><th>المعرّف</th><th>التفاصيل</th>
+  </tr></thead><tbody>
+    {% for entry in entries %}
+    <tr>
+      <td style="white-space:nowrap">{{ entry.created_at.strftime("%d/%m/%Y %H:%M") }}</td>
+      <td><bdi>{{ entry.actor }}</bdi></td>
+      <td>{{ action_labels.get(entry.action, entry.action) }}</td>
+      <td>{{ entity_labels.get(entry.entity_type, entry.entity_type) }}</td>
+      <td><bdi>{{ entry.entity_id }}</bdi></td>
+      <td>{% if entry.reason %}<bdi>{{ entry.reason }}</bdi>{% endif %}{% if entry.old_value or entry.new_value %}<span class="muted small" style="display:block"><bdi>{{ entry.old_value or "—" }} → {{ entry.new_value or "—" }}</bdi></span>{% endif %}{% if not entry.reason and not entry.old_value and not entry.new_value %}—{% endif %}</td>
+    </tr>
+    {% endfor %}
+  </tbody></table></div>
+  {% if pages > 1 %}
+  <nav class="pagination">
+    {% if page > 1 %}<a class="button-link btn-soft" href="/settings/audit?q={{ filters.q }}&entity_type={{ filters.entity_type }}&from_date={{ filters.from_date }}&to_date={{ filters.to_date }}&page={{ page - 1 }}">السابق ←</a>{% endif %}
+    <span class="muted">صفحة {{ page }} / {{ pages }}</span>
+    {% if page < pages %}<a class="button-link btn-soft" href="/settings/audit?q={{ filters.q }}&entity_type={{ filters.entity_type }}&from_date={{ filters.from_date }}&to_date={{ filters.to_date }}&page={{ page + 1 }}">→ التالي</a>{% endif %}
+  </nav>
+  {% endif %}
+  {% else %}
+  <p class="muted">لا توجد إدخالات مطابقة.</p>
+  {% endif %}
+</section>
+{% endblock %}

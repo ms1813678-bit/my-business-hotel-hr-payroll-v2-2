@@ -10,6 +10,9 @@ class Settings(BaseSettings):
     app_port: int = 8000
     database_url: str
     session_secret: str
+    # Optional HTTP endpoint that receives login alert events (lockout and
+    # successful sign-in) as JSON POSTs, e.g. a WhatsApp forwarding gateway.
+    login_alert_webhook_url: str = ""
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

@@ -45,7 +45,7 @@
   <section class="notice">
     <h2>تفاصيل الرواتب / Employee payroll items</h2>
     <div class="table-wrap"><table><thead><tr>
-      <th>الموظف</th><th>الأساسي</th><th>بعد التناسب</th><th>إجمالي المستحقات</th><th>إجمالي الخصومات</th><th>الصافي</th><th>المدفوع</th><th>المتبقي</th><th>حالة الصرف</th>
+      <th>الموظف</th><th>الأساسي</th><th>بعد التناسب</th><th>إجمالي المستحقات</th><th>إجمالي الخصومات</th><th>الصافي</th><th>المدفوع</th><th>المتبقي</th><th>حالة الصرف</th><th>قسيمة المرتب</th>
     </tr></thead><tbody>
     {% for item in items %}
     {% set p = summaries.get(item.id) %}
@@ -64,9 +64,10 @@
         {% elif p[2] == "partially_paid" %}مدفوع جزئيًا
         {% else %}مدفوع بالكامل{% endif %}
       </td>
+      <td><a href="/payroll/runs/{{ run.id }}/items/{{ item.id }}/payslip.pdf" target="_blank">قسيمة PDF</a></td>
     </tr>
     {% if run.status in ["draft", "reopened"] %}
-    <tr><td colspan="9">
+    <tr><td colspan="10">
       <form method="post" action="/payroll/items/{{ item.id }}/update">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <div class="form-grid">
@@ -94,7 +95,7 @@
     </td></tr>
     {% endif %}
     {% if run.status == "closed" and p[1] > 0 %}
-    <tr><td colspan="9">
+    <tr><td colspan="10">
       <form method="post" action="/payroll/items/{{ item.id }}/payments">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <div class="form-grid">
@@ -107,7 +108,7 @@
       </form>
     </td></tr>
     {% endif %}
-    {% else %}<tr><td colspan="9">لا توجد بنود رواتب في هذا المسير.</td></tr>{% endfor %}
+    {% else %}<tr><td colspan="10">لا توجد بنود رواتب في هذا المسير.</td></tr>{% endfor %}
     </tbody></table></div>
   </section>
 

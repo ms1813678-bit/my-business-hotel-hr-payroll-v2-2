@@ -1,4 +1,5 @@
 import asyncio
+import math
 from contextlib import asynccontextmanager
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
@@ -18,11 +19,20 @@ from sqlalchemy.exc import SQLAlchemyError
 from PIL import Image, UnidentifiedImageError
 from starlette.middleware.sessions import SessionMiddleware
 
-from app.auth import authenticate
+from app.auth import authenticate, change_admin_password
 from app.config import settings
 from app.csrf import csrf_protect, get_csrf_token
 from app.db import SessionLocal, engine, get_db
 from app.dependencies import get_current_admin
+from app.login_security import (
+    FAILED_ATTEMPTS_LIMIT,
+    LOCKOUT_MINUTES,
+    clear_attempts,
+    lockout_remaining,
+    record_failed_attempt,
+    send_login_alert,
+)
+from app.security import verify_password
 from app.employee_codes import allocate_employee_code
 from app.leave_workflow import add_balance_entry, cancel_leave, confirm_leave, leave_balance
 from app.advance_workflow import approve_advance, create_advance, mark_advance_paid, reject_advance
@@ -38,6 +48,7 @@ from app.report_builder import (
     REPORT_TYPE_LABELS,
     REPORT_TYPES,
     ReportSelection,
+    _parse_date,
     apply_config,
     build_custom_pdf,
     build_custom_workbook,
@@ -278,22 +289,56 @@ def health():
 
 @app.get("/login", response_class=HTMLResponse)
 def login_page(request: Request):
+    context = {"error": None, "csrf_token": get_csrf_token(request)}
+    with SessionLocal() as db:
+        remaining = lockout_remaining(db)
+    if remaining is not None:
+        context["error"] = "تم إيقاف الدخول مؤقتًا بعد كثرة المحاولات غير الصحيحة. حاول مرة أخرى بعد"
+        context["lockout_minutes"] = max(1, math.ceil(remaining.total_seconds() / 60))
+        context["lockout_unit"] = "دقيقة."
     return templates.TemplateResponse(
         request=request, name="login.html",
-        context={"error": None, "csrf_token": get_csrf_token(request)},
+        context=context,
     )
 
 
 @app.post("/login", dependencies=[Depends(csrf_protect)])
 def login(request: Request, username: str = Form(...), password: str = Form(...)):
     with SessionLocal() as db:
+        remaining = lockout_remaining(db)
+        if remaining is not None:
+            minutes = max(1, math.ceil(remaining.total_seconds() / 60))
+            return templates.TemplateResponse(
+                request=request, name="login.html",
+                context={
+                    "error": "تم إيقاف الدخول مؤقتًا بعد كثرة المحاولات غير الصحيحة. حاول مرة أخرى بعد",
+                    "lockout_minutes": minutes,
+                    "lockout_unit": "دقيقة.",
+                    "csrf_token": get_csrf_token(request),
+                },
+                status_code=429,
+            )
         admin = authenticate(db, username.strip(), password)
         if admin is None:
+            engaged = record_failed_attempt(db, actor="login")
+            if engaged:
+                send_login_alert("login_lockout", username.strip(), failed_attempts=FAILED_ATTEMPTS_LIMIT)
+                return templates.TemplateResponse(
+                    request=request, name="login.html",
+                    context={
+                        "error": "تم إيقاف الدخول مؤقتًا بعد كثرة المحاولات غير الصحيحة. حاول مرة أخرى بعد",
+                        "lockout_minutes": LOCKOUT_MINUTES,
+                        "lockout_unit": "دقيقة.",
+                        "csrf_token": get_csrf_token(request),
+                    },
+                    status_code=429,
+                )
             return templates.TemplateResponse(
                 request=request, name="login.html",
                 context={"error": "اسم المستخدم أو كلمة المرور غير صحيحة.", "csrf_token": get_csrf_token(request)},
                 status_code=401,
             )
+        clear_attempts(db, actor="login")
         staged_token = request.session.get("security_roster_stage")
         if isinstance(staged_token, str):
             _clear_staged_security_roster(staged_token, request)
@@ -301,6 +346,7 @@ def login(request: Request, username: str = Form(...), password: str = Form(...)
         request.session["admin_username"] = admin.username
         request.session["admin_session_version"] = admin.session_version
         get_csrf_token(request)
+    send_login_alert("login_success", admin.username)
     return RedirectResponse("/", status_code=303)
 
 
@@ -345,6 +391,57 @@ def dashboard(request: Request, admin: AdminAccount = Depends(get_current_admin)
                 )
             ) or 0,
         }
+        alerts = []
+        backup_root = get_backup_root(db)
+        if backup_root is None:
+            alerts.append({
+                "pre": "لم يتم ضبط موقع النسخ الاحتياطي على قرص خارجي بعد.",
+                "value": None, "post": "",
+                "link": "/settings/backup", "link_label": "فتح النسخ الاحتياطي ←",
+            })
+        last_success = db.scalars(
+            select(BackupRun).where(BackupRun.status == "success")
+            .order_by(BackupRun.created_at.desc(), BackupRun.id.desc()).limit(1)
+        ).first()
+        if backup_root is not None and last_success is None:
+            alerts.append({
+                "pre": "لا توجد نسخة احتياطية ناجحة بعد.",
+                "value": None, "post": "",
+                "link": "/settings/backup", "link_label": "فتح النسخ الاحتياطي ←",
+            })
+        elif last_success is not None:
+            created = last_success.created_at
+            if created.tzinfo is None:
+                created = created.replace(tzinfo=timezone.utc)
+            days = (datetime.now(timezone.utc) - created).days
+            if days >= 7:
+                alerts.append({
+                    "pre": "آخر نسخة احتياطية ناجحة منذ",
+                    "value": days,
+                    "post": "أيام." if days <= 10 else "يومًا.",
+                    "link": "/settings/backup", "link_label": "فتح النسخ الاحتياطي ←",
+                })
+        last_run = db.scalars(
+            select(BackupRun).order_by(BackupRun.created_at.desc(), BackupRun.id.desc()).limit(1)
+        ).first()
+        if last_run is not None and last_run.status == "failed":
+            alerts.append({
+                "pre": "فشلت آخر محاولة نسخ احتياطي؛ راجع صفحة النسخ الاحتياطي.",
+                "value": None, "post": "",
+                "link": "/settings/backup", "link_label": "فتح النسخ الاحتياطي ←",
+            })
+        missing_fingerprint = db.scalar(
+            select(func.count(Employee.id)).where(
+                Employee.status == "active",
+                (Employee.fingerprint_id.is_(None)) | (Employee.fingerprint_id == ""),
+            )
+        ) or 0
+        if missing_fingerprint:
+            alerts.append({
+                "pre": "موظفون نشطون بدون رقم بصمة:",
+                "value": missing_fingerprint, "post": "",
+                "link": "/employees", "link_label": "فتح الموظفين ←",
+            })
         return templates.TemplateResponse(
             request=request, name="dashboard.html",
             context={
@@ -352,6 +449,7 @@ def dashboard(request: Request, admin: AdminAccount = Depends(get_current_admin)
                 "admin": admin.username,
                 "csrf_token": get_csrf_token(request),
                 "metrics": metrics,
+                "alerts": alerts,
             },
         )
 
@@ -1973,6 +2071,30 @@ def payroll_run_page(
         )
 
 
+@app.get("/payroll/runs/{run_id}/items/{item_id}/payslip.pdf")
+def payroll_item_payslip(
+    run_id: int,
+    item_id: int,
+    request: Request,
+    admin: AdminAccount = Depends(get_current_admin),
+):
+    from app.payslip import build_payslip_pdf
+
+    with SessionLocal() as db:
+        run = db.get(PayrollRun, run_id)
+        item = db.get(PayrollItem, item_id)
+        if run is None or item is None or item.payroll_run_id != run.id:
+            raise HTTPException(status_code=404, detail="قسيمة المرتب غير موجودة.")
+        totals = payment_totals(db, item)
+        pdf = build_payslip_pdf(run, item, totals, datetime.now(timezone.utc), language=request.state.language)
+        filename = f"payslip-{item.employee_code_snapshot}-{run.period_start.isoformat()}.pdf"
+    return Response(
+        content=pdf,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'inline; filename="{filename}"'},
+    )
+
+
 @app.post("/payroll/runs/{run_id}/approve", dependencies=[Depends(csrf_protect)])
 def approve_payroll_run_route(
     run_id: int,
@@ -2310,6 +2432,114 @@ def export_hr_reports_pdf(
         media_type="application/pdf",
         headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(filename)}"},
     )
+
+@app.get("/settings/password", response_class=HTMLResponse)
+def password_page(request: Request, admin: AdminAccount = Depends(get_current_admin)):
+    return templates.TemplateResponse(
+        request=request,
+        name="password.html",
+        context={"error": None, "success": False, "csrf_token": get_csrf_token(request)},
+    )
+
+
+@app.post("/settings/password", dependencies=[Depends(csrf_protect)])
+def change_password_route(
+    request: Request,
+    current_password: str = Form(...),
+    new_password: str = Form(...),
+    confirm_password: str = Form(...),
+    admin: AdminAccount = Depends(get_current_admin),
+):
+    def render(error: str | None, success: bool = False, status_code: int = 200):
+        return templates.TemplateResponse(
+            request=request,
+            name="password.html",
+            context={"error": error, "success": success, "csrf_token": get_csrf_token(request)},
+            status_code=status_code,
+        )
+
+    if new_password != confirm_password:
+        return render("mismatch", status_code=400)
+    with SessionLocal.begin() as db:
+        db_admin = db.get(AdminAccount, admin.id)
+        if db_admin is None or not verify_password(current_password, db_admin.password_hash):
+            return render("wrong_current", status_code=400)
+        if verify_password(new_password, db_admin.password_hash):
+            return render("same", status_code=400)
+        try:
+            change_admin_password(db, db_admin, new_password)
+        except ValueError:
+            return render("too_short", status_code=400)
+        db.add(AuditLog(
+            actor=admin.username,
+            action="admin_password_changed",
+            entity_type="admin_account",
+            entity_id="admin",
+        ))
+        new_session_version = db_admin.session_version
+    # The rotation invalidates every other session; keep this one signed in.
+    request.session["admin_session_version"] = new_session_version
+    return render(None, success=True)
+
+
+AUDIT_PAGE_SIZE = 50
+
+
+@app.get("/settings/audit", response_class=HTMLResponse)
+def audit_log_page(
+    request: Request,
+    q: str = "",
+    entity_type: str = "",
+    from_date: str = "",
+    to_date: str = "",
+    page: int = 1,
+    admin: AdminAccount = Depends(get_current_admin),
+):
+    from app.audit_display import ACTION_LABELS, ENTITY_LABELS
+
+    page = max(1, page)
+    with SessionLocal() as db:
+        query = select(AuditLog)
+        if q.strip():
+            pattern = f"%{q.strip()}%"
+            query = query.where(
+                (AuditLog.action.ilike(pattern))
+                | (AuditLog.entity_id.ilike(pattern))
+                | (AuditLog.reason.ilike(pattern))
+            )
+        if entity_type.strip():
+            query = query.where(AuditLog.entity_type == entity_type.strip())
+        parsed_from = _parse_date(from_date)
+        if parsed_from is not None:
+            query = query.where(AuditLog.created_at >= datetime.combine(parsed_from, datetime.min.time(), tzinfo=timezone.utc))
+        parsed_to = _parse_date(to_date)
+        if parsed_to is not None:
+            query = query.where(AuditLog.created_at < datetime.combine(parsed_to + timedelta(days=1), datetime.min.time(), tzinfo=timezone.utc))
+        total = db.scalar(select(func.count()).select_from(query.subquery())) or 0
+        pages = max(1, math.ceil(total / AUDIT_PAGE_SIZE))
+        page = min(page, pages)
+        entries = db.scalars(
+            query.order_by(AuditLog.created_at.desc(), AuditLog.id.desc())
+            .offset((page - 1) * AUDIT_PAGE_SIZE)
+            .limit(AUDIT_PAGE_SIZE)
+        ).all()
+        entity_options = sorted(ENTITY_LABELS.items(), key=lambda item: item[1])
+        return templates.TemplateResponse(
+            request=request,
+            name="audit.html",
+            context={
+                "entries": entries,
+                "total": total,
+                "page": page,
+                "pages": pages,
+                "filters": {"q": q, "entity_type": entity_type, "from_date": from_date, "to_date": to_date},
+                "entity_options": entity_options,
+                "action_labels": ACTION_LABELS,
+                "entity_labels": ENTITY_LABELS,
+                "csrf_token": get_csrf_token(request),
+            },
+        )
+
 
 @app.get("/settings/backup", response_class=HTMLResponse)
 def backup_settings_page(

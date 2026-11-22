@@ -26,6 +26,22 @@
   <a class="button-link primary-link" href="/reports">فتح التقارير</a>
 </section>
 
+{% if alerts %}
+<section class="alert-panel">
+  <div class="section-heading">
+    <div><span class="section-kicker">تنبيهات مهمة</span><h2>يحتاج انتباهك</h2></div>
+  </div>
+  <ul class="alert-list">
+    {% for alert in alerts %}
+    <li>
+      <span>{{ alert.pre }}{% if alert.value is not none %} {{ alert.value }}{% endif %}{% if alert.post %} {{ alert.post }}{% endif %}</span>
+      <a href="{{ alert.link }}">{{ alert.link_label }}</a>
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
+
 <section>
   <div class="section-heading">
     <div><span class="section-kicker">مؤشرات رئيسية</span><h2>ملخص النظام</h2></div>

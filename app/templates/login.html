@@ -17,7 +17,7 @@
         <p class="brand-zh">米亚酒店</p>
       </div>
       <h1 style="text-align:center">تسجيل الدخول</h1>
-      {% if error %}<p class="error">{{ error }}</p>{% endif %}
+      {% if error %}<p class="error">{{ error }}{% if lockout_minutes %} <span class="lockout-minutes">{{ lockout_minutes }}</span> <span class="lockout-unit">{{ lockout_unit }}</span>{% endif %}</p>{% endif %}
       <label>اسم المستخدم
         <input name="username" autocomplete="username" required maxlength="80" placeholder="أدخل اسم المستخدم" dir="rtl">
       </label>
