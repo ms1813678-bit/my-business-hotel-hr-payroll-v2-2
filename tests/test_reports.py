@@ -205,7 +205,7 @@ def test_dashboard_displays_live_hr_workflow_metrics(monkeypatch):
     factory = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 
     def override_admin():
-        return AdminAccount(username="dashboard-admin", active=True)
+        return AdminAccount(username="dashboard-admin", active=True, role="system_admin")
 
     app.dependency_overrides[get_current_admin] = override_admin
     monkeypatch.setattr("app.main.SessionLocal", factory)
@@ -248,7 +248,7 @@ def _report_route_client(monkeypatch):
             basic_salary=Decimal("7200"), daily_hours=Decimal("8"),
         ))
     app.dependency_overrides[get_current_admin] = lambda: AdminAccount(
-        username="report-test-admin", active=True
+        username="report-test-admin", active=True, role="system_admin"
     )
     monkeypatch.setattr("app.main.SessionLocal", factory)
     return engine

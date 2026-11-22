@@ -76,9 +76,12 @@ from app.report_builder import (
     FIELD_GROUPS_BY_TYPE,
     PAYROLL_BREAKDOWN_DEFS,
     PAYROLL_FIELD_DEFS,
+    REPORT_TYPE_ADVANCES,
     REPORT_TYPE_ATTENDANCE,
     REPORT_TYPE_COMPREHENSIVE,
     REPORT_TYPE_LABELS,
+    REPORT_TYPE_PAYROLL,
+    REPORT_TYPE_STAFF_ACTIONS,
     REPORT_TYPES,
     ReportSelection,
     _parse_date,
@@ -1773,9 +1776,9 @@ def edit_branch(
 @app.get("/employees/{employee_id}/photo")
 def employee_photo(
     employee_id: int,
-    admin: AdminAccount = Depends(get_current_admin),
+    admin: AdminAccount = Depends(require_employee_read),
 ):
-    """Serve an employee photo only to an authenticated administrator."""
+    """Serve an employee photo only to roles with employee-directory access."""
     with SessionLocal() as db:
         employee = db.get(Employee, employee_id)
         if employee is None or not employee.photo_path:
@@ -2821,15 +2824,18 @@ def reports_page(
         elif admin.role == ROLE_ASSISTANT:
             selection.report_type = REPORT_TYPE_ATTENDANCE
             selection.fields = set(_ATTENDANCE_SAFE_FIELDS)
+        elif admin.role == ROLE_FINANCE:
+            selection.report_type = REPORT_TYPE_PAYROLL
         _enforce_report_scope(selection, admin)
         start, end = resolve_period(selection)
         employees = db.scalars(select(Employee).order_by(Employee.code)).all()
         departments = db.scalars(select(Department).order_by(Department.name)).all()
         presets = list_presets(db)
-        if admin.role == ROLE_ASSISTANT:
+        allowed_types = _REPORT_TYPES_BY_ROLE.get(admin.role)
+        if allowed_types is not None:
             presets = [
                 preset for preset in presets
-                if preset_config(preset).get("report_type") == REPORT_TYPE_ATTENDANCE
+                if preset_config(preset).get("report_type") in allowed_types
             ]
     return templates.TemplateResponse(
         request=request,
@@ -2844,7 +2850,10 @@ def reports_page(
             "active_preset": active_preset,
             "field_group_defs": FIELD_GROUP_DEFS,
             "field_groups_by_type": FIELD_GROUPS_BY_TYPE,
-            "report_types": [REPORT_TYPE_ATTENDANCE] if admin.role == ROLE_ASSISTANT else REPORT_TYPES,
+            "report_types": [
+                report_type for report_type in REPORT_TYPES
+                if report_type in _REPORT_TYPES_BY_ROLE.get(admin.role, set(REPORT_TYPES))
+            ],
             "report_type_labels": REPORT_TYPE_LABELS,
             "csrf_token": get_csrf_token(request),
             "error": params.get("error"),
@@ -2926,7 +2935,26 @@ def _custom_report_requested(params) -> bool:
 
 
 _PAYROLL_REPORT_FIELD_KEYS = {key for key, _label in PAYROLL_FIELD_DEFS}
-_ATTENDANCE_SAFE_FIELDS = {key for key, _label in EMPLOYEE_FIELD_DEFS + ATTENDANCE_FIELD_DEFS}
+# National ID / passport numbers are personal identifiers outside the approved
+# assistant scope, so attendance reports keep names and codes only.
+_ASSISTANT_FORBIDDEN_FIELDS = _PAYROLL_REPORT_FIELD_KEYS | {"emp_id_proof"}
+_ATTENDANCE_SAFE_FIELDS = {
+    key for key, _label in EMPLOYEE_FIELD_DEFS + ATTENDANCE_FIELD_DEFS
+} - _ASSISTANT_FORBIDDEN_FIELDS
+
+# Report types each role may run, per the owner's approved split: the finance
+# role owns payroll, advances and sanctions/rewards with read-only attendance;
+# leave reports and the comprehensive export (which embeds the leave sheet)
+# stay with the system administrator.
+_REPORT_TYPES_BY_ROLE = {
+    ROLE_ASSISTANT: {REPORT_TYPE_ATTENDANCE},
+    ROLE_FINANCE: {
+        REPORT_TYPE_PAYROLL,
+        REPORT_TYPE_ATTENDANCE,
+        REPORT_TYPE_ADVANCES,
+        REPORT_TYPE_STAFF_ACTIONS,
+    },
+}
 
 
 def _assistant_default_fields(params, selection: ReportSelection, admin: AdminAccount) -> None:
@@ -2941,11 +2969,14 @@ def _assistant_default_fields(params, selection: ReportSelection, admin: AdminAc
 
 
 def _enforce_report_scope(selection: ReportSelection, admin: AdminAccount) -> None:
-    """The assistant manager may run attendance reports only, and the saved or
-    requested selection must not smuggle payroll fields into it."""
-    if admin.role != ROLE_ASSISTANT:
+    """Each role runs only the report types its approved scope covers; the
+    assistant's selection must not smuggle payroll or national-ID fields."""
+    allowed = _REPORT_TYPES_BY_ROLE.get(admin.role)
+    if allowed is None:
         return
-    if selection.report_type != REPORT_TYPE_ATTENDANCE or (selection.fields & _PAYROLL_REPORT_FIELD_KEYS):
+    if selection.report_type not in allowed:
+        raise HTTPException(status_code=403, detail="هذا الجزء غير متاح لصلاحية حسابك.")
+    if admin.role == ROLE_ASSISTANT and (selection.fields & _ASSISTANT_FORBIDDEN_FIELDS):
         raise HTTPException(status_code=403, detail="هذا الجزء غير متاح لصلاحية حسابك.")
 
 
@@ -2958,8 +2989,8 @@ def export_hr_reports(
     admin: AdminAccount = Depends(get_current_admin),
 ):
     params = request.query_params
-    if admin.role == ROLE_ASSISTANT and not _custom_report_requested(params):
-        # The all-modules workbook includes payroll sheets.
+    if admin.role != "system_admin" and not _custom_report_requested(params):
+        # The all-modules workbook includes payroll and leave sheets.
         raise HTTPException(status_code=403, detail="هذا الجزء غير متاح لصلاحية حسابك.")
     try:
         with SessionLocal() as db:
@@ -2997,8 +3028,8 @@ def export_hr_reports_pdf(
     admin: AdminAccount = Depends(get_current_admin),
 ):
     params = request.query_params
-    if admin.role == ROLE_ASSISTANT and not _custom_report_requested(params):
-        # The all-modules PDF includes payroll sections.
+    if admin.role != "system_admin" and not _custom_report_requested(params):
+        # The all-modules PDF includes payroll and leave sections.
         raise HTTPException(status_code=403, detail="هذا الجزء غير متاح لصلاحية حسابك.")
     try:
         with SessionLocal() as db:

@@ -299,3 +299,50 @@ def test_each_account_changes_own_password(three_clients):
         follow_redirects=False,
     )
     assert response.status_code == 401
+
+
+def test_finance_reports_exclude_leave_and_comprehensive(three_clients):
+    _, finance, _ = three_clients
+    # payroll and attendance reports stay available
+    assert finance.get("/reports?report_type=payroll&period=this_month").status_code == 200
+    assert finance.get("/reports?report_type=attendance&period=this_month").status_code == 200
+    # leave reports are outside the finance scope, in every entry path
+    assert finance.get("/reports?report_type=leave&period=this_month", follow_redirects=False).status_code == 403
+    assert finance.get("/reports/view?report_type=leave&period=this_month", follow_redirects=False).status_code == 403
+    # the comprehensive report embeds the leave sheet, so it is refused too
+    assert finance.get("/reports?report_type=comprehensive&period=this_month", follow_redirects=False).status_code == 403
+    assert finance.get("/reports/export.xlsx?start_date=2026-10-01&end_date=2026-10-31", follow_redirects=False).status_code == 403
+    assert finance.get("/reports/export.pdf?start_date=2026-10-01&end_date=2026-10-31", follow_redirects=False).status_code == 403
+    # the request form does not even offer the excluded types
+    page = finance.get("/reports")
+    assert 'value="leave"' not in page.text
+    assert 'value="comprehensive"' not in page.text
+    assert 'value="payroll"' in page.text
+
+
+def test_assistant_reports_exclude_national_id(three_clients):
+    _, _, assistant = three_clients
+    # explicitly selecting the national-ID field is refused
+    response = assistant.get(
+        "/reports?report_type=attendance&period=this_month&fields=emp_id_proof",
+        follow_redirects=False,
+    )
+    assert response.status_code == 403
+    # the assistant's default attendance selection carries no identifier field
+    response = assistant.get("/reports/view?report_type=attendance&period=this_month")
+    assert response.status_code == 200
+    assert "إثبات الهوية" not in response.text
+
+
+def test_employee_photo_requires_employee_directory_access(three_clients):
+    admin, finance, assistant = three_clients
+    assert assistant.get("/employees/1/photo", follow_redirects=False).status_code == 403
+    # finance and the sysadmin reach the endpoint; 404 only because no photo exists
+    assert finance.get("/employees/1/photo").status_code == 404
+    assert admin.get("/employees/1/photo").status_code == 404
+
+
+def test_account_audit_actions_have_display_labels():
+    from app.audit_display import ACTION_LABELS
+    for action in ("account_created", "account_deactivated", "account_activated"):
+        assert ACTION_LABELS.get(action, action) != action
