@@ -338,6 +338,7 @@ def is_structured_hr_query(question: str) -> bool:
         or is_advance_query_request(question)
         or is_staff_action_query_request(question)
         or is_pre_payroll_review_request(question)
+        or _is_weekly_summary(question)
     )
 
 
@@ -677,8 +678,18 @@ def format_staff_actions_ar(report: dict[str, Any]) -> str:
     return format_staff_actions(report, "ar")
 
 
+def _is_weekly_summary(question: str) -> bool:
+    from app.weekly_summary import is_weekly_summary_request
+
+    return is_weekly_summary_request(question)
+
+
 def answer_structured_hr_query(question: str, language: str = "ar") -> str:
     """Dispatch a natural-language HR question to the matching read-only report."""
+    if _is_weekly_summary(question):
+        from app.weekly_summary import build_weekly_summary, format_weekly_summary
+
+        return format_weekly_summary(build_weekly_summary(), language)
     if is_employee_query_request(question):
         return format_employee_report(build_employee_report(question), language)
     if is_pre_payroll_review_request(question):
