@@ -51,3 +51,37 @@ def test_leave_type_name_custom_type_zh_falls_back_to_english():
 
 def test_standard_leave_names_have_zh_translations():
     assert translate_text("إجازة مرضية", "zh") == "病假"
+
+
+def test_audit_reason_localizes_known_app_generated():
+    from app.audit_display import reason_label
+    assert reason_label("employee_created", "Initial employee record created", "ar") == "أُنشئ سجل الموظف المبدئي"
+    assert reason_label("employee_created", "Initial employee record created", "en") == "Initial employee record created"
+    assert reason_label("employee_created", "Initial employee record created", "zh") == "初始员工记录已创建"
+    assert reason_label("ai_command_expired", "انتهت صلاحية طلب الموافقة.", "en") == "The approval request expired."
+
+
+def test_audit_reason_preserves_user_and_mismatched_reasons():
+    from app.audit_display import reason_label
+    assert reason_label("leave_cancelled", "Initial employee record created", "en") == "Initial employee record created"
+    assert reason_label("employee_created", "سبب كتبه المستخدم", "en") == "سبب كتبه المستخدم"
+    assert reason_label("employee_created", "", "en") == ""
+
+
+def test_audit_detail_none_renders_as_dash():
+    from app.audit_display import detail_label
+    assert detail_label("code=X; department_id=None; branch_id=1", "en") == "Code=X; Department=—; Branch=1"
+
+
+def test_extra_leave_type_names_have_zh_translations():
+    assert translate_text("عارضة", "zh") == "事假"
+    assert translate_text("راحة أسبوعية", "zh") == "每周休息"
+    assert translate_text("عطلة رسمية", "zh") == "法定假日"
+
+
+def test_audit_reason_pattern_with_runtime_value():
+    from app.audit_display import reason_label
+    assert reason_label("login_lockout", "2 failed login attempts", "ar") == "2 محاولة دخول فاشلة"
+    assert reason_label("login_lockout", "2 failed login attempts", "en") == "2 failed login attempts"
+    assert reason_label("login_lockout", "2 failed login attempts", "zh") == "2 次登录尝试失败"
+    assert reason_label("login_lockout", "unrelated text", "en") == "unrelated text"

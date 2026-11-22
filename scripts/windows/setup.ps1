@@ -8,9 +8,12 @@ if (-not (Get-Command py -ErrorAction SilentlyContinue)) {
     throw "Install Python 3.11+ with the Python Launcher (py)."
 }
 
-# Dependency range (pyproject requires-python >=3.11, all pinned ranges ship
-# cp311-cp313 wheels). Prefer the tested 3.11; accept 3.12 or 3.13 when newer
-# machines no longer offer 3.11.
+# Python selection: 3.11 is the preferred, application-tested runtime (ruff
+# target py311). The 3.12/3.13 fallbacks are verified only at dependency
+# wheel-resolution level (pyproject requires-python >=3.11; pinned ranges ship
+# cp312/cp313 wheels); the application and this Windows setup have NOT been
+# run on them. Use a fallback only when 3.11 is unavailable, and validate the
+# app before production use.
 $PyLauncher = $null
 foreach ($candidate in @("3.11", "3.12", "3.13")) {
     & py -$candidate --version *> $null

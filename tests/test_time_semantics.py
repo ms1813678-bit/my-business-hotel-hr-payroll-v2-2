@@ -23,6 +23,9 @@ def test_column_defaults_write_aware_utc():
         assert row.created_at.tzinfo is not None, "read-back must be timezone-aware"
         delta = abs((row.created_at.astimezone(timezone.utc) - before).total_seconds())
         assert delta < 60, "stored instant must match real UTC now, not a shifted wall clock"
+    # keep the shared demo/test audit log free of probe rows
+    with SessionLocal.begin() as cleanup:
+        cleanup.query(AuditLog).filter_by(actor="tz-test", action="tz_probe").delete()
 
 
 def _probe_query(session_tz: str) -> tuple[int, int]:

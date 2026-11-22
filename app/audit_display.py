@@ -131,4 +131,70 @@ def detail_label(value: str, language: str) -> str:
             return match.group(0)
         return f"{prefix}{_translate_text(label_ar, language)}="
 
-    return _KEY_AT_SEGMENT_START.sub(_replace, value)
+    labeled = _KEY_AT_SEGMENT_START.sub(_replace, value)
+    # Missing values stored as Python None render as a dash, not "None".
+    return _re.sub(r"=None(?=\s*(;|$))", "=\u2014", labeled)
+
+
+# --- App-generated audit reason localization -------------------------------
+# Maps (action, exact reason) pairs the application itself writes to their
+# Arabic source text. Reasons outside this map (user-typed notes, historical
+# payloads, AI-supplied reasons) render verbatim: the (action, reason) pair is
+# the discriminator, so a coincidental user phrase is never "translated".
+
+REASON_LABELS_AR = {
+    ("advance_paid", "Payment confirmed by HR administrator."): "تم تأكيد الصرف بواسطة مسؤول الموارد البشرية.",
+    ("advance_requested", "Idempotency key for the advance request form."): "مفتاح منع التكرار لنموذج طلب السلفة.",
+    ("advance_submission_accepted", "Idempotency key for the advance request form."): "مفتاح منع التكرار لنموذج طلب السلفة.",
+    ("attendance_day_proposed", "Attendance reconciliation proposal saved for HR review; not approved"): "حفظ اقتراح مطابقة الحضور لمراجعة الموارد البشرية؛ غير معتمد",
+    ("attendance_import_batch_replaced", "HR replaced an unresolved source import before monthly reconciliation"): "استبدل مسؤول الموارد البشرية استيرادًا غير محسوم قبل المطابقة الشهرية",
+    ("attendance_import_created", "Imported attendance evidence; pending reconciliation and HR review"): "دليل حضور مستورد؛ بانتظار المطابقة ومراجعة الموارد البشرية",
+    ("attendance_import_unknown_employee_resolved", "HR explicitly matched an unknown source identity; raw source values retained"): "طابق مسؤول الموارد البشرية هوية مصدرية غير معروفة يدويًا؛ القيم المصدرية الخام محفوظة",
+    ("attendance_month_reconciliation_created", "Monthly attendance reconciliation created; pending HR review and approval"): "أُنشئت مطابقة حضور شهرية؛ بانتظار مراجعة واعتماد الموارد البشرية",
+    ("branch_created", "Branch created by HR"): "أُنشئ الفرع بواسطة الموارد البشرية",
+    ("branch_updated", "Branch settings updated"): "عُدلت إعدادات الفرع",
+    ("department_created", "Department created by HR"): "أُنشئ القسم بواسطة الموارد البشرية",
+    ("department_updated", "Department settings updated"): "عُدلت إعدادات القسم",
+    ("employee_created", "Initial employee record created"): "أُنشئ سجل الموظف المبدئي",
+    ("leave_type_created", "Created by HR administrator"): "أُنشئ بواسطة مسؤول الموارد البشرية",
+    ("overtime_approved", "HR administrator approved overtime."): "اعتمد مسؤول الموارد البشرية الساعات الإضافية.",
+    ("payroll_item_updated", "HR administrator edited payroll values."): "عدّل مسؤول الموارد البشرية قيم الرواتب.",
+    ("payroll_run_approved", "HR administrator approved payroll after review."): "اعتمد مسؤول الموارد البشرية الرواتب بعد المراجعة.",
+    ("payroll_run_closed", "Payroll period closed after approval."): "أُغلقت فترة الرواتب بعد الاعتماد.",
+    ("payroll_run_created", "Created after approved attendance for the exact month."): "أُنشئ بعد حضور معتمد للشهر نفسه.",
+    ("security_roster_day_approved", "Administrator confirmed reviewed security roster day"): "أكد المسؤول مراجعة يوم جدول الأمن",
+    ("ai_command_approved", "موافقة صريحة من مسؤول الموارد البشرية."): "موافقة صريحة من مسؤول الموارد البشرية.",
+    ("ai_command_expired", "انتهت صلاحية طلب الموافقة."): "انتهت صلاحية طلب الموافقة.",
+    ("ai_command_invalidated", "تغيرت بيانات السجل بعد عرض المعاينة وقبل التأكيد."): "تغيرت بيانات السجل بعد عرض المعاينة وقبل التأكيد.",
+    ("ai_command_invalidated", "خطة التنفيذ المخزنة غير صالحة أو لم تعد مطابقة للخطة المعروضة."): "خطة التنفيذ المخزنة غير صالحة أو لم تعد مطابقة للخطة المعروضة.",
+}
+
+
+# Pattern reasons carry a runtime value, so exact match cannot cover them.
+_REASON_PATTERNS = [
+    ("login_lockout", _re.compile(r"^(\d+) failed login attempts$"), "{n} محاولة دخول فاشلة"),
+]
+
+
+def _pattern_reason_ar(action: str, reason: str):
+    for expected_action, pattern, template_ar in _REASON_PATTERNS:
+        if action != expected_action:
+            continue
+        match = pattern.match(reason)
+        if match:
+            return template_ar, match.group(1)
+    return None
+
+
+def reason_label(action: str, reason: str, language: str) -> str:
+    """Localize known app-generated reasons; preserve all other payloads."""
+    if not reason:
+        return reason
+    label_ar = REASON_LABELS_AR.get((action, reason))
+    if label_ar is not None:
+        return _translate_text(label_ar, language)
+    patterned = _pattern_reason_ar(action, reason)
+    if patterned is None:
+        return reason
+    template_ar, value = patterned
+    return _translate_text(template_ar, language).format(n=value)

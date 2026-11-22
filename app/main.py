@@ -326,7 +326,7 @@ templates.env.filters["fmt_m"] = _fmt_m
 templates.env.filters["status_label"] = _status_label
 templates.env.filters["field_label"] = _field_label
 
-from app.audit_display import detail_label as _audit_detail_label
+from app.audit_display import detail_label as _audit_detail_label, reason_label as _audit_reason_label
 
 
 def _leave_type_name(item, language: str) -> str:
@@ -344,6 +344,7 @@ def _leave_type_name(item, language: str) -> str:
 
 
 templates.env.globals["audit_detail"] = _audit_detail_label
+templates.env.globals["audit_reason"] = _audit_reason_label
 templates.env.globals["leave_type_name"] = _leave_type_name
 
 from app.i18n import translate_html, translate_text as _translate_text

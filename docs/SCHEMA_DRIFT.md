@@ -13,6 +13,7 @@ benign; no data rewrite or corrective migration was applied.
 | report_presets.created_at nullable | DB: nullable; model: NOT NULL | DB tolerates NULL the model never writes (server default fills it) | A future migration can backfill-check then SET NOT NULL |
 | ix_staff_actions_payroll_run_id | DB has it, model does not | Same as first item | Same |
 
-Decision recorded: leave as-is. The migration history is the install source of
+Current implementation choice (independent-review recommendation, not an owner
+product decision): leave as-is. The migration history is the install source of
 truth; models drift is index cosmetics plus one nullable flag with no write
 path producing NULL. Revisit only if a future migration touches these tables.

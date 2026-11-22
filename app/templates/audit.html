@@ -48,7 +48,7 @@
       <td>{{ action_labels.get(entry.action, entry.action) }}</td>
       <td>{{ entity_labels.get(entry.entity_type, entry.entity_type) }}</td>
       <td><bdi>{{ entry.entity_id }}</bdi></td>
-      <td>{% if entry.reason %}<bdi>{{ entry.reason }}</bdi>{% endif %}{% if entry.old_value or entry.new_value %}<span class="muted small" style="display:block"><bdi>{{ audit_detail(entry.old_value or "—", request.state.language) }} → {{ audit_detail(entry.new_value or "—", request.state.language) }}</bdi></span>{% endif %}{% if not entry.reason and not entry.old_value and not entry.new_value %}—{% endif %}</td>
+      <td>{% if entry.reason %}<bdi>{{ audit_reason(entry.action, entry.reason, request.state.language) }}</bdi>{% endif %}{% if entry.old_value or entry.new_value %}<span class="muted small" style="display:block"><bdi>{{ audit_detail(entry.old_value or "—", request.state.language) }} → {{ audit_detail(entry.new_value or "—", request.state.language) }}</bdi></span>{% endif %}{% if not entry.reason and not entry.old_value and not entry.new_value %}—{% endif %}</td>
     </tr>
     {% endfor %}
   </tbody></table></div>
