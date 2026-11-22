@@ -28,7 +28,7 @@
     <a class="ai-scan-item" href="{{ item.url }}">
       <span>{{ item.label }}</span>
       {% if item.status == "attention" %}
-      <span class="badge-attention">{{ item.count }} بانتظارك</span>
+      <span class="badge-attention">{{ item.count }} <span>بانتظارك</span></span>
       {% elif item.status == "clear" %}
       <span class="badge-clear">لا شيء معلّق</span>
       {% else %}
