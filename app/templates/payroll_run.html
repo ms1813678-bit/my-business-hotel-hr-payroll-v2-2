@@ -113,6 +113,72 @@
   </section>
 
   <section class="notice">
+    <h2>محاكاة ماذا لو</h2>
+    <p class="muted">محاكاة افتراضية على نسخة مؤقتة من بنود المسير بنفس محرك الحساب. لا يتم حفظ أو تغيير أي بيانات، والنتائج استرشادية فقط.</p>
+    <form method="get" action="/payroll/runs/{{ run.id }}">
+      <div class="form-grid">
+        <label>الحقل
+          <select name="sim_field" required>
+            {% for field in sim_fields %}
+            <option value="{{ field }}" {% if sim_params.field == field %}selected{% endif %}>{{ sim_field_labels[field] }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <label>الطريقة
+          <select name="sim_mode">
+            <option value="add" {% if sim_params.mode == 'add' %}selected{% endif %}>إضافة مبلغ</option>
+            <option value="set" {% if sim_params.mode == 'set' %}selected{% endif %}>تعيين قيمة</option>
+          </select>
+        </label>
+        <label>القيمة<input type="number" name="sim_value" step="0.01" value="{{ sim_params.value }}" required></label>
+        <label>الموظف
+          <select name="sim_employee">
+            <option value="">كل الموظفين</option>
+            {% for item in items %}
+            <option value="{{ item.employee_id }}" {% if sim_params.employee == item.employee_id|string %}selected{% endif %}>{{ item.employee_code_snapshot }} — {{ item.employee_name_snapshot }}</option>
+            {% endfor %}
+          </select>
+        </label>
+      </div>
+      <button type="submit">تشغيل المحاكاة</button>
+    </form>
+    {% if simulation_error %}
+    <p class="notice error">تعذر تشغيل المحاكاة. تحقق من الحقل والطريقة والقيمة.</p>
+    {% endif %}
+    {% if simulation %}
+    <h3>نتيجة المحاكاة</h3>
+    <p class="muted">نتيجة استرشادية — لم يتغير أي بند محفوظ في المسير.</p>
+    <div class="table-wrap"><table><thead><tr>
+      <th>الموظف</th><th>القيمة الحالية</th><th>القيمة الافتراضية</th><th>الصافي قبل</th><th>الصافي بعد</th><th>الفرق</th>
+    </tr></thead><tbody>
+    {% for row in simulation.rows %}
+    <tr>
+      <td>{{ row.employee_code }} — {{ row.employee_name }}</td>
+      <td>{{ row.stored_value }}</td>
+      <td>{{ row.hypothetical_value }}</td>
+      <td>{{ row.net_before }}</td>
+      {% if row.feasible %}
+      <td>{{ row.net_after }}</td>
+      <td>{{ row.net_delta }}</td>
+      {% else %}
+      <td colspan="2">غير ممكن: الخصومات تتجاوز المستحق</td>
+      {% endif %}
+    </tr>
+    {% endfor %}
+    <tr>
+      <td><strong>الإجمالي</strong></td><td colspan="2"></td>
+      <td><strong>{{ simulation.total_net_before }}</strong></td>
+      <td><strong>{{ simulation.total_net_after }}</strong></td>
+      <td><strong>{{ simulation.total_net_delta }}</strong></td>
+    </tr>
+    </tbody></table></div>
+    {% if simulation.infeasible_items %}
+    <p class="muted"><span>بنود غير ممكنة:</span> {{ simulation.infeasible_items }}</p>
+    {% endif %}
+    {% endif %}
+  </section>
+
+  <section class="notice">
     <p><strong>ملاحظات الحساب:</strong> الأساسي الشهري ثابت، وساعات العمل لا تخفضه. سعر الساعة = الأساسي ÷ (ساعات اليوم × 30). خصم الغياب = الأساسي ÷ أيام الشهر الفعلية × أيام الغياب. الأوفر تايم بنفس سعر الساعة دون مضاعف، ولا يدخل في الصافي إلا بعد اعتماد ساعات الإضافي من الإدارة. التأمين والضرائب يدويان دون حساب قانوني تلقائي.</p>
     <p>خصم السلف والمكافآت والجزاءات المالية يظهر من السجلات المعتمدة للشهر. لا تعتبر السلفة مخصومة إلا بعد إغلاق المسير.</p>
   </section>

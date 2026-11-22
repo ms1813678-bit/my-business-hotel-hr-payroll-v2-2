@@ -2266,6 +2266,29 @@ def payroll_run_page(
             .where(PayrollPayment.payroll_item_id.in_([item.id for item in items] or {-1}))
             .order_by(PayrollPayment.paid_at.desc(), PayrollPayment.id.desc())
         ).all()
+        # What-if simulation (GET, read-only): transient copies recomputed by
+        # the payroll engine; nothing is written, approved or audited.
+        from app.payroll_simulation import (
+            ADJUSTABLE_FIELDS, FIELD_LABELS, simulate_run_adjustment,
+        )
+        sim_params = {
+            "field": request.query_params.get("sim_field") or "",
+            "mode": request.query_params.get("sim_mode") or "add",
+            "value": request.query_params.get("sim_value") or "",
+            "employee": request.query_params.get("sim_employee") or "",
+        }
+        simulation = None
+        simulation_error = False
+        if sim_params["field"]:
+            try:
+                employee_ids = [int(sim_params["employee"])] if sim_params["employee"] else None
+                simulation = simulate_run_adjustment(
+                    db, run.id,
+                    field=sim_params["field"], mode=sim_params["mode"],
+                    value=sim_params["value"], employee_ids=employee_ids,
+                )
+            except (ValueError, TypeError):
+                simulation_error = True
         return templates.TemplateResponse(
             request=request,
             name="payroll_run.html",
@@ -2279,6 +2302,11 @@ def payroll_run_page(
                 "payments": payments,
                 "csrf_token": get_csrf_token(request),
                 "error": request.query_params.get("error"),
+                "simulation": simulation,
+                "simulation_error": simulation_error,
+                "sim_params": sim_params,
+                "sim_field_labels": FIELD_LABELS,
+                "sim_fields": sorted(ADJUSTABLE_FIELDS, key=lambda f: FIELD_LABELS[f]),
             },
         )
 

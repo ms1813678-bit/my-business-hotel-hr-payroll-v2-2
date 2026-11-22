@@ -35,6 +35,23 @@ ADJUSTABLE_FIELDS = {
     "lateness_deduction",
 }
 
+# Arabic display labels for the adjustable fields (same wording as the
+# payroll item edit form, so existing catalog translations apply).
+FIELD_LABELS = {
+    "attendance_bonus": "مكافأة حضور",
+    "performance_bonus": "مكافأة أداء",
+    "occupancy_bonus": "مكافأة إشغال",
+    "other_bonus": "مكافآت أخرى",
+    "overtime_hours": "ساعات إضافي",
+    "absence_days": "أيام غياب معتمدة",
+    "lateness_deduction": "خصم تأخير/انصراف مبكر",
+    "insurance_share": "حصة التأمين",
+    "taxes": "الضرائب",
+    "other_deductions": "خصومات أخرى",
+    "advance_deduction": "خصم السلفة",
+}
+
+
 # Fields copied verbatim from the stored item into the transient simulation
 # copy; everything the engine reads must be present.
 _ITEM_FIELDS = [
