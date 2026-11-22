@@ -55,6 +55,7 @@ from app.login_security import (
     record_failed_attempt,
     send_login_alert,
 )
+from app.restore_lock import acquire_credential_write_lock
 from app.telegram_alerts import (
     bind_chat_from_nonce as bind_telegram_chat_from_nonce,
     bind_deep_link as telegram_bind_deep_link,
@@ -657,6 +658,9 @@ def _post_restore_passphrase_armed(db) -> bool:
 def login(request: Request, username: str = Form(...), password: str = Form(...),
           backup_passphrase: str = Form("")):
     with SessionLocal() as db:
+        # Exclude restores: credentials are verified and sessions written only
+        # before a restore snapshot or after its finalization, never mid-swap.
+        acquire_credential_write_lock(db)
         remaining = lockout_remaining(db)
         if remaining is not None:
             minutes = max(1, math.ceil(remaining.total_seconds() / 60))
@@ -3291,9 +3295,11 @@ def _sensitive_reauth(admin: AdminAccount, current_password: str) -> str:
             return "locked"
     if current_password and verify_password(current_password, admin.password_hash):
         with SessionLocal() as db:
+            acquire_credential_write_lock(db)
             clear_reauth_attempts(db, actor=admin.username)
         return "ok"
     with SessionLocal() as db:
+        acquire_credential_write_lock(db)
         record_failed_reauth(db, actor=admin.username)
     return "failed"
 
@@ -3421,6 +3427,7 @@ def change_password_route(
     if new_password != confirm_password:
         return render("mismatch", status_code=400)
     with SessionLocal.begin() as db:
+        acquire_credential_write_lock(db)
         db_admin = db.get(AdminAccount, admin.id)
         if db_admin is None or not verify_password(current_password, db_admin.password_hash):
             return render("wrong_current", status_code=400)
@@ -3441,6 +3448,7 @@ def change_password_route(
     # The rotation invalidates every other session; keep this one signed in.
     request.session["admin_session_version"] = new_session_version
     with SessionLocal.begin() as db:
+        acquire_credential_write_lock(db)
         db.execute(
             delete(AdminSession).where(
                 AdminSession.admin_account_id == admin.id,
@@ -3478,6 +3486,7 @@ def create_account(
         return RedirectResponse("/settings/accounts?error=mismatch", status_code=303)
     try:
         with SessionLocal.begin() as db:
+            acquire_credential_write_lock(db)
             existing = db.scalar(select(AdminAccount).where(AdminAccount.username == username))
             if existing is not None:
                 return RedirectResponse("/settings/accounts?error=exists", status_code=303)
@@ -3514,6 +3523,7 @@ def deactivate_account(
     if not reason:
         return RedirectResponse("/settings/accounts?error=missing", status_code=303)
     with SessionLocal.begin() as db:
+        acquire_credential_write_lock(db)
         target = db.get(AdminAccount, account_id)
         if target is None:
             return RedirectResponse("/settings/accounts?error=exists", status_code=303)
@@ -3553,6 +3563,7 @@ def activate_account(
     if not reason:
         return RedirectResponse("/settings/accounts?error=missing", status_code=303)
     with SessionLocal.begin() as db:
+        acquire_credential_write_lock(db)
         target = db.get(AdminAccount, account_id)
         if target is None:
             return RedirectResponse("/settings/accounts?error=exists", status_code=303)
@@ -3652,6 +3663,7 @@ def _accounts_page_response(request: Request, reset_reveal: dict | None = None):
 def end_admin_session(session_id: str, admin: AdminAccount = Depends(require_system_admin)):
     """Terminate one open session; its cookie dies even if still validly signed."""
     with SessionLocal.begin() as db:
+        acquire_credential_write_lock(db)
         row = db.get(AdminSession, session_id)
         if row is not None:
             owner = db.get(AdminAccount, row.admin_account_id)
@@ -3689,6 +3701,7 @@ def reset_account_password(
         return RedirectResponse(f"/settings/accounts?error={'auth_locked' if reauth == 'locked' else 'auth'}", status_code=303)
     temporary_password = _generate_temporary_password()
     with SessionLocal.begin() as db:
+        acquire_credential_write_lock(db)
         target = db.get(AdminAccount, account_id)
         if target is None:
             return RedirectResponse("/settings/accounts?error=exists", status_code=303)
@@ -3796,6 +3809,7 @@ def generate_recovery_codes(
         return RedirectResponse(f"/settings/accounts?error={'auth_locked' if reauth == 'locked' else 'auth'}", status_code=303)
     codes = _generate_recovery_codes()
     with SessionLocal.begin() as db:
+        acquire_credential_write_lock(db)
         db.query(RecoveryCode).filter(
             RecoveryCode.admin_account_id == admin.id
         ).delete(synchronize_session=False)
@@ -3877,6 +3891,9 @@ def recover_account(
         return _render_recover(request, _RECOVERY_GENERIC_ERROR, status_code=400)
 
     with SessionLocal() as db:
+        # Whole verify+reset runs under the write lock: a recovery code can
+        # never be consumed against half-restored credential state.
+        acquire_credential_write_lock(db)
         passphrase_armed = _post_restore_passphrase_armed(db)
         if passphrase_armed:
             # Guesses share the sensitive-action throttle, as on the login gate.

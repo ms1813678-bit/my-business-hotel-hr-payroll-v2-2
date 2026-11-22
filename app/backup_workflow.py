@@ -30,6 +30,7 @@ from app.backup_crypto import (
 )
 from app.config import settings
 from app.models import utcnow, BackupRun, SystemSetting
+from app.restore_lock import hold_restore_lock, open_direct_connection
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -422,11 +423,27 @@ def _extract_verified_archive(
     return dump_path, photos_path
 
 
+def _replace_public_schema(connection) -> None:
+    """Terminate every other backend, then swap the public schema.
+
+    Runs on the connection that holds the restore lock: the termination query
+    excludes the backend it executes on, so the lock connection survives and
+    keeps excluding credential writes while they are dropped."""
+    with connection.cursor() as cursor:
+        cursor.execute(
+            "SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
+            "WHERE datname = current_database() AND pid <> pg_backend_pid()"
+        )
+        cursor.execute("DROP SCHEMA IF EXISTS public CASCADE")
+        cursor.execute("CREATE SCHEMA IF NOT EXISTS public")
+
+
 def _restore_archive_contents(
     archive_path: Path,
     backup_root: Path,
     expected_sha256: str | None = None,
     data_key: bytes | None = None,
+    swap_connection=None,
 ) -> None:
     import psycopg
     import sys
@@ -442,17 +459,11 @@ def _restore_archive_contents(
 
         # Close pooled application connections before replacing the public schema.
         engine.dispose()
-        url = make_url(settings.database_url)
-        connection_string = url.render_as_string(hide_password=False)
-        connection_string = connection_string.replace("postgresql+psycopg://", "postgresql://", 1)
-        with psycopg.connect(connection_string, autocommit=True) as connection:
-            with connection.cursor() as cursor:
-                cursor.execute(
-                    "SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
-                    "WHERE datname = current_database() AND pid <> pg_backend_pid()"
-                )
-                cursor.execute("DROP SCHEMA IF EXISTS public CASCADE")
-                cursor.execute("CREATE SCHEMA IF NOT EXISTS public")
+        if swap_connection is not None:
+            _replace_public_schema(swap_connection)
+        else:
+            with open_direct_connection() as connection:
+                _replace_public_schema(connection)
 
         restore_command = [
             pg_restore,
@@ -680,60 +691,64 @@ def restore_backup(
 
 
 
-    with SessionLocal.begin() as db:
-        pre_restore = create_backup(db, "pre_restore", actor)
-        if pre_restore.status != "success" or not pre_restore.archive_path:
-            raise RuntimeError("A verified pre-restore backup could not be created; restore was cancelled.")
-        pre_restore_id = pre_restore.id
-        pre_restore_path = Path(pre_restore.archive_path)
-        pre_restore_hash = pre_restore.sha256
-        security_snapshot = _capture_security_state(db)
+    with hold_restore_lock() as lock_connection:
+        with SessionLocal.begin() as db:
+            pre_restore = create_backup(db, "pre_restore", actor)
+            if pre_restore.status != "success" or not pre_restore.archive_path:
+                raise RuntimeError("A verified pre-restore backup could not be created; restore was cancelled.")
+            pre_restore_id = pre_restore.id
+            pre_restore_path = Path(pre_restore.archive_path)
+            pre_restore_hash = pre_restore.sha256
+            security_snapshot = _capture_security_state(db)
 
-    completed_at = datetime.now(timezone.utc)
-    try:
-        _restore_archive_contents(selected, backup_root, expected_sha256, data_key)
-        # Credential carry-over, the archive-only account lock, disaster-path
-        # neutralization and the audit trail are part of the restore itself:
-        # if ANY of them fails after the schema was replaced, the database
-        # rolls back to the pre-restore archive below. A restore is
-        # all-or-nothing; it never leaves archive credentials live.
-        _finalize_restored_security(
-            selected=selected,
-            security_snapshot=security_snapshot,
-            actor=actor,
-            reason=reason,
-            manifest_created_at=manifest.get("created_at"),
-            pre_restore_path=pre_restore_path,
-            pre_restore_hash=pre_restore_hash,
-            completed_at=completed_at,
-        )
-    except Exception as restore_error:
+        completed_at = datetime.now(timezone.utc)
+        # The session-level restore lock stays held across the swap, the
+        # finalization AND any rollback below: no credential write can land in
+        # between, and archived credentials are never usable mid-restore.
         try:
-            _restore_archive_contents(pre_restore_path, backup_root, pre_restore_hash, data_key)
-            with SessionLocal.begin() as db:
-                _ensure_pre_restore_run_record(
-                    db,
-                    archive_path=pre_restore_path,
-                    archive_sha256=pre_restore_hash,
-                    actor=actor,
-                )
-                db.add(AuditLog(
-                    actor=actor,
-                    action="backup_restore_rolled_back",
-                    entity_type="backup_run",
-                    entity_id=str(pre_restore_id),
-                    old_value=str(selected),
-                    new_value=str(pre_restore_path),
-                    reason=f"Restore failed and previous database was restored: {restore_error}"[:4000],
-                ))
-        except Exception as rollback_error:
+            _restore_archive_contents(selected, backup_root, expected_sha256, data_key, swap_connection=lock_connection)
+            # Credential carry-over, the archive-only account lock, disaster-path
+            # neutralization and the audit trail are part of the restore itself:
+            # if ANY of them fails after the schema was replaced, the database
+            # rolls back to the pre-restore archive below. A restore is
+            # all-or-nothing; it never leaves archive credentials live.
+            _finalize_restored_security(
+                selected=selected,
+                security_snapshot=security_snapshot,
+                actor=actor,
+                reason=reason,
+                manifest_created_at=manifest.get("created_at"),
+                pre_restore_path=pre_restore_path,
+                pre_restore_hash=pre_restore_hash,
+                completed_at=completed_at,
+            )
+        except Exception as restore_error:
+            try:
+                _restore_archive_contents(pre_restore_path, backup_root, pre_restore_hash, data_key, swap_connection=lock_connection)
+                with SessionLocal.begin() as db:
+                    _ensure_pre_restore_run_record(
+                        db,
+                        archive_path=pre_restore_path,
+                        archive_sha256=pre_restore_hash,
+                        actor=actor,
+                    )
+                    db.add(AuditLog(
+                        actor=actor,
+                        action="backup_restore_rolled_back",
+                        entity_type="backup_run",
+                        entity_id=str(pre_restore_id),
+                        old_value=str(selected),
+                        new_value=str(pre_restore_path),
+                        reason=f"Restore failed and previous database was restored: {restore_error}"[:4000],
+                    ))
+            except Exception as rollback_error:
+                raise RuntimeError(
+                    f"Restore failed: {restore_error}. Automatic rollback also failed: "
+                    f"{rollback_error}. Preserve pre-restore archive: {pre_restore_path}"
+                ) from rollback_error
             raise RuntimeError(
-                f"Restore failed: {restore_error}. Automatic rollback also failed: "
-                f"{rollback_error}. Preserve pre-restore archive: {pre_restore_path}"
-            ) from rollback_error
-        raise RuntimeError(
-            f"Restore failed; the previous database was restored from {pre_restore_path}: {restore_error}"
-        ) from restore_error
+                f"Restore failed; the previous database was restored from {pre_restore_path}: {restore_error}"
+            ) from restore_error
 
     restore_log = {
         "restored_at": completed_at.isoformat(),

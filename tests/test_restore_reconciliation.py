@@ -491,7 +491,7 @@ def test_finalize_failure_rolls_back_to_pre_restore(factory, monkeypatch, tmp_pa
     pre-restore archive. A restore never leaves archive credentials live."""
     calls = []
 
-    def fake_contents(archive_path, backup_root, expected_sha256=None, data_key=None):
+    def fake_contents(archive_path, backup_root, expected_sha256=None, data_key=None, **kwargs):
         calls.append(str(archive_path))
         with factory.begin() as db:
             db.merge(SystemSetting(
