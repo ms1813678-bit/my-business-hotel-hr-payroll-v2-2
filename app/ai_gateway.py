@@ -294,6 +294,13 @@ def _memory(actor: str, role: str, content: str) -> None:
         db.add(AIConversationMessage(actor=actor, role=role, content=content[:10000]))
 
 
+def record_exchange(actor: str, question: str, answer: str) -> None:
+    """Persist an ordinary Q&A exchange so the conversation thread is real,
+    not just command history. Stored in the language it was rendered in."""
+    _memory(actor, "user", question)
+    _memory(actor, "assistant", answer)
+
+
 def recent_memory(actor: str, limit: int = 12) -> list[dict[str, str]]:
     with SessionLocal() as db:
         rows = db.scalars(

@@ -2243,3 +2243,39 @@ def test_employees_page_bounds_change_and_correction_records(client, monkeypatch
     client.cookies.set("my_hr_language", "zh")
     zh_page = client.get("/employees", params={"q": "EMP-201"})
     assert "下一页" in zh_page.text
+
+
+def test_ai_qa_exchange_persists_and_loads_once(client, monkeypatch):
+    """Route wiring: GET loads the thread, POST stores the exchange once."""
+    store = []
+    monkeypatch.setattr(
+        "app.main.recent_memory", lambda actor, limit=12: list(store)
+    )
+
+    def fake_record(actor, question, answer):
+        store.append({"role": "user", "content": question})
+        store.append({"role": "assistant", "content": answer})
+
+    monkeypatch.setattr("app.main.record_exchange", fake_record)
+    assert login(client).status_code == 303
+    client.cookies.set("my_hr_language", "ar")
+    page = client.get("/ai")
+    response = client.post(
+        "/ai",
+        data={"question": "كم عدد الموظفين النشطين؟", "csrf_token": csrf_from(page)},
+    )
+    assert response.status_code == 200
+    assert response.text.count("ai-msg-user") == 1
+    assert response.text.count("ai-msg-assistant") == 1
+    page2 = client.get("/ai")
+    assert page2.status_code == 200
+    assert page2.text.count("ai-msg-user") == 1
+    assert page2.text.count("ai-msg-assistant") == 1
+    assert "كم عدد الموظفين النشطين؟" in page2.text
+    response2 = client.post(
+        "/ai",
+        data={"question": "كم عدد الموظفين النشطين؟", "csrf_token": csrf_from(page2)},
+    )
+    assert response2.status_code == 200
+    assert response2.text.count("ai-msg-user") == 2
+    assert response2.text.count("ai-msg-assistant") == 2

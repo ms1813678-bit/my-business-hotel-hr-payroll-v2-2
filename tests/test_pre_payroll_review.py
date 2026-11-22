@@ -318,8 +318,26 @@ def test_draft_runs_excluded_from_baseline_and_statuses_localized(monkeypatch):
         assert flagged["baseline_months"] == ["2026-09-01"]
         text = review.format_pre_payroll_review(report, "ar")
         assert "يحتاج مراجعة" in text and "needs_review" not in text
-        assert "مسيرات معتمدة فقط" in text
+        assert "مسيرات مُنهية (معتمدة أو مقفلة) فقط" in text
         text_zh = review.format_pre_payroll_review(report, "zh")
         assert "需要审核" in text_zh and "needs_review" not in text_zh
+    finally:
+        engine.dispose()
+
+
+def test_closed_runs_count_as_finalized_baseline(monkeypatch):
+    engine, factory = _session()
+    try:
+        with factory() as db:
+            emp = _employee(db)
+            closed_prev = _run(db, date(2026, 10, 1), status="closed")
+            _item(db, closed_prev, emp, lateness="50")
+            run = _run(db, date(2026, 11, 1))
+            _item(db, run, emp, lateness="400")
+            db.commit()
+        _patched(factory, monkeypatch)
+        report = review.build_pre_payroll_review(date(2026, 11, 1))
+        assert len(report["unusual_deductions"]) == 1
+        assert report["unusual_deductions"][0]["baseline_months"] == ["2026-10-01"]
     finally:
         engine.dispose()

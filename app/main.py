@@ -99,7 +99,7 @@ from app.ai_assistant import ask_local_model, local_fallback_answer, local_model
 from app.ai_agent import is_command_request
 from app.ai_smart_scan import build_smart_scan
 from app.ai_hr_queries import is_structured_hr_query, answer_structured_hr_query
-from app.ai_gateway import prepare_command, approve_command, reject_command, recent_memory
+from app.ai_gateway import prepare_command, approve_command, reject_command, recent_memory, record_exchange
 
 SECURITY_ROSTER_MAX_BYTES = 5 * 1024 * 1024
 SECURITY_ROSTER_STAGING_DIR = Path("var") / "security_roster_staging"
@@ -663,6 +663,7 @@ def ai_page(request: Request, admin: AdminAccount = Depends(get_current_admin)):
             "scan": build_smart_scan(request.state.language),
             "question": "",
             "answer": None,
+            "memory": recent_memory(admin.username),
         },
     )
 
@@ -723,6 +724,9 @@ def ai_ask(
             except RuntimeError:
                 answer = local_fallback_answer(question, context, language=request.state.language)
 
+    history = recent_memory(admin.username)
+    if answer is not None and pending is None:
+        record_exchange(admin.username, question, answer)
     return templates.TemplateResponse(
         request=request,
         name="ai.html",
@@ -734,7 +738,7 @@ def ai_ask(
             "question": question,
             "answer": answer,
             "pending": pending,
-            "memory": recent_memory(admin.username),
+            "memory": history,
         },
     )
 

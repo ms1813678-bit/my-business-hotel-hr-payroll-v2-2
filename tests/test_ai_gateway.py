@@ -190,3 +190,30 @@ def test_leave_balance_preview_shows_current_and_resulting_balance_and_rejects_s
             assert count == 2
     finally:
         engine.dispose()
+
+
+def test_record_exchange_persists_user_and_assistant(monkeypatch):
+    """Gateway persistence: an ordinary Q&A round-trip lands in memory."""
+    import app.ai_gateway as gateway
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+    from sqlalchemy.pool import StaticPool
+    from app.db import Base
+
+    engine = create_engine(
+        "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
+    )
+    try:
+        Base.metadata.create_all(engine)
+        factory = sessionmaker(bind=engine, autoflush=False, autocommit=False)
+        monkeypatch.setattr(gateway, "SessionLocal", factory)
+        gateway.record_exchange("tester", "سؤال تجريبي", "جواب تجريبي")
+        memory = gateway.recent_memory("tester")
+        assert memory == [
+            {"role": "user", "content": "سؤال تجريبي"},
+            {"role": "assistant", "content": "جواب تجريبي"},
+        ]
+        # other actors see nothing
+        assert gateway.recent_memory("someone-else") == []
+    finally:
+        engine.dispose()
