@@ -694,7 +694,7 @@ html[dir="ltr"] textarea {
   .scope-grid { grid-template-columns: 1fr; }
 }
 
-@page report-landscape { size: A4 landscape; }
+@page report-landscape { size: A4 landscape; margin: 16mm 10mm 12mm; }
 
 @media print {
   .sidebar, .language-switch, .strip .header-actions, .breakdown-toggle, footer { display: none !important; }
@@ -706,10 +706,24 @@ html[dir="ltr"] textarea {
   body.report-print { page: report-landscape; }
   body.report-print .split { grid-template-columns: minmax(0, 1fr); }
   body.report-print .report-details-card { break-inside: auto; }
+  /* Compact print layout: the whole report should fit one or two sheets. */
+  body.report-print .strip { padding: 10px 16px; margin-bottom: 10px; }
+  body.report-print .strip h1 { font-size: 16px; margin: 0 0 2px; }
+  body.report-print .strip .meta { font-size: 11px; }
+  body.report-print .warn-box { padding: 8px 14px; font-size: 11px; margin-bottom: 10px; }
+  body.report-print .card { padding: 14px 18px; margin-bottom: 12px; }
+  body.report-print h2 { font-size: 13px; margin: 0 0 6px; }
+  body.report-print .report-table { font-size: 8.5px; }
+  body.report-print .sum-item { padding: 6px 0; }
+  body.report-print .sum-item span { font-size: 11px; }
+  body.report-print .sum-item strong { font-size: 16px; }
+  body.report-print .cmp li { padding: 4px 0; font-size: 11px; }
+  body.report-print .cmp-head { font-size: 10.5px; margin: 6px 0 2px; }
+  body.report-print .print-meta { margin-top: 16px; font-size: 11px; }
   body.report-print .table-wrap { overflow: visible !important; border: none; }
   body.report-print .report-table { width: 100% !important; font-size: 9.5px; }
   body.report-print .report-table thead th, body.report-print .report-table tbody td {
-    white-space: normal !important; overflow-wrap: break-word; padding: 5px 7px;
+    white-space: normal !important; overflow-wrap: break-word; padding: 4px 6px;
   }
   body.report-print .breakdown-table { width: 100% !important; font-size: 9px; }
   body.report-print .breakdown-table th, body.report-print .breakdown-table td { white-space: normal !important; overflow-wrap: break-word; }
