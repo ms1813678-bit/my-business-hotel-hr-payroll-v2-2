@@ -14,18 +14,18 @@ from app.models import CAIRO_TZ, AuditLog
 
 
 def test_column_defaults_write_aware_utc():
+    """Probe insert is rolled back: migration 0009 forbids DELETE on audit_logs."""
     before = datetime.now(timezone.utc)
-    with SessionLocal.begin() as db:
-        db.add(AuditLog(actor="tz-test", action="tz_probe", entity_type="probe", entity_id="1"))
     with SessionLocal() as db:
+        db.add(AuditLog(actor="tz-test", action="tz_probe", entity_type="probe", entity_id="1"))
+        db.flush()
         row = db.query(AuditLog).filter_by(actor="tz-test").order_by(AuditLog.id.desc()).first()
         assert row is not None
+        db.refresh(row)
         assert row.created_at.tzinfo is not None, "read-back must be timezone-aware"
         delta = abs((row.created_at.astimezone(timezone.utc) - before).total_seconds())
         assert delta < 60, "stored instant must match real UTC now, not a shifted wall clock"
-    # keep the shared demo/test audit log free of probe rows
-    with SessionLocal.begin() as cleanup:
-        cleanup.query(AuditLog).filter_by(actor="tz-test", action="tz_probe").delete()
+        db.rollback()
 
 
 def _probe_query(session_tz: str) -> tuple[int, int]:

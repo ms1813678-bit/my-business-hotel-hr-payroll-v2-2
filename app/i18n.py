@@ -3179,3 +3179,25 @@ ZH.update({
 
 EN.update({"{n} محاولة دخول فاشلة": "{n} failed login attempts"})
 ZH.update({"{n} محاولة دخول فاشلة": "{n} 次登录尝试失败"})
+
+# Exact official seed labels (alembic 0016 bulk_insert) for ZH rendering.
+ZH.update({
+    "عارضة / طارئة": "事假 / 紧急假",
+    "بدون أجر": "无薪",
+})
+EN.update({
+    "تأكيد سجل الإجازة رقم {n}": "Confirmed leave record #{n}",
+    "إلغاء سجل الإجازة رقم {n}: {suffix}": "Cancellation of leave record #{n}: {suffix}",
+    "اعتماد الطلب رقم {n}: {suffix}": "Approved request #{n}: {suffix}",
+    "فشلت الاستعادة وأُعيدت قاعدة البيانات السابقة: {suffix}": "Restore failed and previous database was restored: {suffix}",
+    "التعيين المبدئي": "Initial employment",
+    "سجلت الموارد البشرية أن الموظف اطلع على الإخطار.": "HR recorded that the employee viewed the notice.",
+})
+ZH.update({
+    "تأكيد سجل الإجازة رقم {n}": "已确认请假记录 #{n}",
+    "إلغاء سجل الإجازة رقم {n}: {suffix}": "已取消请假记录 #{n}：{suffix}",
+    "اعتماد الطلب رقم {n}: {suffix}": "已批准请求 #{n}：{suffix}",
+    "فشلت الاستعادة وأُعيدت قاعدة البيانات السابقة: {suffix}": "恢复失败，已还原之前的数据库：{suffix}",
+    "التعيين المبدئي": "初始入职",
+    "سجلت الموارد البشرية أن الموظف اطلع على الإخطار.": "人力资源已记录员工已查看通知。",
+})

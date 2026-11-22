@@ -1,8 +1,42 @@
 """Arabic display labels for audit log action and entity codes.
 
+
+
+
 The stored codes stay unchanged; this map is presentation-only, exactly like
 the report enum display maps. Unknown codes fall back to the raw value.
 """
+
+STATUS_LABELS_AR = {
+    "active": "نشط",
+    "archived": "مؤرشف",
+    "approved": "معتمد",
+    "applied": "مطبق",
+    "cancelled": "ملغى",
+    "canceled": "ملغى",
+    "closed": "مغلق",
+    "confirmed": "مؤكد",
+    "declined": "مرفوض",
+    "deducted": "مخصوم",
+    "draft": "مسودة",
+    "failed": "فاشلة",
+    "imported": "مستوردة",
+    "needs_review": "تحتاج مراجعة",
+    "open": "مفتوح",
+    "paid": "مدفوع",
+    "parsed": "مقروءة",
+    "partially_paid": "مدفوع جزئيًا",
+    "pending": "معلق",
+    "rejected": "مرفوض",
+    "reopened": "معاد فتحه",
+    "scheduled": "مجدول",
+    "success": "ناجحة",
+    "unpaid": "غير مدفوع",
+    "opening": "رصيد افتتاحي",
+    "adjustment": "تسوية",
+    "leave_use": "استهلاك إجازة",
+    "leave_reversal": "استرجاع إجازة",
+}
 
 ACTION_LABELS = {
     "admin_password_changed": "تغيير كلمة مرور المسؤول",
@@ -123,6 +157,10 @@ def detail_label(value: str, language: str) -> str:
     """Localize known field keys inside an audit payload; preserve the rest."""
     if not value:
         return value
+    # Bare status transitions (old_value/new_value like "draft") localize too.
+    status_ar = STATUS_LABELS_AR.get(value.strip())
+    if status_ar is not None:
+        return _translate_text(status_ar, language)
 
     def _replace(match):
         prefix, key = match.group(1), match.group(2)
@@ -167,12 +205,22 @@ REASON_LABELS_AR = {
     ("ai_command_expired", "انتهت صلاحية طلب الموافقة."): "انتهت صلاحية طلب الموافقة.",
     ("ai_command_invalidated", "تغيرت بيانات السجل بعد عرض المعاينة وقبل التأكيد."): "تغيرت بيانات السجل بعد عرض المعاينة وقبل التأكيد.",
     ("ai_command_invalidated", "خطة التنفيذ المخزنة غير صالحة أو لم تعد مطابقة للخطة المعروضة."): "خطة التنفيذ المخزنة غير صالحة أو لم تعد مطابقة للخطة المعروضة.",
+    ("employee_action_acknowledgement_recorded", "HR recorded that the employee viewed the notice."): "سجلت الموارد البشرية أن الموظف اطلع على الإخطار.",
 }
 
 
 # Pattern reasons carry a runtime value, so exact match cannot cover them.
 _REASON_PATTERNS = [
-    ("login_lockout", _re.compile(r"^(\d+) failed login attempts$"), "{n} محاولة دخول فاشلة"),
+    ("login_lockout", _re.compile(r"^(?P<n>\d+) failed login attempts$"), "{n} محاولة دخول فاشلة"),
+    ("backup_restore_rolled_back",
+     _re.compile(r"^Restore failed and previous database was restored: (?P<suffix>.*)$"),
+     "فشلت الاستعادة وأُعيدت قاعدة البيانات السابقة: {suffix}"),
+    ("leave_balance_leave_use",
+     _re.compile(r"^Confirmed leave record #(?P<n>\d+)$"),
+     "تأكيد سجل الإجازة رقم {n}"),
+    ("leave_balance_leave_reversal",
+     _re.compile(r"^Cancellation of leave record #(?P<n>\d+): (?P<suffix>.*)$"),
+     "إلغاء سجل الإجازة رقم {n}: {suffix}"),
 ]
 
 
@@ -182,7 +230,7 @@ def _pattern_reason_ar(action: str, reason: str):
             continue
         match = pattern.match(reason)
         if match:
-            return template_ar, match.group(1)
+            return template_ar, match.groupdict()
     return None
 
 
@@ -196,5 +244,35 @@ def reason_label(action: str, reason: str, language: str) -> str:
     patterned = _pattern_reason_ar(action, reason)
     if patterned is None:
         return reason
-    template_ar, value = patterned
-    return _translate_text(template_ar, language).format(n=value)
+    template_ar, values = patterned
+    return _translate_text(template_ar, language).format(**values)
+
+
+# --- System-generated workflow reasons (balance history, employee changes) ---
+# Constant prefixes localize; record numbers and user/technical suffixes stay.
+_SYSTEM_REASON_EXACT = {
+    "Initial employment": "التعيين المبدئي",
+}
+
+_SYSTEM_REASON_PATTERNS = [
+    (_re.compile(r"^Confirmed leave record #(?P<n>\d+)$"),
+     "تأكيد سجل الإجازة رقم {n}"),
+    (_re.compile(r"^Cancellation of leave record #(?P<n>\d+): (?P<suffix>.*)$"),
+     "إلغاء سجل الإجازة رقم {n}: {suffix}"),
+    (_re.compile(r"^Approved request #(?P<n>\d+): (?P<suffix>.*)$"),
+     "اعتماد الطلب رقم {n}: {suffix}"),
+]
+
+
+def system_reason(value: str, language: str) -> str:
+    """Localize known system-generated workflow reasons; preserve all else."""
+    if not value:
+        return value
+    label_ar = _SYSTEM_REASON_EXACT.get(value)
+    if label_ar is not None:
+        return _translate_text(label_ar, language)
+    for pattern, template_ar in _SYSTEM_REASON_PATTERNS:
+        match = pattern.match(value)
+        if match:
+            return _translate_text(template_ar, language).format(**match.groupdict())
+    return value

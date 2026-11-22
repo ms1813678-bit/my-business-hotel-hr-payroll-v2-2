@@ -270,36 +270,6 @@ def _fmt_m(value):
 
 # System enum values rendered as Arabic labels; the translate_html middleware
 # then localizes the Arabic label into EN/ZH from the catalogs.
-_STATUS_AR = {
-    "active": "نشط",
-    "archived": "مؤرشف",
-    "approved": "معتمد",
-    "applied": "مطبق",
-    "cancelled": "ملغى",
-    "canceled": "ملغى",
-    "closed": "مغلق",
-    "confirmed": "مؤكد",
-    "declined": "مرفوض",
-    "deducted": "مخصوم",
-    "draft": "مسودة",
-    "failed": "فاشلة",
-    "imported": "مستوردة",
-    "needs_review": "تحتاج مراجعة",
-    "open": "مفتوح",
-    "paid": "مدفوع",
-    "parsed": "مقروءة",
-    "partially_paid": "مدفوع جزئيًا",
-    "pending": "معلق",
-    "rejected": "مرفوض",
-    "reopened": "معاد فتحه",
-    "scheduled": "مجدول",
-    "success": "ناجحة",
-    "unpaid": "غير مدفوع",
-    "opening": "رصيد افتتاحي",
-    "adjustment": "تسوية",
-    "leave_use": "استهلاك إجازة",
-    "leave_reversal": "استرجاع إجازة",
-}
 
 
 def _status_label(value):
@@ -326,7 +296,7 @@ templates.env.filters["fmt_m"] = _fmt_m
 templates.env.filters["status_label"] = _status_label
 templates.env.filters["field_label"] = _field_label
 
-from app.audit_display import detail_label as _audit_detail_label, reason_label as _audit_reason_label
+from app.audit_display import detail_label as _audit_detail_label, reason_label as _audit_reason_label, system_reason as _system_reason_label, STATUS_LABELS_AR as _STATUS_AR
 
 
 def _leave_type_name(item, language: str) -> str:
@@ -345,6 +315,7 @@ def _leave_type_name(item, language: str) -> str:
 
 templates.env.globals["audit_detail"] = _audit_detail_label
 templates.env.globals["audit_reason"] = _audit_reason_label
+templates.env.globals["system_reason"] = _system_reason_label
 templates.env.globals["leave_type_name"] = _leave_type_name
 
 from app.i18n import translate_html, translate_text as _translate_text
@@ -1696,7 +1667,7 @@ def leave_page(request: Request, admin: AdminAccount = Depends(get_current_admin
                 "records": records,
                 "employee_names": {employee.id: employee.full_name for employee in all_employees},
                 "employee_codes": {employee.id: employee.code for employee in all_employees},
-                "type_names": {item.id: item.name_ar for item in db.scalars(select(LeaveType)).all()},
+                "type_names": {item.id: _leave_type_name(item, request.state.language) for item in db.scalars(select(LeaveType)).all()},
                 "balances": balances,
                 "transactions": transactions,
                 "csrf_token": get_csrf_token(request),

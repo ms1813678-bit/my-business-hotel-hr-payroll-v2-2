@@ -176,7 +176,7 @@
           <summary>سجل التغييرات</summary>
           <ul class="change-log">
             {% for change in employee_changes if change.employee_id == e.id %}
-            <li><span>{{ change.effective_date }}</span> {{ change.field_name }}: {{ change.old_value or '—' }} ← {{ change.new_value or '—' }} <em>({{ change.reason }})</em></li>
+            <li><span>{{ change.effective_date }}</span> {{ change.field_name }}: {{ change.old_value or '—' }} ← {{ change.new_value or '—' }} <em>({{ system_reason(change.reason, request.state.language) }})</em></li>
             {% else %}
             <li class="muted">لا توجد تغييرات مسجلة.</li>
             {% endfor %}

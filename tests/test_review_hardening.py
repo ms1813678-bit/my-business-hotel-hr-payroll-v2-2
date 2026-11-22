@@ -85,3 +85,19 @@ def test_audit_reason_pattern_with_runtime_value():
     assert reason_label("login_lockout", "2 failed login attempts", "en") == "2 failed login attempts"
     assert reason_label("login_lockout", "2 failed login attempts", "zh") == "2 次登录尝试失败"
     assert reason_label("login_lockout", "unrelated text", "en") == "unrelated text"
+
+
+def test_official_seed_leave_types_render_true_zh():
+    """Coverage derived from the official alembic 0016 seed rows, not fixtures."""
+    import re as _re
+    from pathlib import Path
+
+    migration = Path("alembic/versions/0016_leave_management.py").read_text(encoding="utf-8")
+    seeds = _re.findall(r'\{"code": "[^"]+", "name_ar": "([^"]+)", "name_en": "([^"]+)"', migration)
+    assert len(seeds) == 6, f"expected the 6 official seed types, found {seeds}"
+    for name_ar, name_en in seeds:
+        item = SimpleNamespace(name_ar=name_ar, name_en=name_en)
+        rendered = _leave_type_name(item, "zh")
+        assert rendered not in (name_ar, name_en), (
+            f"seed type {name_ar!r} must render true ZH, got {rendered!r}"
+        )

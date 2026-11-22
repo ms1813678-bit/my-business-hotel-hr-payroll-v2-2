@@ -116,7 +116,7 @@
   <section class="notice">
     <h2>آخر حركات الأرصدة</h2>
     <div class="table-wrap"><table><thead><tr><th>التاريخ</th><th>الموظف</th><th>النوع</th><th>الحركة</th><th>الأيام</th><th>السبب</th></tr></thead><tbody>
-    {% for tx in transactions %}<tr><td>{{ tx.created_at|fmt_dt }}</td><td>{{ employee_codes.get(tx.employee_id, "—") }}</td><td>{{ type_names.get(tx.leave_type_id, "—") }}</td><td>{{ tx.transaction_type|status_label }}</td><td>{{ tx.days_delta }}</td><td>{{ tx.reason }}</td></tr>
+    {% for tx in transactions %}<tr><td>{{ tx.created_at|fmt_dt }}</td><td>{{ employee_codes.get(tx.employee_id, "—") }}</td><td>{{ type_names.get(tx.leave_type_id, "—") }}</td><td>{{ tx.transaction_type|status_label }}</td><td>{{ tx.days_delta }}</td><td>{{ system_reason(tx.reason, request.state.language) }}</td></tr>
     {% else %}<tr><td colspan="6">لا توجد حركات أرصدة بعد.</td></tr>{% endfor %}
     </tbody></table></div>
   </section>
