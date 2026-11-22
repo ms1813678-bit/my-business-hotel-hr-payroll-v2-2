@@ -1,5 +1,5 @@
 import re
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from html.parser import HTMLParser
 from decimal import Decimal
 
@@ -2018,6 +2018,9 @@ def test_employees_list_search_filters_and_pagination(client, monkeypatch):
     by_phone = client.get("/employees", params={"q": "0100123"})
     assert "Ahmed Ali" in by_phone.text and "Mona Said" not in by_phone.text
 
+    by_code = client.get("/employees", params={"q": "EMP-102"})
+    assert "Mona Said" in by_code.text and "Ahmed Ali" not in by_code.text
+
     by_national_id = client.get("/employees", params={"q": "3000101"})
     assert "Ahmed Ali" in by_national_id.text and "Mona Said" not in by_national_id.text
 
@@ -2053,3 +2056,51 @@ def test_employees_list_search_filters_and_pagination(client, monkeypatch):
     client.cookies.set("my_hr_language", "zh")
     zh_page = client.get("/employees", params={"q": "e"})
     assert "下一页" in zh_page.text and "搜索" in zh_page.text
+
+
+def test_employees_page_bounds_change_and_correction_records(client, monkeypatch):
+    """The page never loads the full change history or correction-request table."""
+    import app.main as main_module
+    from app.models import EmployeeChange, EmployeeDataChangeRequest
+
+    assert login(client).status_code == 303
+    _add_employee(client, "EMP-201", "Visible Employee")
+    with main_module.SessionLocal() as db:
+        visible = db.query(Employee).filter_by(code="EMP-201").one()
+        other = Employee(
+            code="EMP-202",
+            full_name="Offpage Employee",
+            department_id=client.test_department_id,
+            position="Test Position",
+            hire_date=date(2025, 1, 1),
+            basic_salary=1000,
+            daily_hours=8,
+        )
+        db.add(other)
+        db.flush()
+        # A change record for an employee outside the current page must not be
+        # loaded at all; one for a visible employee must still render.
+        db.add(EmployeeChange(employee_id=other.id, field_name="phone", old_value="1", new_value="2", reason="offpage", effective_date=date(2025, 2, 1)))
+        db.add(EmployeeChange(employee_id=visible.id, field_name="phone", old_value="3", new_value="4", reason="visible-reason", effective_date=date(2025, 2, 2)))
+        # Older than the cap, then newer: only the newest may be shown.
+        db.add(EmployeeDataChangeRequest(employee_id=visible.id, field_name="address", requested_value="old requested value", request_reason="r1", recorded_at=datetime(2025, 2, 1)))
+        db.add(EmployeeDataChangeRequest(employee_id=visible.id, field_name="phone", requested_value="newest requested value", request_reason="r2", recorded_at=datetime(2025, 2, 2)))
+        db.commit()
+
+    monkeypatch.setattr(main_module, "EMPLOYEES_PER_PAGE", 1)
+    monkeypatch.setattr(main_module, "DATA_CHANGE_REQUESTS_SHOWN", 1)
+    page = client.get("/employees", params={"q": "EMP-201"})
+    assert page.status_code == 200
+    assert "visible-reason" in page.text
+    assert "offpage" not in page.text
+    assert "newest requested value" in page.text
+    assert "old requested value" not in page.text
+    # The truncation note tells the reviewer the list is capped, not complete.
+    assert "يُعرض أحدث" in page.text
+
+    client.cookies.set("my_hr_language", "en")
+    en_page = client.get("/employees", params={"q": "EMP-201"})
+    assert "Showing latest" in en_page.text and "requests out of" in en_page.text
+    client.cookies.set("my_hr_language", "zh")
+    zh_page = client.get("/employees", params={"q": "EMP-201"})
+    assert "显示最近" in zh_page.text

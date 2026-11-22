@@ -221,6 +221,9 @@
   <div class="section-heading" style="margin-top:0">
     <div><span class="section-kicker">مراجعة</span><h2>طلبات تصحيح البيانات الشخصية</h2></div>
   </div>
+  {% if data_change_total > data_change_requests|length %}
+  <p class="muted"><span>يُعرض أحدث</span> {{ data_change_requests|length }} <span>طلبًا من إجمالي</span> {{ data_change_total }}.</p>
+  {% endif %}
   {% for r in data_change_requests %}
   <article class="employee-card request-card">
     <div class="employee-title-row">

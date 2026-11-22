@@ -2796,6 +2796,8 @@ def restore_backup_route(
 
 
 EMPLOYEES_PER_PAGE = 24
+# Bound the correction-request review list so the page never loads the full history.
+DATA_CHANGE_REQUESTS_SHOWN = 100
 
 
 @app.get("/employees", response_class=HTMLResponse)
@@ -2813,9 +2815,6 @@ def employees_page(
         branches = db.scalars(select(Branch).where(Branch.active.is_(True)).order_by(Branch.name)).all()
         all_departments = db.scalars(select(Department).order_by(Department.name)).all()
         all_branches = db.scalars(select(Branch).order_by(Branch.name)).all()
-        employee_changes = db.scalars(select(EmployeeChange).order_by(EmployeeChange.effective_date.desc(), EmployeeChange.id.desc())).all()
-        data_change_requests = db.scalars(select(EmployeeDataChangeRequest).order_by(EmployeeDataChangeRequest.recorded_at.desc())).all()
-
         stmt = select(Employee)
         query = q.strip()
         if query:
@@ -2840,13 +2839,28 @@ def employees_page(
             stmt.order_by(Employee.code).offset((page - 1) * per_page).limit(per_page)
         ).all()
 
+        # Change history renders only inside the visible cards, so load it just
+        # for the employees on this page instead of the entire table.
+        page_employee_ids = [e.id for e in employees] or [-1]
+        employee_changes = db.scalars(
+            select(EmployeeChange)
+            .where(EmployeeChange.employee_id.in_(page_employee_ids))
+            .order_by(EmployeeChange.effective_date.desc(), EmployeeChange.id.desc())
+        ).all()
+        data_change_total = db.scalar(select(func.count()).select_from(EmployeeDataChangeRequest)) or 0
+        data_change_requests = db.scalars(
+            select(EmployeeDataChangeRequest)
+            .order_by(EmployeeDataChangeRequest.recorded_at.desc())
+            .limit(DATA_CHANGE_REQUESTS_SHOWN)
+        ).all()
+
         def page_url(target: int) -> str:
             params = {"q": query, "department_id": department_id, "branch_id": branch_id, "status": status, "page": target}
             return "/employees?" + urlencode({k: v for k, v in params.items() if v not in ("", 0)})
 
         return templates.TemplateResponse(
             request=request, name="employees.html",
-            context={"departments": departments, "branches": branches, "all_departments": all_departments, "all_branches": all_branches, "employee_changes": employee_changes, "data_change_requests": data_change_requests, "employees": employees, "csrf_token": get_csrf_token(request), "q": query, "filter_department_id": department_id, "filter_branch_id": branch_id, "filter_status": status, "filters_active": bool(query or department_id or branch_id or status), "page": page, "pages": pages, "total": total, "page_url": page_url},
+            context={"departments": departments, "branches": branches, "all_departments": all_departments, "all_branches": all_branches, "employee_changes": employee_changes, "data_change_requests": data_change_requests, "employees": employees, "csrf_token": get_csrf_token(request), "q": query, "filter_department_id": department_id, "filter_branch_id": branch_id, "filter_status": status, "filters_active": bool(query or department_id or branch_id or status), "page": page, "pages": pages, "total": total, "page_url": page_url, "data_change_total": data_change_total},
         )
 
 
