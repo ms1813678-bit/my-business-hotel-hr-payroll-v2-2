@@ -100,11 +100,12 @@ def test_save_config_preserves_binding_and_clear_on_token_change(db_factory):
 
 
 def test_trilingual_alert_text():
-    ar = build_alert("login_lockout", "admin", "ar", failed_attempts=5, locked_minutes=120)
+    ar = build_alert("login_lockout", "admin", "ar", failed_attempts=2, locked_minutes=120)
     assert "إيقاف الدخول" in ar and "admin" in ar and "120" in ar
+    assert "محاولتين فاشلتين" in ar  # Arabic dual form, not a bare number
     en = build_alert("login_success", "admin", "en")
     assert "successful sign-in" in en and "admin" in en
-    zh = build_alert("login_lockout", "admin", "zh", failed_attempts=5, locked_minutes=120)
+    zh = build_alert("login_lockout", "admin", "zh", failed_attempts=2, locked_minutes=120)
     assert "锁定" in zh and "120" in zh
     test_msg = build_alert("test", "", "en")
     assert "Test message" in test_msg

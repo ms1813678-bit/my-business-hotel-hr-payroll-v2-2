@@ -39,7 +39,7 @@ _MESSAGES = {
         "zh": "登录提醒 - {app}:用户“{username}”于 {at} 成功登录。如果不是本人操作,请立即更改密码。",
     },
     "login_lockout": {
-        "ar": "تنبيه أمني - {app}: تم إيقاف الدخول مؤقتًا لمدة {minutes} دقيقة بعد {attempts} محاولات فاشلة لاسم المستخدم «{username}» في {at}. إذا لم تكن أنت، راقب النظام وغيّر كلمة المرور.",
+        "ar": "تنبيه أمني - {app}: تم إيقاف الدخول مؤقتًا لمدة {minutes} دقيقة بعد {attempts} لاسم المستخدم «{username}» في {at}. إذا لم تكن أنت، راقب النظام وغيّر كلمة المرور.",
         "en": "Security alert - {app}: sign-in locked for {minutes} minutes after {attempts} failed attempts for user \"{username}\" at {at}. If this was not you, watch the system and change the password.",
         "zh": "安全提醒 - {app}:用户“{username}”于 {at} 连续 {attempts} 次登录失败,已锁定 {minutes} 分钟。如果不是本人操作,请关注系统并更改密码。",
     },
@@ -226,15 +226,28 @@ def bind_chat_from_nonce(db: Session, *, actor: str) -> str:
     return "bound"
 
 
+def _arabic_attempts(n: int) -> str:
+    """Arabic-correct failed-attempts phrase (dual/plural/singular forms)."""
+    if n == 1:
+        return "محاولة فاشلة واحدة"
+    if n == 2:
+        return "محاولتين فاشلتين"
+    if 3 <= n <= 10:
+        return f"{n} محاولات فاشلة"
+    return f"{n} محاولة فاشلة"
+
+
 def build_alert(event: str, username: str, language: str, *, failed_attempts: int | None = None,
                 locked_minutes: int | None = None, app_name: str = "") -> str:
     templates = _MESSAGES.get(event, _MESSAGES["test"])
     template = templates.get(language) or templates["ar"]
+    attempts = failed_attempts or 0
+    attempts_text = _arabic_attempts(attempts) if language == "ar" else str(attempts)
     return template.format(
         app=app_name or "M.Y. Business Hotel",
         username=username,
         at=_now().astimezone().strftime("%Y-%m-%d %H:%M"),
-        attempts=failed_attempts or 0,
+        attempts=attempts_text,
         minutes=locked_minutes or 0,
     )
 

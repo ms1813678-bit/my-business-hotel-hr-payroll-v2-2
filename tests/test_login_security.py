@@ -99,14 +99,14 @@ def test_expired_lockout_allows_login(factory):
         assert lockout_remaining(db) is None
 
 
-def test_route_locks_after_five_failures_and_blocks_even_correct_password(client):
+def test_route_locks_after_reaching_failure_limit_and_blocks_even_correct_password(client):
     for attempt in range(FAILED_ATTEMPTS_LIMIT - 1):
         response = post_login(client, WRONG)
         assert response.status_code == 401, f"attempt {attempt + 1} should be 401"
-    fifth = post_login(client, WRONG)
-    assert fifth.status_code == 429
-    assert "تم إيقاف الدخول مؤقتًا" in fifth.text
-    assert "120" in fifth.text
+    final_attempt = post_login(client, WRONG)
+    assert final_attempt.status_code == 429
+    assert "تم إيقاف الدخول مؤقتًا" in final_attempt.text
+    assert "120" in final_attempt.text
     blocked = post_login(client, PASSWORD)
     assert blocked.status_code == 429
 

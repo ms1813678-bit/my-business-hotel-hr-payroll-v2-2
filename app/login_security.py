@@ -19,7 +19,7 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.models import AuditLog, SystemSetting
 
-FAILED_ATTEMPTS_LIMIT = 5
+FAILED_ATTEMPTS_LIMIT = 2
 LOCKOUT_DURATION = timedelta(hours=2)
 LOCKOUT_MINUTES = int(LOCKOUT_DURATION.total_seconds() // 60)
 _SETTING_KEY = "login_security"
