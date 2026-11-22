@@ -68,7 +68,10 @@ _NOTE = {
 
 _DATE_RE = re.compile(r"(20\d{2})-(\d{2})-(\d{2})")
 _MONTH_RE = re.compile(r"(20\d{2})-(\d{2})")
-_CODE_RE = re.compile(r"\b(MY[-\s]?\d{3,6}|SEC[-\s]?\d{1,4})\b", re.IGNORECASE)
+# No \b: CJK characters are word characters, so a boundary fails between
+# Chinese text and a Latin code (查看MY-0001的). Lookarounds exclude
+# ASCII alphanumerics instead.
+_CODE_RE = re.compile(r"(?<![A-Za-z0-9])(MY[-\s]?\d{3,6}|SEC[-\s]?\d{1,4})(?!\d)", re.IGNORECASE)
 
 
 def _parse_date(question: str, default: date | None = None) -> date:

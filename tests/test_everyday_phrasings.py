@@ -353,6 +353,16 @@ def test_zh_want_to_view_balance_is_a_read_not_a_guide(seeded):
     assert "添加请假" not in answer  # not the create-leave guide
 
 
+def test_cjk_adjacent_employee_code_is_recognized(seeded):
+    from app.models import LeaveType
+    with seeded.begin() as db:
+        db.add(LeaveType(code="ANN", name_ar="سنوية", name_en="Annual", tracks_balance=True))
+        db.commit()
+    report = queries.build_leave_balance_report("我想查看MY-0001的请假余额")
+    assert [e["code"] for e in report["employees"]] == ["MY-0001"]
+    assert report.get("note") != "note_specify_employee"
+
+
 def test_late_count_answered_when_clock_data_exists(seeded):
     from datetime import datetime
     with seeded.begin() as db:
