@@ -289,3 +289,23 @@ def test_restore_backup_rolls_back_after_selected_archive_failure(monkeypatch, t
     finally:
         context["engine"].dispose()
 
+
+
+def test_every_backup_contains_the_admin_accounts():
+    # Owner decision (2026-11-23, item 84): the system administrator's account
+    # must appear in every backup. create_backup dumps the WHOLE database
+    # (pg_dump custom format, no table/schema/data filtering), so the admin
+    # accounts table is structurally inside every archive; verified live on
+    # PostgreSQL 16.2 (archive TABLE DATA for admin_accounts, admin row
+    # included). Keep it that way: current-account restore compatibility
+    # depends on it.
+    import inspect
+
+    from app import backup_workflow
+
+    source = inspect.getsource(backup_workflow.create_backup)
+    assert "--format=custom" in source
+    assert "--exclude-table" not in source
+    assert "--table" not in source
+    assert "--schema" not in source
+    assert "--data-only" not in source

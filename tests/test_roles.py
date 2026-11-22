@@ -507,3 +507,27 @@ def test_reset_reveal_response_is_never_cached(three_clients):
     again = admin.get("/settings/accounts")
     assert again.status_code == 200
     assert "<code>" not in again.text, "the reveal exists only in the original response"
+
+
+def test_only_system_admin_reaches_any_backup_entrypoint(three_clients):
+    """Owner decision (2026-11-23, item 85): ONLY the system administrator may
+    extract or manage full-system backups — every entry point, server-side,
+    not just hidden buttons. Finance and assistant manager are refused on the
+    page and on every mutation, with valid CSRF tokens (so the refusal is the
+    role check, not the CSRF check)."""
+    _, finance, assistant = three_clients
+    for client in (finance, assistant):
+        token = csrf(client.get("/settings/password"))
+        assert client.get("/settings/backup", follow_redirects=False).status_code == 403
+        assert client.post("/settings/backup/create", data={
+            "csrf_token": token, "backup_type": "manual"}, follow_redirects=False).status_code == 403
+        assert client.post("/settings/backup/restore", data={
+            "csrf_token": token, "backup_id": "1", "confirm_text": "RESTORE",
+            "reason": "x", "passphrase": "", "current_password": "x"},
+            follow_redirects=False).status_code == 403
+        assert client.post("/settings/backup/root", data={
+            "csrf_token": token, "backup_root": "/tmp/x"}, follow_redirects=False).status_code == 403
+        assert client.post("/settings/backup/passphrase", data={
+            "csrf_token": token, "new_passphrase": "x" * 12,
+            "confirm_passphrase": "x" * 12, "current_passphrase": ""},
+            follow_redirects=False).status_code == 403
