@@ -33,6 +33,7 @@ from app.backup_crypto import (
 )
 from app.backup_workflow import (
     KEY_FILE_NAME,
+    PRESERVED_KEY_FILE_PREFIX,
     get_backup_root,
     restore_backup,
     save_backup_root,
@@ -199,7 +200,7 @@ def main(argv: list[str] | None = None) -> int:
     passphrase: str | None = None
     if is_encrypted_archive(archive):
         key_file = backup_root / KEY_FILE_NAME
-        if not key_file.is_file():
+        if not key_file.is_file() and not any(backup_root.glob(f"{PRESERVED_KEY_FILE_PREFIX}*.json")):
             print(_msg("missing_key_file_warning", lang, name=KEY_FILE_NAME, path=backup_root))
         passphrase = getpass.getpass(_msg("passphrase_prompt", lang))
         if not passphrase:

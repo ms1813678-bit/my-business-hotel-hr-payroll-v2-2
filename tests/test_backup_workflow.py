@@ -441,3 +441,544 @@ def test_rollback_uses_install_data_key_not_archive_key(tmp_path, monkeypatch):
     assert seen[0] == (archive.name, archive_key)  # selected archive opens with its own key
     assert seen[1] == (snap.name, target_key)  # rollback uses the INSTALL's key, not the archive's
     tgt_engine.dispose()
+
+
+def _standalone_install_record(passphrase: str):
+    """A public key record and data key from a synthetic standalone install."""
+    from app.backup_crypto import export_public_record, load_data_key, set_passphrase
+
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+    with Session(engine) as db:
+        set_passphrase(db, passphrase, actor="test")
+        db.commit()
+        record = export_public_record(db)
+        key = load_data_key(db)
+    engine.dispose()
+    return record, key
+
+
+def _key_export_session(backup_root: Path, passphrase: str):
+    from sqlalchemy.orm import sessionmaker
+
+    from app.backup_crypto import set_passphrase
+    from app.models import SystemSetting
+
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+    factory = sessionmaker(bind=engine)
+    with factory.begin() as db:
+        set_passphrase(db, passphrase, actor="test")
+        db.add(SystemSetting(key="backup_root", value=str(backup_root), updated_by="test"))
+    return engine, factory
+
+
+def test_export_key_file_preserves_replaced_record(tmp_path):
+    import json as jsonlib
+
+    from app.backup_crypto import export_public_record
+    from app.backup_workflow import KEY_FILE_NAME, export_key_file
+
+    backup_root = tmp_path / "backups"
+    backup_root.mkdir()
+    canonical = backup_root / KEY_FILE_NAME
+
+    engine_a, factory_a = _key_export_session(backup_root, "synthetic-passphrase-alice")
+    with factory_a() as db:
+        record_a = export_public_record(db)
+        export_key_file(db)
+    engine_a.dispose()
+    assert jsonlib.loads(canonical.read_text(encoding="utf-8"))["wrapped_key"] == record_a["wrapped_key"]
+
+    engine_b, factory_b = _key_export_session(backup_root, "synthetic-passphrase-bob")
+    with factory_b() as db:
+        record_b = export_public_record(db)
+        export_key_file(db)
+    engine_b.dispose()
+
+    # B's record is canonical now; A's record survives in the record store.
+    assert jsonlib.loads(canonical.read_text(encoding="utf-8"))["wrapped_key"] == record_b["wrapped_key"]
+    digest = hashlib.sha256(record_a["wrapped_key"].encode("utf-8")).hexdigest()[:8]
+    preserved = backup_root / f"backup_encryption_key.prev-{digest}.json"
+    assert preserved.is_file()
+    assert jsonlib.loads(preserved.read_text(encoding="utf-8")) == record_a
+
+
+def test_export_key_file_record_store_survives_canonical_lost_update(tmp_path):
+    """A racing export that overwrites the canonical file without preserving
+    still cannot strand another installation's record: every export leaves a
+    content-addressed copy of its own record first."""
+    import json as jsonlib
+
+    from app.backup_crypto import export_public_record
+    from app.backup_workflow import KEY_FILE_NAME, _recovery_key_records, export_key_file
+
+    backup_root = tmp_path / "backups"
+    backup_root.mkdir()
+    canonical = backup_root / KEY_FILE_NAME
+
+    engine_a, factory_a = _key_export_session(backup_root, "synthetic-passphrase-alice")
+    with factory_a() as db:
+        record_a = export_public_record(db)
+        export_key_file(db)
+    engine_a.dispose()
+    engine_b, factory_b = _key_export_session(backup_root, "synthetic-passphrase-bob")
+    with factory_b() as db:
+        record_b = export_public_record(db)
+        export_key_file(db)
+    engine_b.dispose()
+
+    # Simulated lost update: a third install overwrites the canonical file
+    # with its own record WITHOUT preserving (the old behavior / a race).
+    record_c, _ = _standalone_install_record("synthetic-passphrase-carol")
+    canonical.write_text(jsonlib.dumps(record_c), encoding="utf-8")
+
+    records, saw_file, saw_unreadable = _recovery_key_records(backup_root)
+    recovered = {record["wrapped_key"] for record in records}
+    assert record_a["wrapped_key"] in recovered
+    assert record_b["wrapped_key"] in recovered
+    assert record_c["wrapped_key"] in recovered
+    assert saw_file and not saw_unreadable
+
+
+def test_export_key_file_digest_collision_uses_longer_name(tmp_path):
+    """A truncated-digest filename collision with a DIFFERENT record must not
+    silently skip the write: the store lengthens the name instead."""
+    import json as jsonlib
+
+    from app.backup_crypto import export_public_record
+    from app.backup_workflow import PRESERVED_KEY_FILE_PREFIX, export_key_file
+
+    backup_root = tmp_path / "backups"
+    backup_root.mkdir()
+    engine, factory = _key_export_session(backup_root, "synthetic-passphrase-alice")
+    with factory() as db:
+        record = export_public_record(db)
+        # Squat on the 8-char name with a different record's content.
+        short = hashlib.sha256(record["wrapped_key"].encode("utf-8")).hexdigest()[:8]
+        other, _ = _standalone_install_record("synthetic-passphrase-bob")
+        squatter = backup_root / f"{PRESERVED_KEY_FILE_PREFIX}{short}.json"
+        squatter.write_text(jsonlib.dumps(other), encoding="utf-8")
+        export_key_file(db)
+    engine.dispose()
+    longer = hashlib.sha256(record["wrapped_key"].encode("utf-8")).hexdigest()[:16]
+    stored = backup_root / f"{PRESERVED_KEY_FILE_PREFIX}{longer}.json"
+    assert stored.is_file()
+    assert jsonlib.loads(stored.read_text(encoding="utf-8"))["wrapped_key"] == record["wrapped_key"]
+    # The squatter file is untouched.
+    assert jsonlib.loads(squatter.read_text(encoding="utf-8"))["wrapped_key"] == other["wrapped_key"]
+
+
+def test_export_key_file_store_failure_keeps_existing_canonical(tmp_path):
+    """When the record store is unwritable the export fails loudly and the
+    existing canonical record is NOT overwritten."""
+    import json as jsonlib
+
+    from app.backup_crypto import export_public_record
+    from app.backup_workflow import KEY_FILE_NAME, export_key_file
+
+    backup_root = tmp_path / "backups"
+    backup_root.mkdir()
+    canonical = backup_root / KEY_FILE_NAME
+    old_record, _ = _standalone_install_record("synthetic-passphrase-old")
+    canonical.write_text(jsonlib.dumps(old_record), encoding="utf-8")
+
+    engine, factory = _key_export_session(backup_root, "synthetic-passphrase-alice")
+    backup_root.chmod(0o555)
+    try:
+        with factory() as db:
+            with pytest.raises(OSError):
+                export_key_file(db)
+    finally:
+        backup_root.chmod(0o755)
+        engine.dispose()
+    # The only usable record was not silently overwritten.
+    assert jsonlib.loads(canonical.read_text(encoding="utf-8"))["wrapped_key"] == old_record["wrapped_key"]
+
+
+def test_export_key_file_same_record_and_unreadable_existing(tmp_path):
+    import json as jsonlib
+
+    from app.backup_crypto import export_public_record
+    from app.backup_workflow import KEY_FILE_NAME, PRESERVED_KEY_FILE_PREFIX, export_key_file
+
+    backup_root = tmp_path / "backups"
+    backup_root.mkdir()
+    engine, factory = _key_export_session(backup_root, "synthetic-passphrase-alice")
+    with factory() as db:
+        record_a = export_public_record(db)
+        export_key_file(db)
+        export_key_file(db)  # identical record: one content-addressed copy only
+    engine.dispose()
+    stored = list(backup_root.glob(f"{PRESERVED_KEY_FILE_PREFIX}*.json"))
+    assert len(stored) == 1
+    assert jsonlib.loads(stored[0].read_text(encoding="utf-8"))["wrapped_key"] == record_a["wrapped_key"]
+
+    # An unreadable existing canonical file is replaced; its content was never
+    # a usable recovery record, so nothing is preserved from it.
+    canonical = backup_root / KEY_FILE_NAME
+    canonical.write_text("not json", encoding="utf-8")
+    engine_b, factory_b = _key_export_session(backup_root, "synthetic-passphrase-bob")
+    with factory_b() as db:
+        record_b = export_public_record(db)
+        export_key_file(db)
+    engine_b.dispose()
+    assert jsonlib.loads(canonical.read_text(encoding="utf-8"))["wrapped_key"] == record_b["wrapped_key"]
+    stored_keys = {
+        jsonlib.loads(p.read_text(encoding="utf-8"))["wrapped_key"]
+        for p in backup_root.glob(f"{PRESERVED_KEY_FILE_PREFIX}*.json")
+    }
+    assert stored_keys == {record_a["wrapped_key"], record_b["wrapped_key"]}
+
+
+def test_export_key_file_preservation_is_stable_across_alternating_installs(tmp_path):
+    from app.backup_workflow import PRESERVED_KEY_FILE_PREFIX, export_key_file
+
+    backup_root = tmp_path / "backups"
+    backup_root.mkdir()
+    engine_a, factory_a = _key_export_session(backup_root, "synthetic-passphrase-alice")
+    engine_b, factory_b = _key_export_session(backup_root, "synthetic-passphrase-bob")
+    for factory in (factory_a, factory_b, factory_a, factory_b):
+        with factory() as db:
+            export_key_file(db)
+    engine_a.dispose()
+    engine_b.dispose()
+    # Exactly one preserved record per install, never duplicated or rewritten.
+    assert len(list(backup_root.glob(f"{PRESERVED_KEY_FILE_PREFIX}*.json"))) == 2
+
+
+def _prepare_encrypted_recovery_target(
+    monkeypatch,
+    tmp_path,
+    passphrase_a: str = "synthetic-passphrase-alice",
+    passphrase_b: str = "synthetic-passphrase-bob",
+):
+    """Fresh-install target (no encryption record) plus a shared backup root."""
+    import json as jsonlib
+
+    from sqlalchemy.orm import sessionmaker
+
+    import app.backup_workflow as backup_workflow
+    import app.db as db_module
+    from app.backup_crypto import encrypt_file
+    from app.models import SystemSetting
+
+    backup_root = tmp_path / "backups"
+    backup_root.mkdir()
+
+    record_a, key_a = _standalone_install_record(passphrase_a)
+    record_b, _ = _standalone_install_record(passphrase_b)
+
+    plain = make_backup(tmp_path / "plain.zip", "manual", datetime(2026, 11, 7, tzinfo=timezone.utc))
+    archive = backup_root / "manual" / "archived.zip.enc"
+    archive.parent.mkdir(parents=True)
+    encrypt_file(key_a, plain, archive)
+
+    # Shared drive: B overwrote the canonical record; A's record was preserved.
+    (backup_root / "backup_encryption_key.json").write_text(jsonlib.dumps(record_b), encoding="utf-8")
+    digest = hashlib.sha256(record_a["wrapped_key"].encode("utf-8")).hexdigest()[:8]
+    (backup_root / f"backup_encryption_key.prev-{digest}.json").write_text(
+        jsonlib.dumps(record_a), encoding="utf-8"
+    )
+
+    engine = create_engine(f"sqlite:///{tmp_path / 'target.sqlite'}")
+    Base.metadata.create_all(engine)
+    factory = sessionmaker(bind=engine, expire_on_commit=False)
+    with factory.begin() as db:
+        db.add(SystemSetting(key="backup_root", value=str(backup_root), updated_by="synthetic-admin"))
+
+    snap = make_backup(
+        backup_root / "pre_restore" / "snap.zip",
+        "pre_restore",
+        datetime(2026, 11, 8, tzinfo=timezone.utc),
+    )
+
+    def fake_create_backup(db, backup_type, actor):
+        run = BackupRun(
+            backup_type=backup_type,
+            status="success",
+            archive_path=str(snap),
+            sha256=sha256_file(snap),
+            size_bytes=snap.stat().st_size,
+            created_at=datetime(2026, 11, 8, tzinfo=timezone.utc),
+            initiated_by=actor,
+        )
+        db.add(run)
+        db.flush()
+        return run
+
+    captured = []
+
+    def fake_restore(path, root, expected_sha256=None, data_key=None, **kwargs):
+        captured.append((Path(path).name, data_key))
+
+    monkeypatch.setattr(db_module, "SessionLocal", factory)
+    monkeypatch.setattr(backup_workflow, "create_backup", fake_create_backup)
+    monkeypatch.setattr(backup_workflow, "_restore_archive_contents", fake_restore)
+    return {
+        "engine": engine,
+        "archive": archive,
+        "key_a": key_a,
+        "captured": captured,
+    }
+
+
+def test_restore_selects_preserved_key_record(tmp_path, monkeypatch):
+    context = _prepare_encrypted_recovery_target(monkeypatch, tmp_path)
+    try:
+        restore_backup(
+            context["archive"],
+            sha256_file(context["archive"]),
+            actor="synthetic-admin",
+            reason="synthetic preserved-key restore",
+            passphrase="synthetic-passphrase-alice",
+        )
+        # The preserved record opens the archive, not the overwritten canonical one.
+        assert context["captured"][0] == (context["archive"].name, context["key_a"])
+    finally:
+        context["engine"].dispose()
+
+
+def test_restore_wrong_passphrase_rejected_before_restore(tmp_path, monkeypatch):
+    from app.backup_crypto import WrongPassphraseError
+
+    context = _prepare_encrypted_recovery_target(monkeypatch, tmp_path)
+    try:
+        with pytest.raises(WrongPassphraseError):
+            restore_backup(
+                context["archive"],
+                sha256_file(context["archive"]),
+                actor="synthetic-admin",
+                reason="synthetic wrong-passphrase restore",
+                passphrase="synthetic-passphrase-wrong",
+            )
+        assert context["captured"] == []  # nothing was restored or snapshotted
+    finally:
+        context["engine"].dispose()
+
+
+def test_restore_same_passphrase_selects_record_that_opens_archive(tmp_path, monkeypatch):
+    # Two installs sharing one passphrase still have different data keys, so
+    # BOTH records unwrap successfully; only the archive probe can pick the
+    # record whose key actually opens the archive (not the canonical one).
+    context = _prepare_encrypted_recovery_target(
+        monkeypatch,
+        tmp_path,
+        passphrase_a="synthetic-passphrase-shared",
+        passphrase_b="synthetic-passphrase-shared",
+    )
+    try:
+        restore_backup(
+            context["archive"],
+            sha256_file(context["archive"]),
+            actor="synthetic-admin",
+            reason="synthetic same-passphrase restore",
+            passphrase="synthetic-passphrase-shared",
+        )
+        assert context["captured"][0] == (context["archive"].name, context["key_a"])
+    finally:
+        context["engine"].dispose()
+
+
+def test_restore_without_matching_key_record_fails_closed(tmp_path, monkeypatch):
+    context = _prepare_encrypted_recovery_target(monkeypatch, tmp_path)
+    try:
+        # Bob's passphrase unwraps the canonical record, but that record's data
+        # key does not open Alice's archive: fail before any restore begins.
+        with pytest.raises(ValueError, match="None of the preserved backup key records"):
+            restore_backup(
+                context["archive"],
+                sha256_file(context["archive"]),
+                actor="synthetic-admin",
+                reason="synthetic no-matching-record restore",
+                passphrase="synthetic-passphrase-bob",
+            )
+        assert context["captured"] == []
+    finally:
+        context["engine"].dispose()
+
+
+def test_store_key_record_parallel_writers_forced_prefix_collision(tmp_path, monkeypatch):
+    """Parallel writers whose records share a forced 8-char digest prefix must
+    ALL land in the store: O_EXCL slot claims + name lengthening, no lost update."""
+    import json as jsonlib
+    import threading
+    from concurrent.futures import ThreadPoolExecutor
+
+    import app.backup_workflow as backup_workflow
+
+    backup_root = tmp_path / "backups"
+    backup_root.mkdir()
+
+    real_sha256 = hashlib.sha256
+
+    class FixedPrefixDigest:
+        """Same first 8 hex chars for every input; the rest stays real."""
+
+        def __init__(self, *args, **kwargs):
+            self._inner = real_sha256(*args, **kwargs)
+
+        def hexdigest(self):
+            return "aa" * 4 + self._inner.hexdigest()[8:]
+
+    monkeypatch.setattr(backup_workflow.hashlib, "sha256", FixedPrefixDigest)
+
+    records = [
+        {"version": 1, "wrapped_key": f"{i:064x}", "kdf_salt": "00" * 16, "wrap_nonce": "00" * 12}
+        for i in range(8)
+    ]
+    barrier = threading.Barrier(len(records))
+
+    def store(record):
+        barrier.wait(timeout=30)
+        return backup_workflow._store_key_record(backup_root, record)
+
+    with ThreadPoolExecutor(max_workers=len(records)) as pool:
+        list(pool.map(store, records))
+
+    stored = {}
+    for path in backup_root.glob("backup_encryption_key.prev-*.json"):
+        payload = jsonlib.loads(path.read_text(encoding="utf-8"))
+        stored[payload["wrapped_key"]] = path.name
+    assert set(stored) == {record["wrapped_key"] for record in records}
+
+
+def test_store_key_record_parallel_same_record_single_file(tmp_path):
+    """Concurrent exports of the SAME record stay idempotent: one slot file."""
+    import threading
+    from concurrent.futures import ThreadPoolExecutor
+
+    import app.backup_workflow as backup_workflow
+
+    backup_root = tmp_path / "backups"
+    backup_root.mkdir()
+    record = {"version": 1, "wrapped_key": "ab" * 48, "kdf_salt": "00" * 16, "wrap_nonce": "00" * 12}
+    barrier = threading.Barrier(8)
+
+    def store(_):
+        barrier.wait(timeout=30)
+        return backup_workflow._store_key_record(backup_root, record)
+
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        list(pool.map(store, range(8)))
+
+    assert len(list(backup_root.glob("backup_encryption_key.prev-*.json"))) == 1
+
+
+def test_store_key_record_torn_slot_is_repaired_under_longer_name(tmp_path):
+    """A torn slot file (crashed writer / external corruption) must not block
+    repair: the record is re-stored under a longer name, torn file untouched."""
+    import json as jsonlib
+
+    import app.backup_workflow as backup_workflow
+
+    backup_root = tmp_path / "backups"
+    backup_root.mkdir()
+    record = {"version": 1, "wrapped_key": "cd" * 48, "kdf_salt": "00" * 16, "wrap_nonce": "00" * 12}
+    digest = hashlib.sha256(record["wrapped_key"].encode("utf-8")).hexdigest()
+    torn = backup_root / f"backup_encryption_key.prev-{digest[:8]}.json"
+    torn.write_text('{"version": 1, "wrap', encoding="utf-8")  # torn mid-write
+
+    stored_path = backup_workflow._store_key_record(backup_root, record)
+
+    assert stored_path.name == f"backup_encryption_key.prev-{digest[:16]}.json"
+    assert jsonlib.loads(stored_path.read_text(encoding="utf-8"))["wrapped_key"] == record["wrapped_key"]
+    assert torn.read_text(encoding="utf-8") == '{"version": 1, "wrap'  # never modified
+    records, saw_file, saw_unreadable = backup_workflow._recovery_key_records(backup_root)
+    assert [r["wrapped_key"] for r in records] == [record["wrapped_key"]]
+    assert saw_file and saw_unreadable  # torn file skipped but reported
+
+
+def _no_hardlinks(*args, **kwargs):
+    raise OSError("hard links unsupported (simulated exFAT)")
+
+
+def test_store_key_record_without_hardlinks_parallel_same_record(tmp_path, monkeypatch):
+    """exFAT-style fallback: exclusive-create claims + reader retry keep
+    concurrent same-record exports idempotent without hard links."""
+    import threading
+    from concurrent.futures import ThreadPoolExecutor
+
+    import app.backup_workflow as backup_workflow
+
+    monkeypatch.setattr(backup_workflow.os, "link", _no_hardlinks)
+    backup_root = tmp_path / "backups"
+    backup_root.mkdir()
+    record = {"version": 1, "wrapped_key": "ab" * 48, "kdf_salt": "00" * 16, "wrap_nonce": "00" * 12}
+    barrier = threading.Barrier(4)
+
+    def store(_):
+        barrier.wait(timeout=30)
+        return backup_workflow._store_key_record(backup_root, record)
+
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        list(pool.map(store, range(4)))
+
+    files = list(backup_root.glob("backup_encryption_key.prev-*.json"))
+    assert len(files) == 1
+    assert json.loads(files[0].read_text(encoding="utf-8"))["wrapped_key"] == record["wrapped_key"]
+
+
+def test_store_key_record_without_hardlinks_forced_collision(tmp_path, monkeypatch):
+    """exFAT-style fallback under a forced shared 8-hex prefix: every distinct
+    record still lands, no clobber."""
+    import threading
+    from concurrent.futures import ThreadPoolExecutor
+
+    import app.backup_workflow as backup_workflow
+
+    monkeypatch.setattr(backup_workflow.os, "link", _no_hardlinks)
+    real_sha256 = hashlib.sha256
+
+    class FixedPrefixDigest:
+        def __init__(self, *args, **kwargs):
+            self._inner = real_sha256(*args, **kwargs)
+
+        def hexdigest(self):
+            return "bb" * 4 + self._inner.hexdigest()[8:]
+
+    monkeypatch.setattr(backup_workflow.hashlib, "sha256", FixedPrefixDigest)
+    backup_root = tmp_path / "backups"
+    backup_root.mkdir()
+    records = [
+        {"version": 1, "wrapped_key": f"{i:064x}", "kdf_salt": "00" * 16, "wrap_nonce": "00" * 12}
+        for i in range(6)
+    ]
+    barrier = threading.Barrier(len(records))
+
+    def store(record):
+        barrier.wait(timeout=30)
+        return backup_workflow._store_key_record(backup_root, record)
+
+    with ThreadPoolExecutor(max_workers=len(records)) as pool:
+        list(pool.map(store, records))
+
+    stored = set()
+    for path in backup_root.glob("backup_encryption_key.prev-*.json"):
+        stored.add(json.loads(path.read_text(encoding="utf-8"))["wrapped_key"])
+    assert stored == {record["wrapped_key"] for record in records}
+
+
+def test_read_record_file_tolerates_briefly_partial_slot(tmp_path):
+    """A reader overlapping a direct-write (fallback) publication retries
+    briefly instead of mistaking the partial file for a different record."""
+    import threading
+    import time as time_mod
+
+    import app.backup_workflow as backup_workflow
+
+    backup_root = tmp_path / "backups"
+    backup_root.mkdir()
+    slot = backup_root / "backup_encryption_key.prev-12345678.json"
+    full = json.dumps({"version": 1, "wrapped_key": "ef" * 48}, ensure_ascii=False, indent=2)
+    slot.write_text(full[:10], encoding="utf-8")  # partial publication
+
+    def finish_write():
+        time_mod.sleep(0.03)
+        slot.write_text(full, encoding="utf-8")
+
+    writer = threading.Thread(target=finish_write)
+    writer.start()
+    record = backup_workflow._read_record_file(slot)
+    writer.join()
+    assert record is not None and record["wrapped_key"] == "ef" * 48

@@ -253,3 +253,28 @@ def test_restore_cli_requires_configured_passphrase(tmp_path, capsys, monkeypatc
     assert "مشفّرة إجباريًا" in capsys.readouterr().out
     assert restore_cli.main(["--archive", str(archive), "--lang", "en"]) == 2
     assert "must be encrypted" in capsys.readouterr().out
+
+
+def test_encrypted_archive_accepts_key_probe(tmp_path):
+    import os
+
+    from app.backup_crypto import CHUNK_SIZE, encrypted_archive_accepts_key
+
+    key_a = b"a" * 32
+    key_b = b"b" * 32
+
+    small = tmp_path / "small.bin"
+    small.write_bytes(os.urandom(2000))  # below one chunk: short-segment path
+    small_enc = tmp_path / "small.zip.enc"
+    encrypt_file(key_a, small, small_enc)
+    assert encrypted_archive_accepts_key(key_a, small_enc)
+    assert not encrypted_archive_accepts_key(key_b, small_enc)
+
+    big = tmp_path / "big.bin"
+    big.write_bytes(os.urandom(CHUNK_SIZE + 100))  # full first chunk path
+    big_enc = tmp_path / "big.zip.enc"
+    encrypt_file(key_a, big, big_enc)
+    assert encrypted_archive_accepts_key(key_a, big_enc)
+    assert not encrypted_archive_accepts_key(key_b, big_enc)
+
+    assert not encrypted_archive_accepts_key(key_a, tmp_path / "missing.enc")

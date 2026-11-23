@@ -9,6 +9,7 @@ import shutil
 import stat
 import subprocess
 import tempfile
+import time
 import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
@@ -20,8 +21,10 @@ from sqlalchemy.orm import Session
 from app.backup_crypto import (
     ENCRYPTED_SUFFIX,
     PassphraseRequiredError,
+    WrongPassphraseError,
     decrypt_file,
     encrypt_file,
+    encrypted_archive_accepts_key,
     export_public_record,
     has_passphrase,
     is_encrypted_archive,
@@ -38,6 +41,127 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 PHOTO_DIRECTORY = PROJECT_ROOT / "var" / "employee_photos"
 BACKUP_SETTING_KEY = "backup_root"
 KEY_FILE_NAME = "backup_encryption_key.json"
+PRESERVED_KEY_FILE_PREFIX = "backup_encryption_key.prev-"
+
+
+def _fsync_directory(path: Path) -> None:
+    """Best-effort directory fsync so a create/rename survives power loss.
+
+    Unsupported on some filesystems (e.g. Windows directories); durability
+    there falls back to the file fsync alone.
+    """
+    try:
+        dir_fd = os.open(path, os.O_RDONLY)
+    except OSError:
+        return
+    try:
+        os.fsync(dir_fd)
+    except OSError:
+        pass
+    finally:
+        os.close(dir_fd)
+
+
+def _atomic_write_json(path: Path, payload: dict) -> None:
+    """Write JSON durably: fsync'd temp file, atomic replace, directory fsync.
+
+    After this returns, the new content survives a power loss on storage that
+    honors fsync; an interruption mid-write leaves the old file or the new
+    one, never a truncated one.
+    """
+    temp_path = path.with_name(f".{path.name}.{os.getpid()}-{secrets.token_hex(6)}.tmp")
+    with open(temp_path, "w", encoding="utf-8") as stream:
+        stream.write(json.dumps(payload, ensure_ascii=False, indent=2))
+        stream.flush()
+        os.fsync(stream.fileno())
+    os.replace(temp_path, path)
+    _fsync_directory(path.parent)
+
+
+def _read_record_file(record_path: Path, *, attempts: int = 5) -> dict | None:
+    """Parse a record slot file, tolerating a briefly partial file from a
+    concurrent direct-write claim on filesystems without hard links."""
+    for attempt in range(attempts):
+        try:
+            record = json.loads(record_path.read_text(encoding="utf-8"))
+        except FileNotFoundError:
+            return None
+        except (OSError, json.JSONDecodeError):
+            record = None
+        else:
+            return record if isinstance(record, dict) else None
+        if attempt + 1 < attempts:
+            time.sleep(0.02)
+    return None
+
+
+def _claim_record_slot(record_path: Path, text: str) -> bool:
+    """Atomically create the slot with COMPLETE content; False if it exists.
+
+    Primary path: write + fsync a sibling temp file, then hard-link it into
+    place, so readers never see a partial slot. Filesystems without hard
+    links (e.g. exFAT) fall back to exclusive direct creation, where a
+    concurrent reader may briefly see a partial file (readers retry).
+    """
+    temp_path = record_path.with_name(f".{record_path.name}.{os.getpid()}-{secrets.token_hex(6)}.tmp")
+    with open(temp_path, "w", encoding="utf-8") as stream:
+        stream.write(text)
+        stream.flush()
+        os.fsync(stream.fileno())
+    try:
+        os.link(temp_path, record_path)
+    except FileExistsError:
+        linked: bool | None = False
+    except OSError:
+        linked = None
+    else:
+        linked = True
+    try:
+        temp_path.unlink()
+    except OSError:
+        pass
+    if linked is not None:
+        if linked:
+            _fsync_directory(record_path.parent)
+        return linked
+    try:
+        fd = os.open(record_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    except FileExistsError:
+        return False
+    with os.fdopen(fd, "w", encoding="utf-8") as stream:
+        stream.write(text)
+        stream.flush()
+        os.fsync(stream.fileno())
+    _fsync_directory(record_path.parent)
+    return True
+
+
+def _store_key_record(backup_root: Path, record: dict) -> Path:
+    """Content-addressed copy of an exported key record; idempotent.
+
+    Slot claims are atomic creations with complete content, so two writers
+    can never replace or tear each other's slot: the loser compares contents
+    and either accepts the identical record or lengthens the name. The
+    8-char digest prefix is only a name shortener: a collision with a
+    DIFFERENT record lengthens the name (16, then the full digest) instead
+    of dropping the record. A crashed writer can leave a torn slot behind;
+    readers skip unparseable files and a later export re-stores the record
+    under a longer name, so no completed export's record is ever lost.
+    """
+    wrapped = record["wrapped_key"]
+    digest = hashlib.sha256(wrapped.encode("utf-8")).hexdigest()
+    text = json.dumps(record, ensure_ascii=False, indent=2)
+    for length in (8, 16, 64):
+        record_path = backup_root / f"{PRESERVED_KEY_FILE_PREFIX}{digest[:length]}.json"
+        if _claim_record_slot(record_path, text):
+            return record_path
+        existing = _read_record_file(record_path)
+        if existing is not None and existing.get("wrapped_key") == wrapped:
+            return record_path
+        if length < 64:
+            continue
+        raise ValueError("Backup key record store conflict.")
+    raise ValueError("Backup key record store conflict.")
 
 
 def export_key_file(db: Session) -> Path | None:
@@ -45,14 +169,56 @@ def export_key_file(db: Session) -> Path | None:
 
     Contains no plaintext data key: it lets a reinstall unlock encrypted
     archives with the passphrase after the original database is lost.
+    Every export first leaves a content-addressed copy of its own record,
+    then preserves any differing record already sitting in the canonical
+    file, and only then replaces the canonical file atomically. On a shared
+    backup drive this keeps every installation's record recoverable even
+    when two exports race, and a failed preservation raises BEFORE the old
+    canonical record is touched rather than silently overwriting it.
     """
     payload = export_public_record(db)
     backup_root = get_backup_root(db)
     if payload is None or backup_root is None:
         return None
     key_path = backup_root / KEY_FILE_NAME
-    key_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    _store_key_record(backup_root, payload)
+    try:
+        existing = json.loads(key_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        existing = None
+    if isinstance(existing, dict) and isinstance(existing.get("wrapped_key"), str) and existing["wrapped_key"]:
+        if existing["wrapped_key"] != payload.get("wrapped_key"):
+            _store_key_record(backup_root, existing)
+    _atomic_write_json(key_path, payload)
     return key_path
+
+
+def _recovery_key_records(backup_root: Path) -> tuple[list[dict], bool, bool]:
+    """Candidate exported key records: (records, saw_file, saw_unreadable).
+
+    The canonical file comes first, then preserved records in name order,
+    deduplicated by wrapped key. Unreadable files are skipped but reported.
+    """
+    paths = [backup_root / KEY_FILE_NAME]
+    paths.extend(sorted(backup_root.glob(f"{PRESERVED_KEY_FILE_PREFIX}*.json")))
+    records: list[dict] = []
+    seen: set[str] = set()
+    saw_file = False
+    saw_unreadable = False
+    for path in paths:
+        if not path.is_file():
+            continue
+        saw_file = True
+        record = _read_record_file(path)
+        if not isinstance(record, dict) or not isinstance(record.get("wrapped_key"), str):
+            saw_unreadable = True
+            continue
+        marker = record["wrapped_key"]
+        if marker in seen:
+            continue
+        seen.add(marker)
+        records.append(record)
+    return records, saw_file, saw_unreadable
 
 
 def sha256_file(path: Path) -> str:
@@ -723,19 +889,42 @@ def restore_backup(
             # Unwrap with the owner's passphrase and keep the data key in memory,
             # since the schema (and its settings) is dropped during the restore.
             try:
-                data_key = unwrap_data_key_for_restore(db, passphrase)
-            except ValueError:
-                # Disaster recovery: the database has no encryption record (fresh
-                # install or partial loss), so unwrap via the key file kept next
-                # to the backups.
-                key_file = backup_root / KEY_FILE_NAME
-                if not key_file.is_file():
-                    raise
+                db_data_key: bytes | None = unwrap_data_key_for_restore(db, passphrase)
+                db_error: ValueError | None = None
+            except ValueError as exc:
+                db_data_key = None
+                db_error = exc
+        if db_data_key is not None and encrypted_archive_accepts_key(db_data_key, selected):
+            data_key = db_data_key
+        else:
+            # The install's own record does not open this archive (or the
+            # database has none): disaster recovery via the key files kept next
+            # to the backups. The canonical file holds the latest installation's
+            # record; records preserved before an overwrite are tried too, and
+            # the one that actually opens this archive wins.
+            records, saw_file, saw_unreadable = _recovery_key_records(backup_root)
+            unwrapped_any = False
+            for record in records:
                 try:
-                    record = json.loads(key_file.read_text(encoding="utf-8"))
-                except json.JSONDecodeError as exc:
-                    raise ValueError("Backup encryption key file is invalid.") from exc
-                data_key = unwrap_data_key_from_record(record, passphrase)
+                    candidate = unwrap_data_key_from_record(record, passphrase)
+                except ValueError:
+                    continue
+                unwrapped_any = True
+                if encrypted_archive_accepts_key(candidate, selected):
+                    data_key = candidate
+                    break
+            if data_key is None:
+                if db_data_key is not None:
+                    # As before, let archive verification report the failure.
+                    data_key = db_data_key
+                elif not saw_file:
+                    raise db_error
+                elif not records and saw_unreadable:
+                    raise ValueError("Backup encryption key file is invalid.")
+                elif unwrapped_any:
+                    raise ValueError("None of the preserved backup key records opens this archive.")
+                else:
+                    raise WrongPassphraseError("كلمة سر التشفير غير صحيحة.")
     else:
         # The pre-restore snapshot is encrypted when a passphrase is set,
         # so the rollback path needs the data key even for plain archives.

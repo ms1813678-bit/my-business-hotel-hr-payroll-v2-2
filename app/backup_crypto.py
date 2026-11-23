@@ -237,6 +237,47 @@ def _chunk_nonce(base: bytes, index: int) -> bytes:
     return base + index.to_bytes(4, "big")
 
 
+def encrypted_archive_accepts_key(data_key: bytes, path: str | Path) -> bool:
+    """True when the data key decrypts the archive's first chunk.
+
+    Cheap preflight so restore can pick the matching wrapped-key record
+    without decrypting the whole archive under each candidate key.
+    """
+    aes = AESGCM(data_key)
+    try:
+        with Path(path).open("rb") as reader:
+            if reader.read(len(MAGIC)) != MAGIC:
+                return False
+            nonce_base = reader.read(NONCE_BASE_LEN)
+            if len(nonce_base) != NONCE_BASE_LEN:
+                return False
+            chunk_size = int.from_bytes(reader.read(4), "big")
+            if not (1024 <= chunk_size <= 64 * 1024 * 1024):
+                return False
+            segment = reader.read(chunk_size + 16)
+            if len(segment) < 16:
+                return False
+            if len(segment) == chunk_size + 16:
+                # A full first chunk.
+                try:
+                    aes.decrypt(_chunk_nonce(nonce_base, 0), segment, (0).to_bytes(8, "big"))
+                except InvalidTag:
+                    return False
+                return True
+            # Short first segment: last data chunk plus the end marker.
+            chunk_ct, marker = segment[:-16], segment[-16:]
+            try:
+                if chunk_ct:
+                    aes.decrypt(_chunk_nonce(nonce_base, 0), chunk_ct, (0).to_bytes(8, "big"))
+                else:
+                    aes.decrypt(_chunk_nonce(nonce_base, 0), marker, END_AAD + (0).to_bytes(8, "big"))
+            except InvalidTag:
+                return False
+            return True
+    except OSError:
+        return False
+
+
 def encrypt_file(data_key: bytes, source: Path, destination: Path) -> None:
     aes = AESGCM(data_key)
     nonce_base = secrets.token_bytes(NONCE_BASE_LEN)
