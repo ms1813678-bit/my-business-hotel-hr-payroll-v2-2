@@ -1145,3 +1145,7 @@ tr:has(.row-toggle:checked) + .review-detail-row .review-detail-body { display: 
 .rep-card-body p { margin: 4px 0 0; font-size: 0.85rem; overflow-wrap: anywhere; }
 .rep-run { flex-shrink: 0; text-decoration: none; padding: 8px 20px; border-radius: 10px; font-weight: 700; }
 a.rep-run:not(.btn-primary) { border: 1.5px solid var(--border-strong); color: var(--text); }
+
+/* Item 87: keep RTL cards from splitting or reordering date ranges */
+.rep-card .date-range { unicode-bidi: isolate; white-space: nowrap; }
+.rep-card-body strong { display: flex; flex-wrap: wrap; gap: 4px; align-items: baseline; }

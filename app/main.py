@@ -3117,7 +3117,7 @@ def reports_page(
 
 
 _REPORT_LIBRARY_DESCRIPTIONS = {
-    REPORT_TYPE_PAYROLL: "مجاميع الرواتب لكل مكون، بدون صفوف الموظفين التفصيلية",
+    REPORT_TYPE_PAYROLL: "مجاميع الرواتب لكل مكون، مع تفاصيل الموظفين مجمعة حسب القسم",
     REPORT_TYPE_ATTENDANCE: "سجلات الحضور والانصراف والغياب والإضافي",
     REPORT_TYPE_ADVANCES: "طلبات السلف وحالاتها وأقساط السداد",
     REPORT_TYPE_LEAVE: "أرصدة الإجازات وسجلاتها",
