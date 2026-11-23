@@ -1056,7 +1056,8 @@ a.metric-card .metric-link { color: var(--brand, #b8860b); font-size: 12px; font
   margin-top: 12px; border-top: 1px dashed var(--border); padding-top: 12px;
 }
 @media (max-width: 700px) {
-  .payroll-card-head { flex-direction: column; align-items: stretch; }
+  .payroll-card-head { flex-direction: column; align-items: stretch; gap: 10px; }
+  .payroll-card-id { flex: 0 0 auto; }
   .payroll-card-actions { margin-inline-start: 0; }
-  .payroll-card-figures { flex: 1 1 auto; justify-content: space-between; gap: 10px; }
+  .payroll-card-figures { flex: 0 0 auto; justify-content: space-between; gap: 10px; }
 }
