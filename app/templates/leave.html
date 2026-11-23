@@ -43,7 +43,7 @@
         <label>أيام الخصم من الرصيد<input type="number" name="charged_days" min="0" step="0.25" required></label>
         <label>السبب<input name="reason" maxlength="2000" required></label>
       </div>
-      <button type="submit">حفظ كمسودة</button>
+      <button type="submit">تسجيل الإجازة كمسودة</button>
     </form>
   </section>
   {% endif %}
@@ -95,10 +95,10 @@
       {% if request.state.admin_role != 'finance' %}
       <td>
         {% if r.status == "draft" %}
-        <form method="post" action="/leave/records/{{ r.id }}/confirm" class="inline-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button type="submit">اعتماد وخصم الرصيد</button></form>
+        <form method="post" action="/leave/records/{{ r.id }}/confirm" class="inline-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button type="submit">تأكيد الإجازة وخصم الرصيد</button></form>
         {% endif %}
         {% if r.status != "cancelled" %}
-        <form method="post" action="/leave/records/{{ r.id }}/cancel" class="inline-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input name="reason" placeholder="سبب الإلغاء" required><button type="submit">إلغاء</button></form>
+        <form method="post" action="/leave/records/{{ r.id }}/cancel" class="inline-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input name="reason" placeholder="سبب الإلغاء" required><button type="submit">إلغاء الإجازة</button></form>
         {% endif %}
       </td>
       {% endif %}

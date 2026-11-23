@@ -3952,7 +3952,9 @@ ZH.update({
 # Item 87: reports library + latest files
 EN.update({
     "مكتبة التقارير": "Reports library",
-    "تشغيل": "Run",
+    "توليد التقرير": "Generate report",
+    "مجاميع لكل مكون": "Totals per component",
+    "مجاميع الرواتب لكل مكون، بدون صفوف الموظفين التفصيلية": "Payroll totals per component, without detailed employee rows",
     "تنزيل": "Download",
     "آخر الملفات": "Latest files",
     "لا توجد ملفات محفوظة بعد. تُحفظ هنا نسخة من كل تقرير تُصدّره.": "No saved files yet. A copy of every report you export is kept here.",
@@ -3966,7 +3968,9 @@ EN.update({
 })
 ZH.update({
     "مكتبة التقارير": "报表库",
-    "تشغيل": "运行",
+    "توليد التقرير": "生成报表",
+    "مجاميع لكل مكون": "各构成合计",
+    "مجاميع الرواتب لكل مكون، بدون صفوف الموظفين التفصيلية": "按构成汇总工资，不含员工明细行",
     "تنزيل": "下载",
     "آخر الملفات": "最新文件",
     "لا توجد ملفات محفوظة بعد. تُحفظ هنا نسخة من كل تقرير تُصدّره.": "暂无已保存的文件。您导出的每份报表都会在此保留副本。",
@@ -3981,3 +3985,15 @@ ZH.update({
 
 EN.update({"تقرير": "Report", "تقرير مخصص": "Custom report", "تقرير شهري": "Monthly report"})
 ZH.update({"تقرير": "报表", "تقرير مخصص": "自定义报表", "تقرير شهري": "月度报表"})
+
+# Item 91: clarified leave action labels (registration/confirmation/cancellation)
+EN.update({
+    "تسجيل الإجازة كمسودة": "Register leave as draft",
+    "تأكيد الإجازة وخصم الرصيد": "Confirm leave and deduct balance",
+    "إلغاء الإجازة": "Cancel leave",
+})
+ZH.update({
+    "تسجيل الإجازة كمسودة": "登记休假为草稿",
+    "تأكيد الإجازة وخصم الرصيد": "确认休假并扣减余额",
+    "إلغاء الإجازة": "取消休假",
+})

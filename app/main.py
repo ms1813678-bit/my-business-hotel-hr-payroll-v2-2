@@ -3078,7 +3078,7 @@ def reports_page(
     library_cards = [
         {
             "type": report_type,
-            "label": REPORT_TYPE_LABELS[report_type],
+            "label": "مجاميع لكل مكون" if report_type == REPORT_TYPE_PAYROLL else REPORT_TYPE_LABELS[report_type],
             "description": _REPORT_LIBRARY_DESCRIPTIONS.get(report_type, ""),
             "run_url": f"/reports/view?report_type={report_type}&period=this_month",
         }
@@ -3117,7 +3117,7 @@ def reports_page(
 
 
 _REPORT_LIBRARY_DESCRIPTIONS = {
-    REPORT_TYPE_PAYROLL: "مسيرات الرواتب ومكوناتها وصافي المستحقات",
+    REPORT_TYPE_PAYROLL: "مجاميع الرواتب لكل مكون، بدون صفوف الموظفين التفصيلية",
     REPORT_TYPE_ATTENDANCE: "سجلات الحضور والانصراف والغياب والإضافي",
     REPORT_TYPE_ADVANCES: "طلبات السلف وحالاتها وأقساط السداد",
     REPORT_TYPE_LEAVE: "أرصدة الإجازات وسجلاتها",

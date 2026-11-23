@@ -2705,7 +2705,8 @@ def test_reports_library_cards_latest_files_and_download_guard(client, monkeypat
     page = client.get("/reports")
     assert page.status_code == 200
     assert "مكتبة التقارير" in page.text
-    assert "تشغيل" in page.text
+    assert "توليد التقرير" in page.text
+    assert "مجاميع لكل مكون" in page.text
     assert "/reports/view?report_type=payroll&amp;period=this_month" in page.text
     assert "آخر الملفات" in page.text
     assert saved_name in page.text

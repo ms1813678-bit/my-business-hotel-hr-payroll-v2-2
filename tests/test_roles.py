@@ -326,7 +326,7 @@ def test_finance_leave_pages_readonly_writes_refused(three_clients):
     assert 'action="/leave/records"' not in page.text, "no record form in the finance view"
     assert 'action="/leave/balances"' not in page.text, "no balance form in the finance view"
     assert 'action="/leave/types"' not in page.text, "no type form in the finance view"
-    assert "/confirm" not in page.text and "اعتماد وخصم الرصيد" not in page.text
+    assert "/confirm" not in page.text and "تأكيد الإجازة وخصم الرصيد" not in page.text
     # server-side: every leave write stays refused for finance
     assert finance.post("/leave/types", data={"code": "x", "name_ar": "x", "name_en": "x"}).status_code == 403
     assert finance.post("/leave/balances", data={}).status_code == 403
