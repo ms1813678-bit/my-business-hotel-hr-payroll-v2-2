@@ -137,7 +137,7 @@ from app.payroll_workflow import (
     review_absence_leave_conflict,
     update_payroll_item,
 )
-from app.models import AdvanceRequest, BackupRun, SystemSetting, StaffAction, PayrollRun, PayrollItem, PayrollPayment, AdminAccount, AttendanceDailyRecord, AttendanceImportBatch, AttendanceImportIssue, AttendancePunch, AttendanceMonth, AuditLog, Branch, RecoveryCode, AdminSession, Department, Employee, EmployeeChange, EmployeeDataChangeRequest, EmployeeServicePeriod, LeaveBalanceTransaction, LeaveRecord, LeaveType
+from app.models import AdvanceRequest, BackupRun, SystemSetting, StaffAction, PayrollRun, PayrollItem, PayrollPayment, AdminAccount, AttendanceDailyRecord, AttendanceImportBatch, AttendanceImportIssue, AttendancePunch, AttendanceMonth, AuditLog, Branch, RecoveryCode, AdminSession, Department, Employee, EmployeeChange, EmployeeDataChangeRequest, EmployeeServicePeriod, LeaveBalanceTransaction, LeaveRecord, LeaveType, SecurityShiftAssignment, ShiftPattern
 from app.security_roster_import import parse_security_roster_xlsx
 from app.attendance_import import parse_attendance_workbook, normalize as normalize_attendance_alias
 from app.attendance_workflow import persist_attendance_import, prepare_and_persist_monthly_reconciliation, approve_attendance_day, approve_attendance_month, approve_all_matching_attendance, suggested_clock_pair, add_manual_attendance, resolve_unknown_attendance_employee, summarize_attendance_month_coverage
@@ -1090,6 +1090,30 @@ def security_roster_page(
     request: Request,
     admin: AdminAccount = Depends(require_attendance_read),
 ):
+    # Item 86: simple list of the confirmed security shifts for the coming
+    # week under the upload form; read-only, no workflow change.
+    week_start = date.today()
+    week_end = week_start + timedelta(days=7)
+    with SessionLocal() as db:
+        upcoming = db.execute(
+            select(SecurityShiftAssignment, Employee, ShiftPattern)
+            .join(Employee, Employee.id == SecurityShiftAssignment.employee_id)
+            .join(ShiftPattern, ShiftPattern.id == SecurityShiftAssignment.shift_pattern_id)
+            .where(SecurityShiftAssignment.work_date >= week_start)
+            .where(SecurityShiftAssignment.work_date <= week_end)
+            .order_by(SecurityShiftAssignment.work_date, ShiftPattern.start_time, Employee.full_name)
+        ).all()
+    upcoming_days = []
+    for assignment, employee, pattern in upcoming:
+        if not upcoming_days or upcoming_days[-1]["work_date"] != assignment.work_date:
+            upcoming_days.append({"work_date": assignment.work_date, "rows": []})
+        upcoming_days[-1]["rows"].append({
+            "employee_name": employee.full_name,
+            "employee_code": employee.code,
+            "pattern_name": pattern.name,
+            "start_time": pattern.start_time,
+            "end_time": pattern.end_time,
+        })
     return templates.TemplateResponse(
         request=request,
         name="security_roster.html",
@@ -1100,6 +1124,10 @@ def security_roster_page(
             "issues": [],
             "error": None,
             "filename": None,
+            "upcoming_days": upcoming_days,
+            "upcoming_count": len(upcoming),
+            "week_start": week_start,
+            "week_end": week_end,
         },
     )
 

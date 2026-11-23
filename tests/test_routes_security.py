@@ -2504,3 +2504,51 @@ def test_approve_all_matching_route_requires_csrf_and_approves_ready_only(client
         assert ready.approved_by == "integration-admin"
         assert needs.status == "needs_review"
         assert needs.approved_by is None
+
+
+def test_security_roster_page_lists_upcoming_assignments(client):
+    from datetime import time
+    from app.models import SecurityShiftAssignment, ShiftPattern
+
+    from app.main import SessionLocal
+    with SessionLocal() as db:
+        department = Department(name="Security R4", active=True)
+        db.add(department)
+        db.flush()
+        employee = Employee(
+            code="SEC-R4", full_name="Roster Listed Guard", department_id=department.id,
+            position="Security", hire_date=date(2024, 1, 1),
+            basic_salary=Decimal("5000"), daily_hours=Decimal("8"), status="active",
+        )
+        db.add(employee)
+        db.flush()
+        pattern = ShiftPattern(
+            department_id=department.id, code="R4-MORNING", name="Morning R4",
+            start_time=time(8, 0), end_time=time(16, 0),
+            match_before_minutes=30, match_after_minutes=30, active=True,
+        )
+        db.add(pattern)
+        db.flush()
+        db.add(SecurityShiftAssignment(
+            employee_id=employee.id, work_date=date.today() + timedelta(days=2),
+            shift_pattern_id=pattern.id, notes=None,
+        ))
+        db.add(SecurityShiftAssignment(
+            employee_id=employee.id, work_date=date.today() + timedelta(days=30),
+            shift_pattern_id=pattern.id, notes=None,
+        ))
+        db.commit()
+
+    assert login(client).status_code == 303
+    page = client.get("/security-roster")
+    assert page.status_code == 200
+    assert "ورديات هذا الأسبوع (1)" in page.text
+    assert "Roster Listed Guard" in page.text
+    assert "Morning R4" in page.text
+
+
+def test_security_roster_page_empty_state(client):
+    assert login(client).status_code == 303
+    page = client.get("/security-roster")
+    assert page.status_code == 200
+    assert "لا توجد ورديات معتمدة للأيام السبعة القادمة بعد" in page.text
