@@ -35,39 +35,46 @@
   {% endif %}
 
   <h2>الحسابات الحالية</h2>
-  <div class="table-scroll">
-    <table class="data-table">
-      <thead>
-        <tr><th>الاسم</th><th>اسم المستخدم</th><th>الصلاحية</th><th>الحالة</th><th>إجراء</th></tr>
-      </thead>
-      <tbody>
-        {% for account in accounts %}
-        <tr>
-          <td>{{ account.display_name }}</td>
-          <td>{{ account.username }}</td>
-          <td>{{ account.role_label }}</td>
-          <td>{{ "نشط" if account.active else "معطّل" }}</td>
-          <td>
-            {% if not account.active and account.pending_credential_reset %}
-            <span class="muted">رجع من نسخة قديمة — يُفعَّل فقط بإعادة تعيين كلمة مرور جديدة من الأسفل.</span>
-            {% elif account.role != "system_admin" %}
-            <form method="post" action="/settings/accounts/{{ account.id }}/{{ 'deactivate' if account.active else 'activate' }}" class="inline-form">
-              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-              <input name="reason" type="text" placeholder="سبب الإجراء" required maxlength="200" style="max-width:180px">
-              <button type="submit" class="{{ 'btn-danger' if account.active else 'btn-primary' }}">{{ "تعطيل" if account.active else "إعادة تفعيل" }}</button>
-            </form>
-            {% endif %}
-            <form method="post" action="/settings/accounts/{{ account.id }}/reset-password" class="inline-form">
-              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-              <input name="reason" type="text" placeholder="سبب الإجراء" required maxlength="200" style="max-width:180px">
-              <input name="current_password" type="password" placeholder="كلمة مرورك أنت" required autocomplete="off" style="max-width:150px">
-              <button type="submit" class="btn-soft">إعادة تعيين كلمة المرور</button>
-            </form>
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+  <p class="muted">اضغط أي سطر لفتح التفاصيل والإجراءات.</p>
+  <div class="account-list">
+    {% for account in accounts %}
+    <details class="account-row" {% if not account.active and account.pending_credential_reset %}open{% endif %}>
+      <summary>
+        <span class="account-avatar" aria-hidden="true">{{ account.display_name[0] }}</span>
+        <span class="account-title">
+          <strong>{{ account.display_name }}</strong>
+          <span class="muted small">{{ account.role_label }}</span>
+        </span>
+        {% if not account.active and account.pending_credential_reset %}
+        <span class="badge badge-warning">يحتاج إعادة تعيين كلمة مرور</span>
+        {% elif account.active %}
+        <span class="badge badge-success">نشط</span>
+        {% else %}
+        <span class="badge badge-muted">معطّل</span>
+        {% endif %}
+      </summary>
+      <div class="account-details">
+        <div class="chip-row">
+          <span class="info-chip">اسم المستخدم: <bdi>{{ account.username }}</bdi></span>
+        </div>
+        {% if not account.active and account.pending_credential_reset %}
+        <p class="muted">رجع من نسخة قديمة — يُفعَّل فقط بإعادة تعيين كلمة مرور جديدة من الأسفل.</p>
+        {% elif account.role != "system_admin" %}
+        <form method="post" action="/settings/accounts/{{ account.id }}/{{ 'deactivate' if account.active else 'activate' }}" class="inline-form">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input name="reason" type="text" placeholder="سبب الإجراء" required maxlength="200">
+          <button type="submit" class="{{ 'btn-danger' if account.active else 'btn-primary' }}">{{ "تعطيل" if account.active else "إعادة تفعيل" }}</button>
+        </form>
+        {% endif %}
+        <form method="post" action="/settings/accounts/{{ account.id }}/reset-password" class="inline-form">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input name="reason" type="text" placeholder="سبب الإجراء" required maxlength="200">
+          <input name="current_password" type="password" placeholder="كلمة مرورك أنت" required autocomplete="off">
+          <button type="submit" class="btn-soft">إعادة تعيين كلمة المرور</button>
+        </form>
+      </div>
+    </details>
+    {% endfor %}
   </div>
 </section>
 
@@ -96,17 +103,17 @@
   <p class="muted">كل دخول ناجح يسجَّل هنا ويمكن إنهاؤه فورًا فيسقط حتى لو كان الكوكي ما زال صالحًا. بيانات المتصفح وعنوان IP وصفية من الطلب نفسه وقد لا تكون دقيقة، وليست إثباتًا لهوية جهاز.</p>
   {% if sessions %}
   <div class="table-scroll">
-  <table class="data-table">
+  <table class="data-table responsive-cards">
     <thead><tr><th>الحساب</th><th>أنشئت</th><th>آخر ظهور</th><th>المتصفح</th><th>عنوان IP</th><th>إجراء</th></tr></thead>
     <tbody>
       {% for session in sessions %}
       <tr>
-        <td>{{ session.account_name }}{% if session.is_current %} <span class="muted small">(جلستك الحالية)</span>{% endif %}</td>
-        <td><bdi>{{ session.created_at | fmt_dt }}</bdi></td>
-        <td><bdi>{{ session.last_seen_at | fmt_dt }}</bdi></td>
-        <td class="muted small" dir="ltr">{{ session.user_agent }}</td>
-        <td dir="ltr">{{ session.ip_address }}</td>
-        <td>
+        <td data-label="الحساب">{{ session.account_name }}{% if session.is_current %} <span class="muted small">(جلستك الحالية)</span>{% endif %}</td>
+        <td data-label="أنشئت"><bdi>{{ session.created_at | fmt_dt }}</bdi></td>
+        <td data-label="آخر ظهور"><bdi>{{ session.last_seen_at | fmt_dt }}</bdi></td>
+        <td data-label="المتصفح" class="muted small" dir="ltr">{{ session.user_agent }}</td>
+        <td data-label="عنوان IP" dir="ltr">{{ session.ip_address }}</td>
+        <td data-label="">
           <form method="post" action="/settings/accounts/sessions/{{ session.id }}/end" class="inline-form">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <button type="submit" class="btn-soft">إنهاء</button>
