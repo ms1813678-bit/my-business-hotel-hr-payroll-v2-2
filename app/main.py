@@ -3293,6 +3293,17 @@ def password_page(request: Request, admin: AdminAccount = Depends(get_current_ad
     )
 
 
+def _revalidate_actor(db, admin: AdminAccount) -> AdminAccount | None:
+    """Re-read the acting system administrator INSIDE the credential write
+    lock. The session was authenticated before the lock was taken, so a
+    restore (or another admin) may have changed the account in between; only
+    a still-active system administrator may proceed."""
+    actor = db.scalar(select(AdminAccount).where(AdminAccount.username == admin.username))
+    if actor is None or not actor.active or actor.role != ROLE_SYSTEM_ADMIN:
+        return None
+    return actor
+
+
 def _sensitive_reauth(admin: AdminAccount, current_password: str) -> str:
     """Gate for sensitive in-session actions: the administrator's own current
     password, with its own failure throttle so a hijacked unlocked session
@@ -3325,6 +3336,10 @@ def telegram_settings_save(
     if reauth != "ok":
         return RedirectResponse(f"/settings/password?tg={'auth_locked' if reauth == 'locked' else 'auth'}", status_code=303)
     with SessionLocal.begin() as db:
+        # The mutation itself must hold the credential write lock (reauth's
+        # lock ends with its own transaction) — otherwise a mid-restore
+        # telegram config write can land in the half-restored window.
+        acquire_credential_write_lock(db, expected_epoch=getattr(request.state, "restore_epoch", None))
         current = telegram_get_config(db)
         token = bot_token.strip() or current["bot_token"]
         token_changed = bool(bot_token.strip()) and token != current["bot_token"]
@@ -3361,6 +3376,7 @@ def telegram_bind_link(request: Request, current_password: str = Form(""), admin
     if reauth != "ok":
         return RedirectResponse(f"/settings/password?tg={'auth_locked' if reauth == 'locked' else 'auth'}", status_code=303)
     with SessionLocal.begin() as db:
+        acquire_credential_write_lock(db, expected_epoch=getattr(request.state, "restore_epoch", None))
         nonce = generate_telegram_bind_nonce(db, actor=admin.username)
         if nonce is None:
             return RedirectResponse("/settings/password?tg=need_token", status_code=303)
@@ -3382,7 +3398,7 @@ def telegram_bind_confirm(request: Request, current_password: str = Form(""), ad
     if reauth != "ok":
         return RedirectResponse(f"/settings/password?tg={'auth_locked' if reauth == 'locked' else 'auth'}", status_code=303)
     with SessionLocal.begin() as db:
-        acquire_credential_write_lock(db)
+        acquire_credential_write_lock(db, expected_epoch=getattr(request.state, "restore_epoch", None))
         status = bind_telegram_chat_from_nonce(db, actor=admin.username)
         if status == "bound":
             db.add(AuditLog(
@@ -3435,7 +3451,7 @@ def change_password_route(
     if new_password != confirm_password:
         return render("mismatch", status_code=400)
     with SessionLocal.begin() as db:
-        acquire_credential_write_lock(db)
+        acquire_credential_write_lock(db, expected_epoch=getattr(request.state, "restore_epoch", None))
         db_admin = db.get(AdminAccount, admin.id)
         if db_admin is None or not verify_password(current_password, db_admin.password_hash):
             return render("wrong_current", status_code=400)
@@ -3456,7 +3472,7 @@ def change_password_route(
     # The rotation invalidates every other session; keep this one signed in.
     request.session["admin_session_version"] = new_session_version
     with SessionLocal.begin() as db:
-        acquire_credential_write_lock(db)
+        acquire_credential_write_lock(db, expected_epoch=getattr(request.state, "restore_epoch", None))
         db.execute(
             delete(AdminSession).where(
                 AdminSession.admin_account_id == admin.id,
@@ -3473,6 +3489,7 @@ def accounts_page(request: Request, admin: AdminAccount = Depends(require_system
 
 @app.post("/settings/accounts", dependencies=[Depends(csrf_protect)])
 def create_account(
+    request: Request,
     display_name: str = Form(...),
     username: str = Form(...),
     role: str = Form(...),
@@ -3494,7 +3511,7 @@ def create_account(
         return RedirectResponse("/settings/accounts?error=mismatch", status_code=303)
     try:
         with SessionLocal.begin() as db:
-            acquire_credential_write_lock(db)
+            acquire_credential_write_lock(db, expected_epoch=getattr(request.state, "restore_epoch", None))
             existing = db.scalar(select(AdminAccount).where(AdminAccount.username == username))
             if existing is not None:
                 return RedirectResponse("/settings/accounts?error=exists", status_code=303)
@@ -3523,19 +3540,29 @@ def create_account(
 
 @app.post("/settings/accounts/{account_id}/deactivate", dependencies=[Depends(csrf_protect)])
 def deactivate_account(
+    request: Request,
     account_id: int,
     reason: str = Form(...),
+    target_username: str = Form(...),
     admin: AdminAccount = Depends(require_system_admin),
 ):
     reason = reason.strip()
     if not reason:
         return RedirectResponse("/settings/accounts?error=missing", status_code=303)
     with SessionLocal.begin() as db:
-        acquire_credential_write_lock(db)
+        acquire_credential_write_lock(db, expected_epoch=getattr(request.state, "restore_epoch", None))
+        actor = _revalidate_actor(db, admin)
+        if actor is None:
+            return RedirectResponse("/settings/accounts?error=actor", status_code=303)
         target = db.get(AdminAccount, account_id)
         if target is None:
             return RedirectResponse("/settings/accounts?error=exists", status_code=303)
-        if target.id == admin.id:
+        if target.username != target_username:
+            # The accounts page was rendered against a different database
+            # state (a restore finalized meanwhile): this numeric id now
+            # names another person, so refuse instead of mutating it.
+            return RedirectResponse("/settings/accounts?error=stale", status_code=303)
+        if target.id == actor.id:
             return RedirectResponse("/settings/accounts?error=self", status_code=303)
         if target.role == ROLE_SYSTEM_ADMIN and target.active:
             active_admins = db.scalar(
@@ -3563,18 +3590,25 @@ def deactivate_account(
 
 @app.post("/settings/accounts/{account_id}/activate", dependencies=[Depends(csrf_protect)])
 def activate_account(
+    request: Request,
     account_id: int,
     reason: str = Form(...),
+    target_username: str = Form(...),
     admin: AdminAccount = Depends(require_system_admin),
 ):
     reason = reason.strip()
     if not reason:
         return RedirectResponse("/settings/accounts?error=missing", status_code=303)
     with SessionLocal.begin() as db:
-        acquire_credential_write_lock(db)
+        acquire_credential_write_lock(db, expected_epoch=getattr(request.state, "restore_epoch", None))
+        actor = _revalidate_actor(db, admin)
+        if actor is None:
+            return RedirectResponse("/settings/accounts?error=actor", status_code=303)
         target = db.get(AdminAccount, account_id)
         if target is None:
             return RedirectResponse("/settings/accounts?error=exists", status_code=303)
+        if target.username != target_username:
+            return RedirectResponse("/settings/accounts?error=stale", status_code=303)
         if target.pending_credential_reset:
             # This account returned from an old archive: its archive-time
             # password hash is still on the row, so plain re-activation would
@@ -3668,10 +3702,10 @@ def _accounts_page_response(request: Request, reset_reveal: dict | None = None):
 
 
 @app.post("/settings/accounts/sessions/{session_id}/end", dependencies=[Depends(csrf_protect)])
-def end_admin_session(session_id: str, admin: AdminAccount = Depends(require_system_admin)):
+def end_admin_session(request: Request, session_id: str, admin: AdminAccount = Depends(require_system_admin)):
     """Terminate one open session; its cookie dies even if still validly signed."""
     with SessionLocal.begin() as db:
-        acquire_credential_write_lock(db)
+        acquire_credential_write_lock(db, expected_epoch=getattr(request.state, "restore_epoch", None))
         row = db.get(AdminSession, session_id)
         if row is not None:
             owner = db.get(AdminAccount, row.admin_account_id)
@@ -3694,6 +3728,7 @@ def reset_account_password(
     account_id: int,
     reason: str = Form(...),
     current_password: str = Form(...),
+    target_username: str = Form(...),
     admin: AdminAccount = Depends(require_system_admin),
 ):
     """The system administrator issues a new one-time password for one account;
@@ -3709,10 +3744,15 @@ def reset_account_password(
         return RedirectResponse(f"/settings/accounts?error={'auth_locked' if reauth == 'locked' else 'auth'}", status_code=303)
     temporary_password = _generate_temporary_password()
     with SessionLocal.begin() as db:
-        acquire_credential_write_lock(db)
+        acquire_credential_write_lock(db, expected_epoch=getattr(request.state, "restore_epoch", None))
+        actor = _revalidate_actor(db, admin)
+        if actor is None:
+            return RedirectResponse("/settings/accounts?error=actor", status_code=303)
         target = db.get(AdminAccount, account_id)
         if target is None:
             return RedirectResponse("/settings/accounts?error=exists", status_code=303)
+        if target.username != target_username:
+            return RedirectResponse("/settings/accounts?error=stale", status_code=303)
         target.password_hash = hash_password(temporary_password)
         target.session_version += 1
         db.execute(delete(AdminSession).where(AdminSession.admin_account_id == target.id))
@@ -3817,7 +3857,7 @@ def generate_recovery_codes(
         return RedirectResponse(f"/settings/accounts?error={'auth_locked' if reauth == 'locked' else 'auth'}", status_code=303)
     codes = _generate_recovery_codes()
     with SessionLocal.begin() as db:
-        acquire_credential_write_lock(db)
+        acquire_credential_write_lock(db, expected_epoch=getattr(request.state, "restore_epoch", None))
         db.query(RecoveryCode).filter(
             RecoveryCode.admin_account_id == admin.id
         ).delete(synchronize_session=False)

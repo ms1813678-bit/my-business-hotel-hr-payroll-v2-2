@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import secrets
 import os
 import shutil
 import stat
@@ -30,7 +31,7 @@ from app.backup_crypto import (
 )
 from app.config import settings
 from app.models import utcnow, BackupRun, SystemSetting
-from app.restore_lock import hold_restore_lock, open_direct_connection
+from app.restore_lock import RESTORE_EPOCH_KEY, hold_restore_lock, open_direct_connection
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -820,6 +821,16 @@ def _finalize_restored_security(
     from app.models import AdminAccount, AdminSession, AuditLog, RecoveryCode, SystemSetting
 
     with SessionLocal.begin() as db:
+        # Bump the restore epoch FIRST: any request authenticated against the
+        # pre-restore database carries the old epoch and is refused (409) at
+        # the credential write lock, so it cannot mutate an account whose
+        # numeric id now belongs to a different user in the restored data.
+        # Timestamp + random suffix: strictly different from any prior value.
+        db.merge(SystemSetting(
+            key=RESTORE_EPOCH_KEY,
+            value=f"{int(completed_at.timestamp())}-{secrets.token_hex(3)}",
+            updated_by=actor,
+        ))
         # A restore rolls the whole security state back to archive time, which
         # would otherwise resurrect sessions terminated after the backup (the
         # signing secret is unchanged). Drop every live session record so all

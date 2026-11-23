@@ -18,6 +18,8 @@
   {% if error == "mismatch" %}<p class="error">كلمة المرور وتأكيدها غير متطابقين.</p>{% endif %}
   {% if error == "exists" %}<p class="error">اسم المستخدم مستخدم بالفعل أو الحساب غير موجود.</p>{% endif %}
   {% if error == "weak" %}<p class="error">كلمة المرور يجب ألا تقل عن 12 حرفًا.</p>{% endif %}
+  {% if error == "stale" %}<p class="error">تغيرت بيانات الحسابات أثناء تنفيذ الإجراء (ربما بعد استرجاع نسخة احتياطية). راجع القائمة وأعد المحاولة.</p>{% endif %}
+  {% if error == "actor" %}<p class="error">تغيرت صلاحية حسابك أثناء تنفيذ الإجراء. سجل الدخول من جديد وأعد المحاولة.</p>{% endif %}
   {% if error == "self" %}<p class="error">لا يمكنك تعطيل حسابك الحالي.</p>{% endif %}
   {% if error == "last_admin" %}<p class="error">لا يمكن تعطيل حساب مدير النظام الوحيد.</p>{% endif %}
   {% if error == "reset_required" %}<p class="error">هذا الحساب رجع من نسخة احتياطية قديمة وكلمة مروره القديمة غير موثوقة. لا يمكن تفعيله كما هو: اضغط «إعادة تعيين كلمة المرور» بجانبه، وسيُفعَّل تلقائيًا بكلمة المرور الجديدة.</p>{% endif %}
@@ -62,12 +64,14 @@
         {% elif account.role != "system_admin" %}
         <form method="post" action="/settings/accounts/{{ account.id }}/{{ 'deactivate' if account.active else 'activate' }}" class="inline-form">
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="target_username" value="{{ account.username }}">
           <input name="reason" type="text" placeholder="سبب الإجراء" required maxlength="200">
           <button type="submit" class="{{ 'btn-danger' if account.active else 'btn-primary' }}">{{ "تعطيل" if account.active else "إعادة تفعيل" }}</button>
         </form>
         {% endif %}
         <form method="post" action="/settings/accounts/{{ account.id }}/reset-password" class="inline-form">
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="target_username" value="{{ account.username }}">
           <input name="reason" type="text" placeholder="سبب الإجراء" required maxlength="200">
           <input name="current_password" type="password" placeholder="كلمة مرورك أنت" required autocomplete="off">
           <button type="submit" class="btn-soft">إعادة تعيين كلمة المرور</button>

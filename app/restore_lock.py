@@ -17,6 +17,7 @@ from __future__ import annotations
 import re
 from contextlib import contextmanager
 
+from fastapi import HTTPException
 from sqlalchemy import text
 from sqlalchemy.engine import make_url
 
@@ -27,23 +28,63 @@ from app.config import settings
 # other.
 RESTORE_LOCK_KEY = 72727272901138
 
+# SystemSetting key holding the current restore epoch. Every successful
+# restore bumps it, so a request authenticated against the pre-restore
+# database (whose numeric account ids may now belong to DIFFERENT users) is
+# refused at the credential write lock instead of mutating the wrong account.
+RESTORE_EPOCH_KEY = "restore_epoch"
+
+
+def read_restore_epoch(db) -> str | None:
+    """Current restore epoch, or None when never restored / not PostgreSQL."""
+    bind = db.get_bind()
+    if bind.dialect.name != "postgresql":
+        return None
+    from app.models import SystemSetting
+
+    row = db.get(SystemSetting, RESTORE_EPOCH_KEY)
+    return row.value if row is not None else None
+
 
 def database_is_postgres() -> bool:
     return make_url(settings.database_url).get_backend_name() == "postgresql"
 
 
-def acquire_credential_write_lock(db) -> None:
+# Sentinel distinguishing "pre-authentication site, no epoch check" from an
+# authenticated request whose database had no epoch row yet (None). None is a
+# REAL epoch: after the first restore it no longer matches, so the write is
+# refused instead of mutating by a stale numeric id.
+_NO_EPOCH_CHECK = object()
+
+
+def acquire_credential_write_lock(db, *, expected_epoch=_NO_EPOCH_CHECK) -> None:
     """Block this transaction until no restore is in progress.
 
     Takes a transaction-level advisory lock: it waits while a restore holds
     the session-level lock, then holds the xact-level lock until this
     transaction ends, which makes a newly starting restore wait for this
     write to commit or roll back first.
+
+    When expected_epoch is given (authenticated requests carry the epoch
+    observed at authentication time on request.state.restore_epoch), a
+    mismatch means a restore finalized between authentication and this
+    write, so fail closed with 409 instead of mutating by a stale identity.
+    Pre-authentication sites (login, recovery, reauth throttle counters)
+    omit expected_epoch: they re-read the account by username inside the
+    locked transaction, which is safe because usernames are carried over
+    unchanged. Authenticated sites always pass request.state.restore_epoch,
+    including None (database never restored): after the first restore that
+    None mismatches and the write is refused.
     """
     bind = db.get_bind()
     if bind.dialect.name != "postgresql":
         return
     db.execute(text("SELECT pg_advisory_xact_lock(:key)"), {"key": RESTORE_LOCK_KEY})
+    if expected_epoch is not _NO_EPOCH_CHECK and read_restore_epoch(db) != expected_epoch:
+        raise HTTPException(
+            status_code=409,
+            detail="اكتمل استرجاع نسخة احتياطية أثناء تنفيذ الطلب، راجع البيانات وأعد المحاولة.",
+        )
 
 
 def acquire_authenticated_read_lock(db) -> None:
@@ -95,9 +136,11 @@ def open_direct_connection(*, autocommit: bool = True):
 # main.py so a new credential-write site without an exemption fails the suite.
 GATE_EXEMPT_EXACT = {
     ("POST", "/login"),
-    ("GET", "/settings/password"),
     ("POST", "/settings/password"),
+    ("POST", "/settings/telegram"),
+    ("POST", "/settings/telegram/bind-link"),
     ("POST", "/settings/telegram/bind-confirm"),
+    ("POST", "/settings/telegram/test"),
     ("POST", "/settings/accounts"),
     ("POST", "/settings/accounts/recovery-codes"),
     ("POST", "/login/recover"),
@@ -118,6 +161,44 @@ def restore_gate_exempt(method: str, path: str) -> bool:
     return any(path.startswith(prefix) for prefix in GATE_EXEMPT_PREFIXES)
 
 
+# Bounded, cancellable gate admission (peer finding on bc74a88): every gated
+# request holds a DEDICATED connection, so a long restore must not be able to
+# park unbounded connections/locks on the database. At most
+# GATE_MAX_WAITERS gate connections exist per worker process; while waiting
+# (for a slot or for the lock) the middleware polls for client disconnect
+# and aborts within GATE_ACQUIRE_TIMEOUT seconds with a plain 503, closing
+# the connection immediately. Try-lock polling replaces the blocking call so
+# a cancelled waiter never lingers until the restore finishes.
+GATE_MAX_WAITERS = 16
+GATE_ACQUIRE_TIMEOUT = 30.0
+GATE_POLL_INTERVAL = 0.15
+
+_gate_active = 0
+
+
+async def _poll_disconnect(receive, buffered: list, interval: float) -> bool:
+    """True when the client went away; other messages are buffered for replay."""
+    import asyncio
+
+    try:
+        message = await asyncio.wait_for(receive(), timeout=interval)
+    except asyncio.TimeoutError:
+        return False
+    if message["type"] == "http.disconnect":
+        return True
+    buffered.append(message)
+    return False
+
+
+async def _send_gate_unavailable(send) -> None:
+    body = "استرجاع نسخة احتياطية جارٍ، أعد المحاولة بعد قليل.".encode("utf-8")
+    await send({"type": "http.response.start", "status": 503, "headers": [
+        (b"content-type", b"text/plain; charset=utf-8"), (b"retry-after", b"5"),
+        (b"content-length", str(len(body)).encode()),
+    ]})
+    await send({"type": "http.response.body", "body": body})
+
+
 class RestoreReadGateMiddleware:
     """Pure ASGI middleware holding the shared restore gate per request."""
 
@@ -131,22 +212,54 @@ class RestoreReadGateMiddleware:
         if restore_gate_exempt(scope.get("method", "GET"), scope.get("path", "")):
             await self.app(scope, receive, send)
             return
+        import time
+
         from starlette.concurrency import run_in_threadpool
 
+        global _gate_active
+        buffered: list = []
+        deadline = time.monotonic() + GATE_ACQUIRE_TIMEOUT
+
+        # Phase 1: wait for a bounded gate slot (no connection held yet).
+        # A disconnect must STILL send a response: the language/security
+        # BaseHTTPMiddleware layers outside this gate raise an unhandled
+        # NoResponseReturned when the inner app returns silently (peer
+        # finding on 4a7d778). Sending to the dead client is harmless — the
+        # middleware wrappers swallow it — and the resources are released.
+        while _gate_active >= GATE_MAX_WAITERS:
+            if time.monotonic() >= deadline:
+                await _send_gate_unavailable(send)
+                return
+            if await _poll_disconnect(receive, buffered, GATE_POLL_INTERVAL):
+                await _send_gate_unavailable(send)
+                return
+        _gate_active += 1
         connection = open_direct_connection(autocommit=False)
-
-        def _acquire():
-            # Implicit transaction begins here; the xact lock is held until
-            # the rollback in _release, i.e. until the response is done.
-            connection.execute("SELECT pg_advisory_xact_lock_shared(%s)", (RESTORE_LOCK_KEY,))
-
+        acquired = False
         try:
-            await run_in_threadpool(_acquire)
-        except BaseException:
-            connection.close()
-            raise
-        try:
-            await self.app(scope, receive, send)
+            # Phase 2: cancellable try-lock loop on the shared gate.
+            while True:
+                def _try_lock():
+                    cursor = connection.execute(
+                        "SELECT pg_try_advisory_xact_lock_shared(%s)", (RESTORE_LOCK_KEY,))
+                    return cursor.fetchone()[0]
+
+                if await run_in_threadpool(_try_lock):
+                    acquired = True
+                    break
+                if time.monotonic() >= deadline:
+                    await _send_gate_unavailable(send)
+                    return
+                if await _poll_disconnect(receive, buffered, GATE_POLL_INTERVAL):
+                    await _send_gate_unavailable(send)
+                    return
+
+            async def replay_receive():
+                if buffered:
+                    return buffered.pop(0)
+                return await receive()
+
+            await self.app(scope, replay_receive, send)
         finally:
             def _release():
                 try:
@@ -155,6 +268,7 @@ class RestoreReadGateMiddleware:
                     connection.close()
 
             await run_in_threadpool(_release)
+            _gate_active -= 1
 
 
 @contextmanager

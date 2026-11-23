@@ -252,7 +252,7 @@ def test_deactivate_closes_sessions_and_last_admin_protected(three_clients):
     page = admin.get("/settings/accounts")
     response = admin.post(
         f"/settings/accounts/{finance_id}/deactivate",
-        data={"csrf_token": csrf(page), "reason": "انتهاء مهمة"},
+        data={"csrf_token": csrf(page), "reason": "انتهاء مهمة", "target_username": "finance-user"},
         follow_redirects=False,
     )
     assert "error" not in response.headers["location"]
@@ -270,7 +270,7 @@ def test_deactivate_closes_sessions_and_last_admin_protected(three_clients):
     page = admin.get("/settings/accounts")
     response = admin.post(
         "/settings/accounts/1/deactivate",
-        data={"csrf_token": csrf(page), "reason": "اختبار"},
+        data={"csrf_token": csrf(page), "reason": "اختبار", "target_username": "guard-admin"},
         follow_redirects=False,
     )
     assert "error" in response.headers["location"]
@@ -368,7 +368,7 @@ def reset_account(client, account_id, reason="إعادة تعيين تجريبي
     return client.post(
         f"/settings/accounts/{account_id}/reset-password",
         data={"csrf_token": csrf(page), "reason": reason,
-              "current_password": current_password},
+              "current_password": current_password, "target_username": "finance-user"},
     )
 
 
@@ -423,7 +423,8 @@ def test_account_password_reset_needs_reason_and_admin(three_clients):
     token = csrf(page)
     missing = admin.post(
         f"/settings/accounts/{target_id}/reset-password",
-        data={"csrf_token": token, "reason": "   ", "current_password": ADMIN_PW},
+        data={"csrf_token": token, "reason": "   ", "current_password": ADMIN_PW,
+              "target_username": "finance-user"},
         follow_redirects=False,
     )
     assert missing.status_code == 303
@@ -433,7 +434,7 @@ def test_account_password_reset_needs_reason_and_admin(three_clients):
     wrong_auth = admin.post(
         f"/settings/accounts/{target_id}/reset-password",
         data={"csrf_token": token, "reason": "محاولة بكلمة غلط",
-              "current_password": "not-the-admin-password"},
+              "current_password": "not-the-admin-password", "target_username": "finance-user"},
         follow_redirects=False,
     )
     assert wrong_auth.status_code == 303
@@ -445,7 +446,8 @@ def test_account_password_reset_needs_reason_and_admin(three_clients):
 
     forbidden = assistant.post(
         f"/settings/accounts/{target_id}/reset-password",
-        data={"csrf_token": csrf(assistant.get("/settings/password")), "reason": "محاولة"},
+        data={"csrf_token": csrf(assistant.get("/settings/password")), "reason": "محاولة",
+              "target_username": "finance-user"},
         follow_redirects=False,
     )
     assert forbidden.status_code == 403, "non-admin cannot reset passwords even with valid CSRF"

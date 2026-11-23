@@ -196,6 +196,8 @@ def test_live_restore_carries_credentials_forward(factory, monkeypatch, tmp_path
         flag = db.get(SystemSetting, "post_restore_regen_required")
         assert flag is None or not flag.value or flag.value == "", "no regen gate when nothing rolled back"
         assert db.get(SystemSetting, "reauth_security").value == '{"failed_attempts": 3, "locked_until": null}'
+        epoch = db.get(SystemSetting, "restore_epoch")
+        assert epoch is not None and epoch.value, "every successful restore bumps the restore epoch"
         actions = [a.action for a in db.scalars(select(AuditLog)).all()]
         assert "backup_restored" in actions
         assert "restore_credentials_carried_over" in actions
@@ -545,7 +547,7 @@ def test_activate_refused_for_restore_locked_account(factory):
             ghost_id = db.scalar(select(AdminAccount.id).where(AdminAccount.username == "locked-ghost"))
         response = client.post(
             f"/settings/accounts/{ghost_id}/activate",
-            data={"csrf_token": _csrf(page), "reason": "تجربة"},
+            data={"csrf_token": _csrf(page), "reason": "تجربة", "target_username": "locked-ghost"},
             follow_redirects=False,
         )
         assert response.status_code == 303
@@ -575,7 +577,8 @@ def test_reset_password_reenables_restore_locked_account(factory):
             ghost_id = db.scalar(select(AdminAccount.id).where(AdminAccount.username == "locked-ghost"))
         response = client.post(
             f"/settings/accounts/{ghost_id}/reset-password",
-            data={"csrf_token": token, "reason": "إعادة تفعيل بعد استرجاع", "current_password": ADMIN_PW},
+            data={"csrf_token": token, "reason": "إعادة تفعيل بعد استرجاع", "current_password": ADMIN_PW,
+                  "target_username": "locked-ghost"},
         )
         assert response.status_code == 200, "reset renders the one-time reveal page"
         match = re.search(r"<bdi><code>([^<]+)</code></bdi>", response.text)

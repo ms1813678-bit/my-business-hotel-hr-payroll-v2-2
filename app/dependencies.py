@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 
 from app.db import get_db
 from app.models import AdminAccount, AdminSession, SystemSetting
-from app.restore_lock import acquire_authenticated_read_lock
+from app.restore_lock import acquire_authenticated_read_lock, read_restore_epoch
 
 ROLE_SYSTEM_ADMIN = "system_admin"
 ROLE_FINANCE = "finance"
@@ -126,6 +126,11 @@ def get_current_admin(
     # Expose identity to templates without threading it through every context.
     request.state.admin_role = admin.role
     request.state.admin_name = admin.display_name or admin.username
+    # Stamp the restore epoch observed at authentication time: a credential
+    # write later in this request is refused (409) when a restore finalized
+    # in between, because the numeric account ids it resolved may now belong
+    # to different users in the restored database.
+    request.state.restore_epoch = read_restore_epoch(db)
     # End the authentication transaction so the shared advisory gate is not
     # held for the rest of the request (a held lock would make the restore
     # route wait on its own authentication).

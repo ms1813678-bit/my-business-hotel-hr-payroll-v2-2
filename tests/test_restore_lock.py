@@ -56,10 +56,11 @@ def test_every_credential_write_path_takes_the_xact_lock():
     import app.main as main
 
     source = inspect.getsource(main)
-    sites = source.count("acquire_credential_write_lock(db)")
-    # login, reauth clear/record, change password (x2), create, deactivate,
-    # activate, end session, reset password, recovery codes, recovery.
-    assert sites >= 12
+    sites = source.count("acquire_credential_write_lock(db")
+    # login, reauth clear/record, telegram save/link/confirm, change password
+    # (x2), create, deactivate, activate, end session, reset password,
+    # recovery codes, recovery.
+    assert sites >= 15
     lock_source = inspect.getsource(restore_lock.acquire_credential_write_lock)
     assert "pg_advisory_xact_lock" in lock_source
     assert "RESTORE_LOCK_KEY" in lock_source
