@@ -609,3 +609,64 @@ def test_reset_password_reenables_restore_locked_account(factory):
             follow_redirects=False,
         )
         assert response.status_code == 303, "the new one-time password signs in"
+
+
+def test_telegram_setting_carried_through_capture_reapply(factory):
+    """The telegram binding is credential-class state: capture/reapply keeps
+    the CURRENT destination and nonce state so a restore cannot revert the
+    alert chat, revive an old nonce, or lose a concurrent bind."""
+    import json
+
+    from app.models import SystemSetting
+
+    current = json.dumps({"bot_token": "tok", "chat_id": "555",
+                          "bind_nonce": "", "bind_nonce_used": True,
+                          "bind_nonce_expires_at": ""}, ensure_ascii=False)
+    with factory.begin() as db:
+        db.merge(SystemSetting(key="telegram_alerts", value=current, updated_by="test"))
+
+    with factory() as db:
+        snapshot = backup_workflow._capture_security_state(db)
+    assert snapshot["settings"]["telegram_alerts"] == current
+
+    with factory.begin() as db:
+        # Simulate the archive's older binding having replaced the row.
+        stale = json.dumps({"bot_token": "tok", "chat_id": "111",
+                            "bind_nonce": "stale-nonce", "bind_nonce_used": False,
+                            "bind_nonce_expires_at": "2026-01-01"}, ensure_ascii=False)
+        db.merge(SystemSetting(key="telegram_alerts", value=stale, updated_by="restore"))
+        backup_workflow._reapply_security_state(db, snapshot, actor="test")
+
+    with factory() as db:
+        setting = db.get(SystemSetting, "telegram_alerts")
+        assert json.loads(setting.value)["chat_id"] == "555"
+        assert json.loads(setting.value)["bind_nonce"] == ""
+
+
+def test_neutralize_revived_bind_nonce(factory):
+    """An archive-revived one-time bind nonce is cleared (no stale deep link
+    can bind a new chat); an absent setting and an empty nonce are no-ops."""
+    import json
+
+    from app.models import SystemSetting
+
+    live = json.dumps({"bot_token": "tok", "chat_id": "",
+                       "bind_nonce": "revived-nonce", "bind_nonce_used": False,
+                       "bind_nonce_expires_at": "2026-12-01"}, ensure_ascii=False)
+    with factory.begin() as db:
+        db.merge(SystemSetting(key="telegram_alerts", value=live, updated_by="restore"))
+    with factory.begin() as db:
+        backup_workflow._neutralize_revived_bind_nonce(db, actor="test")
+    with factory() as db:
+        record = json.loads(db.get(SystemSetting, "telegram_alerts").value)
+        assert record["bind_nonce"] == ""
+        assert record["bind_nonce_used"] is True
+        assert record["bind_nonce_expires_at"] == ""
+
+    with factory.begin() as db:
+        db.merge(SystemSetting(key="telegram_alerts",
+                               value=json.dumps({"chat_id": "9"}), updated_by="test"))
+    with factory.begin() as db:
+        backup_workflow._neutralize_revived_bind_nonce(db, actor="test")
+    with factory() as db:
+        assert json.loads(db.get(SystemSetting, "telegram_alerts").value)["chat_id"] == "9"

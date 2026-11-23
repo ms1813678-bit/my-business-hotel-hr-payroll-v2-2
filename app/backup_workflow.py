@@ -532,7 +532,41 @@ _SECURITY_SETTING_KEYS = (
     "recovery_security",
     "reauth_security",
     "recovery_lookup_pepper",
+    # The alert destination and one-time binding nonce are credential-class
+    # state: the CURRENT binding must survive a restore (no destination
+    # revert, no nonce revival, no lost concurrent bind).
+    "telegram_alerts",
 )
+
+
+def _neutralize_revived_bind_nonce(db, *, actor: str) -> None:
+    """Neutralize a one-time Telegram bind nonce revived from the archive.
+
+    When no pre-restore telegram setting was carried over (fresh install, or
+    a restore over a system where alerts were never configured), the
+    archive's bind nonce comes back live: anyone holding an old unconsumed
+    deep link could bind a new chat and receive alerts. Clear the nonce and
+    mark it consumed; the archive's existing alert destination (the owner's
+    own historical chat) stays, and a fresh link can always be issued.
+    """
+    import json
+
+    from app.models import SystemSetting
+
+    setting = db.get(SystemSetting, "telegram_alerts")
+    if setting is None or not setting.value:
+        return
+    try:
+        record = json.loads(setting.value)
+    except ValueError:
+        return
+    if not isinstance(record, dict) or not record.get("bind_nonce"):
+        return
+    record["bind_nonce"] = ""
+    record["bind_nonce_expires_at"] = ""
+    record["bind_nonce_used"] = True
+    setting.value = json.dumps(record, ensure_ascii=False)
+    setting.updated_by = actor
 
 
 def _capture_security_state(db) -> dict:
@@ -843,6 +877,10 @@ def _finalize_restored_security(
                 entity_id=str(selected.name)[:80],
                 reason="Credential state kept from before the restore; nothing rolled back.",
             ))
+            if "telegram_alerts" not in (security_snapshot.get("settings") or {}):
+                # No current telegram binding to carry: the archive's one-time
+                # bind nonce must not come back live.
+                _neutralize_revived_bind_nonce(db, actor=actor)
         else:
             # Disaster path (fresh install / no pre-existing accounts): the
             # archive's credentials are the only ones that exist. Every account
@@ -868,6 +906,9 @@ def _finalize_restored_security(
                     value=completed_at.isoformat(),
                     updated_by=actor,
                 ))
+            # Disaster path revives the archive's bind nonce; a stale deep
+            # link must not be able to bind a new chat and receive alerts.
+            _neutralize_revived_bind_nonce(db, actor=actor)
         _ensure_pre_restore_run_record(
             db,
             archive_path=pre_restore_path,

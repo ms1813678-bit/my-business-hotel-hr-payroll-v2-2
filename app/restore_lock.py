@@ -45,6 +45,24 @@ def acquire_credential_write_lock(db) -> None:
     db.execute(text("SELECT pg_advisory_xact_lock(:key)"), {"key": RESTORE_LOCK_KEY})
 
 
+def acquire_authenticated_read_lock(db) -> None:
+    """Shared gate for authentication/authorization reads (get_current_admin).
+
+    Concurrent requests share the lock, so normal traffic is NOT serialized;
+    a restore's exclusive session-level lock makes every authenticated read
+    wait until finalization (or rollback) completes, so a stale cookie can
+    never resolve identity, role or session rows from the half-restored
+    window. The caller must end the transaction right after authentication
+    (get_current_admin commits) so the shared lock is not held for the whole
+    request — that would deadlock the restore route against its own
+    authentication.
+    """
+    bind = db.get_bind()
+    if bind.dialect.name != "postgresql":
+        return
+    db.execute(text("SELECT pg_advisory_xact_lock_shared(:key)"), {"key": RESTORE_LOCK_KEY})
+
+
 def open_direct_connection():
     """A dedicated autocommit psycopg connection to the application database."""
     import psycopg

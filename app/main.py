@@ -3375,6 +3375,7 @@ def telegram_bind_confirm(request: Request, current_password: str = Form(""), ad
     if reauth != "ok":
         return RedirectResponse(f"/settings/password?tg={'auth_locked' if reauth == 'locked' else 'auth'}", status_code=303)
     with SessionLocal.begin() as db:
+        acquire_credential_write_lock(db)
         status = bind_telegram_chat_from_nonce(db, actor=admin.username)
         if status == "bound":
             db.add(AuditLog(

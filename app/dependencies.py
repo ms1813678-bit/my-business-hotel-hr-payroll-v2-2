@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 
 from app.db import get_db
 from app.models import AdminAccount, AdminSession, SystemSetting
+from app.restore_lock import acquire_authenticated_read_lock
 
 ROLE_SYSTEM_ADMIN = "system_admin"
 ROLE_FINANCE = "finance"
@@ -32,6 +33,10 @@ def get_current_admin(
             headers={"WWW-Authenticate": "Session"},
         )
 
+    # Authentication reads wait out any in-flight restore (shared advisory
+    # gate): a stale cookie never resolves identity/role/session rows from
+    # the half-restored window, and concurrent reads are not serialized.
+    acquire_authenticated_read_lock(db)
     admin = (
         db.query(AdminAccount)
         .filter(AdminAccount.username == username.strip())
@@ -121,6 +126,10 @@ def get_current_admin(
     # Expose identity to templates without threading it through every context.
     request.state.admin_role = admin.role
     request.state.admin_name = admin.display_name or admin.username
+    # End the authentication transaction so the shared advisory gate is not
+    # held for the rest of the request (a held lock would make the restore
+    # route wait on its own authentication).
+    db.commit()
     return admin
 
 
