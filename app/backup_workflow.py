@@ -709,6 +709,12 @@ def restore_backup(
     if backup_root is None:
         raise ValueError("External backup location is not configured.")
     backup_root = backup_root.resolve()
+    with SessionLocal() as db:
+        # The pre-restore snapshot is encrypted with THIS install's current
+        # data key, which can differ from the selected archive's key (fresh
+        # install that already has its own passphrase). The rollback path must
+        # use the install's key, never the archive's.
+        target_data_key = load_data_key(db) if has_passphrase(db) else None
     data_key: bytes | None = None
     if is_encrypted_archive(selected):
         if not passphrase:
@@ -731,10 +737,9 @@ def restore_backup(
                     raise ValueError("Backup encryption key file is invalid.") from exc
                 data_key = unwrap_data_key_from_record(record, passphrase)
     else:
-        with SessionLocal() as db:
-            # The pre-restore snapshot is encrypted when a passphrase is set,
-            # so the rollback path needs the data key even for plain archives.
-            data_key = load_data_key(db) if has_passphrase(db) else None
+        # The pre-restore snapshot is encrypted when a passphrase is set,
+        # so the rollback path needs the data key even for plain archives.
+        data_key = target_data_key
     manifest = verify_backup_archive(selected, expected_sha256, data_key)
     if not selected.is_relative_to(backup_root):
         raise ValueError("The selected archive is outside the configured backup drive.")
@@ -774,7 +779,7 @@ def restore_backup(
             )
         except Exception as restore_error:
             try:
-                _restore_archive_contents(pre_restore_path, backup_root, pre_restore_hash, data_key, swap_connection=lock_connection)
+                _restore_archive_contents(pre_restore_path, backup_root, pre_restore_hash, target_data_key, swap_connection=lock_connection)
                 with SessionLocal.begin() as db:
                     _ensure_pre_restore_run_record(
                         db,

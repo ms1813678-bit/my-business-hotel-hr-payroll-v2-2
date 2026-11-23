@@ -339,3 +339,105 @@ def test_backup_without_configured_passphrase_is_recorded_as_failed(tmp_path, mo
     finally:
         Base.metadata.drop_all(engine)
         engine.dispose()
+
+
+def test_rollback_uses_install_data_key_not_archive_key(tmp_path, monkeypatch):
+    import json as jsonlib
+
+    from sqlalchemy.orm import sessionmaker
+
+    from app import backup_workflow
+    from app.backup_crypto import (
+        encrypt_file,
+        export_public_record,
+        load_data_key,
+        set_passphrase,
+    )
+    from app.models import SystemSetting
+
+    backup_root = tmp_path / "backups"
+    backup_root.mkdir()
+
+    # Source install: passphrase B -> encrypted archive + exported key record.
+    src_engine = create_engine("sqlite://")
+    Base.metadata.create_all(src_engine)
+    with Session(src_engine) as src_db:
+        set_passphrase(src_db, "synthetic-source-passphrase-b", actor="test")
+        src_db.commit()
+        archive_key = load_data_key(src_db)
+        public_record = export_public_record(src_db)
+    src_engine.dispose()
+    plain = tmp_path / "plain.zip"
+    make_backup(plain, "manual", datetime(2026, 11, 7, tzinfo=timezone.utc))
+    archive = backup_root / "manual" / "archived.zip.enc"
+    archive.parent.mkdir(parents=True)
+    encrypt_file(archive_key, plain, archive)
+    (backup_root / "backup_encryption_key.json").write_text(
+        jsonlib.dumps(public_record), encoding="utf-8"
+    )
+
+    # Target install: passphrase A with a DIFFERENT data key (fresh install).
+    tgt_engine = create_engine("sqlite://")
+    Base.metadata.create_all(tgt_engine)
+    factory = sessionmaker(bind=tgt_engine)
+    with factory.begin() as db:
+        set_passphrase(db, "synthetic-target-passphrase-a", actor="test")
+        db.add(SystemSetting(
+            key=backup_workflow.BACKUP_SETTING_KEY,
+            value=str(backup_root),
+            updated_by="synthetic-admin",
+        ))
+    with factory() as db:
+        target_key = load_data_key(db)
+    assert target_key != archive_key
+    monkeypatch.setattr("app.db.SessionLocal", factory)
+    monkeypatch.setattr(
+        backup_workflow,
+        "validate_backup_root",
+        lambda path_value, require_external=True: Path(path_value),
+    )
+
+    # The pre-restore snapshot is encrypted with the TARGET install's key.
+    snap_plain = tmp_path / "snap.zip"
+    make_backup(snap_plain, "pre_restore", datetime(2026, 11, 8, tzinfo=timezone.utc))
+    snap = backup_root / "pre_restore" / "snap.zip.enc"
+    snap.parent.mkdir(parents=True)
+    encrypt_file(target_key, snap_plain, snap)
+
+    def fake_create_backup(db, backup_type, actor):
+        run = BackupRun(
+            backup_type=backup_type,
+            status="success",
+            archive_path=str(snap),
+            sha256=sha256_file(snap),
+            size_bytes=snap.stat().st_size,
+            created_at=datetime(2026, 11, 8, tzinfo=timezone.utc),
+            initiated_by=actor,
+        )
+        db.add(run)
+        db.flush()
+        return run
+
+    monkeypatch.setattr(backup_workflow, "create_backup", fake_create_backup)
+
+    seen = []
+
+    def fake_restore(archive_path, root, sha, data_key, **kwargs):
+        seen.append((Path(archive_path).name, data_key))
+        if len(seen) == 1:
+            raise RuntimeError("injected mid-restore failure")
+
+    monkeypatch.setattr(backup_workflow, "_restore_archive_contents", fake_restore)
+
+    with pytest.raises(RuntimeError, match="previous database was restored"):
+        backup_workflow.restore_backup(
+            archive,
+            sha256_file(archive),
+            actor="synthetic-admin",
+            reason="synthetic rollback key test",
+            passphrase="synthetic-source-passphrase-b",
+        )
+
+    assert seen[0] == (archive.name, archive_key)  # selected archive opens with its own key
+    assert seen[1] == (snap.name, target_key)  # rollback uses the INSTALL's key, not the archive's
+    tgt_engine.dispose()

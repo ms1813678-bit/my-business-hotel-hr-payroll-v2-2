@@ -113,6 +113,21 @@ def test_sessions_card_shows_readable_browser_label(make_client):
         assert CHROME_MAC_UA in page.text
 
 
+def test_sessions_card_labels_missing_user_agent_unknown(make_client):
+    client = make_client()
+    with client:
+        login(client)
+        with client.test_session_factory() as db:
+            row = db.scalars(select(AdminSession)).first()
+            row.user_agent = None
+            db.commit()
+        page = client.get("/settings/accounts")
+        assert page.status_code == 200
+        # A session recorded without a User-Agent header must show an explicit
+        # unknown label, never a blank browser cell.
+        assert "غير معروف" in page.text
+
+
 @pytest.mark.parametrize(
     ("ua", "expected"),
     [
@@ -130,8 +145,8 @@ def test_sessions_card_shows_readable_browser_label(make_client):
         ),
         ("Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36", "Chrome / Android"),
         ("curl/8.4.0", "curl/8.4.0"),
-        ("", ""),
-        (None, ""),
+        ("", "غير معروف"),
+        (None, "غير معروف"),
     ],
 )
 def test_summarize_user_agent(ua, expected):

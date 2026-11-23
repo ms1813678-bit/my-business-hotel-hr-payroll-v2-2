@@ -3866,7 +3866,7 @@ def _summarize_user_agent(user_agent: str | None) -> str:
     """
     ua = (user_agent or "").strip()
     if not ua:
-        return ""
+        return "غير معروف"
     # Order matters: Edge/Opera/Chrome all carry a Safari token, and Edge/Opera
     # carry a Chrome token too, so the most specific products are matched first.
     if "Edg/" in ua or "EdgA/" in ua or "EdgiOS/" in ua:
