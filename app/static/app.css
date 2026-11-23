@@ -1133,3 +1133,15 @@ tr:has(.row-toggle:checked) + .review-detail-row .review-detail-body { display: 
   .page-header h1, .topbar h1 { font-size: 20px; margin: 0; }
   .topbar nav { display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: 4px; font-size: 0.85rem; }
 }
+
+/* Item 87: reports library cards + latest files */
+.rep-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+.rep-card {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  border: 1.5px solid var(--border-strong); border-radius: 14px; padding: 14px 16px; background: var(--surface);
+}
+.rep-card-body { min-width: 0; }
+.rep-card-body strong { font-size: 1.02rem; }
+.rep-card-body p { margin: 4px 0 0; font-size: 0.85rem; overflow-wrap: anywhere; }
+.rep-run { flex-shrink: 0; text-decoration: none; padding: 8px 20px; border-radius: 10px; font-weight: 700; }
+a.rep-run:not(.btn-primary) { border: 1.5px solid var(--border-strong); color: var(--text); }

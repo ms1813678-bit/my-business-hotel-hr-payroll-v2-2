@@ -3065,6 +3065,24 @@ def reports_page(
                 preset for preset in presets
                 if preset_config(preset).get("report_type") in allowed_types
             ]
+    # Item 87: library cards — one per ready report type for this role, each
+    # running the report with this month's default selection; plus the newest
+    # saved export copies with download links. The custom builder, monthly
+    # PDF and presets below stay exactly as they are.
+    allowed_for_role = [
+        report_type for report_type in REPORT_TYPES
+        if report_type in _REPORT_TYPES_BY_ROLE.get(admin.role, set(REPORT_TYPES))
+    ]
+    library_cards = [
+        {
+            "type": report_type,
+            "label": REPORT_TYPE_LABELS[report_type],
+            "description": _REPORT_LIBRARY_DESCRIPTIONS.get(report_type, ""),
+            "run_url": f"/reports/view?report_type={report_type}&period=this_month",
+        }
+        for report_type in allowed_for_role
+    ]
+    latest_files = _list_latest_report_files()
     return templates.TemplateResponse(
         request=request,
         name="reports.html",
@@ -3089,8 +3107,77 @@ def reports_page(
             "error": params.get("error"),
             "saved": params.get("saved"),
             "deleted": params.get("deleted"),
+            "library_cards": library_cards,
+            "latest_files": latest_files,
+            "can_download_files": admin.role != ROLE_ASSISTANT,
         },
     )
+
+
+_REPORT_LIBRARY_DESCRIPTIONS = {
+    REPORT_TYPE_PAYROLL: "مسيرات الرواتب ومكوناتها وصافي المستحقات",
+    REPORT_TYPE_ATTENDANCE: "سجلات الحضور والانصراف والغياب والإضافي",
+    REPORT_TYPE_ADVANCES: "طلبات السلف وحالاتها وأقساط السداد",
+    REPORT_TYPE_LEAVE: "أرصدة الإجازات وسجلاتها",
+    REPORT_TYPE_STAFF_ACTIONS: "الجزاءات والمكافآت المسجلة",
+    REPORT_TYPE_COMPREHENSIVE: "كل الأقسام والبيانات في ملف واحد",
+}
+
+
+def _list_latest_report_files(limit: int = 10) -> list[dict]:
+    """Newest saved export copies (written on every xlsx/pdf export) for the
+    reports library's latest-files list; newest first, names only — contents
+    are served by the guarded download route."""
+    try:
+        entries = [
+            entry for entry in REPORTS_DIR.iterdir()
+            if entry.is_file() and _REPORT_FILE_NAME_RE.match(entry.name)
+        ]
+    except OSError:
+        return []
+    entries.sort(key=lambda entry: entry.stat().st_mtime, reverse=True)
+    files = []
+    for entry in entries[:limit]:
+        try:
+            stat = entry.stat()
+        except OSError:
+            continue
+        # The name pattern is anchored: MY_HR_Report_<start>_<end>_…, so the
+        # date offsets are safe for a friendly display label.
+        files.append({
+            "name": entry.name,
+            "start": entry.name[13:23],
+            "end": entry.name[24:34],
+            "ext": entry.name.rsplit(".", 1)[-1].upper(),
+            "size_kb": max(1, stat.st_size // 1024),
+            "modified": datetime.fromtimestamp(stat.st_mtime),
+        })
+    return files
+
+
+_REPORT_FILE_NAME_RE = re.compile(
+    r"^MY_HR_Report_\d{4}-\d{2}-\d{2}_\d{4}-\d{2}-\d{2}_(employee-\d+|all-employees)_\d{8}-\d{6}-\d+_[0-9a-f]{8}\.(xlsx|pdf)$"
+)
+
+
+@app.get("/reports/files/{filename}")
+def reports_download_saved_file(
+    filename: str,
+    admin: AdminAccount = Depends(get_current_admin),
+):
+    """Item 87: download a saved export copy from the latest-files list.
+    Copies may carry any section the generator's role allowed, so the
+    attendance-only assistant role is excluded; the name pattern and path
+    containment check block traversal."""
+    if admin.role == ROLE_ASSISTANT:
+        raise HTTPException(status_code=403, detail="هذا الجزء غير متاح لصلاحية حسابك.")
+    if not _REPORT_FILE_NAME_RE.match(filename):
+        raise HTTPException(status_code=404, detail="الملف غير موجود.")
+    path = (REPORTS_DIR / filename).resolve()
+    if REPORTS_DIR.resolve() not in path.parents or not path.is_file():
+        raise HTTPException(status_code=404, detail="الملف غير موجود.")
+    media_type = "application/pdf" if filename.endswith(".pdf") else "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    return FileResponse(path, media_type=media_type, filename=filename)
 
 
 @app.get("/reports/view", response_class=HTMLResponse)

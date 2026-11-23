@@ -2693,3 +2693,55 @@ def test_bulk_approve_overnight_suggested_pair(client):
         assert record.status == "approved"
         assert record.approved_clock_in == datetime(2026, 11, 15, 20, 5)
         assert record.approved_clock_out == datetime(2026, 11, 16, 4, 0)
+
+
+def test_reports_library_cards_latest_files_and_download_guard(client, monkeypatch, tmp_path):
+    import re as _re
+    monkeypatch.setattr("app.main.REPORTS_DIR", tmp_path)
+    saved_name = "MY_HR_Report_2026-10-01_2026-10-31_all-employees_20261101-120000-123456_abcdef12.pdf"
+    (tmp_path / saved_name).write_bytes(b"%PDF-1.4 synthetic-test-bytes")
+    assert login(client).status_code == 303
+
+    page = client.get("/reports")
+    assert page.status_code == 200
+    assert "مكتبة التقارير" in page.text
+    assert "تشغيل" in page.text
+    assert "/reports/view?report_type=payroll&amp;period=this_month" in page.text
+    assert "آخر الملفات" in page.text
+    assert saved_name in page.text
+
+    # Run link executes the report with this month's defaults.
+    run = client.get("/reports/view?report_type=payroll&period=this_month")
+    assert run.status_code == 200
+
+    # Download works for the exact saved name.
+    download = client.get(f"/reports/files/{saved_name}")
+    assert download.status_code == 200
+    assert download.content == b"%PDF-1.4 synthetic-test-bytes"
+
+    # Unknown or traversal-shaped names are refused.
+    assert client.get("/reports/files/evil.pdf").status_code == 404
+    assert client.get("/reports/files/..%2F..%2Fetc%2Fpasswd").status_code == 404
+
+    # The attendance-only assistant role cannot download saved copies.
+    from app.main import SessionLocal
+    with SessionLocal.begin() as db:
+        db.add(AdminAccount(
+            username="reports-assistant",
+            password_hash=hash_password("Assistant-Test-Password-123!"),
+            role="assistant_manager",
+            active=True,
+        ))
+        db.commit()
+    client.post("/logout", data={"csrf_token": csrf_from(client.get("/reports"))}, follow_redirects=False)
+    page = client.get("/login")
+    response = client.post("/login", data={
+        "username": "reports-assistant",
+        "password": "Assistant-Test-Password-123!",
+        "csrf_token": csrf_from(page),
+    }, follow_redirects=False)
+    assert response.status_code == 303
+    assert client.get(f"/reports/files/{saved_name}").status_code == 403
+    library = client.get("/reports")
+    assert library.status_code == 200
+    assert "/reports/files/" not in library.text  # no download links rendered

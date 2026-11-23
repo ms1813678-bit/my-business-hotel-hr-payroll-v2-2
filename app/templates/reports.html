@@ -17,6 +17,40 @@
 {% if saved %}<p class="success-note">تم حفظ الاختيار.</p>{% endif %}
 {% if deleted %}<p class="success-note">تم حذف الاختيار.</p>{% endif %}
 
+<div class="card" id="report-library">
+  <h2>مكتبة التقارير</h2>
+  <div class="rep-cards">
+    {% for card in library_cards %}
+    <div class="rep-card">
+      <div class="rep-card-body">
+        <strong>{{ card.label }}</strong>
+        <p class="muted">{{ card.description }}</p>
+      </div>
+      <a class="btn-primary rep-run" href="{{ card.run_url }}">تشغيل</a>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<div class="card" id="latest-files">
+  <h2>آخر الملفات</h2>
+  {% if latest_files %}
+  <div class="rep-cards">
+    {% for file in latest_files %}
+    <div class="rep-card">
+      <div class="rep-card-body">
+        <strong><span>تقرير</span> {{ file.start }} — {{ file.end }} ({{ file.ext }})</strong>
+        <p class="muted">{{ file.modified.strftime('%d/%m/%Y %H:%M') }} · {{ file.size_kb }} <span>ك.ب</span></p>
+      </div>
+      {% if can_download_files %}<a class="rep-run" href="/reports/files/{{ file.name }}">تنزيل</a>{% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="muted">لا توجد ملفات محفوظة بعد. تُحفظ هنا نسخة من كل تقرير تُصدّره.</p>
+  {% endif %}
+</div>
+
 <form method="get" action="/reports/view" id="report-form">
   <div class="card">
     <h2>نوع التقرير والفترة</h2>
