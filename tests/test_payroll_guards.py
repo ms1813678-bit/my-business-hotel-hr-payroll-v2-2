@@ -545,15 +545,15 @@ def test_edit_rows_collapsed_and_conflict_row_stays_open(guard_client):
     client.test_run_id = run_id
     page = client.get(f"/payroll/runs/{run_id}")
     assert 'id="employee-search"' in page.text
-    assert '<tr class="payroll-edit-row" hidden>' in page.text
-    assert '<tr class="payroll-edit-row">' not in page.text
+    assert '<div class="payroll-edit-row" hidden>' in page.text
+    assert '<div class="payroll-edit-row">' not in page.text
 
     set_absence(client, item_id, 1)
     add_leave(client, "ANNUAL", "confirmed")
     page = client.get(f"/payroll/runs/{run_id}")
     # a row with an unresolved absence/leave conflict stays expanded so the
     # review gate is never hidden behind a collapsed row
-    assert '<tr class="payroll-edit-row">' in page.text
+    assert '<div class="payroll-edit-row">' in page.text
 
 
 def close_run(client, run_id):

@@ -59,30 +59,37 @@
     <h2>تفاصيل الرواتب</h2>
     <p><span>عدد الموظفين</span>: {{ totals.count }} · <span>إجمالي المستحقات</span>: {{ "%.2f"|format(totals.gross) }} · <span>إجمالي الخصومات</span>: {{ "%.2f"|format(totals.deductions) }} · <span>إجمالي الصافي</span>: <strong>{{ "%.2f"|format(totals.net) }}</strong> · <span>إجمالي المدفوع</span>: {{ "%.2f"|format(totals.paid) }} · <span>إجمالي المتبقي</span>: {{ "%.2f"|format(totals.due) }}</p>
     <p><input type="search" id="employee-search" placeholder="ابحث بالاسم أو الكود" aria-label="ابحث بالاسم أو الكود"></p>
-    <div class="table-wrap"><table><thead><tr>
-      <th>الموظف</th><th>الأساسي</th><th>بعد التناسب</th><th>إجمالي المستحقات</th><th>إجمالي الخصومات</th><th>الصافي</th><th>المدفوع</th><th>المتبقي</th><th>حالة الصرف</th><th>قسيمة المرتب</th>
-    </tr></thead><tbody>
+    <div class="payroll-cards">
     {% for item in items %}
     {% set p = summaries.get(item.id) %}
     {% set f = financials.get(item.id) %}
-    <tr class="payroll-summary-row" data-search="{{ item.employee_code_snapshot }} {{ item.employee_name_snapshot }}">
-      <td>{% if run.status in ["draft", "reopened"] %}<button type="button" class="payroll-edit-toggle">تعديل</button> {% elif run.status == "closed" and payments_by_item.get(item.id) %}<button type="button" class="payroll-edit-toggle">الدفعات</button> {% endif %}{{ item.employee_code_snapshot }} — {{ item.employee_name_snapshot }}</td>
-      <td>{{ "%.2f"|format(item.salary_basis) }}</td>
-      <td>{{ "%.2f"|format(item.base_salary) }}</td>
-      <td>{{ "%.2f"|format(f.gross) }}</td>
-      <td>{{ "%.2f"|format(f.deductions) }}</td>
-      <td><strong>{{ "%.2f"|format(item.net_pay) }}</strong></td>
-      <td>{{ "%.2f"|format(p[0]) }}</td>
-      <td>{{ "%.2f"|format(p[1]) }}</td>
-      <td>
-        {% if p[2] == "unpaid" %}غير مدفوع
-        {% elif p[2] == "partially_paid" %}مدفوع جزئيًا
-        {% else %}مدفوع بالكامل{% endif %}
-      </td>
-      <td><a href="/payroll/runs/{{ run.id }}/items/{{ item.id }}/payslip.pdf" target="_blank">قسيمة PDF</a></td>
-    </tr>
+    <div class="payroll-card payroll-summary-row" data-search="{{ item.employee_code_snapshot }} {{ item.employee_name_snapshot }}">
+      <div class="payroll-card-head">
+        <div class="payroll-card-id">
+          <span class="payroll-avatar" aria-hidden="true">{{ item.employee_name_snapshot[0] }}</span>
+          <div>
+            <strong>{{ item.employee_name_snapshot }}</strong>
+            <span class="muted payroll-code">{{ item.employee_code_snapshot }}</span>
+          </div>
+        </div>
+        <dl class="payroll-card-figures">
+          <div><dt>المستحقات</dt><dd>{{ "%.2f"|format(f.gross) }}</dd></div>
+          <div><dt>الخصومات</dt><dd class="payroll-neg">{{ "%.2f"|format(f.deductions) }}</dd></div>
+          <div><dt>الصافي</dt><dd><strong>{{ "%.2f"|format(item.net_pay) }}</strong></dd></div>
+          <div><dt>الصرف</dt><dd>
+            {% if p[2] == "unpaid" %}<span class="badge badge-danger">غير مدفوع</span>
+            {% elif p[2] == "partially_paid" %}<span class="badge badge-warning">مدفوع جزئيًا</span>
+            {% else %}<span class="badge badge-success">مدفوع بالكامل</span>{% endif %}
+          </dd></div>
+        </dl>
+        <div class="payroll-card-actions">
+          {% if run.status in ["draft", "reopened"] %}<button type="button" class="payroll-edit-toggle btn-primary">تعديل</button>{% elif run.status == "closed" and payments_by_item.get(item.id) %}<button type="button" class="payroll-edit-toggle btn-primary">الدفعات</button>{% endif %}
+          <a class="button-link" href="/payroll/runs/{{ run.id }}/items/{{ item.id }}/payslip.pdf" target="_blank">قسيمة PDF</a>
+        </div>
+      </div>
+      <p class="payroll-card-extra muted"><span>الأساسي</span> {{ "%.2f"|format(item.salary_basis) }} · <span>بعد التناسب</span> {{ "%.2f"|format(item.base_salary) }} · <span>المدفوع</span> {{ "%.2f"|format(p[0]) }} · <span>المتبقي</span> {{ "%.2f"|format(p[1]) }}</p>
     {% if run.status in ["draft", "reopened"] %}
-    <tr class="payroll-edit-row"{% if not conflict_map.get(item.id) %} hidden{% endif %}><td colspan="10">
+    <div class="payroll-edit-row"{% if not conflict_map.get(item.id) %} hidden{% endif %}>
       <form method="post" action="/payroll/items/{{ item.id }}/update" class="payroll-item-edit">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <div class="form-grid">
@@ -125,10 +132,10 @@
         {% endif %}
       </div>
       {% endif %}
-    </td></tr>
+    </div>
     {% endif %}
     {% if run.status == "closed" and payments_by_item.get(item.id) %}
-    <tr class="payroll-edit-row" hidden><td colspan="10">
+    <div class="payroll-edit-row" hidden>
       <table><thead><tr>
         <th>المبلغ</th><th>التاريخ</th><th>الطريقة</th><th>المرجع</th><th>الحالة</th><th>تصحيح تسجيل دفعة</th>
       </tr></thead><tbody>
@@ -160,10 +167,10 @@
       </tr>
       {% endfor %}
       </tbody></table>
-    </td></tr>
+    </div>
     {% endif %}
     {% if run.status == "closed" and p[1] > 0 %}
-    <tr><td colspan="10">
+    <div class="payroll-pay-row">
       <form method="post" action="/payroll/items/{{ item.id }}/payments">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <div class="form-grid">
@@ -174,10 +181,11 @@
         </div>
         <button type="submit">تسجيل دفعة</button>
       </form>
-    </td></tr>
+    </div>
     {% endif %}
-    {% else %}<tr><td colspan="10">لا توجد بنود رواتب في هذا المسير.</td></tr>{% endfor %}
-    </tbody></table></div>
+    </div>
+    {% else %}<p class="muted">لا توجد بنود رواتب في هذا المسير.</p>{% endfor %}
+    </div>
   </section>
 
   <section class="notice">
@@ -267,8 +275,9 @@
     });
     document.querySelectorAll(".payroll-edit-toggle").forEach(function (btn) {
       btn.addEventListener("click", function () {
-        var row = btn.closest("tr").nextElementSibling;
-        if (row && row.classList.contains("payroll-edit-row")) { row.hidden = !row.hidden; }
+        var card = btn.closest(".payroll-card");
+        var row = card && card.querySelector(".payroll-edit-row");
+        if (row) { row.hidden = !row.hidden; }
       });
     });
     var searchBox = document.getElementById("employee-search");
@@ -278,8 +287,8 @@
         document.querySelectorAll(".payroll-summary-row").forEach(function (row) {
           var match = !q || (row.dataset.search || "").toLowerCase().indexOf(q) !== -1;
           row.hidden = !match;
-          var edit = row.nextElementSibling;
-          if (!match && edit && edit.classList.contains("payroll-edit-row")) { edit.hidden = true; }
+          var edit = row.querySelector(".payroll-edit-row");
+          if (!match && edit) { edit.hidden = true; }
         });
       });
     }

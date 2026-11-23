@@ -929,7 +929,7 @@ a.metric-card .metric-link { color: var(--brand, #b8860b); font-size: 12px; font
   transition: transform 0.15s ease;
 }
 .account-row[open] summary::after { transform: rotate(180deg); }
-.account-avatar {
+.account-avatar, .payroll-avatar {
   width: 38px;
   height: 38px;
   border-radius: 50%;
@@ -1028,4 +1028,35 @@ a.metric-card .metric-link { color: var(--brand, #b8860b); font-size: 12px; font
 @media (max-width: 520px) {
   .employee-modal { padding: 0.5rem; }
   .employee-modal-dialog { max-height: 94vh; }
+}
+
+/* Payroll run employee cards (item: payroll cards layout) */
+.payroll-cards { display: flex; flex-direction: column; gap: 12px; margin-top: 12px; }
+.payroll-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 14px 16px;
+}
+.payroll-card-head { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; }
+.payroll-card-id { display: flex; align-items: center; gap: 10px; flex: 1 1 180px; min-width: 0; }
+.payroll-card-id strong { display: block; }
+.payroll-code { font-size: 0.85rem; }
+.payroll-card-figures {
+  display: flex; flex-wrap: wrap; gap: 18px; margin: 0;
+  flex: 2 1 320px; align-items: center;
+}
+.payroll-card-figures > div { display: flex; flex-direction: column; }
+.payroll-card-figures dt { font-size: 0.78rem; color: var(--text-soft); }
+.payroll-card-figures dd { margin: 0; font-weight: 600; }
+.payroll-neg { color: var(--danger); }
+.payroll-card-actions { display: flex; gap: 10px; align-items: center; margin-inline-start: auto; }
+.payroll-card-extra { margin: 8px 0 0; font-size: 0.85rem; }
+.payroll-card .payroll-edit-row, .payroll-card .payroll-pay-row {
+  margin-top: 12px; border-top: 1px dashed var(--border); padding-top: 12px;
+}
+@media (max-width: 700px) {
+  .payroll-card-head { flex-direction: column; align-items: stretch; }
+  .payroll-card-actions { margin-inline-start: 0; }
+  .payroll-card-figures { flex: 1 1 auto; justify-content: space-between; gap: 10px; }
 }
