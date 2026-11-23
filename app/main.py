@@ -277,6 +277,13 @@ app.add_middleware(
     same_site="lax",
     https_only=settings.app_env.lower() == "production",
 )
+
+# Outermost middleware: every HTTP request holds the shared restore gate until
+# its response finishes, so no request body can read the half-restored window
+# (exempt: the restore route, credential-write routes, static/language paths).
+from app.restore_lock import RestoreReadGateMiddleware
+
+app.add_middleware(RestoreReadGateMiddleware)
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 templates = Jinja2Templates(directory="app/templates")
 
