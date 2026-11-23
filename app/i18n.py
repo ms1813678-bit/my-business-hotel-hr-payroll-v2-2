@@ -3077,6 +3077,7 @@ EN.update({
 "يرجى رفع ملف Excel بصيغة .xlsx.":"Please upload an Excel file in .xlsx format.",
 "يرجى رفع ملف حضور بصيغة CSV أو XLS أو XLSX.":"Please upload an attendance file in CSV, XLS or XLSX format.",
 "إضافة موظف جديد":"Add a new employee",
+"إغلاق":"Close",
 })
 ZH.update({
 "Unsupported language":"不支持的语言",
@@ -3149,6 +3150,7 @@ ZH.update({
 "يرجى رفع ملف Excel بصيغة .xlsx.":"请上传 .xlsx 格式的 Excel 文件。",
 "يرجى رفع ملف حضور بصيغة CSV أو XLS أو XLSX.":"请上传 CSV、XLS 或 XLSX 格式的考勤文件。",
 "إضافة موظف جديد":"添加新员工",
+"إغلاق":"关闭",
 })
 
 

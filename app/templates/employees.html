@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% set active_nav = "employees" %}
-{% block title %}الموظفون{% endblock %}
+{% block title %}الموظفون
+{% endblock %}
 {% block content %}
 <header class="page-header">
   <div>
@@ -12,38 +13,15 @@
 </header>
 
 {% if request.state.admin_role == 'system_admin' %}
-<section class="notice">
-  <div class="section-heading" style="margin-top:0">
-    <div><span class="section-kicker">تسجيل جديد</span><h2>إضافة موظف جديد</h2></div>
-  </div>
-  <form method="post" action="/employees" enctype="multipart/form-data">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-    <div class="form-grid">
-      <label>الاسم بالكامل<input name="full_name" required maxlength="200"></label>
-      <label>الجنسية<select name="nationality"><option value="egyptian" selected>مصري</option><option value="foreign">أجنبي</option></select></label>
-      <label>الرقم القومي<input name="national_id" maxlength="20"></label>
-      <label>رقم الباسبور (للأجانب)<input name="passport_number" maxlength="20"></label>
-      <label>رقم الهاتف<input name="phone" maxlength="30"></label>
-      <label>العنوان<input name="address" maxlength="2000"></label>
-      <label>القسم<select name="department_id" required>{% for d in departments %}<option value="{{ d.id }}">{{ d.name }}</option>{% endfor %}</select></label>
-      <label>الفرع<select name="branch_id"><option value="">بدون فرع</option>{% for b in branches %}<option value="{{ b.id }}">{{ b.name }}</option>{% endfor %}</select></label>
-      <label>المسمى الوظيفي<input name="position" required maxlength="120"></label>
-      <label>تاريخ التعيين<input name="hire_date" type="date" required></label>
-      <label>بداية فترة الاختبار<input name="probation_start_date" type="date"></label>
-      <label>نهاية فترة الاختبار<input name="probation_end_date" type="date"></label>
-      <label>الراتب الأساسي بالجنيه<input name="basic_salary" type="number" min="0" step="0.01" required></label>
-      <label>ساعات العمل اليومية<input name="daily_hours" type="number" min="0.5" max="24" step="0.5" required></label>
-      <label>رقم البصمة<input name="fingerprint_id" maxlength="50"></label>
-      <label>الصورة الشخصية (اختياري JPG/PNG/WEBP، حد 5MB)<input name="photo" type="file" accept="image/jpeg,image/png,image/webp"></label>
-    </div>
-    <button type="submit" class="btn-primary">حفظ الموظف</button>
-  </form>
-</section>
+<input type="checkbox" id="add-employee-toggle" class="modal-toggle" aria-hidden="true">
 {% endif %}
 
 <section>
   <div class="section-heading">
     <div><span class="section-kicker">السجل</span><h2>بطاقات الموظفين</h2></div>
+    {% if request.state.admin_role == 'system_admin' %}
+    <label for="add-employee-toggle" class="btn-primary modal-open-btn">إضافة موظف</label>
+    {% endif %}
   </div>
 
   <form method="get" action="/employees" class="inline-form" style="flex-wrap:wrap">
@@ -331,4 +309,38 @@
   {% endfor %}
 </section>
 {% endif %}
+{% if request.state.admin_role == 'system_admin' %}
+<div class="employee-modal" role="dialog" aria-modal="true" aria-label="إضافة موظف جديد">
+  <label for="add-employee-toggle" class="employee-modal-overlay" aria-hidden="true"></label>
+  <div class="employee-modal-dialog notice">
+    <div class="section-heading" style="margin-top:0">
+      <div><span class="section-kicker">تسجيل جديد</span><h2>إضافة موظف جديد</h2></div>
+      <label for="add-employee-toggle" class="employee-modal-close" aria-label="إغلاق">✕</label>
+    </div>
+  <form method="post" action="/employees" enctype="multipart/form-data">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div class="form-grid">
+      <label>الاسم بالكامل<input name="full_name" required maxlength="200"></label>
+      <label>الجنسية<select name="nationality"><option value="egyptian" selected>مصري</option><option value="foreign">أجنبي</option></select></label>
+      <label>الرقم القومي<input name="national_id" maxlength="20"></label>
+      <label>رقم الباسبور (للأجانب)<input name="passport_number" maxlength="20"></label>
+      <label>رقم الهاتف<input name="phone" maxlength="30"></label>
+      <label>العنوان<input name="address" maxlength="2000"></label>
+      <label>القسم<select name="department_id" required>{% for d in departments %}<option value="{{ d.id }}">{{ d.name }}</option>{% endfor %}</select></label>
+      <label>الفرع<select name="branch_id"><option value="">بدون فرع</option>{% for b in branches %}<option value="{{ b.id }}">{{ b.name }}</option>{% endfor %}</select></label>
+      <label>المسمى الوظيفي<input name="position" required maxlength="120"></label>
+      <label>تاريخ التعيين<input name="hire_date" type="date" required></label>
+      <label>بداية فترة الاختبار<input name="probation_start_date" type="date"></label>
+      <label>نهاية فترة الاختبار<input name="probation_end_date" type="date"></label>
+      <label>الراتب الأساسي بالجنيه<input name="basic_salary" type="number" min="0" step="0.01" required></label>
+      <label>ساعات العمل اليومية<input name="daily_hours" type="number" min="0.5" max="24" step="0.5" required></label>
+      <label>رقم البصمة<input name="fingerprint_id" maxlength="50"></label>
+      <label>الصورة الشخصية (اختياري JPG/PNG/WEBP، حد 5MB)<input name="photo" type="file" accept="image/jpeg,image/png,image/webp"></label>
+    </div>
+    <button type="submit" class="btn-primary">حفظ الموظف</button>
+  </form>
+  </div>
+</div>
+{% endif %}
+
 {% endblock %}

@@ -986,3 +986,46 @@ a.metric-card .metric-link { color: var(--brand, #b8860b); font-size: 12px; font
   }
   .data-table.responsive-cards td[data-label=""]::before { content: none; }
 }
+
+/* Employees page: list-first with the add form in a checkbox-driven modal
+   (no JS dependency, same pattern as the nav toggle). */
+.modal-toggle { display: none; }
+.modal-open-btn { cursor: pointer; user-select: none; }
+.employee-modal {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+.modal-toggle:checked ~ .employee-modal { display: flex; }
+.employee-modal-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(10, 12, 16, 0.55);
+  cursor: pointer;
+}
+.employee-modal-dialog {
+  position: relative;
+  z-index: 1;
+  width: min(720px, 100%);
+  max-height: 90vh;
+  overflow-y: auto;
+  margin: 0;
+}
+.employee-modal-close {
+  cursor: pointer;
+  font-size: 1.1rem;
+  line-height: 1;
+  padding: 0.35rem 0.6rem;
+  border: 1px solid var(--primary, #a8791f);
+  border-radius: 8px;
+  color: var(--primary, #a8791f);
+  user-select: none;
+}
+@media (max-width: 520px) {
+  .employee-modal { padding: 0.5rem; }
+  .employee-modal-dialog { max-height: 94vh; }
+}
