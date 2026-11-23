@@ -100,6 +100,7 @@
   </section>
   <style>
     .action-kind-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-block: 10px; }
+    .action-kind-grid[hidden] { display: none; }
     @media (max-width: 700px) { .action-kind-grid { grid-template-columns: 1fr; } }
     .action-kind-card { background: #fff; border: 1.5px solid #d8cfae; border-radius: 10px; padding: 12px 14px; }
     .action-kind-card:has(.action-chip.selected) { border-color: #a8791f; }
@@ -133,7 +134,14 @@
     function syncFin(financial, custom) {
       finHidden.disabled = !financial;
       finWrap.hidden = !custom;
-      finFields.forEach(function (f) { f.hidden = !(financial || (custom && finBox.checked)); });
+      // Hidden financial controls must also be disabled: a hidden-but-enabled
+      // input still submits its stale value and the server then rejects the
+      // create with a generic error the user cannot see the cause of.
+      var finVisible = financial || (custom && finBox.checked);
+      finFields.forEach(function (f) {
+        f.hidden = !finVisible;
+        f.querySelectorAll('input').forEach(function (inp) { inp.disabled = !finVisible; });
+      });
     }
     picker.addEventListener('click', function (ev) {
       var chip = ev.target.closest('.action-chip');
@@ -156,7 +164,10 @@
     });
     finBox.addEventListener('change', function () {
       if (catSel.value === 'custom') {
-        finFields.forEach(function (f) { f.hidden = !finBox.checked; });
+        finFields.forEach(function (f) {
+          f.hidden = !finBox.checked;
+          f.querySelectorAll('input').forEach(function (inp) { inp.disabled = !finBox.checked; });
+        });
       }
     });
     syncFin(false, false);
