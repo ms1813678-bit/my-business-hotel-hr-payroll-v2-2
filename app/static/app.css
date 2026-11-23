@@ -1100,6 +1100,10 @@ tr:has(.row-toggle:checked) + .review-detail-row .review-detail-body { display: 
   .data-table.responsive-cards td[data-label="مراجعة"] { display: block; }
   .data-table.responsive-cards td[data-label="مراجعة"]::before { content: none; }
   .data-table.responsive-cards .review-detail-row > td::before { content: none; }
+  /* Collapsed detail rows have no visible content; without these rules the
+     responsive card chrome renders them as empty bordered strips. */
+  .data-table.responsive-cards .review-detail-row { display: none; }
+  .data-table.responsive-cards tr:has(.row-toggle:checked) + .review-detail-row { display: block; }
 }
 
 /* Item 53: advances tabs + cards */
