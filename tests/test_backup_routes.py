@@ -12,6 +12,7 @@ from app.db import Base, get_db
 from app.main import app
 from app.models import AdminAccount, BackupRun
 from app.security import hash_password
+from app.backup_crypto import set_passphrase
 
 
 @pytest.fixture()
@@ -83,6 +84,9 @@ def test_backup_page_and_mutations_are_admin_and_csrf_protected(backup_client):
 def test_manual_backup_without_external_drive_is_recorded_as_failed(backup_client):
     client = backup_client
     login(client)
+    with client.test_session_factory() as db:
+        set_passphrase(db, "synthetic-backup-passphrase", actor="test")
+        db.commit()
     token = csrf(client.get("/settings/backup"))
     response = client.post(
         "/settings/backup/create",
@@ -114,3 +118,37 @@ def test_restore_requires_explicit_phrase_and_reason(backup_client):
     )
     assert response.status_code == 303
     assert "error=confirm" in response.headers["location"]
+
+
+def test_manual_backup_requires_configured_encryption(backup_client):
+    client = backup_client
+    login(client)
+    token = csrf(client.get("/settings/backup"))
+    response = client.post(
+        "/settings/backup/create",
+        data={"csrf_token": token, "backup_type": "manual"},
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    assert "error=passphrase_required" in response.headers["location"]
+    with client.test_session_factory() as db:
+        assert db.scalar(select(BackupRun)) is None
+
+
+def test_restore_requires_configured_encryption(backup_client):
+    client = backup_client
+    login(client)
+    token = csrf(client.get("/settings/backup"))
+    response = client.post(
+        "/settings/backup/restore",
+        data={
+            "csrf_token": token,
+            "backup_id": "1",
+            "confirm_text": "RESTORE",
+            "reason": "Synthetic restore validation",
+            "current_password": "Backup-Test-Password-123!",
+        },
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    assert "error=passphrase_required" in response.headers["location"]

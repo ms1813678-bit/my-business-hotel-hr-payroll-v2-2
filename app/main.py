@@ -4432,6 +4432,8 @@ def create_backup_route(
     if backup_type not in {"daily", "weekly", "quarterly", "manual"}:
         return RedirectResponse("/settings/backup?error=type", status_code=303)
     with SessionLocal.begin() as db:
+        if not backup_has_passphrase(db):
+            return RedirectResponse("/settings/backup?error=passphrase_required", status_code=303)
         run = create_backup(db, backup_type, admin.username)
         run_id = run.id
         status = run.status
@@ -4460,6 +4462,10 @@ def restore_backup_route(
         return RedirectResponse("/settings/backup?error=auth", status_code=303)
     if confirm_text.strip() != "RESTORE" or not reason.strip():
         return RedirectResponse("/settings/backup?error=confirm", status_code=303)
+    # Every restore begins with a new pre-restore backup, and new backups are
+    # always encrypted — so a restore also requires a configured passphrase.
+    if not backup_has_passphrase(db):
+        return RedirectResponse("/settings/backup?error=passphrase_required", status_code=303)
     run = db.get(BackupRun, backup_id)
     if run is None or run.status != "success" or not run.archive_path or not run.sha256:
         return RedirectResponse("/settings/backup?error=archive", status_code=303)

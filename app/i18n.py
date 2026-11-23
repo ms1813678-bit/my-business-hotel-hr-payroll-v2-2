@@ -4003,3 +4003,13 @@ ZH.update({
     "تأكيد الإجازة وخصم الرصيد": "确认休假并扣减余额",
     "إلغاء الإجازة": "取消休假",
 })
+
+# Mandatory encryption for new backups: backup page error and notice.
+EN.update({
+    "النسخ الاحتياطي الجديد يتطلب تفعيل التشفير أولًا. عيّن كلمة سر التشفير من الأسفل.": "New backups require encryption first. Set the backup passphrase below.",
+    "لن يُنشأ أي نسخ احتياطي جديد قبل إتمام هذه الخطوة.": "No new backup will be created until this step is completed.",
+})
+ZH.update({
+    "النسخ الاحتياطي الجديد يتطلب تفعيل التشفير أولًا. عيّن كلمة سر التشفير من الأسفل.": "新备份需要先启用加密。请在下方设置备份加密密码。",
+    "لن يُنشأ أي نسخ احتياطي جديد قبل إتمام هذه الخطوة.": "在完成此步骤之前,不会创建任何新备份。",
+})

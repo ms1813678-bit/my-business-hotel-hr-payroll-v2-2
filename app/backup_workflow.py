@@ -298,6 +298,21 @@ def create_backup(db: Session, backup_type: str, actor: str) -> BackupRun:
         db.flush()
         return run
 
+    # New backups are always encrypted: without a configured passphrase the
+    # run is refused instead of writing a readable archive to the drive.
+    if not has_passphrase(db):
+        run = BackupRun(
+            backup_type=backup_type,
+            status="failed",
+            size_bytes=0,
+            created_at=created_at,
+            initiated_by=actor,
+            error_message="Backup encryption is not set up; set the backup passphrase first.",
+        )
+        db.add(run)
+        db.flush()
+        return run
+
     try:
         backup_root = validate_backup_root(str(backup_root), require_external=True)
         # Fail fast and fail closed: a damaged encryption record must stop the

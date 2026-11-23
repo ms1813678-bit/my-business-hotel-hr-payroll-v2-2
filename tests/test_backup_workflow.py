@@ -309,3 +309,33 @@ def test_every_backup_contains_the_admin_accounts():
     assert "--table" not in source
     assert "--schema" not in source
     assert "--data-only" not in source
+
+
+def test_backup_without_configured_passphrase_is_recorded_as_failed(tmp_path, monkeypatch):
+    from app import backup_workflow
+    from app.models import SystemSetting
+
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+    try:
+        with Session(engine) as db:
+            root = tmp_path / "backups"
+            root.mkdir()
+            db.add(SystemSetting(
+                key=backup_workflow.BACKUP_SETTING_KEY,
+                value=str(root),
+                updated_by="synthetic-admin",
+            ))
+            db.flush()
+            monkeypatch.setattr(
+                backup_workflow,
+                "validate_backup_root",
+                lambda path_value, require_external=True: Path(path_value),
+            )
+            run = create_backup(db, "manual", "synthetic-admin")
+            assert run.status == "failed"
+            assert "passphrase" in run.error_message
+            assert list(root.iterdir()) == []
+    finally:
+        Base.metadata.drop_all(engine)
+        engine.dispose()

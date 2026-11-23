@@ -28,6 +28,7 @@ from app.backup_crypto import (
     EncryptionRecordError,
     PassphraseRequiredError,
     WrongPassphraseError,
+    has_passphrase,
     is_encrypted_archive,
 )
 from app.backup_workflow import (
@@ -106,6 +107,11 @@ _MESSAGES = {
         "en": "Restore failed: {error}",
         "zh": "恢复失败:{error}",
     },
+    "passphrase_not_configured": {
+        "ar": "النسخ الاحتياطية الجديدة مشفّرة إجباريًا. عيّن كلمة سر التشفير أولًا من إعدادات النسخ الاحتياطي في البرنامج، ثم أعد المحاولة.",
+        "en": "New backups must be encrypted. Set the backup passphrase in the app's backup settings first, then retry.",
+        "zh": "新备份必须加密。请先在应用的备份设置中设置加密密码,然后重试。",
+    },
     "restore_done": {
         "ar": "اكتملت الاستعادة وتم التحقق منها.",
         "en": "Restore completed and verified.",
@@ -164,6 +170,13 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     _apply_migrations()
+
+    # New backups are always encrypted, and every restore begins with a new
+    # pre-restore backup — so a passphrase must be configured before restoring.
+    with SessionLocal() as db:
+        if not has_passphrase(db):
+            print(_msg("passphrase_not_configured", lang))
+            return 2
 
     if args.backup_root:
         backup_root = Path(args.backup_root).expanduser().resolve()

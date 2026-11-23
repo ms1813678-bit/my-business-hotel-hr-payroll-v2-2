@@ -231,3 +231,25 @@ def test_restore_cli_language_selection(tmp_path, capsys, monkeypatch):
     monkeypatch.setenv("MYHOTEL_LANG", "fr")
     assert main(["--archive", str(missing)]) == 2
     assert "Unsupported language" in capsys.readouterr().out
+
+
+def test_restore_cli_requires_configured_passphrase(tmp_path, capsys, monkeypatch):
+    from app import restore_cli
+    archive = tmp_path / "manual" / "backup.zip"
+    archive.parent.mkdir(parents=True)
+    archive.write_bytes(b"synthetic archive bytes")
+    monkeypatch.setattr(restore_cli, "_apply_migrations", lambda: None)
+
+    class _NoPassphraseSession:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+    monkeypatch.setattr(restore_cli, "has_passphrase", lambda db: False)
+    monkeypatch.setattr(restore_cli, "SessionLocal", lambda: _NoPassphraseSession())
+    assert restore_cli.main(["--archive", str(archive)]) == 2
+    assert "مشفّرة إجباريًا" in capsys.readouterr().out
+    assert restore_cli.main(["--archive", str(archive), "--lang", "en"]) == 2
+    assert "must be encrypted" in capsys.readouterr().out
