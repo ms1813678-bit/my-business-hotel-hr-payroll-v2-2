@@ -25,6 +25,8 @@ STATUS_LABELS_AR = {
     "open": "مفتوح",
     "paid": "مدفوع",
     "parsed": "مقروءة",
+    "ready_for_review": "جاهزة للاعتماد",
+    "under_review": "قيد المراجعة",
     "partially_paid": "مدفوع جزئيًا",
     "pending": "معلق",
     "rejected": "مرفوض",

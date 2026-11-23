@@ -335,7 +335,12 @@
       <label>الراتب الأساسي بالجنيه<input name="basic_salary" type="number" min="0" step="0.01" required></label>
       <label>ساعات العمل اليومية<input name="daily_hours" type="number" min="0.5" max="24" step="0.5" required></label>
       <label>رقم البصمة<input name="fingerprint_id" maxlength="50"></label>
-      <label>الصورة الشخصية (اختياري JPG/PNG/WEBP، حد 5MB)<input name="photo" type="file" accept="image/jpeg,image/png,image/webp"></label>
+      <label for="emp-photo">الصورة الشخصية (اختياري JPG/PNG/WEBP، حد 5MB)</label>
+      <span class="file-picker">
+        <input id="emp-photo" class="file-picker-input" name="photo" type="file" accept="image/jpeg,image/png,image/webp">
+        <label for="emp-photo" class="file-picker-btn">اختر الملف</label>
+        <span class="file-picker-name">لم يُختر ملف بعد</span>
+      </span>
     </div>
     <button type="submit" class="btn-primary">حفظ الموظف</button>
   </form>

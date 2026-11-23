@@ -35,6 +35,12 @@
     date: { ar: "تاريخ غير صالح", en: "Invalid date", zh: "日期无效" },
     datetime: { ar: "تاريخ أو وقت غير صالح", en: "Invalid date or time", zh: "日期或时间无效" }
   };
+  /* Item 50: the visible field always carries a day/month/year format
+   * example so nobody has to guess the order; submitted values stay ISO. */
+  var PLACEHOLDER_TEXT = {
+    date: { ar: "يوم/شهر/سنة، مثال: 25/10/2026", en: "DD/MM/YYYY, e.g. 25/10/2026", zh: "DD/MM/YYYY，例如 25/10/2026" },
+    datetime: { ar: "يوم/شهر/سنة ساعة:دقيقة، مثال: 25/10/2026 08:30", en: "DD/MM/YYYY HH:MM, e.g. 25/10/2026 08:30", zh: "DD/MM/YYYY HH:MM，例如 25/10/2026 08:30" }
+  };
 
   function daysInMonth(year, month) {
     /* month is 1-based; Date day 0 is the last day of the previous month. */
@@ -273,6 +279,10 @@
         altInput.setAttribute(name, el.getAttribute(name));
       }
     });
+    if (!altInput.getAttribute("placeholder")) {
+      var ph = PLACEHOLDER_TEXT[withTime ? "datetime" : "date"];
+      altInput.setAttribute("placeholder", ph[lang] || ph.ar);
+    }
 
     var error = document.createElement("span");
     error.className = "date-picker-error";

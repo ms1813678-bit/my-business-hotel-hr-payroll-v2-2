@@ -1061,3 +1061,22 @@ a.metric-card .metric-link { color: var(--brand, #b8860b); font-size: 12px; font
   .payroll-card-actions { margin-inline-start: 0; }
   .payroll-card-figures { flex: 0 0 auto; justify-content: space-between; gap: 10px; }
 }
+
+/* Item 47: localized file picker (native file buttons follow the browser
+ * locale; this keeps the visible button in the app language). */
+.file-picker { display: inline-flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.file-picker-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  border: 1px solid var(--border-strong); background: var(--surface); color: var(--text);
+  border-radius: var(--radius-sm); padding: 10px 16px;
+  font: inherit; font-weight: 700; cursor: pointer;
+  transition: background .15s ease, border-color .15s ease, box-shadow .15s ease;
+}
+.file-picker-btn:hover { background: var(--surface-2); }
+.file-picker-input {
+  position: absolute; width: 1px; height: 1px; overflow: hidden;
+  clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap;
+}
+.file-picker-input:focus-visible + .file-picker-btn,
+.file-picker-btn:focus-within { outline: 2px solid var(--primary, #a8791f); outline-offset: 2px; }
+.file-picker-name { font-size: 0.85rem; color: var(--muted, #64748b); max-width: 320px; overflow-wrap: anywhere; }

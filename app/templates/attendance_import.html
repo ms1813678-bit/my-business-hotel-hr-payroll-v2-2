@@ -24,7 +24,11 @@
           <option value="fingerprint">تقرير جهاز البصمة (استكمال النواقص)</option>
         </select>
         <label for="file">ملف الحضور</label>
-        <input id="file" type="file" name="file" accept=".csv,.xls,.xlsx" required>
+        <span class="file-picker">
+          <input id="file" class="file-picker-input" type="file" name="file" accept=".csv,.xls,.xlsx" required>
+          <label for="file" class="file-picker-btn">اختر الملف</label>
+          <span class="file-picker-name">لم يُختر ملف بعد</span>
+        </span>
         <button type="submit">استيراد وحفظ الأدلة للمراجعة</button>
       </form>
       {% endif %}

@@ -3837,3 +3837,42 @@ ZH.update({
     "التوزيع حسب القسم — صافي المرتبات": "按部门分类 — 实发工资",
     "القسم": "部门",
 })
+
+# Item 47: upload picker labels + review statuses; item 48: known hotel
+# department display names (display-only localization; stored names unchanged)
+EN.update({
+    "اختر الملف": "Choose File",
+    "لم يُختر ملف بعد": "No file chosen yet",
+    "جاهزة للاعتماد": "Ready for Approval",
+    "قيد المراجعة": "Under Review",
+    "الاستقبال": "Reception",
+    "الأمن": "Security",
+    "التدبير المنزلي": "Housekeeping",
+    "المطبخ": "Kitchen",
+    "الصيانة": "Maintenance",
+    "الإدارة": "Management",
+    "المطعم": "Restaurant",
+    "المقهى": "Café",
+    "الحسابات": "Accounts",
+    "المشتريات": "Purchasing",
+    "المخازن": "Stores",
+    "الغسيل": "Laundry",
+})
+ZH.update({
+    "اختر الملف": "选择文件",
+    "لم يُختر ملف بعد": "尚未选择文件",
+    "جاهزة للاعتماد": "待批准",
+    "قيد المراجعة": "审核中",
+    "الاستقبال": "前台",
+    "الأمن": "安保",
+    "التدبير المنزلي": "客房服务",
+    "المطبخ": "厨房",
+    "الصيانة": "工程维修",
+    "الإدارة": "管理层",
+    "المطعم": "餐厅",
+    "المقهى": "咖啡厅",
+    "الحسابات": "财务",
+    "المشتريات": "采购",
+    "المخازن": "仓库",
+    "الغسيل": "洗衣房",
+})
