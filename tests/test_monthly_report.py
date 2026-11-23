@@ -281,6 +281,30 @@ def test_monthly_calendar_comparison_excludes_month_before_last(db_session):
     assert float(lfl["continuing_previous_net"]) == 12000.0
 
 
+def test_monthly_attendance_comparison_uses_calendar_month(db_session):
+    # Attendance counterpart of the payroll regression above: reverting the
+    # attendance builder to the equal-length shift must fail this test. The
+    # shift window (31/08-30/09 for a 31-day October) counts 31/08 attendance
+    # in the previous period; the calendar month must not.
+    emp1 = db_session.scalars(select(Employee).where(Employee.code == "MY-M1")).one()
+    db_session.add(AttendanceDailyRecord(employee_id=emp1.id, work_date=date(2026, 8, 31),
+                                         status="approved", worked_minutes=480))
+    db_session.add(AttendanceDailyRecord(employee_id=emp1.id, work_date=date(2026, 9, 15),
+                                         status="approved", worked_minutes=480))
+    db_session.commit()
+    selection = ReportSelection(
+        report_type=REPORT_TYPE_ATTENDANCE,
+        start_date=date(2026, 10, 1), end_date=date(2026, 10, 31),
+        period_choice="custom", compare_like_for_like=True,
+        monthly_calendar_comparison=True,
+    )
+    result = build_report(db_session, selection, today=date(2026, 11, 15))
+    assert result.comparison is not None
+    assert result.comparison["period_label"] == "01/09/2026 – 30/09/2026"
+    row = next(r for r in result.comparison["items"] if r[0] == "أيام الحضور")
+    assert float(row[2]) == 1.0  # the September day only, not 31/08
+
+
 def test_monthly_wrapper_marks_section_selections(db_session):
     # The monthly PDF path must carry the calendar-comparison flag into every
     # section selection it composes; guard against someone dropping the line.
