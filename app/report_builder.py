@@ -276,14 +276,23 @@ def preset_config_from_params(params) -> dict:
 
 
 def _previous_period(start: date, end: date) -> tuple[date, date]:
-    if start.day == 1 and _add_months(start, 1) - timedelta(days=1) == end:
-        # Full calendar month: compare against the previous calendar month.
-        # The payroll lookup matches runs by overlap, so an equal-length shift
-        # (ending 31/08 for an October period) would also catch the August run.
-        return _add_months(start, -1), start - timedelta(days=1)
+    """The custom report's original comparison: a plain equal-length shift.
+
+    Owner constraint: the custom report flow is unchanged. The monthly-PDF
+    wrapper uses _previous_calendar_month below for its own bounds instead."""
     length = (end - start).days + 1
     prev_end = start - timedelta(days=1)
     return prev_end - timedelta(days=length - 1), prev_end
+
+
+def _previous_calendar_month(start: date, end: date) -> tuple[date, date]:
+    """Monthly-PDF comparison only: a full calendar month compares against the
+    previous calendar month, since the payroll lookup matches runs by overlap
+    and an equal-length shift (ending 31/08 for an October period) would also
+    catch the August run. Other ranges keep the equal-length shift."""
+    if start.day == 1 and _add_months(start, 1) - timedelta(days=1) == end:
+        return _add_months(start, -1), start - timedelta(days=1)
+    return _previous_period(start, end)
 
 
 def _scoped_employees(db: Session, selection: ReportSelection, *, apply_status: bool = True) -> list[Employee]:
@@ -1375,12 +1384,26 @@ def monthly_options_for_types(allowed_types: set[str] | None) -> set[int]:
     return data_options | {10, 11}
 
 
-def _monthly_six_month_series(db: Session, month_start: date, report_type: str) -> list[tuple[str, float]]:
-    series: list[tuple[str, float]] = []
+def _monthly_six_month_series(db: Session, month_start: date, report_type: str) -> list[tuple[str, float | None]]:
+    """Six months ending at month_start. Payroll-derived series (net pay and
+    absence days) return None for a month with no approved/closed run: a
+    missing run is no-data, not a truthful zero. The attendance series has its
+    own payroll-independent source (approved daily records) and always renders."""
+    series: list[tuple[str, float | None]] = []
     for offset in range(-5, 1):
         start = _add_months(month_start, offset)
         end = _add_months(month_start, offset + 1)
         if report_type == REPORT_TYPE_PAYROLL:
+            has_run = db.scalar(
+                select(func.count(PayrollRun.id)).where(
+                    PayrollRun.status.in_(["approved", "closed"]),
+                    PayrollRun.period_start >= start,
+                    PayrollRun.period_start < end,
+                )
+            ) or 0
+            if not has_run:
+                series.append((start.strftime("%m/%Y"), None))
+                continue
             value = db.scalar(
                 select(func.coalesce(func.sum(PayrollItem.net_pay), 0))
                 .select_from(PayrollItem)
@@ -1393,6 +1416,16 @@ def _monthly_six_month_series(db: Session, month_start: date, report_type: str) 
             ) or 0
             series.append((start.strftime("%m/%Y"), float(value)))
         elif report_type == "absence":
+            has_run = db.scalar(
+                select(func.count(PayrollRun.id)).where(
+                    PayrollRun.status.in_(["approved", "closed"]),
+                    PayrollRun.period_start >= start,
+                    PayrollRun.period_start < end,
+                )
+            ) or 0
+            if not has_run:
+                series.append((start.strftime("%m/%Y"), None))
+                continue
             value = db.scalar(
                 select(func.coalesce(func.sum(PayrollItem.absence_days), 0))
                 .select_from(PayrollItem)
@@ -1423,14 +1456,16 @@ def _monthly_chart_drawing(series: list[tuple[str, float]], bar_color_hex: str):
 
     width, height, chart_h, base_y = 520, 170, 120, 30
     drawing = Drawing(width, height)
-    maximum = max((value for _, value in series), default=0) or 1
+    maximum = max((value for _, value in series if value is not None), default=0) or 1
     slot = width / max(1, len(series))
     bar_w = min(48, slot * 0.6)
     for index, (label, value) in enumerate(series):
         x = width - (index + 1) * slot + (slot - bar_w) / 2  # RTL: newest left
+        drawing.add(String(x + bar_w / 2, base_y - 12, label, fontName="Helvetica", fontSize=8, textAnchor="middle"))
+        if value is None:  # no approved run this month: a gap, not a zero
+            continue
         bar_h = (value / maximum) * chart_h if value > 0 else 0.0
         drawing.add(Rect(x, base_y, bar_w, bar_h, fillColor=_colors.HexColor(bar_color_hex), strokeColor=None))
-        drawing.add(String(x + bar_w / 2, base_y - 12, label, fontName="Helvetica", fontSize=8, textAnchor="middle"))
         drawing.add(String(x + bar_w / 2, base_y + bar_h + 4, ("%0.0f" % value), fontName="Helvetica", fontSize=7, textAnchor="middle"))
     return drawing
 
@@ -1521,7 +1556,7 @@ def _payroll_month_summary(db: Session, start: date, end: date) -> dict:
         ]
 
     current_items = items_for(start, end)
-    prev_start, prev_end = _previous_period(start, end)
+    prev_start, prev_end = _previous_calendar_month(start, end)
     previous_items = items_for(prev_start, prev_end)
     return {
         "current": totals(current_items),
@@ -1532,8 +1567,8 @@ def _payroll_month_summary(db: Session, start: date, end: date) -> dict:
 
 
 def _monthly_chart_drawing_grouped(
-    series_a: list[tuple[str, float]],
-    series_b: list[tuple[str, float]],
+    series_a: list[tuple[str, float | None]],
+    series_b: list[tuple[str, float | None]],
     color_a_hex: str,
     color_b_hex: str,
     legend_a: str,
@@ -1545,19 +1580,23 @@ def _monthly_chart_drawing_grouped(
 
     width, height, chart_h, base_y = 520, 170, 120, 30
     drawing = Drawing(width, height)
-    maximum = max([v for _, v in series_a] + [v for _, v in series_b] + [0]) or 1
+    maximum = max([v for _, v in series_a if v is not None] + [v for _, v in series_b if v is not None] + [0]) or 1
     slot = width / max(1, len(series_a))
     bar_w = min(22, slot * 0.28)
     for index, (label, value) in enumerate(series_a):
         center = width - (index + 1) * slot + slot / 2  # RTL: newest left
         x_a, x_b = center - bar_w - 1.5, center + 1.5
-        h_a = (value / maximum) * chart_h if value > 0 else 0.0
+        h_a = (value / maximum) * chart_h if value else 0.0
         v_b = series_b[index][1]
-        h_b = (v_b / maximum) * chart_h if v_b > 0 else 0.0
-        drawing.add(Rect(x_a, base_y, bar_w, h_a, fillColor=_colors.HexColor(color_a_hex), strokeColor=None))
-        drawing.add(Rect(x_b, base_y, bar_w, h_b, fillColor=_colors.HexColor(color_b_hex), strokeColor=None))
-        drawing.add(String(x_a + bar_w / 2, base_y + h_a + 3, ("%0.0f" % value), fontName="Helvetica", fontSize=6.5, textAnchor="middle"))
-        drawing.add(String(x_b + bar_w / 2, base_y + h_b + 3, ("%0.0f" % v_b), fontName="Helvetica", fontSize=6.5, textAnchor="middle"))
+        h_b = (v_b / maximum) * chart_h if v_b else 0.0
+        if value is not None:  # attendance always renders from its own source
+            drawing.add(Rect(x_a, base_y, bar_w, h_a, fillColor=_colors.HexColor(color_a_hex), strokeColor=None))
+        if v_b is not None:  # absence: gap when the month has no approved run
+            drawing.add(Rect(x_b, base_y, bar_w, h_b, fillColor=_colors.HexColor(color_b_hex), strokeColor=None))
+        if value is not None:
+            drawing.add(String(x_a + bar_w / 2, base_y + h_a + 3, ("%0.0f" % value), fontName="Helvetica", fontSize=6.5, textAnchor="middle"))
+        if v_b is not None:
+            drawing.add(String(x_b + bar_w / 2, base_y + h_b + 3, ("%0.0f" % v_b), fontName="Helvetica", fontSize=6.5, textAnchor="middle"))
         drawing.add(String(center, base_y - 12, label, fontName="Helvetica", fontSize=8, textAnchor="middle"))
     return drawing
 
@@ -1729,13 +1768,17 @@ def build_monthly_pdf(db: Session, month_start: date, options: set[int], languag
                     L("الحضور"), L("الغياب"),
                 ))
                 story.append(Paragraph(cell_(L("الحضور (الشريط الأزرق): أيام بسجلات حضور معتمدة · الغياب (الشريط الأحمر): أيام غياب محتسبة في مسيرات رواتب معتمدة.")), meta_style))
-                if all(v == 0 for _, v in series) and all(v == 0 for _, v in absence_series):
+                if all(not v for _, v in series) and all(not v for _, v in absence_series):
                     story.append(Paragraph(cell_(L("لا توجد بيانات معتمدة في هذه الفترة بعد.")), meta_style))
+                elif any(v is None for _, v in absence_series):
+                    story.append(Paragraph(cell_(L("شهر بلا مسيرة رواتب معتمدة لا يظهر له عمود غياب (فجوة وليست صفرًا).")), meta_style))
             else:
                 color = "#8a6d1a"
                 story.append(_monthly_chart_drawing(series, color))
-                if all(value == 0 for _, value in series):
+                if all(not value for _, value in series):
                     story.append(Paragraph(cell_(L("لا توجد بيانات معتمدة في هذه الفترة بعد.")), meta_style))
+                elif any(value is None for _, value in series):
+                    story.append(Paragraph(cell_(L("شهر بلا مسيرة رواتب معتمدة لا يظهر له عمود (فجوة وليست صفرًا).")), meta_style))
             continue
         if option == 7 and aggregate_leave:
             if not first_section:

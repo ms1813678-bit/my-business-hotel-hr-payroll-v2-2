@@ -223,7 +223,7 @@ def test_monthly_route_finance_gets_payroll_not_leave_only_modifier(client_facto
     assert response.status_code == 403  # modifier alone carries no data
 
 
-def test_previous_period_uses_exact_previous_calendar_month(db_session):
+def test_custom_full_month_previous_period_unchanged_base_semantics(db_session):
     # An August run must not leak into October's previous-month comparison
     # (the old 31/08 bound overlapped the August run and double-counted).
     employee = db_session.scalars(select(Employee).where(Employee.code == "MY-M1")).one()
@@ -243,10 +243,13 @@ def test_previous_period_uses_exact_previous_calendar_month(db_session):
         period_choice="custom", compare_like_for_like=True,
     )
     result = build_report(db_session, selection, today=date(2026, 11, 15))
-    assert result.comparison["period_label"] == "01/09/2026 – 30/09/2026"
+    # Custom report semantics are preserved unchanged (owner constraint): the
+    # previous period is the equal-length shift (31/08–30/09), which overlaps
+    # both runs. The calendar-month bounds live in the monthly wrapper only
+    # (_previous_calendar_month, tested via _payroll_month_summary).
+    assert result.comparison["period_label"] == "31/08/2026 – 30/09/2026"
     net_row = next(row for row in result.comparison["items"] if row[0] == "الصافي")
-    assert float(net_row[2]) == 12000.0  # September only, not August + September
-    assert float(result.comparison["like_for_like"]["continuing_previous_net"]) == 12000.0
+    assert float(net_row[2]) == 12999.0  # equal-length shift overlaps August + September runs
 
 
 def test_payroll_month_summary_is_totals_only(db_session):
@@ -284,7 +287,9 @@ def test_absence_series_counts_approved_run_absence_days(db_session):
     assert dict(_monthly_six_month_series(db_session, date(2026, 10, 1), "absence"))["10/2026"] == 2.0
     run.status = "draft"  # unapproved runs never enter the chart
     db_session.commit()
-    assert dict(_monthly_six_month_series(db_session, date(2026, 10, 1), "absence"))["10/2026"] == 0.0
+    # A month without an approved run is no-data (None, rendered as a gap),
+    # not a misleading zero.
+    assert dict(_monthly_six_month_series(db_session, date(2026, 10, 1), "absence"))["10/2026"] is None
 
 
 def test_mixed_forbidden_and_allowed_options_refused(client_factory):
@@ -332,7 +337,12 @@ def test_summary_grouping_modifier_adds_department_breakdown(db_session):
 
 
 def test_previous_period_custom_range_unchanged(db_session):
-    from app.report_builder import _previous_period
+    from app.report_builder import _previous_calendar_month, _previous_period
     # Non-calendar-month selections keep the original equal-length shift.
     assert _previous_period(date(2026, 10, 5), date(2026, 10, 19)) == (date(2026, 9, 20), date(2026, 10, 4))
-    assert _previous_period(date(2026, 10, 1), date(2026, 10, 31)) == (date(2026, 9, 1), date(2026, 9, 30))
+    # The CUSTOM report keeps its original equal-length shift even for full
+    # calendar months (owner constraint: custom flow unchanged).
+    assert _previous_period(date(2026, 10, 1), date(2026, 10, 31)) == (date(2026, 8, 31), date(2026, 9, 30))
+    # The MONTHLY wrapper alone uses exact previous-calendar-month bounds.
+    assert _previous_calendar_month(date(2026, 10, 1), date(2026, 10, 31)) == (date(2026, 9, 1), date(2026, 9, 30))
+    assert _previous_calendar_month(date(2026, 10, 5), date(2026, 10, 19)) == (date(2026, 9, 20), date(2026, 10, 4))
