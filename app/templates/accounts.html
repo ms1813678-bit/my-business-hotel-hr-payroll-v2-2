@@ -115,7 +115,7 @@
         <td data-label="الحساب">{{ session.account_name }}{% if session.is_current %} <span class="muted small">(جلستك الحالية)</span>{% endif %}</td>
         <td data-label="أنشئت"><bdi>{{ session.created_at | fmt_dt }}</bdi></td>
         <td data-label="آخر ظهور"><bdi>{{ session.last_seen_at | fmt_dt }}</bdi></td>
-        <td data-label="المتصفح" class="muted small" dir="ltr">{{ session.user_agent }}</td>
+        <td data-label="المتصفح" class="muted small" dir="ltr"{% if session.user_agent_raw %} title="{{ session.user_agent_raw }}"{% endif %}>{{ session.user_agent }}</td>
         <td data-label="عنوان IP" dir="ltr">{{ session.ip_address }}</td>
         <td data-label="">
           <form method="post" action="/settings/accounts/sessions/{{ session.id }}/end" class="inline-form">

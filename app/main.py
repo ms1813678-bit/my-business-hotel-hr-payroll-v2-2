@@ -3857,6 +3857,46 @@ def _generate_temporary_password() -> str:
     )
 
 
+def _summarize_user_agent(user_agent: str | None) -> str:
+    """Readable browser/OS label parsed from a stored User-Agent header.
+
+    Presentational only: the header is self-reported request text, so the
+    label is an inference, never proof of device identity (the sessions card
+    states that explicitly). Unrecognized agents fall back to the raw text.
+    """
+    ua = (user_agent or "").strip()
+    if not ua:
+        return ""
+    # Order matters: Edge/Opera/Chrome all carry a Safari token, and Edge/Opera
+    # carry a Chrome token too, so the most specific products are matched first.
+    if "Edg/" in ua or "EdgA/" in ua or "EdgiOS/" in ua:
+        browser = "Edge"
+    elif "OPR/" in ua or "Opera" in ua:
+        browser = "Opera"
+    elif "Chrome/" in ua or "CriOS/" in ua:
+        browser = "Chrome"
+    elif "Firefox/" in ua or "FxiOS/" in ua:
+        browser = "Firefox"
+    elif "Safari/" in ua:
+        browser = "Safari"
+    else:
+        browser = ""
+    if "Windows" in ua:
+        os_name = "Windows"
+    elif "Android" in ua:
+        os_name = "Android"
+    elif "iPhone" in ua or "iPad" in ua:
+        os_name = "iOS"
+    elif "Mac OS X" in ua or "Macintosh" in ua:
+        os_name = "macOS"
+    elif "Linux" in ua:
+        os_name = "Linux"
+    else:
+        os_name = ""
+    parts = [part for part in (browser, os_name) if part]
+    return " / ".join(parts) if parts else ua[:160]
+
+
 def _accounts_page_response(request: Request, reset_reveal: dict | None = None):
     with SessionLocal() as db:
         accounts = db.scalars(select(AdminAccount).order_by(AdminAccount.id)).all()
@@ -3890,7 +3930,8 @@ def _accounts_page_response(request: Request, reset_reveal: dict | None = None):
                 "account_name": account_names.get(row.admin_account_id, "؟"),
                 "created_at": row.created_at,
                 "last_seen_at": row.last_seen_at,
-                "user_agent": (row.user_agent or "")[:80],
+                "user_agent": _summarize_user_agent(row.user_agent),
+                "user_agent_raw": row.user_agent or "",
                 "ip_address": row.ip_address or "",
                 "is_current": row.id == current_session_id,
             }

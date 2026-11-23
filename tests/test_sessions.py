@@ -8,7 +8,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.db import Base, get_db
-from app.main import app
+from app.main import _summarize_user_agent, app
 from app.models import AdminAccount, AdminSession, AuditLog
 from app.security import hash_password
 
@@ -85,6 +85,62 @@ def test_login_records_session_and_accounts_page_lists_it(make_client):
         assert "الجلسات المفتوحة" in page.text
         assert "جلستك الحالية" in page.text
         assert "مدير النظام التجريبي" in page.text
+
+
+CHROME_MAC_UA = (
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+)
+
+
+def test_sessions_card_shows_readable_browser_label(make_client):
+    client = make_client()
+    with client:
+        page = client.get("/login")
+        response = client.post(
+            "/login",
+            data={"username": "guard-admin", "password": ADMIN_PW, "csrf_token": csrf(page)},
+            headers={"User-Agent": CHROME_MAC_UA},
+            follow_redirects=False,
+        )
+        assert response.status_code == 303, response.text
+        page = client.get("/settings/accounts")
+        assert page.status_code == 200
+        # A realistic Chrome UA is longer than the old 80-char raw truncation,
+        # which hid the Chrome token entirely; the card must name the browser.
+        assert "Chrome / macOS" in page.text
+        # The full stored header stays available as hover detail.
+        assert CHROME_MAC_UA in page.text
+
+
+@pytest.mark.parametrize(
+    ("ua", "expected"),
+    [
+        (CHROME_MAC_UA, "Chrome / macOS"),
+        (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+            "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Edg/120.0.0.0",
+            "Edge / Windows",
+        ),
+        ("Mozilla/5.0 (X11; Linux x86_64; rv:121.0) Gecko/20100101 Firefox/121.0", "Firefox / Linux"),
+        (
+            "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 "
+            "(KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
+            "Safari / iOS",
+        ),
+        ("Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36", "Chrome / Android"),
+        ("curl/8.4.0", "curl/8.4.0"),
+        ("", ""),
+        (None, ""),
+    ],
+)
+def test_summarize_user_agent(ua, expected):
+    assert _summarize_user_agent(ua) == expected
+
+
+def test_summarize_user_agent_unknown_falls_back_to_truncated_raw():
+    raw = "SomeExoticAgent/1.0 " + "x" * 200
+    assert _summarize_user_agent(raw) == raw[:160]
 
 
 def test_deleted_session_row_kills_the_cookie(make_client):
