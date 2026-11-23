@@ -252,6 +252,56 @@ def test_custom_full_month_previous_period_unchanged_base_semantics(db_session):
     assert float(net_row[2]) == 12999.0  # equal-length shift overlaps August + September runs
 
 
+def test_monthly_calendar_comparison_excludes_month_before_last(db_session):
+    # Regression: the monthly-PDF sections must compare against the previous
+    # calendar month only. With the equal-length shift, a 31-day October
+    # caught the August run too (31/08 overlap) and doubled the prior net.
+    employee = db_session.scalars(select(Employee).where(Employee.code == "MY-M1")).one()
+    aug_run = PayrollRun(period_start=date(2026, 8, 1), period_end=date(2026, 8, 31),
+                         pay_date=date(2026, 9, 1), status="approved", created_by="test")
+    db_session.add(aug_run)
+    db_session.flush()
+    db_session.add(PayrollItem(payroll_run_id=aug_run.id, employee_id=employee.id,
+                               employee_name_snapshot=employee.full_name, employee_code_snapshot=employee.code,
+                               department_name_snapshot="قسم أ", position_snapshot="أمن",
+                               salary_basis=Decimal("5000"), base_salary=Decimal("5000"),
+                               daily_hours=Decimal("8"), net_pay=Decimal("999")))
+    db_session.commit()
+    selection = ReportSelection(
+        report_type=REPORT_TYPE_PAYROLL,
+        start_date=date(2026, 10, 1), end_date=date(2026, 10, 31),
+        period_choice="custom", compare_like_for_like=True,
+        monthly_calendar_comparison=True,
+    )
+    result = build_report(db_session, selection, today=date(2026, 11, 15))
+    assert result.comparison["period_label"] == "01/09/2026 – 30/09/2026"
+    net_row = next(row for row in result.comparison["items"] if row[0] == "الصافي")
+    assert float(net_row[2]) == 12000.0  # September only; the August 999 is excluded
+    lfl = result.comparison["like_for_like"]
+    assert float(lfl["continuing_previous_net"]) == 12000.0
+
+
+def test_monthly_wrapper_marks_section_selections(db_session):
+    # The monthly PDF path must carry the calendar-comparison flag into every
+    # section selection it composes; guard against someone dropping the line.
+    import app.report_builder as rb
+
+    seen = []
+    original = rb.build_report
+
+    def spy(db, selection, today=None):
+        seen.append(selection.monthly_calendar_comparison)
+        return original(db, selection, today=today)
+
+    rb.build_report = spy
+    try:
+        content = build_monthly_pdf(db_session, date(2026, 10, 1), {2, 4, 10})
+    finally:
+        rb.build_report = original
+    assert content.startswith(b"%PDF")
+    assert seen and all(seen)
+
+
 def test_payroll_month_summary_is_totals_only(db_session):
     from app.report_builder import _payroll_month_summary
     summary = _payroll_month_summary(db_session, date(2026, 10, 1), date(2026, 10, 31))

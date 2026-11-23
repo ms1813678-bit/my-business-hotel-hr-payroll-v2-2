@@ -171,6 +171,12 @@ class ReportSelection:
     # count once in the month the leave starts. Custom reports keep the
     # default False and are unchanged.
     monthly_leave_clipping: bool = False
+    # Monthly-PDF only: a full-calendar-month section compares against the
+    # previous calendar month. The equal-length shift used by custom reports
+    # would end inside the month before last for 31-day months and catch that
+    # run too, since payroll items match runs by overlap. Custom reports keep
+    # the default False and are unchanged.
+    monthly_calendar_comparison: bool = False
     fields: set[str] = field(default_factory=lambda: set(DEFAULT_FIELDS))
 
     def to_config(self) -> dict:
@@ -596,7 +602,10 @@ def _build_payroll_result(db: Session, selection: ReportSelection, start: date, 
         ("عدد الموظفين", totals_all["employees"]),
     ]
 
-    prev_start, prev_end = _previous_period(start, end)
+    if selection.monthly_calendar_comparison:
+        prev_start, prev_end = _previous_calendar_month(start, end)
+    else:
+        prev_start, prev_end = _previous_period(start, end)
     # The previous period must reflect who was actually paid then, not today's status:
     # include every employee in scope with payroll evidence in that period.
     history_employees = _scoped_employees(db, selection, apply_status=False)
@@ -706,7 +715,10 @@ def _build_attendance_result(db: Session, selection: ReportSelection, start: dat
         ("عدد الموظفين", len(rows)),
     ]
 
-    prev_start, prev_end = _previous_period(start, end)
+    if selection.monthly_calendar_comparison:
+        prev_start, prev_end = _previous_calendar_month(start, end)
+    else:
+        prev_start, prev_end = _previous_period(start, end)
     prev_attendance = _attendance_stats(db, list(employee_map), prev_start, prev_end, approved_only=selection.approved_only)
     prev_present = sum(bucket["present"] for bucket in prev_attendance.values())
     cur_present = sum(bucket["present"] for bucket in attendance.values())
@@ -1920,6 +1932,7 @@ def build_monthly_pdf(db: Session, month_start: date, options: set[int], languag
             compare_like_for_like=compare,
             approved_only=MONTHLY_OPTION_TYPE[option] in (REPORT_TYPE_PAYROLL, REPORT_TYPE_ATTENDANCE),
         )
+        selection.monthly_calendar_comparison = True
         if option in _MONTHLY_SECTION_FIELDS:
             selection.fields = set(_MONTHLY_SECTION_FIELDS[option])
         else:
