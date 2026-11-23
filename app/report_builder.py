@@ -162,6 +162,10 @@ class ReportSelection:
     employee_id: int | None = None
     employee_status: str = "active"
     compare_like_for_like: bool = True
+    # Monthly-PDF only (owner decision 2026-11-23): payroll and attendance
+    # sections show approved data only, so summary, details and charts agree.
+    # Custom reports keep the default False and are unchanged.
+    approved_only: bool = False
     fields: set[str] = field(default_factory=lambda: set(DEFAULT_FIELDS))
 
     def to_config(self) -> dict:
@@ -335,17 +339,18 @@ def _employee_cell(employee: Employee, key: str):
     return ""
 
 
-def _payroll_items(db: Session, employee_ids: list[int], start: date, end: date) -> list[PayrollItem]:
+def _payroll_items(db: Session, employee_ids: list[int], start: date, end: date, *, approved_only: bool = False) -> list[PayrollItem]:
     if not employee_ids:
         return []
-    return list(
-        db.scalars(
-            select(PayrollItem)
-            .join(PayrollRun, PayrollItem.payroll_run_id == PayrollRun.id)
-            .where(PayrollRun.period_start <= end, PayrollRun.period_end >= start)
-            .where(PayrollItem.employee_id.in_(employee_ids))
-        ).all()
+    query = (
+        select(PayrollItem)
+        .join(PayrollRun, PayrollItem.payroll_run_id == PayrollRun.id)
+        .where(PayrollRun.period_start <= end, PayrollRun.period_end >= start)
+        .where(PayrollItem.employee_id.in_(employee_ids))
     )
+    if approved_only:
+        query = query.where(PayrollRun.status.in_(("approved", "closed")))
+    return list(db.scalars(query).all())
 
 
 def _item_earnings(item: PayrollItem) -> Decimal:
@@ -374,8 +379,8 @@ def _item_deductions(item: PayrollItem, *, include_advances: bool = True) -> Dec
     return total
 
 
-def _payroll_totals(db: Session, employee_ids: list[int], start: date, end: date) -> dict:
-    items = _payroll_items(db, employee_ids, start, end)
+def _payroll_totals(db: Session, employee_ids: list[int], start: date, end: date, *, approved_only: bool = False) -> dict:
+    items = _payroll_items(db, employee_ids, start, end, approved_only=approved_only)
     earnings = sum((_item_earnings(item) for item in items), Decimal(0))
     deductions = sum((_item_deductions(item) for item in items), Decimal(0))
     net = sum((item.net_pay for item in items), Decimal(0))
@@ -387,15 +392,18 @@ def _payroll_totals(db: Session, employee_ids: list[int], start: date, end: date
     }
 
 
-def _attendance_stats(db: Session, employee_ids: list[int], start: date, end: date) -> dict[int, dict]:
+def _attendance_stats(db: Session, employee_ids: list[int], start: date, end: date, *, approved_only: bool = False) -> dict[int, dict]:
     stats = {emp_id: {"present": 0, "unreviewed": 0} for emp_id in employee_ids}
     if not employee_ids:
         return stats
-    records = db.scalars(
+    query = (
         select(AttendanceDailyRecord)
         .where(AttendanceDailyRecord.work_date >= start, AttendanceDailyRecord.work_date <= end)
         .where(AttendanceDailyRecord.employee_id.in_(employee_ids))
-    ).all()
+    )
+    if approved_only:
+        query = query.where(AttendanceDailyRecord.status == "approved")
+    records = db.scalars(query).all()
     for record in records:
         bucket = stats.setdefault(record.employee_id, {"present": 0, "unreviewed": 0})
         if record.status == "approved" and (record.worked_minutes or 0) > 0:
@@ -536,12 +544,12 @@ def _pct_change(current: Decimal, previous: Decimal) -> str | None:
 def _build_payroll_result(db: Session, selection: ReportSelection, start: date, end: date) -> ReportResult:
     employees = _scoped_employees(db, selection)
     employee_map = {employee.id: employee for employee in employees}
-    items = _payroll_items(db, list(employee_map), start, end)
+    items = _payroll_items(db, list(employee_map), start, end, approved_only=selection.approved_only)
     items_by_employee: dict[int, list[PayrollItem]] = {}
     for item in items:
         items_by_employee.setdefault(item.employee_id, []).append(item)
 
-    attendance = _attendance_stats(db, list(employee_map), start, end)
+    attendance = _attendance_stats(db, list(employee_map), start, end, approved_only=selection.approved_only)
     columns = _ordered_columns(selection, ["employee", "payroll", "attendance"])
     rows = []
     for employee_id, employee_items in sorted(items_by_employee.items(), key=lambda pair: employee_map[pair[0]].code):
@@ -575,7 +583,7 @@ def _build_payroll_result(db: Session, selection: ReportSelection, start: date, 
         if numeric:
             totals[key] = sum((row[key] for row in rows), Decimal(0)) if rows else Decimal(0)
 
-    totals_all = _payroll_totals(db, list(employee_map), start, end)
+    totals_all = _payroll_totals(db, list(employee_map), start, end, approved_only=selection.approved_only)
     summary = [
         ("إجمالي المستحقات", f"{_fmt_number(totals_all['earnings'])} ج.م"),
         ("إجمالي الاستقطاعات", f"{_fmt_number(totals_all['deductions'])} ج.م"),
@@ -588,11 +596,11 @@ def _build_payroll_result(db: Session, selection: ReportSelection, start: date, 
     # include every employee in scope with payroll evidence in that period.
     history_employees = _scoped_employees(db, selection, apply_status=False)
     history_map = {employee.id: employee for employee in history_employees}
-    previous = _payroll_totals(db, list(history_map), prev_start, prev_end)
+    previous = _payroll_totals(db, list(history_map), prev_start, prev_end, approved_only=selection.approved_only)
     comparison = None
     if previous["employees"] > 0:
         # Membership in each period comes from payroll evidence, not current status.
-        prev_items = _payroll_items(db, list(history_map), prev_start, prev_end)
+        prev_items = _payroll_items(db, list(history_map), prev_start, prev_end, approved_only=selection.approved_only)
         current_ids = set(items_by_employee)
         previous_ids = {item.employee_id for item in prev_items}
         continuing = current_ids & previous_ids
@@ -659,8 +667,8 @@ def _build_payroll_result(db: Session, selection: ReportSelection, start: date, 
 def _build_attendance_result(db: Session, selection: ReportSelection, start: date, end: date) -> ReportResult:
     employees = _scoped_employees(db, selection)
     employee_map = {employee.id: employee for employee in employees}
-    attendance = _attendance_stats(db, list(employee_map), start, end)
-    items = _payroll_items(db, list(employee_map), start, end)
+    attendance = _attendance_stats(db, list(employee_map), start, end, approved_only=selection.approved_only)
+    items = _payroll_items(db, list(employee_map), start, end, approved_only=selection.approved_only)
     items_by_employee: dict[int, list[PayrollItem]] = {}
     for item in items:
         items_by_employee.setdefault(item.employee_id, []).append(item)
@@ -694,7 +702,7 @@ def _build_attendance_result(db: Session, selection: ReportSelection, start: dat
     ]
 
     prev_start, prev_end = _previous_period(start, end)
-    prev_attendance = _attendance_stats(db, list(employee_map), prev_start, prev_end)
+    prev_attendance = _attendance_stats(db, list(employee_map), prev_start, prev_end, approved_only=selection.approved_only)
     prev_present = sum(bucket["present"] for bucket in prev_attendance.values())
     cur_present = sum(bucket["present"] for bucket in attendance.values())
     comparison = None
@@ -1496,8 +1504,13 @@ def _monthly_leave_aggregate(db: Session, start: date, end: date) -> list[dict]:
             {"leave_type": type_names.get(record.leave_type_id, "—"), "count": 0, "days": Decimal(0), "charged": Decimal(0)},
         )
         bucket["count"] += 1
-        bucket["days"] += Decimal(record.calendar_days or 0)
-        bucket["charged"] += Decimal(record.charged_days or 0)
+        # Owner decision 2026-11-23: a leave spanning months shows each month's
+        # own calendar days in that month's report; the admin-entered charged
+        # days count once, in the month the leave starts. Report-only.
+        overlap_days = (min(record.end_date, end) - max(record.start_date, start)).days + 1
+        bucket["days"] += Decimal(overlap_days)
+        if record.start_date >= start:
+            bucket["charged"] += Decimal(record.charged_days or 0)
     return sorted(buckets.values(), key=lambda row: row["leave_type"])
 
 
@@ -1678,13 +1691,15 @@ def build_monthly_pdf(db: Session, month_start: date, options: set[int], languag
     grouped = 11 in options
     first_section = True
 
-    def render_result(result):
+    def render_result(result, approved_note: bool = False):
         nonlocal first_section
         if not first_section:
             story.append(PageBreak())
         first_section = False
         story.append(Paragraph(cell_(L(result.title)), section_style))
         story.append(Paragraph(cell_(f"{L(result.period_label)} · {L(result.scope_label)} · {L(result.status_label)} · {result.employee_count} {L('موظف')}"), meta_style))
+        if approved_note:
+            story.append(Paragraph(cell_(L("يعرض المعتمد فقط")), meta_style))
         story.append(Spacer(1, 2 * mm))
         groups = result.groups if grouped else _flatten_groups(result.groups)
         column_count = max(1, len(result.columns))
@@ -1760,6 +1775,11 @@ def build_monthly_pdf(db: Session, month_start: date, options: set[int], languag
             first_section = False
             report_type = MONTHLY_OPTION_TYPE[option]
             story.append(Paragraph(cell_(L(MONTHLY_OPTION_LABELS[option])), section_style))
+            if report_type in (REPORT_TYPE_PAYROLL, REPORT_TYPE_ATTENDANCE):
+                # Owner decision 2026-11-23: payroll and attendance sections of
+                # the monthly report show approved data only; the note keeps
+                # the signed document self-explanatory.
+                story.append(Paragraph(cell_(L("يعرض المعتمد فقط")), meta_style))
             series = _monthly_six_month_series(db, month_start, report_type)
             if report_type == REPORT_TYPE_ATTENDANCE:
                 absence_series = _monthly_six_month_series(db, month_start, "absence")
@@ -1786,6 +1806,7 @@ def build_monthly_pdf(db: Session, month_start: date, options: set[int], languag
             first_section = False
             story.append(Paragraph(cell_(L(MONTHLY_OPTION_LABELS[7])), section_style))
             story.append(Paragraph(cell_(L("إجمالي الإجازات المؤكدة حسب النوع — بدون بيانات الموظفين")), meta_style))
+            story.append(Paragraph(cell_(L("أيام كل شهر تُعرض في شهرها، وأيام الخصم تُحسب مرة واحدة في شهر بداية الإجازة")), meta_style))
             story.append(Spacer(1, 2 * mm))
             rows = _monthly_leave_aggregate(db, month_start, month_end)
             header = [L("نوع الإجازة"), L("عدد الإجازات"), L("إجمالي الأيام"), L("الخصم من الرصيد")]
@@ -1813,6 +1834,7 @@ def build_monthly_pdf(db: Session, month_start: date, options: set[int], languag
             first_section = False
             summary = _payroll_month_summary(db, month_start, month_end)
             story.append(Paragraph(cell_(L(MONTHLY_OPTION_LABELS[1])), section_style))
+            story.append(Paragraph(cell_(L("يعرض المعتمد فقط")), meta_style))
             story.append(Paragraph(cell_(f"{L('ملخص إجمالي للشهر — بدون تفاصيل الموظفين')}"), meta_style))
             story.append(Spacer(1, 2 * mm))
             show_compare = compare and summary["previous"]["employees"] > 0
@@ -1875,12 +1897,14 @@ def build_monthly_pdf(db: Session, month_start: date, options: set[int], languag
             end_date=month_end,
             period_choice="custom",
             compare_like_for_like=compare,
+            approved_only=MONTHLY_OPTION_TYPE[option] in (REPORT_TYPE_PAYROLL, REPORT_TYPE_ATTENDANCE),
         )
         if option in _MONTHLY_SECTION_FIELDS:
             selection.fields = set(_MONTHLY_SECTION_FIELDS[option])
         else:
             selection.fields = {"emp_name", "emp_code", "emp_department"}
-        render_result(build_report(db, selection))
+        approved_note = MONTHLY_OPTION_TYPE[option] in (REPORT_TYPE_PAYROLL, REPORT_TYPE_ATTENDANCE)
+        render_result(build_report(db, selection), approved_note=approved_note)
 
     story.append(Spacer(1, 10 * mm))
     signature_rows = [[

@@ -346,3 +346,103 @@ def test_previous_period_custom_range_unchanged(db_session):
     # The MONTHLY wrapper alone uses exact previous-calendar-month bounds.
     assert _previous_calendar_month(date(2026, 10, 1), date(2026, 10, 31)) == (date(2026, 9, 1), date(2026, 9, 30))
     assert _previous_calendar_month(date(2026, 10, 5), date(2026, 10, 19)) == (date(2026, 9, 20), date(2026, 10, 4))
+
+
+def test_approved_only_excludes_draft_payroll_and_unapproved_attendance(db_session):
+    """Owner decision 2026-11-23: the monthly PDF's payroll/attendance sections
+    show approved data only; the custom engine (approved_only=False, the
+    default) is unchanged."""
+    dept = Department(name="قسم الفلترة", active=True)
+    db_session.add(dept)
+    db_session.flush()
+    emp = Employee(code="MY-AO", full_name="موظف الفلترة", department_id=dept.id,
+                   position="أمن", hire_date=date(2024, 1, 1), status="active",
+                   basic_salary=Decimal("5000.00"), daily_hours=Decimal("8"))
+    db_session.add(emp)
+    db_session.flush()
+    run = PayrollRun(period_start=date(2026, 7, 1), period_end=date(2026, 7, 31),
+                     pay_date=date(2026, 8, 1), status="draft", created_by="test")
+    db_session.add(run)
+    db_session.flush()
+    db_session.add(PayrollItem(payroll_run_id=run.id, employee_id=emp.id,
+                               employee_name_snapshot=emp.full_name, employee_code_snapshot=emp.code,
+                               department_name_snapshot="قسم الفلترة", position_snapshot="أمن",
+                               salary_basis=Decimal("5000"), base_salary=Decimal("5000"),
+                               daily_hours=Decimal("8"), net_pay=Decimal("5000")))
+    db_session.add(AttendanceDailyRecord(employee_id=emp.id, work_date=date(2026, 7, 3),
+                                         status="approved", worked_minutes=480))
+    db_session.add(AttendanceDailyRecord(employee_id=emp.id, work_date=date(2026, 7, 4),
+                                         status="needs_review", worked_minutes=480))
+    db_session.commit()
+
+    base = dict(report_type=REPORT_TYPE_PAYROLL, start_date=date(2026, 7, 1),
+                end_date=date(2026, 7, 31), period_choice="custom",
+                compare_like_for_like=False)
+    # Default (custom report) semantics: drafts and unreviewed records included.
+    custom = build_report(db_session, ReportSelection(**base))
+    assert custom.totals["pay_net"] == Decimal("5000")
+    # Monthly approved-only: the draft run's items vanish.
+    monthly = build_report(db_session, ReportSelection(**base, approved_only=True))
+    assert monthly.totals.get("pay_net", Decimal(0)) == Decimal(0)
+    run.status = "approved"
+    db_session.commit()
+    monthly = build_report(db_session, ReportSelection(**base, approved_only=True))
+    assert monthly.totals["pay_net"] == Decimal("5000")
+
+    att_base = dict(base, report_type=REPORT_TYPE_ATTENDANCE)
+    custom_att = build_report(db_session, ReportSelection(**att_base))
+    row = next(r for g in custom_att.groups for r in g["rows"] if r["employee_id"] == emp.id)
+    assert row["att_present"] == 1  # present was always approved-only
+    # ...but the custom report still SURFACES the unreviewed day.
+    assert dict(custom_att.summary)["أيام غير محسومة"] == 1
+    monthly_att = build_report(db_session, ReportSelection(**att_base, approved_only=True))
+    row = next(r for g in monthly_att.groups for r in g["rows"] if r["employee_id"] == emp.id)
+    assert row["att_present"] == 1
+    # Monthly approved-only: unapproved records no longer appear at all.
+    assert dict(monthly_att.summary)["أيام غير محسومة"] == 0
+
+
+def test_monthly_pdf_payroll_attendance_sections_carry_approved_note(db_session):
+    """The monthly wrapper sets approved_only for payroll/attendance options and
+    leaves advances/actions/leave sections on their status-labelled listings."""
+    from app import report_builder
+
+    seen = {}
+    real_build_report = report_builder.build_report
+
+    def spy(db, selection, today=None):
+        seen[selection.report_type] = selection.approved_only
+        return real_build_report(db, selection, today=today)
+
+    report_builder.build_report = spy
+    try:
+        build_monthly_pdf(db_session, date(2026, 10, 1), {2, 3, 5, 6, 7})
+    finally:
+        report_builder.build_report = real_build_report
+    assert seen[REPORT_TYPE_PAYROLL] is True
+    assert seen[REPORT_TYPE_ATTENDANCE] is True
+    assert seen[report_builder.REPORT_TYPE_ADVANCES] is False
+    assert seen[report_builder.REPORT_TYPE_STAFF_ACTIONS] is False
+    assert seen[report_builder.REPORT_TYPE_LEAVE] is False
+
+
+def test_leave_aggregate_cross_month_clipped_charged_once(db_session):
+    """Owner decision 2026-11-23 (report-only): a leave spanning months shows
+    each month's own calendar days in that month; the admin-entered charged
+    days count once, in the starting month. No balance/payroll change."""
+    from app.models import LeaveRecord, LeaveType
+    from app.report_builder import _monthly_leave_aggregate
+    leave_type = LeaveType(code="ANNUAL", name_ar="سنوية", name_en="Annual")
+    db_session.add(leave_type)
+    db_session.flush()
+    emp = db_session.scalars(select(Employee).where(Employee.code == "MY-M1")).one()
+    # 28/09 – 03/10: calendar span 6, admin charged 5.
+    db_session.add(LeaveRecord(employee_id=emp.id, leave_type_id=leave_type.id,
+                               start_date=date(2026, 9, 28), end_date=date(2026, 10, 3),
+                               calendar_days=6, charged_days=Decimal("5"), status="confirmed",
+                               reason="اختبار", created_by="test"))
+    db_session.commit()
+    sep = _monthly_leave_aggregate(db_session, date(2026, 9, 1), date(2026, 9, 30))
+    assert sep == [{"leave_type": "سنوية", "count": 1, "days": Decimal(3), "charged": Decimal(5)}]
+    oct_rows = _monthly_leave_aggregate(db_session, date(2026, 10, 1), date(2026, 10, 31))
+    assert oct_rows == [{"leave_type": "سنوية", "count": 1, "days": Decimal(3), "charged": Decimal(0)}]
