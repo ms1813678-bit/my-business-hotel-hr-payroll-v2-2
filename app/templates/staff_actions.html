@@ -20,20 +20,47 @@
 
   <section class="notice">
     <h2>تسجيل جزاء أو مكافأة</h2>
+    <p class="muted small">اختار نوع الإجراء الأول</p>
     <details class="hint"><summary>تعليمات</summary>
       <p class="muted">القيم المالية يحددها مسؤول الموارد البشرية يدويًا. لا توجد معادلات تلقائية للمكافآت أو الجزاءات. يجب تحديد شهر الرواتب للإجراء المالي.</p>
     </details>
     <form method="post" action="/staff-actions">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-      <div class="form-grid">
+      <input type="hidden" name="is_financial" id="is-fin-hidden" value="yes" disabled>
+      <div class="action-kind-grid" id="kind-picker" hidden>
+        <div class="action-kind-card" data-kind="reward">
+          <h3>🎖 مكافأة</h3>
+          <p class="muted small">تقدير أو مبلغ إضافي للموظف</p>
+          <div class="chip-row">
+            <button type="button" class="action-chip" data-kind="reward" data-category="commendation" data-financial="0">إشادة</button>
+            <button type="button" class="action-chip" data-kind="reward" data-category="certificate" data-financial="0">شهادة تقدير</button>
+            <button type="button" class="action-chip" data-kind="reward" data-category="promotion_recommendation" data-financial="0">توصية بالترقية</button>
+            <button type="button" class="action-chip" data-kind="reward" data-category="financial_reward" data-financial="1">مكافأة مالية</button>
+            <button type="button" class="action-chip" data-kind="reward" data-category="custom" data-financial="0">نوع مخصص</button>
+          </div>
+        </div>
+        <div class="action-kind-card" data-kind="sanction">
+          <h3>⚠ جزاء</h3>
+          <p class="muted small">تنبيه أو خصم على الموظف</p>
+          <div class="chip-row">
+            <button type="button" class="action-chip" data-kind="sanction" data-category="verbal_notice" data-financial="0">تنبيه شفهي</button>
+            <button type="button" class="action-chip" data-kind="sanction" data-category="first_warning" data-financial="0">إنذار أول</button>
+            <button type="button" class="action-chip" data-kind="sanction" data-category="final_warning" data-financial="0">إنذار نهائي</button>
+            <button type="button" class="action-chip" data-kind="sanction" data-category="suspension" data-financial="0">إيقاف عن العمل</button>
+            <button type="button" class="action-chip" data-kind="sanction" data-category="salary_deduction" data-financial="1">خصم من الراتب</button>
+            <button type="button" class="action-chip" data-kind="sanction" data-category="custom" data-financial="0">نوع مخصص</button>
+          </div>
+        </div>
+      </div>
+      <div id="kind-select-fallback" class="form-grid">
         <label>نوع الإجراء
-          <select name="kind" required>
+          <select name="kind" id="kind-select" required>
             <option value="sanction">جزاء</option>
             <option value="reward">مكافأة</option>
           </select>
         </label>
         <label>التصنيف
-          <select name="category" required>
+          <select name="category" id="category-select" required>
             <optgroup label="الجزاءات">
               <option value="verbal_notice">تنبيه شفهي</option>
               <option value="first_warning">إنذار أول</option>
@@ -50,18 +77,91 @@
             <option value="custom">نوع مخصص</option>
           </select>
         </label>
-        <label>الموظف
-          <select name="employee_id" required>{% for e in employees %}<option value="{{ e.id }}">{{ e.code }} — {{ e.full_name }}</option>{% endfor %}</select>
-        </label>
-        <label>عنوان الإجراء<input name="title" maxlength="200" required></label>
-        <label>شهر الرواتب<input type="date" name="payroll_month"></label>
-        <label>المبلغ بالجنيه<input type="number" name="amount" min="0.01" step="0.01"></label>
-        <label><input type="checkbox" name="is_financial" value="yes"> إجراء مالي</label>
-        <label>السبب والتفاصيل<textarea name="reason" rows="3" maxlength="4000" required></textarea></label>
       </div>
-      <button type="submit">حفظ كمسودة</button>
+      <section class="notice action-detail" id="action-detail">
+        <h3 id="action-detail-title"></h3>
+        <p class="muted small" id="action-detail-sub"></p>
+        <span id="sub-fin" hidden>المبلغ هيضاف لشهر الرواتب اللي تحدده</span>
+        <span id="sub-reward" hidden>تقدير غير مالي للموظف</span>
+        <span id="sub-sanction" hidden>جزاء غير مالي على الموظف</span>
+        <div class="form-grid">
+          <label>الموظف
+            <select name="employee_id" required>{% for e in employees %}<option value="{{ e.id }}">{{ e.code }} — {{ e.full_name }}</option>{% endfor %}</select>
+          </label>
+          <label>عنوان الإجراء<input name="title" maxlength="200" required></label>
+          <label class="fin-field">المبلغ بالجنيه<input type="number" name="amount" min="0.01" step="0.01"></label>
+          <label class="fin-field">شهر الرواتب<input type="date" name="payroll_month"></label>
+        </div>
+        <label>السبب والتفاصيل<textarea name="reason" rows="3" maxlength="4000" required></textarea></label>
+        <label id="is-fin-checkbox-wrap"><input type="checkbox" name="is_financial" id="is-fin-checkbox" value="yes"> إجراء مالي</label>
+        <button type="submit">حفظ كمسودة</button>
+      </section>
     </form>
   </section>
+  <style>
+    .action-kind-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-block: 10px; }
+    @media (max-width: 700px) { .action-kind-grid { grid-template-columns: 1fr; } }
+    .action-kind-card { background: #fff; border: 1.5px solid #d8cfae; border-radius: 10px; padding: 12px 14px; }
+    .action-kind-card:has(.action-chip.selected) { border-color: #a8791f; }
+    .action-kind-card h3 { margin: 0 0 2px; }
+    .action-chip { border: 1.5px solid #b7a76a; background: #fff; color: #4a3c14; border-radius: 999px;
+                   padding: 6px 14px; cursor: pointer; font-size: 0.95em; }
+    .action-chip.selected { background: #a8791f; border-color: #a8791f; color: #fff; font-weight: 600; }
+    .action-detail h3 { margin-bottom: 0; }
+    .fin-field[hidden], #is-fin-checkbox-wrap[hidden] { display: none; }
+  </style>
+  <script>
+  (function () {
+    var picker = document.getElementById('kind-picker');
+    if (!picker) { return; }
+    var fallback = document.getElementById('kind-select-fallback');
+    var detail = document.getElementById('action-detail');
+    var kindSel = document.getElementById('kind-select');
+    var catSel = document.getElementById('category-select');
+    var finHidden = document.getElementById('is-fin-hidden');
+    var finWrap = document.getElementById('is-fin-checkbox-wrap');
+    var finBox = document.getElementById('is-fin-checkbox');
+    var finFields = Array.prototype.slice.call(document.querySelectorAll('.fin-field'));
+    var title = document.getElementById('action-detail-title');
+    var sub = document.getElementById('action-detail-sub');
+    // JS on: chip picker drives the (now hidden) native selects; the detail
+    // panel stays hidden until a kind is chosen. JS off: the selects and the
+    // full form work exactly as before.
+    fallback.style.display = 'none';
+    picker.hidden = false;
+    detail.hidden = true;
+    function syncFin(financial, custom) {
+      finHidden.disabled = !financial;
+      finWrap.hidden = !custom;
+      finFields.forEach(function (f) { f.hidden = !(financial || (custom && finBox.checked)); });
+    }
+    picker.addEventListener('click', function (ev) {
+      var chip = ev.target.closest('.action-chip');
+      if (!chip) { return; }
+      picker.querySelectorAll('.action-chip').forEach(function (c) { c.classList.remove('selected'); });
+      chip.classList.add('selected');
+      kindSel.value = chip.dataset.kind;
+      catSel.value = chip.dataset.category;
+      var financial = chip.dataset.financial === '1';
+      var custom = chip.dataset.category === 'custom';
+      syncFin(financial, custom);
+      title.textContent = chip.textContent;
+      // Subtitles live in hidden translated spans so non-Arabic UI languages
+      // get catalog text instead of hardcoded Arabic (script bodies are
+      // never translated).
+      sub.textContent = financial ? document.getElementById('sub-fin').textContent
+        : (chip.dataset.kind === 'reward' ? document.getElementById('sub-reward').textContent
+        : document.getElementById('sub-sanction').textContent);
+      detail.hidden = false;
+    });
+    finBox.addEventListener('change', function () {
+      if (catSel.value === 'custom') {
+        finFields.forEach(function (f) { f.hidden = !finBox.checked; });
+      }
+    });
+    syncFin(false, false);
+  })();
+  </script>
 
   <section class="notice">
     <h2>سجل الجزاءات والمكافآت</h2>
