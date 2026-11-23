@@ -292,12 +292,25 @@ def test_advance_statuses_are_translated_to_arabic(advance_client):
         follow_redirects=False,
     ).status_code == 303
 
+    # Default tab is pending-first; each status label renders in its tab,
+    # and the full log shows every status.
     page = client.get("/advances")
     assert page.status_code == 200
-    for label in ("معلقة", "معتمدة", "مصروفة", "مرفوضة"):
-        assert label in page.text
+    assert "معلقة" in page.text
+    assert "adv-tab-active" in page.text
     for stored_status in (">pending<", ">approved<", ">paid<", ">rejected<"):
         assert stored_status not in page.text
+    assert "مصروفة" not in page.text
+    assert "مرفوضة" not in page.text
+    approved_tab = client.get("/advances?tab=approved")
+    assert approved_tab.status_code == 200
+    assert "معتمدة" in approved_tab.text
+    assert "معلقة" in approved_tab.text  # tab label itself
+    assert ">pending<" not in approved_tab.text
+    all_tab = client.get("/advances?tab=all")
+    assert all_tab.status_code == 200
+    for label in ("معلقة", "معتمدة", "مصروفة", "مرفوضة"):
+        assert label in all_tab.text
 
 
 def test_regular_advance_approval_forces_one_installment_even_when_forged(advance_client):

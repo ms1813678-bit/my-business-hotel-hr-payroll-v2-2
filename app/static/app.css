@@ -1091,3 +1091,35 @@ a.metric-card .metric-link { color: var(--brand, #b8860b); font-size: 12px; font
   .data-table.responsive-cards td[data-label="مراجعة"] { display: block; }
   .data-table.responsive-cards td[data-label="مراجعة"]::before { content: none; }
 }
+
+/* Item 53: advances tabs + cards */
+.adv-tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+.adv-tab {
+  display: inline-flex; align-items: center; gap: 4px;
+  border: 1.5px solid var(--border-strong); background: var(--surface); color: var(--text);
+  border-radius: 999px; padding: 8px 18px; font-weight: 700; text-decoration: none;
+}
+.adv-tab:hover { background: var(--surface-2); text-decoration: none; }
+.adv-tab-active { background: #a8791f; border-color: #a8791f; color: #fff; }
+.adv-tab-active:hover { background: #8f681a; }
+.adv-cards { display: grid; gap: 12px; }
+.adv-card {
+  background: var(--surface); border: 1.5px solid var(--border); border-radius: var(--radius-sm);
+  padding: 14px 16px; border-inline-start: 4px solid #d8cfae;
+}
+.adv-card-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+.adv-card-amounts { margin: 6px 0 4px; font-size: 1.02rem; }
+.adv-card-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 8px; }
+.adv-card-actions .inline-form input[type="number"] { width: 80px; }
+
+/* Item 54: session group in the sidebar + simplified mobile page top */
+.nav-logout { margin: 0; }
+.nav-logout-btn { width: 100%; border: none; background: none; text-align: start; font: inherit; }
+.nav-logout-btn:hover { background: var(--surface-2); }
+@media (max-width: 900px) {
+  .page-header .eyebrow, .page-header .muted, .page-header .header-actions,
+  .topbar .eyebrow, .topbar > div > p { display: none; }
+  .page-header, .topbar { padding: 8px 0 10px; margin-bottom: 12px; }
+  .page-header h1, .topbar h1 { font-size: 20px; margin: 0; }
+  .topbar nav { display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: 4px; font-size: 0.85rem; }
+}

@@ -456,6 +456,7 @@ templates.env.globals["audit_detail"] = _audit_detail_label
 templates.env.globals["audit_reason"] = _audit_reason_label
 templates.env.globals["system_reason"] = _system_reason_label
 templates.env.globals["leave_type_name"] = _leave_type_name
+templates.env.globals["get_csrf_token"] = get_csrf_token
 
 from app.i18n import translate_html, translate_text as _translate_text
 
@@ -2194,7 +2195,7 @@ def cancel_leave_record(
 
 
 @app.get("/advances", response_class=HTMLResponse)
-def advances_page(request: Request, page: int = 1, admin: AdminAccount = Depends(require_payroll_access)):
+def advances_page(request: Request, page: int = 1, tab: str = "pending", admin: AdminAccount = Depends(require_payroll_access)):
     with SessionLocal() as db:
         employees = db.scalars(
             select(Employee).where(Employee.status == "active").order_by(Employee.code)
@@ -2222,11 +2223,27 @@ def advances_page(request: Request, page: int = 1, admin: AdminAccount = Depends
         }
         page_size = 100
         page = max(1, page)
-        total_requests = db.scalar(select(func.count()).select_from(AdvanceRequest)) or 0
+        # Item 53 tabs: pending / approved / all. Tab counts cover every
+        # request regardless of the current page.
+        if tab not in {"pending", "approved", "all"}:
+            tab = "pending"
+        tab_counts = dict(
+            db.execute(
+                select(AdvanceRequest.status, func.count()).group_by(AdvanceRequest.status)
+            ).all()
+        )
+        list_query = select(AdvanceRequest)
+        if tab != "all":
+            list_query = list_query.where(AdvanceRequest.status == tab)
+        total_requests = db.scalar(
+            select(func.count()).select_from(AdvanceRequest).where(
+                AdvanceRequest.status == tab if tab != "all" else True
+            )
+        ) or 0
         total_pages = max(1, (total_requests + page_size - 1) // page_size)
         page = min(page, total_pages)
         requests = db.scalars(
-            select(AdvanceRequest).order_by(
+            list_query.order_by(
                 AdvanceRequest.request_date.desc(), AdvanceRequest.id.desc()
             ).offset((page - 1) * page_size).limit(page_size)
         ).all()
@@ -2285,6 +2302,8 @@ def advances_page(request: Request, page: int = 1, admin: AdminAccount = Depends
             context={**_advances_pager,
                 "employees": employees,
                 "requests": requests,
+                "tab": tab,
+                "tab_counts": tab_counts,
                 "advance_summary": advance_summary,
                 "employee_names": {e.id: e.full_name for e in all_employees},
                 "employee_codes": {e.id: e.code for e in all_employees},

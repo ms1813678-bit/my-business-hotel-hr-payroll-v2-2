@@ -68,44 +68,46 @@
 
   <section class="notice">
     <h2>طلبات السلف والسجل</h2>
+    <nav class="adv-tabs" aria-label="تبويبات السلف">
+      <a href="/advances?tab=pending" class="adv-tab {% if tab == 'pending' %}adv-tab-active{% endif %}"><span>معلقة</span> ({{ tab_counts.get("pending", 0) }})</a>
+      <a href="/advances?tab=approved" class="adv-tab {% if tab == 'approved' %}adv-tab-active{% endif %}"><span>معتمدة</span> ({{ tab_counts.get("approved", 0) }})</a>
+      <a href="/advances?tab=all" class="adv-tab {% if tab == 'all' %}adv-tab-active{% endif %}">الكل</a>
+    </nav>
     {% if total_records %}
     <p><span>عرض</span> {{ requests|length }} / {{ total_records }} <span>سجلًا</span> — <span>صفحة</span> {{ page }} / {{ total_pages }}</p>
     <nav aria-label="صفحات السجل">
-      {% if page > 1 %}<a href="/advances?page={{ page - 1 }}">السابق</a>{% endif %}
-      {% if page < total_pages %}<a href="/advances?page={{ page + 1 }}">التالي</a>{% endif %}
+      {% if page > 1 %}<a href="/advances?tab={{ tab }}&page={{ page - 1 }}">السابق</a>{% endif %}
+      {% if page < total_pages %}<a href="/advances?tab={{ tab }}&page={{ page + 1 }}">التالي</a>{% endif %}
     </nav>
     {% endif %}
-    <div class="table-wrap"><table class="wide-table"><thead><tr>
-      <th>الموظف</th><th>تاريخ الطلب</th><th>النوع</th><th>المبلغ</th><th>أساس الراتب</th><th>حد 25%</th><th>خصم في راتب</th><th>الحالة</th><th>الإجراء</th>
-    </tr></thead><tbody>
+    <div class="adv-cards">
     {% for a in requests %}
-    <tr>
-      <td>{{ employee_codes.get(a.employee_id, "—") }} — {{ employee_names.get(a.employee_id, "—") }}</td>
-      <td>{{ a.request_date|fmt_d }}</td>
-      <td>{% if a.advance_type == "installment" %}مقسطة{% else %}عادية{% endif %}</td>
-      <td>{{ "%.2f"|format(a.amount) }} <span>ج</span></td>
-      <td>{{ "%.2f"|format(a.salary_basis) }} <span>ج</span></td>
-      <td>{% if a.advance_type == "installment" %}غير مطبق{% else %}{{ "%.2f"|format(a.salary_basis * 25 / 100) }} <span>ج</span>{% endif %}</td>
-      <td>{{ a.payroll_month|fmt_m }}</td>
-      <td>{{ state_labels.get(a.status, a.status) }}</td>
-      <td>
-        {% if a.status == "pending" %}
+    <article class="adv-card">
+      <div class="adv-card-head">
+        <strong>{{ employee_names.get(a.employee_id, "—") }} <span class="muted small">{{ employee_codes.get(a.employee_id, "—") }}</span></strong>
+        <span class="badge {{ 'badge-warning' if a.status == 'pending' else ('badge-success' if a.status in ('approved', 'paid') else 'badge-muted') }}">{{ state_labels.get(a.status, a.status) }}</span>
+      </div>
+      <p class="adv-card-amounts"><span>المبلغ</span> {{ "%.2f"|format(a.amount) }} <span>ج</span> · <span>الحد</span> {% if a.advance_type == "installment" %}غير مطبق{% else %}{{ "%.2f"|format(a.salary_basis * 25 / 100) }} <span>ج</span>{% endif %} · {% if a.advance_type == "installment" %}مقسطة{% else %}<span>عادية</span>{% endif %} · {{ a.request_date|fmt_d }}</p>
+      <p class="muted small"><span>السبب:</span> {{ a.reason }}{% if a.rejection_reason %} · <span>سبب الرفض:</span> {{ a.rejection_reason }}{% endif %}</p>
+      {% if a.status == "pending" %}
+      <div class="adv-card-actions">
         <form method="post" action="/advances/{{ a.id }}/approve" class="inline-form">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">{% if a.advance_type == "regular" %}<input type="hidden" name="installment_count" value="1">{% else %}<label>الأقساط <input type="number" name="installment_count" min="1" max="36" value="1" required></label>{% endif %}<button type="submit">اعتماد</button>
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">{% if a.advance_type == "regular" %}<input type="hidden" name="installment_count" value="1">{% else %}<label><span>الأقساط</span> <input type="number" name="installment_count" min="1" max="36" value="1" required></label>{% endif %}<button type="submit" class="btn-primary">اعتماد</button>
         </form>
         <form method="post" action="/advances/{{ a.id }}/reject" class="inline-form">
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input name="reason" placeholder="سبب الرفض" required><button type="submit">رفض</button>
         </form>
-        {% elif a.status == "approved" %}
+      </div>
+      {% elif a.status == "approved" %}
+      <div class="adv-card-actions">
         <form method="post" action="/advances/{{ a.id }}/paid" class="inline-form">
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button type="submit">تأكيد الصرف</button>
         </form>
-        {% endif %}
-      </td>
-    </tr>
-    <tr><td colspan="9"><span class="muted">السبب: {{ a.reason }}{% if a.rejection_reason %} · سبب الرفض: {{ a.rejection_reason }}{% endif %}</span></td></tr>
-    {% else %}<tr><td colspan="9">لا توجد طلبات سلف مسجلة.</td></tr>{% endfor %}
-    </tbody></table></div>
+      </div>
+      {% endif %}
+    </article>
+    {% else %}<p class="muted">لا توجد طلبات سلف في هذا التبويب.</p>{% endfor %}
+    </div>
   </section>
   <section class="notice">
     <p><strong>ملاحظة:</strong> ملخص السلف يفصل بين الرصيد العادي والرصيد المقسط. الـ25% يطبق على السلفة الشهرية العادية فقط. السلفة المقسطة لا تخضع له، ويمكن أن تتجاوز الراتب، وخصمها يتم حسب جدول الأقساط. هذه الوحدة تسجل السلفة واعتمادها وصرفها وجدول الأقساط والشهر المستحق لكل خصم. الخصم الفعلي لا يُسجل كمخصوم إلا عند إغلاق دورة الرواتب، ويمكن عكسه عند إعادة فتح الدورة.</p>

@@ -57,6 +57,14 @@
         {% endif %}
         <a class="nav-link {% if active_nav == 'password' %}active{% endif %}" href="/settings/password"><span class="dot"></span>تغيير كلمة المرور</a>
       </div>
+
+      <div class="nav-group">
+        <div class="nav-group-title">الجلسة</div>
+        <form method="post" action="/logout" class="nav-logout">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token if csrf_token is defined else get_csrf_token(request) }}">
+          <button type="submit" class="nav-link nav-logout-btn"><span class="dot"></span>تسجيل الخروج</button>
+        </form>
+      </div>
     </aside>
 
     <main class="content">
