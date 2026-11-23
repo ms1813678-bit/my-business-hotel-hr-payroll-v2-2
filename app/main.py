@@ -140,7 +140,7 @@ from app.payroll_workflow import (
 from app.models import AdvanceRequest, BackupRun, SystemSetting, StaffAction, PayrollRun, PayrollItem, PayrollPayment, AdminAccount, AttendanceDailyRecord, AttendanceImportBatch, AttendanceImportIssue, AttendancePunch, AttendanceMonth, AuditLog, Branch, RecoveryCode, AdminSession, Department, Employee, EmployeeChange, EmployeeDataChangeRequest, EmployeeServicePeriod, LeaveBalanceTransaction, LeaveRecord, LeaveType
 from app.security_roster_import import parse_security_roster_xlsx
 from app.attendance_import import parse_attendance_workbook, normalize as normalize_attendance_alias
-from app.attendance_workflow import persist_attendance_import, prepare_and_persist_monthly_reconciliation, approve_attendance_day, approve_attendance_month, add_manual_attendance, resolve_unknown_attendance_employee, summarize_attendance_month_coverage
+from app.attendance_workflow import persist_attendance_import, prepare_and_persist_monthly_reconciliation, approve_attendance_day, approve_attendance_month, approve_all_matching_attendance, suggested_clock_pair, add_manual_attendance, resolve_unknown_attendance_employee, summarize_attendance_month_coverage
 from app.security_roster_workflow import prepare_security_roster, confirm_security_roster_day
 from app.ai_assistant import ask_local_model, local_fallback_answer, local_model_status
 from app.ai_agent import is_command_request
@@ -1479,21 +1479,18 @@ def attendance_review_page(
             .offset((page - 1) * page_size)
             .limit(page_size)
         ).all()
+        status_counts = dict(
+            db.execute(
+                select(AttendanceDailyRecord.status, func.count())
+                .where(pending_filter)
+                .group_by(AttendanceDailyRecord.status)
+            ).all()
+        )
         records = []
         for record, employee in rows:
             # Manual HR evidence is the latest explicit correction and must
             # be visible as the default review proposal, without replacing raw punches.
-            suggested_in = record.manual_clock_in or record.program_clock_in or record.first_clock_in
-            suggested_out = record.manual_clock_out or record.program_clock_out or record.last_clock_out
-            if (
-                suggested_in is not None and suggested_out is not None
-                and suggested_out <= suggested_in
-                and record.scheduled_start_at is not None
-                and record.scheduled_end_at is not None
-                and record.scheduled_end_at.date() > record.scheduled_start_at.date()
-                and suggested_out.date() == record.work_date
-            ):
-                suggested_out += timedelta(days=1)
+            suggested_in, suggested_out = suggested_clock_pair(record)
             records.append({
                 "id": record.id, "employee": employee.full_name,
                 "employee_code": employee.code, "work_date": record.work_date,
@@ -1522,7 +1519,11 @@ def attendance_review_page(
         context={"admin": admin.display_name or admin.username, "csrf_token": get_csrf_token(request),
                  "records": records, "employees": employees, "error": None, "page": page,
                  "total_pages": total_pages, "total_records": total_records,
-                 "page_size": page_size},
+                 "page_size": page_size,
+                 "matching_count": status_counts.get("ready_for_review", 0),
+                 "needs_review_count": status_counts.get("needs_review", 0),
+                 "bulk_approved": request.query_params.get("bulk_approved"),
+                 "bulk_skipped": request.query_params.get("bulk_skipped")},
     )
 
 
@@ -1575,6 +1576,23 @@ def attendance_approve(
     except (ValueError, KeyError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return RedirectResponse("/attendance/review", status_code=303)
+
+
+@app.post("/attendance/approve-all-matching", response_class=HTMLResponse, dependencies=[Depends(csrf_protect)])
+def attendance_approve_all_matching(
+    request: Request,
+    reason: str = Form(...),
+    admin: AdminAccount = Depends(require_attendance_write),
+):
+    try:
+        with SessionLocal.begin() as db:
+            result = approve_all_matching_attendance(db, actor=admin.username, reason=reason)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return RedirectResponse(
+        f"/attendance/review?bulk_approved={result['approved']}&bulk_skipped={len(result['skipped'])}",
+        status_code=303,
+    )
 
 
 @app.get("/attendance/months", response_class=HTMLResponse)

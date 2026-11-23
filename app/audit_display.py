@@ -58,6 +58,7 @@ ACTION_LABELS = {
     "ai_draft_leave_deleted": "حذف مسودة إجازة من مساعد الذكاء الاصطناعي",
     "ai_leave_record_created": "تسجيل إجازة بواسطة مساعد الذكاء الاصطناعي",
     "attendance_day_approved": "اعتماد يوم حضور",
+    "attendance_matching_bulk_approved": "اعتماد كل أيام الحضور الجاهزة",
     "attendance_day_proposed": "اقتراح يوم حضور",
     "attendance_import_batch_replaced": "استبدال دفعة استيراد حضور",
     "attendance_import_created": "إنشاء استيراد حضور",

@@ -1141,3 +1141,83 @@ def test_add_manual_attendance_rejects_approved_month(db_session):
             reason="Late fingerprint",
             actor="admin",
         )
+
+
+def test_bulk_approve_matching_only_touches_ready_records_with_audit(db_session):
+    from app.attendance_workflow import approve_all_matching_attendance, suggested_clock_pair
+
+    ready = persist_daily_attendance_proposal(
+        db_session, employee_id=1,
+        proposal={
+            "work_date": date(2026, 11, 2),
+            "program_clock_in": datetime(2026, 11, 2, 8, 0),
+            "program_clock_out": datetime(2026, 11, 2, 16, 0),
+            "status": "ready_for_review",
+            "issues": [],
+        },
+        actor="hr-admin",
+    )
+    needs = persist_daily_attendance_proposal(
+        db_session, employee_id=1,
+        proposal={
+            "work_date": date(2026, 11, 3),
+            "program_clock_in": datetime(2026, 11, 3, 8, 0),
+            "program_clock_out": datetime(2026, 11, 3, 16, 0),
+            "status": "needs_review",
+            "issues": ["source_disagreement"],
+        },
+        actor="hr-admin",
+    )
+    incomplete = persist_daily_attendance_proposal(
+        db_session, employee_id=1,
+        proposal={
+            "work_date": date(2026, 11, 4),
+            "status": "ready_for_review",
+            "issues": [],
+        },
+        actor="hr-admin",
+    )
+    result = approve_all_matching_attendance(db_session, actor="hr-admin", reason="Matched sources verified")
+    db_session.commit()
+
+    assert result["approved"] == 1
+    assert result["skipped"] == [incomplete.id]
+    db_session.refresh(ready); db_session.refresh(needs); db_session.refresh(incomplete)
+    assert ready.status == "approved"
+    assert ready.approved_clock_in == datetime(2026, 11, 2, 8, 0)
+    assert ready.approved_clock_out == datetime(2026, 11, 2, 16, 0)
+    assert ready.approved_by == "hr-admin"
+    assert needs.status == "needs_review"
+    assert needs.approved_by is None
+    assert incomplete.status == "ready_for_review"
+    per_record = db_session.scalar(select(func.count()).select_from(AuditLog).where(
+        AuditLog.action == "attendance_day_approved", AuditLog.reason == "Matched sources verified"))
+    assert per_record == 1
+    bulk = db_session.scalar(select(AuditLog).where(AuditLog.action == "attendance_matching_bulk_approved"))
+    assert bulk is not None and bulk.actor == "hr-admin"
+    assert "approved=1" in bulk.new_value and "skipped=1" in bulk.new_value
+
+
+def test_bulk_approve_matching_requires_reason(db_session):
+    from app.attendance_workflow import approve_all_matching_attendance
+
+    with pytest.raises(ValueError, match="attendance_approval_reason_required"):
+        approve_all_matching_attendance(db_session, actor="hr-admin", reason=" ")
+
+
+def test_suggested_clock_pair_prefers_manual_then_program_then_punch(db_session):
+    record = persist_daily_attendance_proposal(
+        db_session, employee_id=1,
+        proposal={
+            "work_date": date(2026, 11, 5),
+            "program_clock_in": datetime(2026, 11, 5, 8, 0),
+            "program_clock_out": datetime(2026, 11, 5, 16, 0),
+            "first_clock_in": datetime(2026, 11, 5, 8, 10),
+            "last_clock_out": datetime(2026, 11, 5, 15, 50),
+            "status": "ready_for_review",
+            "issues": [],
+        },
+        actor="hr-admin",
+    )
+    from app.attendance_workflow import suggested_clock_pair
+    assert suggested_clock_pair(record) == (datetime(2026, 11, 5, 8, 0), datetime(2026, 11, 5, 16, 0))

@@ -53,9 +53,38 @@
       </nav>
     </section>
     {% endif %}
-    {% for record in records %}
+    {% if total_records %}
     <section class="notice">
-      <h2>{{ record.employee }} <span>—</span> {{ record.employee_code }}</h2>
+      <p>
+        <span class="badge badge-success">{{ matching_count }} <span>جاهزة للاعتماد</span></span>
+        <span class="badge badge-warning">{{ needs_review_count }} <span>تحتاج مراجعة</span></span>
+      </p>
+      {% if bulk_approved is not none %}
+      <p class="success-note"><span>تم اعتماد</span> {{ bulk_approved }} <span>سجلًا جاهزًا</span>{% if bulk_skipped and bulk_skipped != '0' %} <span>وتخطي</span> {{ bulk_skipped }} <span>بدون أوقات مكتملة</span>{% endif %}.</p>
+      {% endif %}
+      {% if request.state.admin_role != 'finance' and matching_count %}
+      <form method="post" action="/attendance/approve-all-matching" class="inline-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <input name="reason" required minlength="3" maxlength="500" placeholder="سبب اعتماد كل المطابق">
+        <button type="submit" class="btn-primary"><span>اعتماد كل المطابق</span> ({{ matching_count }})</button>
+      </form>
+      <p class="muted small">يعتمد الزر السجلات «الجاهزة للاعتماد» فقط، بالأوقات المقترحة المعروضة لكل سجل، ولا يغيّر السجلات التي تحتاج مراجعة. كل يوم يُسجَّل في سجل المراجعة باسمك وبالسبب نفسه.</p>
+      {% endif %}
+      <div class="table-scroll">
+      <table class="data-table responsive-cards review-table">
+        <thead><tr><th>الموظف</th><th>تاريخ العمل</th><th><span>دخول</span></th><th><span>خروج</span></th><th>الحالة</th><th>مراجعة</th></tr></thead>
+        <tbody>
+        {% for record in records %}
+        <tr>
+          <td data-label="الموظف"><strong>{{ record.employee }}</strong> <span class="muted small">{{ record.employee_code }}</span></td>
+          <td data-label="تاريخ العمل">{{ record.work_date|fmt_d }}</td>
+          <td data-label="دخول"><bdi>{{ (record.suggested_clock_in or "غير موجود")|fmt_dt }}</bdi></td>
+          <td data-label="خروج"><bdi>{{ (record.suggested_clock_out or "غير موجود")|fmt_dt }}</bdi></td>
+          <td data-label="الحالة"><span class="badge {{ 'badge-success' if record.status == 'ready_for_review' else 'badge-warning' }}">{{ record.status|status_label }}</span></td>
+          <td data-label="مراجعة">
+            <details class="review-detail">
+              <summary>التفاصيل والاعتماد</summary>
+              <div class="review-detail-body">
       <p><span>تاريخ العمل:</span> {{ record.work_date|fmt_d }} | <span>الحالة:</span> {{ record.status|status_label }}</p>
       <p><span>الوردية:</span> {{ (record.scheduled_start_at or "غير محددة")|fmt_dt }} <span>إلى</span> {{ (record.scheduled_end_at or "غير محددة")|fmt_dt }}</p>
       <p><span>تقرير البرنامج:</span> <span>دخول</span> {{ (record.program_clock_in or "غير موجود")|fmt_dt }} <span>—</span> <span>خروج</span> {{ (record.program_clock_out or "غير موجود")|fmt_dt }}</p>
@@ -81,6 +110,14 @@
         <button type="submit">اعتماد هذا اليوم</button>
       </form>
       {% endif %}
+              </div>
+            </details>
+          </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      </div>
     </section>
-    {% endfor %}
+    {% endif %}
 {% endblock %}

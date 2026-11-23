@@ -763,6 +763,67 @@ def add_manual_attendance(
     return record
 
 
+def suggested_clock_pair(record):
+    """The review proposal for a pending record: manual HR evidence first,
+    then the program report, then raw punches, with the overnight-shift
+    adjustment the review page always applied. Shared by the review screen
+    and the bulk "approve all matching" path so both approve exactly the
+    times the reviewer saw proposed."""
+    suggested_in = record.manual_clock_in or record.program_clock_in or record.first_clock_in
+    suggested_out = record.manual_clock_out or record.program_clock_out or record.last_clock_out
+    if (
+        suggested_in is not None and suggested_out is not None
+        and suggested_out <= suggested_in
+        and record.scheduled_start_at is not None
+        and record.scheduled_end_at is not None
+        and record.scheduled_end_at.date() > record.scheduled_start_at.date()
+        and suggested_out.date() == record.work_date
+    ):
+        suggested_out += timedelta(days=1)
+    return suggested_in, suggested_out
+
+
+def approve_all_matching_attendance(db, *, actor: str, reason: str):
+    """Item 52: approve every pending record whose reconciliation found no
+    issues (status ready_for_review) with its displayed suggested times.
+    Records with issues (needs_review) or without a complete suggested pair
+    are never touched; each approval keeps its own per-record audit entry,
+    and one summary entry records the bulk action itself."""
+    if not actor or not actor.strip():
+        raise ValueError("attendance_approving_admin_required")
+    if not reason or not reason.strip():
+        raise ValueError("attendance_approval_reason_required")
+    records = db.scalars(
+        select(AttendanceDailyRecord)
+        .where(AttendanceDailyRecord.status == "ready_for_review")
+        .order_by(AttendanceDailyRecord.work_date, AttendanceDailyRecord.id)
+        .with_for_update()
+    ).all()
+    approved = 0
+    skipped = []
+    for record in records:
+        clock_in, clock_out = suggested_clock_pair(record)
+        if clock_in is None or clock_out is None or clock_out <= clock_in:
+            skipped.append(record.id)
+            continue
+        approve_attendance_day(
+            db, record_id=record.id, clock_in=clock_in,
+            clock_out=clock_out, actor=actor, reason=reason,
+        )
+        approved += 1
+    db.add(AuditLog(
+        actor=actor,
+        action="attendance_matching_bulk_approved",
+        entity_type="attendance_daily_record",
+        entity_id="bulk",
+        old_value="status=ready_for_review",
+        new_value=f"approved={approved}; skipped={len(skipped)}",
+        reason=reason.strip(),
+    ))
+    db.flush()
+    return {"approved": approved, "skipped": skipped}
+
+
 def approve_attendance_day(
     db,
     *,

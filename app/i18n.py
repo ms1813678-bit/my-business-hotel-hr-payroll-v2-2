@@ -3876,3 +3876,27 @@ ZH.update({
     "المخازن": "仓库",
     "الغسيل": "洗衣房",
 })
+
+# Items 51/52: compact attendance review + approve-all-matching
+EN.update({
+    "اعتماد كل المطابق": "Approve All Matching",
+    "سبب اعتماد كل المطابق": "Reason for approving all matching",
+    "التفاصيل والاعتماد": "Details and Approval",
+    "تم اعتماد": "Approved",
+    "سجلًا جاهزًا": "ready records",
+    "وتخطي": "and skipped",
+    "بدون أوقات مكتملة": "without complete times",
+    "اعتماد كل أيام الحضور الجاهزة": "Approve all ready attendance days",
+    "يعتمد الزر السجلات «الجاهزة للاعتماد» فقط، بالأوقات المقترحة المعروضة لكل سجل، ولا يغيّر السجلات التي تحتاج مراجعة. كل يوم يُسجَّل في سجل المراجعة باسمك وبالسبب نفسه.": "The button approves only records marked Ready for Approval, using the suggested times shown for each record, and does not change records that need review. Each day is recorded in the audit log under your name with the same reason.",
+})
+ZH.update({
+    "اعتماد كل المطابق": "批准全部匹配",
+    "سبب اعتماد كل المطابق": "批准全部匹配的原因",
+    "التفاصيل والاعتماد": "详情与批准",
+    "تم اعتماد": "已批准",
+    "سجلًا جاهزًا": "条就绪记录",
+    "وتخطي": "并跳过",
+    "بدون أوقات مكتملة": "因时间不完整",
+    "اعتماد كل أيام الحضور الجاهزة": "批准全部就绪考勤日",
+    "يعتمد الزر السجلات «الجاهزة للاعتماد» فقط، بالأوقات المقترحة المعروضة لكل سجل، ولا يغيّر السجلات التي تحتاج مراجعة. كل يوم يُسجَّل في سجل المراجعة باسمك وبالسبب نفسه.": "该按钮仅批准标记为“待批准”的记录，使用每条记录显示的提议时间，不会更改需要审核的记录。每一天都会以您的姓名和相同原因记录在审计日志中。",
+})

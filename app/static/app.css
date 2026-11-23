@@ -1080,3 +1080,14 @@ a.metric-card .metric-link { color: var(--brand, #b8860b); font-size: 12px; font
 .file-picker-input:focus-visible + .file-picker-btn,
 .file-picker-btn:focus-within { outline: 2px solid var(--primary, #a8791f); outline-offset: 2px; }
 .file-picker-name { font-size: 0.85rem; color: var(--muted, #64748b); max-width: 320px; overflow-wrap: anywhere; }
+
+/* Items 51/52: compact attendance review table */
+.review-detail summary { cursor: pointer; color: var(--primary, #a8791f); font-weight: 700; }
+.review-detail-body { padding-top: 8px; }
+.review-detail-body form label { display: block; margin-top: 8px; }
+.review-table td { vertical-align: middle; }
+@media (max-width: 700px) {
+  .review-detail-body { min-width: 0; }
+  .data-table.responsive-cards td[data-label="مراجعة"] { display: block; }
+  .data-table.responsive-cards td[data-label="مراجعة"]::before { content: none; }
+}

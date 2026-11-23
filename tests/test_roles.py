@@ -533,3 +533,19 @@ def test_only_system_admin_reaches_any_backup_entrypoint(three_clients):
             "csrf_token": token, "new_passphrase": "x" * 12,
             "confirm_passphrase": "x" * 12, "current_passphrase": ""},
             follow_redirects=False).status_code == 403
+
+
+def test_finance_cannot_bulk_approve_attendance(three_clients):
+    _, finance, _ = three_clients
+    page = finance.get("/attendance/review")
+    assert page.status_code == 200
+    # read-only: no bulk form rendered for finance
+    assert "approve-all-matching" not in page.text
+    # valid CSRF token from a page finance can write on: refusal must come from the role guard
+    token = csrf(finance.get("/advances"))
+    response = finance.post(
+        "/attendance/approve-all-matching",
+        data={"csrf_token": token, "reason": "مصادر متطابقة"},
+        follow_redirects=False,
+    )
+    assert response.status_code == 403

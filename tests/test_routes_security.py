@@ -2443,3 +2443,64 @@ def test_ai_approve_and_reject_responses_keep_fresh_scan(client, monkeypatch):
             assert "Attendance import issues awaiting resolution" in response.text
     finally:
         engine.dispose()
+
+
+def test_approve_all_matching_route_requires_csrf_and_approves_ready_only(client):
+    assert login(client).status_code == 303
+    from sqlalchemy import select
+    from app.main import SessionLocal
+    from app.models import AttendanceDailyRecord, Employee
+
+    with SessionLocal.begin() as db:
+        employee = db.scalars(select(Employee).where(Employee.full_name == "Bulk Approve Employee")).first()
+        if employee is None:
+            db.add(Employee(
+                code="MY-9991",
+                full_name="Bulk Approve Employee", department_id=client.test_department_id,
+                position="Test Position", hire_date=date(2025, 1, 1),
+                basic_salary=1000, daily_hours=8, status="active",
+            ))
+            db.flush()
+            employee = db.scalars(select(Employee).where(Employee.full_name == "Bulk Approve Employee")).one()
+        db.add(AttendanceDailyRecord(
+            employee_id=employee.id, work_date=date(2026, 11, 10),
+            program_clock_in=datetime(2026, 11, 10, 8, 0),
+            program_clock_out=datetime(2026, 11, 10, 16, 0),
+            status="ready_for_review",
+        ))
+        db.add(AttendanceDailyRecord(
+            employee_id=employee.id, work_date=date(2026, 11, 11),
+            program_clock_in=datetime(2026, 11, 11, 8, 0),
+            status="needs_review",
+        ))
+        db.commit()
+
+    review = client.get("/attendance/review")
+    assert review.status_code == 200
+    assert "اعتماد كل المطابق" in review.text
+    assert "جاهزة للاعتماد" in review.text
+    assert "تحتاج مراجعة" in review.text
+
+    rejected = client.post("/attendance/approve-all-matching", data={"reason": "مصادر متطابقة"}, follow_redirects=False)
+    assert rejected.status_code == 403
+
+    token = csrf_from(review)
+    response = client.post(
+        "/attendance/approve-all-matching",
+        data={"csrf_token": token, "reason": "مصادر متطابقة"},
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    assert "bulk_approved=1" in response.headers["location"]
+
+    with SessionLocal.begin() as db:
+        ready = db.scalars(select(AttendanceDailyRecord).where(
+            AttendanceDailyRecord.work_date == date(2026, 11, 10))).one()
+        needs = db.scalars(select(AttendanceDailyRecord).where(
+            AttendanceDailyRecord.work_date == date(2026, 11, 11))).one()
+        assert ready.status == "approved"
+        assert ready.approved_clock_in == datetime(2026, 11, 10, 8, 0)
+        assert ready.approved_clock_out == datetime(2026, 11, 10, 16, 0)
+        assert ready.approved_by == "integration-admin"
+        assert needs.status == "needs_review"
+        assert needs.approved_by is None
