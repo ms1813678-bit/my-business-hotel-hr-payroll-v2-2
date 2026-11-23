@@ -74,3 +74,9 @@ def test_data_no_translate_preserves_user_content():
     )
     en2 = translate_html(html2, "en")
     assert "كم عدد الموظفين النشطين؟" in en2 and "Assistant" in en2
+
+
+def test_label_prefix_with_known_fallback_suffix_translates_fully():
+    from app.i18n import translate_text
+    assert translate_text("الدقائق المقترحة: غير محسوبة", "en") == "Suggested Minutes: Not Calculated"
+    assert translate_text("الدقائق المقترحة: 320", "en") == "Suggested Minutes: 320"

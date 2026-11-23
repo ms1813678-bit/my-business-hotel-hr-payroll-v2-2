@@ -1,4 +1,5 @@
 import asyncio
+from calendar import monthrange
 import functools
 import hashlib
 import hmac
@@ -1094,7 +1095,8 @@ def security_roster_page(
 ):
     # Item 86: simple list of the confirmed security shifts for the coming
     # week under the upload form; read-only, no workflow change.
-    week_start = date.today()
+    # Established business timezone convention: CAIRO_TZ (as used app-wide).
+    week_start = datetime.now(CAIRO_TZ).date()
     week_end = week_start + timedelta(days=7)
     with SessionLocal() as db:
         upcoming = db.execute(
@@ -3075,15 +3077,29 @@ def reports_page(
         report_type for report_type in REPORT_TYPES
         if report_type in _REPORT_TYPES_BY_ROLE.get(admin.role, set(REPORT_TYPES))
     ]
-    library_cards = [
-        {
+    today = datetime.now(CAIRO_TZ).date()
+    month_start = today.replace(day=1)
+    month_end = today.replace(day=monthrange(today.year, today.month)[1])
+    library_cards = []
+    for report_type in allowed_for_role:
+        if report_type == REPORT_TYPE_COMPREHENSIVE:
+            # No preview exists for the comprehensive report: the card links
+            # the working direct Excel export of this month, labeled as such.
+            run_url = (
+                f"/reports/export.xlsx?report_type={report_type}"
+                f"&start_date={month_start.isoformat()}&end_date={month_end.isoformat()}"
+            )
+            action = "تصدير Excel مباشر"
+        else:
+            run_url = f"/reports/view?report_type={report_type}&period=this_month"
+            action = "توليد التقرير"
+        library_cards.append({
             "type": report_type,
             "label": "مجاميع لكل مكون" if report_type == REPORT_TYPE_PAYROLL else REPORT_TYPE_LABELS[report_type],
             "description": _REPORT_LIBRARY_DESCRIPTIONS.get(report_type, ""),
-            "run_url": f"/reports/view?report_type={report_type}&period=this_month",
-        }
-        for report_type in allowed_for_role
-    ]
+            "run_url": run_url,
+            "action": action,
+        })
     latest_files = _list_latest_report_files()
     return templates.TemplateResponse(
         request=request,
@@ -3150,7 +3166,11 @@ def _list_latest_report_files(limit: int = 10) -> list[dict]:
         # date offsets are safe for a friendly display label.
         files.append({
             "name": entry.name,
-            "kind": "monthly" if "_monthly_" in entry.name else "custom",
+            "kind": (
+                "monthly" if "_monthly_" in entry.name
+                else "custom" if _REPORT_FILE_NAME_RE.match(entry.name)
+                else "legacy"
+            ),
             "start": entry.name[13:23],
             "end": entry.name[24:34],
             "ext": entry.name.rsplit(".", 1)[-1].upper(),

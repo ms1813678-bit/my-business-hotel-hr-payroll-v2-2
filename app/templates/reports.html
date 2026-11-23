@@ -26,7 +26,7 @@
         <strong>{{ card.label }}</strong>
         <p class="muted">{{ card.description }}</p>
       </div>
-      <a class="btn-primary rep-run" href="{{ card.run_url }}">توليد التقرير</a>
+      <a class="btn-primary rep-run" href="{{ card.run_url }}">{{ card.action }}</a>
     </div>
     {% endfor %}
   </div>
@@ -39,7 +39,7 @@
     {% for file in latest_files %}
     <div class="rep-card">
       <div class="rep-card-body">
-        <strong><span>{{ "تقرير شهري" if file.kind == "monthly" else "تقرير مخصص" }}</span> <bdi dir="ltr" class="date-range">{{ file.start }} — {{ file.end }}</bdi> <span dir="ltr">({{ file.ext }})</span></strong>
+        <strong><span>{{ "تقرير شهري" if file.kind == "monthly" else ("تقرير مخصص" if file.kind == "custom" else "تقرير") }}</span> <bdi dir="ltr" class="date-range">{{ file.start }} — {{ file.end }}</bdi> <span dir="ltr">({{ file.ext }})</span></strong>
         <p class="muted">{{ file.modified.strftime('%d/%m/%Y %H:%M') }} · {{ file.size_kb }} <span>ك.ب</span></p>
       </div>
       {% if can_download_files %}<a class="rep-run" href="/reports/files/{{ file.name }}">تنزيل</a>{% endif %}

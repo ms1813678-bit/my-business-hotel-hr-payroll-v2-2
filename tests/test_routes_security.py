@@ -2562,7 +2562,8 @@ def test_security_roster_page_empty_state(client):
     assert login(client).status_code == 303
     page = client.get("/security-roster")
     assert page.status_code == 200
-    assert "لا توجد ورديات معتمدة للأيام السبعة القادمة بعد" in page.text
+    assert "لا توجد ورديات معتمدة في هذه الفترة بعد" in page.text
+    assert "الفترة:" in page.text  # displayed range accompanies the empty state
 
 
 def _seed_bulk_employee(client, db, code, name):
@@ -2724,6 +2725,7 @@ def test_reports_library_cards_latest_files_and_download_guard(client, monkeypat
     assert client.get("/reports/files/evil.pdf").status_code == 404
     assert client.get("/reports/files/..%2F..%2Fetc%2Fpasswd").status_code == 404
 
+
     # The attendance-only assistant role cannot download saved copies.
     from app.main import SessionLocal
     with SessionLocal.begin() as db:
@@ -2767,3 +2769,101 @@ def test_reports_library_cards_latest_files_and_download_guard(client, monkeypat
     assert response.status_code == 303
     assert client.get(f"/reports/files/{saved_name}").status_code == 403
     assert "/reports/files/" not in client.get("/reports").text
+
+
+def test_reports_library_legacy_label_and_comprehensive_export_link(client, monkeypatch, tmp_path):
+    """Item 87 review fixes: pre-kind legacy exports get a generic label (not
+    mislabeled custom), and the comprehensive card links the working direct
+    export instead of a preview URL that cannot render comprehensive."""
+    import re as _re
+    monkeypatch.setattr("app.main.REPORTS_DIR", tmp_path)
+    legacy = "MY_HR_Report_2026-10-01_2026-10-31_all-employees_20261101-120000-123456_abcdef12.pdf"
+    custom = "MY_HR_Report_2026-10-01_2026-10-31_all-employees_20261101-120500-654321_custom_12345678.xlsx"
+    monthly = "MY_HR_Report_2026-10-01_2026-10-31_all-employees_20261101-121000-222222_monthly_87654321.pdf"
+    for name in (legacy, custom, monthly):
+        (tmp_path / name).write_bytes(b"%PDF-1.4 synthetic-test-bytes")
+    assert login(client).status_code == 303
+
+    page = client.get("/reports")
+    assert page.status_code == 200
+    # The legacy file's card shows the generic label; kind-aware files keep theirs.
+    assert _re.search(r'<strong><span>تقرير</span>.*?' + _re.escape(legacy), page.text, _re.S)
+    assert _re.search(r'<strong><span>تقرير مخصص</span>.*?' + _re.escape(custom), page.text, _re.S)
+    assert _re.search(r'<strong><span>تقرير شهري</span>.*?' + _re.escape(monthly), page.text, _re.S)
+
+    # The comprehensive card links the direct Excel export with explicit dates.
+    match = _re.search(
+        r'href="(/reports/export\.xlsx\?report_type=[^"&]+&amp;start_date=\d{4}-\d{2}-01&amp;end_date=\d{4}-\d{2}-\d{2})"',
+        page.text,
+    )
+    assert match, page.text[:200]
+    export = client.get(match.group(1).replace("&amp;", "&"), follow_redirects=False)
+    assert export.status_code == 200
+    assert export.headers["content-type"].startswith(
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+
+    # The other cards still open the preview page with this month's defaults.
+    assert "/reports/view?report_type=payroll&amp;period=this_month" in page.text
+
+
+
+def test_bulk_token_refused_after_record_set_replacement(client):
+    """Restore-shaped case: an equivalent set with different record ids must
+    not match a token issued before the replacement."""
+    import re as _re
+    assert login(client).status_code == 303
+    from sqlalchemy import select, delete
+    from app.main import SessionLocal
+    from app.models import AttendanceDailyRecord
+
+    with SessionLocal.begin() as db:
+        employee = _seed_bulk_employee(client, db, "MY-9994", "Bulk Replace Employee")
+        db.add(AttendanceDailyRecord(
+            employee_id=employee.id, work_date=date(2026, 11, 16),
+            program_clock_in=datetime(2026, 11, 16, 8, 0),
+            program_clock_out=datetime(2026, 11, 16, 16, 0),
+            status="ready_for_review",
+        ))
+        db.flush()
+        emp_id = employee.id
+        db.commit()
+
+    review = client.get("/attendance/review")
+    scope_token = _re.search(r'name="scope_token" value="([0-9a-f]+)"', review.text).group(1)
+    token = csrf_from(review)
+
+    # Simulate a restore: the ready rows are replaced by identical-looking
+    # rows with new ids.
+    with SessionLocal.begin() as db:
+        db.execute(delete(AttendanceDailyRecord).where(
+            AttendanceDailyRecord.employee_id == emp_id,
+            AttendanceDailyRecord.status == "ready_for_review",
+        ))
+        # Keep a permanent non-eligible row so the replacement cannot reuse
+        # the old id (SQLite would otherwise hand out max(id)+1 again).
+        db.add(AttendanceDailyRecord(
+            employee_id=emp_id, work_date=date(2026, 11, 17), status="needs_review",
+        ))
+        db.flush()
+        db.add(AttendanceDailyRecord(
+            employee_id=emp_id, work_date=date(2026, 11, 16),
+            program_clock_in=datetime(2026, 11, 16, 8, 0),
+            program_clock_out=datetime(2026, 11, 16, 16, 0),
+            status="ready_for_review",
+        ))
+        db.commit()
+
+    refused = client.post(
+        "/attendance/approve-all-matching",
+        data={"csrf_token": token, "reason": "مصادر متطابقة", "scope_token": scope_token},
+        follow_redirects=False,
+    )
+    assert refused.status_code == 303
+    assert "bulk_stale=1" in refused.headers["location"]
+    with SessionLocal.begin() as db:
+        remaining = db.scalars(select(AttendanceDailyRecord).where(
+            AttendanceDailyRecord.employee_id == emp_id,
+            AttendanceDailyRecord.status == "ready_for_review",
+        )).all()
+        assert len(remaining) == 1

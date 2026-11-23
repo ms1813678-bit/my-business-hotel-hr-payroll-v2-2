@@ -13,7 +13,7 @@
 <div class="table-wrap"><table><thead><tr><th>الموظف</th><th>الكود</th><th>الوردية</th><th>من</th><th>إلى</th></tr></thead><tbody>
 {% for row in day.rows %}<tr><td>{{ row.employee_name }}</td><td>{{ row.employee_code }}</td><td>{{ row.pattern_name }}</td><td>{{ row.start_time.strftime("%H:%M") }}</td><td>{{ row.end_time.strftime("%H:%M") }}</td></tr>{% endfor %}
 </tbody></table></div></article>{% endfor %}</section>
-{% elif upcoming_days is defined and upcoming_days is not none %}<section class="notice"><h2>الورديات القادمة</h2><p>لا توجد ورديات معتمدة للأيام السبعة القادمة بعد. ارفع جدول Excel من الأعلى لإضافتها.</p></section>{% endif %}
+{% elif upcoming_days is defined and upcoming_days is not none %}<section class="notice"><h2>الورديات القادمة</h2><p><span>الفترة:</span> {{ week_start|fmt_d }} — {{ week_end|fmt_d }}</p><p>لا توجد ورديات معتمدة في هذه الفترة بعد. ارفع جدول Excel من الأعلى لإضافتها.</p></section>{% endif %}
 {% if issues %}<section class="notice"><h2>ملاحظات الاستيراد</h2><ul>{% for issue in issues %}<li><span>صف</span> {{ issue.row if issue.row is defined else "غير محدد" }} — {{ issue.reason }} {% if issue.date is defined %}({{ issue.date }}){% endif %}</li>{% endfor %}</ul></section>{% endif %}
 {% if days %}<section><h2>مراجعة الأيام</h2><p>كل يوم يُراجع ويُعتمد منفصلًا.</p>
 {% for day in days %}<article class="tile notice"><h3>{{ day.work_date|fmt_d }}</h3>

@@ -2209,7 +2209,13 @@ def _translate_value(value: str, language: str) -> str:
         # Translate a known static label at the start, preserving dynamic suffixes and values.
         for source in sorted(table, key=len, reverse=True):
             if source.endswith(":") and core.startswith(source + " "):
-                translated = table[source] + core[len(source):]
+                suffix = core[len(source):]
+                # A dynamic suffix stays as-is; a known static fallback (e.g.
+                # "غير محسوبة" after "الدقائق المقترحة:") is itself translated.
+                suffix_translation = table.get(suffix.strip())
+                if suffix_translation is not None:
+                    suffix = " " + suffix_translation
+                translated = table[source] + suffix
                 break
     if translated is None:
         return value
@@ -3936,14 +3942,14 @@ ZH.update({
 # Item 86: security roster upcoming-week list
 EN.update({
     "الورديات القادمة": "Upcoming shifts",
-    "لا توجد ورديات معتمدة للأيام السبعة القادمة بعد. ارفع جدول Excel من الأعلى لإضافتها.": "No approved shifts for the next seven days yet. Upload an Excel roster above to add them.",
+    "لا توجد ورديات معتمدة في هذه الفترة بعد. ارفع جدول Excel من الأعلى لإضافتها.": "No approved shifts in this period yet. Upload an Excel roster above to add them.",
     "العدد:": "Count:",
     "(قراءة فقط)": "(read-only)",
     "الوردية": "Shift",
 })
 ZH.update({
     "الورديات القادمة": "即将到来的班次",
-    "لا توجد ورديات معتمدة للأيام السبعة القادمة بعد. ارفع جدول Excel من الأعلى لإضافتها.": "未来七天暂无已批准的班次。请在上方上传 Excel 排班表以添加。",
+    "لا توجد ورديات معتمدة في هذه الفترة بعد. ارفع جدول Excel من الأعلى لإضافتها.": "该期间暂无已批准的班次。请在上方上传 Excel 排班表以添加。",
     "العدد:": "数量：",
     "(قراءة فقط)": "（只读）",
     "الوردية": "班次",
