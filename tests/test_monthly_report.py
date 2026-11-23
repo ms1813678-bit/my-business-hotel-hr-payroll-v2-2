@@ -446,3 +446,53 @@ def test_leave_aggregate_cross_month_clipped_charged_once(db_session):
     assert sep == [{"leave_type": "سنوية", "count": 1, "days": Decimal(3), "charged": Decimal(5)}]
     oct_rows = _monthly_leave_aggregate(db_session, date(2026, 10, 1), date(2026, 10, 31))
     assert oct_rows == [{"leave_type": "سنوية", "count": 1, "days": Decimal(3), "charged": Decimal(0)}]
+
+
+def test_leave_detail_cross_month_clipped_consistent_with_aggregate(db_session):
+    """Monthly leave DETAIL must match the aggregate policy (peer finding):
+    a leave 28/09-03/10 shows 3 days + charged 5 in Sep and 3 days + charged 0
+    in Oct per employee row and totals, not the full 6/5 in both months.
+    The custom report (default flag) keeps the full record values."""
+    from app.models import LeaveRecord, LeaveType
+    from app.report_builder import REPORT_TYPE_LEAVE, _monthly_leave_aggregate
+
+    leave_type = LeaveType(code="ANNUAL", name_ar="سنوية", name_en="Annual")
+    db_session.add(leave_type)
+    db_session.flush()
+    emp = db_session.scalars(select(Employee).where(Employee.code == "MY-M1")).one()
+    db_session.add(LeaveRecord(employee_id=emp.id, leave_type_id=leave_type.id,
+                               start_date=date(2026, 9, 28), end_date=date(2026, 10, 3),
+                               calendar_days=6, charged_days=Decimal("5"), status="confirmed",
+                               reason="اختبار", created_by="test"))
+    db_session.commit()
+
+    def detail(month_start, month_end, clipping):
+        result = build_report(db_session, ReportSelection(
+            report_type=REPORT_TYPE_LEAVE,
+            start_date=month_start, end_date=month_end,
+            period_choice="custom", monthly_leave_clipping=clipping,
+        ))
+        rows = [r for g in result.groups for r in g["rows"] if r["employee_id"] == emp.id]
+        assert len(rows) == 1
+        return rows[0], result.totals
+
+    sep_row, sep_totals = detail(date(2026, 9, 1), date(2026, 9, 30), True)
+    assert sep_row["calendar_days"] == 3 and sep_row["charged_days"] == Decimal("5")
+    assert sep_row["leave_start"] == "28/09/2026" and sep_row["leave_end"] == "03/10/2026"
+    assert sep_totals["calendar_days"] == 3 and sep_totals["charged_days"] == 5.0
+
+    oct_row, oct_totals = detail(date(2026, 10, 1), date(2026, 10, 31), True)
+    assert oct_row["calendar_days"] == 3 and oct_row["charged_days"] == 0
+    assert oct_row["leave_start"] == "28/09/2026" and oct_row["leave_end"] == "03/10/2026"
+    assert oct_totals["calendar_days"] == 3 and oct_totals["charged_days"] == 0.0
+
+    # Detail and aggregate now agree for both months.
+    sep_agg = _monthly_leave_aggregate(db_session, date(2026, 9, 1), date(2026, 9, 30))
+    oct_agg = _monthly_leave_aggregate(db_session, date(2026, 10, 1), date(2026, 10, 31))
+    assert (sep_agg[0]["days"], sep_agg[0]["charged"]) == (Decimal(3), Decimal(5))
+    assert (oct_agg[0]["days"], oct_agg[0]["charged"]) == (Decimal(3), Decimal(0))
+
+    # Custom report unchanged: full record values, no clipping.
+    custom_row, custom_totals = detail(date(2026, 9, 1), date(2026, 9, 30), False)
+    assert custom_row["calendar_days"] == 6 and custom_row["charged_days"] == Decimal("5")
+    assert custom_totals["calendar_days"] == 6

@@ -166,6 +166,11 @@ class ReportSelection:
     # sections show approved data only, so summary, details and charts agree.
     # Custom reports keep the default False and are unchanged.
     approved_only: bool = False
+    # Monthly-PDF only (owner decision 2026-11-23): a leave spanning months
+    # shows each month's own calendar days in that month, and charged days
+    # count once in the month the leave starts. Custom reports keep the
+    # default False and are unchanged.
+    monthly_leave_clipping: bool = False
     fields: set[str] = field(default_factory=lambda: set(DEFAULT_FIELDS))
 
     def to_config(self) -> dict:
@@ -818,12 +823,26 @@ def _build_leave_result(db: Session, selection: ReportSelection, start: date, en
     )
     leave_types = {item.id: item.name_ar for item in db.scalars(select(LeaveType)).all()}
     employee_columns = [key for key, _, _ in _ordered_columns(selection, ["employee"])]
+    if selection.monthly_leave_clipping:
+        # Original start/end stay as context; the day columns reflect this
+        # month only so per-employee detail matches the aggregate totals.
+        clipped_days = {
+            r.id: (min(r.end_date, end) - max(r.start_date, start)).days + 1
+            for r in records
+        }
+        charged_here = {
+            r.id: (r.charged_days if r.start_date >= start else 0)
+            for r in records
+        }
+    else:
+        clipped_days = {r.id: r.calendar_days for r in records}
+        charged_here = {r.id: r.charged_days for r in records}
     record_columns = [
         ("leave_type", lambda r: leave_types.get(r.leave_type_id, "—")),
         ("leave_start", lambda r: r.start_date.strftime("%d/%m/%Y")),
         ("leave_end", lambda r: r.end_date.strftime("%d/%m/%Y")),
-        ("calendar_days", lambda r: r.calendar_days),
-        ("charged_days", lambda r: r.charged_days),
+        ("calendar_days", lambda r: clipped_days[r.id]),
+        ("charged_days", lambda r: charged_here[r.id]),
         ("status", lambda r: LEAVE_STATUS_LABELS.get(r.status, r.status)),
     ]
     columns = [(k, FIELD_LABELS[k], False) for k in employee_columns] + [
@@ -838,7 +857,7 @@ def _build_leave_result(db: Session, selection: ReportSelection, start: date, en
     summary = [
         ("عدد الإجازات", len(rows)),
         ("مؤكدة", sum(1 for r in records if r.status == "confirmed")),
-        ("إجمالي الأيام", sum(r.calendar_days for r in records)),
+        ("إجمالي الأيام", sum(clipped_days[r.id] for r in records)),
     ]
     return ReportResult(
         report_type=selection.report_type,
@@ -849,7 +868,7 @@ def _build_leave_result(db: Session, selection: ReportSelection, start: date, en
         scope_label="", status_label="", employee_count=len({r.employee_id for r in records}),
         columns=columns,
         groups=_group_rows(rows, employee_map),
-        totals={"calendar_days": sum(r.calendar_days for r in records), "charged_days": sum(float(r.charged_days) for r in records)},
+        totals={"calendar_days": sum(clipped_days[r.id] for r in records), "charged_days": sum(float(charged_here[r.id] or 0) for r in records)},
         summary=summary,
         comparison=None,
         warnings=[],
@@ -1691,7 +1710,7 @@ def build_monthly_pdf(db: Session, month_start: date, options: set[int], languag
     grouped = 11 in options
     first_section = True
 
-    def render_result(result, approved_note: bool = False):
+    def render_result(result, approved_note: bool = False, extra_note: str | None = None):
         nonlocal first_section
         if not first_section:
             story.append(PageBreak())
@@ -1700,6 +1719,8 @@ def build_monthly_pdf(db: Session, month_start: date, options: set[int], languag
         story.append(Paragraph(cell_(f"{L(result.period_label)} · {L(result.scope_label)} · {L(result.status_label)} · {result.employee_count} {L('موظف')}"), meta_style))
         if approved_note:
             story.append(Paragraph(cell_(L("يعرض المعتمد فقط")), meta_style))
+        if extra_note:
+            story.append(Paragraph(cell_(L(extra_note)), meta_style))
         story.append(Spacer(1, 2 * mm))
         groups = result.groups if grouped else _flatten_groups(result.groups)
         column_count = max(1, len(result.columns))
@@ -1904,7 +1925,11 @@ def build_monthly_pdf(db: Session, month_start: date, options: set[int], languag
         else:
             selection.fields = {"emp_name", "emp_code", "emp_department"}
         approved_note = MONTHLY_OPTION_TYPE[option] in (REPORT_TYPE_PAYROLL, REPORT_TYPE_ATTENDANCE)
-        render_result(build_report(db, selection), approved_note=approved_note)
+        extra_note = None
+        if MONTHLY_OPTION_TYPE[option] == REPORT_TYPE_LEAVE:
+            selection.monthly_leave_clipping = True
+            extra_note = "أيام كل شهر تُعرض في شهرها، وأيام الخصم تُحسب مرة واحدة في شهر بداية الإجازة"
+        render_result(build_report(db, selection), approved_note=approved_note, extra_note=extra_note)
 
     story.append(Spacer(1, 10 * mm))
     signature_rows = [[
