@@ -3935,14 +3935,14 @@ ZH.update({
 
 # Item 86: security roster upcoming-week list
 EN.update({
-    "ورديات هذا الأسبوع": "This week's shifts",
+    "الورديات القادمة": "Upcoming shifts",
     "لا توجد ورديات معتمدة للأيام السبعة القادمة بعد. ارفع جدول Excel من الأعلى لإضافتها.": "No approved shifts for the next seven days yet. Upload an Excel roster above to add them.",
     "العدد:": "Count:",
     "(قراءة فقط)": "(read-only)",
     "الوردية": "Shift",
 })
 ZH.update({
-    "ورديات هذا الأسبوع": "本周班次",
+    "الورديات القادمة": "即将到来的班次",
     "لا توجد ورديات معتمدة للأيام السبعة القادمة بعد. ارفع جدول Excel من الأعلى لإضافتها.": "未来七天暂无已批准的班次。请在上方上传 Excel 排班表以添加。",
     "العدد:": "数量：",
     "(قراءة فقط)": "（只读）",
@@ -3979,5 +3979,5 @@ ZH.update({
     "ك.ب": "KB",
 })
 
-EN.update({"تقرير": "Report"})
-ZH.update({"تقرير": "报表"})
+EN.update({"تقرير": "Report", "تقرير مخصص": "Custom report", "تقرير شهري": "Monthly report"})
+ZH.update({"تقرير": "报表", "تقرير مخصص": "自定义报表", "تقرير شهري": "月度报表"})

@@ -2552,7 +2552,7 @@ def test_security_roster_page_lists_upcoming_assignments(client):
     assert login(client).status_code == 303
     page = client.get("/security-roster")
     assert page.status_code == 200
-    assert "ورديات هذا الأسبوع" in page.text
+    assert "الورديات القادمة" in page.text
     assert "العدد:</span> 1" in page.text
     assert "Roster Listed Guard" in page.text
     assert "Morning R4" in page.text
@@ -2745,3 +2745,24 @@ def test_reports_library_cards_latest_files_and_download_guard(client, monkeypat
     library = client.get("/reports")
     assert library.status_code == 200
     assert "/reports/files/" not in library.text  # no download links rendered
+
+    # Finance (restricted report scope) is refused too: copies may carry
+    # sections from the generator's wider scope.
+    with SessionLocal.begin() as db:
+        db.add(AdminAccount(
+            username="reports-finance",
+            password_hash=hash_password("Finance-Test-Password-123!"),
+            role="finance",
+            active=True,
+        ))
+        db.commit()
+    client.post("/logout", data={"csrf_token": csrf_from(client.get("/reports"))}, follow_redirects=False)
+    page = client.get("/login")
+    response = client.post("/login", data={
+        "username": "reports-finance",
+        "password": "Finance-Test-Password-123!",
+        "csrf_token": csrf_from(page),
+    }, follow_redirects=False)
+    assert response.status_code == 303
+    assert client.get(f"/reports/files/{saved_name}").status_code == 403
+    assert "/reports/files/" not in client.get("/reports").text

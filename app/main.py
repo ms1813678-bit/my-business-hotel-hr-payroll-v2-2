@@ -155,9 +155,11 @@ SECURITY_ROSTER_CLEANUP_INTERVAL_SECONDS = 5 * 60
 REPORTS_DIR = Path("var") / "reports"
 
 
-def _save_report_copy(content: bytes, extension: str, start_date: date, end_date: date, employee_id: int | None = None) -> Path:
-    """Save a user-requested report locally without replacing an earlier export."""
-    if extension not in {"xlsx", "pdf"} or not isinstance(content, bytes) or not content:
+def _save_report_copy(content: bytes, extension: str, start_date: date, end_date: date, employee_id: int | None = None, kind: str = "custom") -> Path:
+    """Save a user-requested report locally without replacing an earlier export.
+    kind is real save-time metadata (custom builder vs monthly ready report)
+    recorded in the filename so the library's latest-files list can label it."""
+    if extension not in {"xlsx", "pdf"} or not isinstance(content, bytes) or not content or kind not in {"custom", "monthly"}:
         raise ValueError("invalid_report_export")
     destination = None
     try:
@@ -168,7 +170,7 @@ def _save_report_copy(content: bytes, extension: str, start_date: date, end_date
             pass
         employee_part = f"employee-{employee_id}" if employee_id is not None else "all-employees"
         stamp = datetime.now().strftime("%Y%m%d-%H%M%S-%f")
-        filename = f"MY_HR_Report_{start_date.isoformat()}_{end_date.isoformat()}_{employee_part}_{stamp}_{uuid4().hex[:8]}.{extension}"
+        filename = f"MY_HR_Report_{start_date.isoformat()}_{end_date.isoformat()}_{employee_part}_{stamp}_{kind}_{uuid4().hex[:8]}.{extension}"
         destination = REPORTS_DIR / filename
         with destination.open("xb") as report_file:
             report_file.write(content)
@@ -3109,7 +3111,7 @@ def reports_page(
             "deleted": params.get("deleted"),
             "library_cards": library_cards,
             "latest_files": latest_files,
-            "can_download_files": admin.role != ROLE_ASSISTANT,
+            "can_download_files": admin.role not in _REPORT_TYPES_BY_ROLE,
         },
     )
 
@@ -3131,7 +3133,9 @@ def _list_latest_report_files(limit: int = 10) -> list[dict]:
     try:
         entries = [
             entry for entry in REPORTS_DIR.iterdir()
-            if entry.is_file() and _REPORT_FILE_NAME_RE.match(entry.name)
+            if entry.is_file() and (
+                _REPORT_FILE_NAME_RE.match(entry.name) or _REPORT_FILE_NAME_LEGACY_RE.match(entry.name)
+            )
         ]
     except OSError:
         return []
@@ -3146,6 +3150,7 @@ def _list_latest_report_files(limit: int = 10) -> list[dict]:
         # date offsets are safe for a friendly display label.
         files.append({
             "name": entry.name,
+            "kind": "monthly" if "_monthly_" in entry.name else "custom",
             "start": entry.name[13:23],
             "end": entry.name[24:34],
             "ext": entry.name.rsplit(".", 1)[-1].upper(),
@@ -3156,6 +3161,11 @@ def _list_latest_report_files(limit: int = 10) -> list[dict]:
 
 
 _REPORT_FILE_NAME_RE = re.compile(
+    r"^MY_HR_Report_\d{4}-\d{2}-\d{2}_\d{4}-\d{2}-\d{2}_(employee-\d+|all-employees)_\d{8}-\d{6}-\d+_(custom|monthly)_?[0-9a-f]{8}\.(xlsx|pdf)$"
+)
+# Pre-kind filenames (before the kind segment existed) are still listed and
+# downloadable; they just carry a generic label.
+_REPORT_FILE_NAME_LEGACY_RE = re.compile(
     r"^MY_HR_Report_\d{4}-\d{2}-\d{2}_\d{4}-\d{2}-\d{2}_(employee-\d+|all-employees)_\d{8}-\d{6}-\d+_[0-9a-f]{8}\.(xlsx|pdf)$"
 )
 
@@ -3166,12 +3176,13 @@ def reports_download_saved_file(
     admin: AdminAccount = Depends(get_current_admin),
 ):
     """Item 87: download a saved export copy from the latest-files list.
-    Copies may carry any section the generator's role allowed, so the
-    attendance-only assistant role is excluded; the name pattern and path
-    containment check block traversal."""
-    if admin.role == ROLE_ASSISTANT:
+    A copy may carry any section the generator's role allowed, so only roles
+    with unrestricted report access may download: a restricted role (finance,
+    assistant_manager) could otherwise read sections outside its scope. The
+    name pattern and path containment check block traversal."""
+    if admin.role in _REPORT_TYPES_BY_ROLE:
         raise HTTPException(status_code=403, detail="هذا الجزء غير متاح لصلاحية حسابك.")
-    if not _REPORT_FILE_NAME_RE.match(filename):
+    if not (_REPORT_FILE_NAME_RE.match(filename) or _REPORT_FILE_NAME_LEGACY_RE.match(filename)):
         raise HTTPException(status_code=404, detail="الملف غير موجود.")
     path = (REPORTS_DIR / filename).resolve()
     if REPORTS_DIR.resolve() not in path.parents or not path.is_file():
@@ -3427,7 +3438,7 @@ def reports_monthly_pdf(
     except SQLAlchemyError:
         raise HTTPException(status_code=503, detail="تعذر إنشاء التقرير بسبب خطأ في قاعدة البيانات.")
     month_end = date(month_start.year + (month_start.month == 12), month_start.month % 12 + 1, 1) - timedelta(days=1)
-    _save_report_copy(content, "pdf", month_start, month_end)
+    _save_report_copy(content, "pdf", month_start, month_end, kind="monthly")
     filename = f"MY_HR_Monthly_{month_start.strftime('%Y-%m')}.pdf"
     from urllib.parse import quote
     return Response(
