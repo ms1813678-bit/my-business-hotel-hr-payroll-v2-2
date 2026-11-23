@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import hashlib
+import hmac
 import json
 from datetime import date, datetime, timedelta, timezone
 from sqlalchemy import func, or_, select
@@ -783,12 +784,51 @@ def suggested_clock_pair(record):
     return suggested_in, suggested_out
 
 
-def approve_all_matching_attendance(db, *, actor: str, reason: str):
+class BulkScopeMismatch(ValueError):
+    """The ready-for-review set changed between the review page render and
+    the bulk approval submission, so the reviewer would approve times they
+    never saw. The whole bulk action is refused and must be re-reviewed."""
+
+
+def _bulk_scope_lines(pairs):
+    return "\n".join(
+        f"{record.id}|{clock_in.isoformat()}|{clock_out.isoformat()}"
+        for record, clock_in, clock_out in pairs
+    )
+
+
+def bulk_approval_scope(db):
+    """Item 52: the exact set the bulk 'approve all matching' action commits:
+    every ready_for_review record with a complete suggested pair, in display
+    order, with the pair the reviewer sees. Returns (pairs, token) where
+    pairs is a list of (record, suggested_in, suggested_out) and token is a
+    digest of the set; the review page renders the full list next to the
+    bulk button and the POST re-derives it inside the locked approval
+    transaction, refusing the action when it no longer matches."""
+    records = db.scalars(
+        select(AttendanceDailyRecord)
+        .where(AttendanceDailyRecord.status == "ready_for_review")
+        .order_by(AttendanceDailyRecord.work_date, AttendanceDailyRecord.id)
+    ).all()
+    pairs = []
+    for record in records:
+        clock_in, clock_out = suggested_clock_pair(record)
+        if clock_in is None or clock_out is None or clock_out <= clock_in:
+            continue
+        pairs.append((record, clock_in, clock_out))
+    token = hashlib.sha256(_bulk_scope_lines(pairs).encode("utf-8")).hexdigest()
+    return pairs, token
+
+
+def approve_all_matching_attendance(db, *, actor: str, reason: str, scope_token: str | None = None):
     """Item 52: approve every pending record whose reconciliation found no
     issues (status ready_for_review) with its displayed suggested times.
     Records with issues (needs_review) or without a complete suggested pair
     are never touched; each approval keeps its own per-record audit entry,
-    and one summary entry records the bulk action itself."""
+    and one summary entry records the bulk action itself. When scope_token
+    is given, the locked eligible set is digested before any write and a
+    mismatch refuses the whole action, so only the exact times the reviewer
+    saw listed are ever approved."""
     if not actor or not actor.strip():
         raise ValueError("attendance_approving_admin_required")
     if not reason or not reason.strip():
@@ -799,13 +839,20 @@ def approve_all_matching_attendance(db, *, actor: str, reason: str):
         .order_by(AttendanceDailyRecord.work_date, AttendanceDailyRecord.id)
         .with_for_update()
     ).all()
-    approved = 0
+    pairs = []
     skipped = []
     for record in records:
         clock_in, clock_out = suggested_clock_pair(record)
         if clock_in is None or clock_out is None or clock_out <= clock_in:
             skipped.append(record.id)
             continue
+        pairs.append((record, clock_in, clock_out))
+    if scope_token is not None:
+        digest = hashlib.sha256(_bulk_scope_lines(pairs).encode("utf-8")).hexdigest()
+        if not hmac.compare_digest(scope_token.strip(), digest):
+            raise BulkScopeMismatch("attendance_bulk_scope_changed")
+    approved = 0
+    for record, clock_in, clock_out in pairs:
         approve_attendance_day(
             db, record_id=record.id, clock_in=clock_in,
             clock_out=clock_out, actor=actor, reason=reason,

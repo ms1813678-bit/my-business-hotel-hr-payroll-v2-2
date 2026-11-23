@@ -62,13 +62,35 @@
       {% if bulk_approved is not none %}
       <p class="success-note"><span>تم اعتماد</span> {{ bulk_approved }} <span>سجلًا جاهزًا</span>{% if bulk_skipped and bulk_skipped != '0' %} <span>وتخطي</span> {{ bulk_skipped }} <span>بدون أوقات مكتملة</span>{% endif %}.</p>
       {% endif %}
+      {% if bulk_stale %}
+      <p class="error">تغيّرت السجلات الجاهزة أو أوقاتها المقترحة بعد عرض هذه الصفحة، فلم يُعتمد أي سجل. راجع القائمة والأوقات من جديد ثم أعد المحاولة.</p>
+      {% endif %}
       {% if request.state.admin_role != 'finance' and matching_count %}
       <form method="post" action="/attendance/approve-all-matching" class="inline-form">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <input type="hidden" name="scope_token" value="{{ bulk_scope_token }}">
         <input name="reason" required minlength="3" maxlength="500" placeholder="سبب اعتماد كل المطابق">
         <button type="submit" class="btn-primary"><span>اعتماد كل المطابق</span> ({{ matching_count }})</button>
       </form>
-      <p class="muted small">يعتمد الزر السجلات «الجاهزة للاعتماد» فقط، بالأوقات المقترحة المعروضة لكل سجل، ولا يغيّر السجلات التي تحتاج مراجعة. كل يوم يُسجَّل في سجل المراجعة باسمك وبالسبب نفسه.</p>
+      <p class="muted small">يعتمد الزر <strong>كل</strong> السجلات «الجاهزة للاعتماد» ذات الأوقات المكتملة في النظام كله — وليس المعروضة في هذه الصفحة فقط — بالأوقات المقترحة المذكورة في القائمة التالية، ولا يغيّر السجلات التي تحتاج مراجعة. إن تغيّر أي سجل قبل الضغط يُرفض الاعتماد كاملًا وتُطلب مراجعة جديدة. كل يوم يُسجَّل في سجل المراجعة باسمك وبالسبب نفسه.</p>
+      <details class="bulk-scope">
+        <summary><span>السجلات التي سيعتمدها الزر</span> ({{ matching_count }}) — <span>راجعها قبل الاعتماد</span></summary>
+        <div class="table-scroll">
+        <table class="data-table">
+          <thead><tr><th>الموظف</th><th>تاريخ العمل</th><th><span>دخول</span></th><th><span>خروج</span></th></tr></thead>
+          <tbody>
+          {% for row in bulk_rows %}
+          <tr>
+            <td><strong>{{ row.employee }}</strong> <span class="muted small">{{ row.employee_code }}</span></td>
+            <td>{{ row.work_date|fmt_d }}</td>
+            <td><bdi>{{ row.suggested_clock_in|fmt_dt }}</bdi></td>
+            <td><bdi>{{ row.suggested_clock_out|fmt_dt }}</bdi></td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+        </div>
+      </details>
       {% endif %}
       <div class="table-scroll">
       <table class="data-table responsive-cards review-table">
@@ -82,9 +104,12 @@
           <td data-label="خروج"><bdi>{{ (record.suggested_clock_out or "غير موجود")|fmt_dt }}</bdi></td>
           <td data-label="الحالة"><span class="badge {{ 'badge-success' if record.status == 'ready_for_review' else 'badge-warning' }}">{{ record.status|status_label }}</span></td>
           <td data-label="مراجعة">
-            <details class="review-detail">
-              <summary>التفاصيل والاعتماد</summary>
-              <div class="review-detail-body">
+            <label class="detail-toggle" for="dt-{{ record.id }}"><input type="checkbox" id="dt-{{ record.id }}" class="row-toggle">التفاصيل والاعتماد</label>
+          </td>
+        </tr>
+        <tr class="review-detail-row">
+          <td colspan="6">
+            <div class="review-detail-body">
       <p><span>تاريخ العمل:</span> {{ record.work_date|fmt_d }} | <span>الحالة:</span> {{ record.status|status_label }}</p>
       <p><span>الوردية:</span> {{ (record.scheduled_start_at or "غير محددة")|fmt_dt }} <span>إلى</span> {{ (record.scheduled_end_at or "غير محددة")|fmt_dt }}</p>
       <p><span>تقرير البرنامج:</span> <span>دخول</span> {{ (record.program_clock_in or "غير موجود")|fmt_dt }} <span>—</span> <span>خروج</span> {{ (record.program_clock_out or "غير موجود")|fmt_dt }}</p>
@@ -110,8 +135,7 @@
         <button type="submit">اعتماد هذا اليوم</button>
       </form>
       {% endif %}
-              </div>
-            </details>
+            </div>
           </td>
         </tr>
         {% endfor %}

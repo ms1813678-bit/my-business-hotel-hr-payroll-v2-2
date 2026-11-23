@@ -3918,3 +3918,33 @@ ZH.update({
 # Item 54: sidebar session group
 EN.update({"الجلسة": "Session"})
 ZH.update({"الجلسة": "会话"})
+
+# Items 51/52 follow-up: bulk scope inspector + stale-scope message
+EN.update({
+    "يعتمد الزر كل السجلات «الجاهزة للاعتماد» ذات الأوقات المكتملة في النظام كله — وليس المعروضة في هذه الصفحة فقط — بالأوقات المقترحة المذكورة في القائمة التالية، ولا يغيّر السجلات التي تحتاج مراجعة. إن تغيّر أي سجل قبل الضغط يُرفض الاعتماد كاملًا وتُطلب مراجعة جديدة. كل يوم يُسجَّل في سجل المراجعة باسمك وبالسبب نفسه.": "The button approves ALL ready-for-review records with complete times across the whole system — not only the ones shown on this page — using the suggested times listed below, and does not change records that need review. If any record changes before you press it, the approval is refused entirely and a fresh review is required. Each day is recorded in the audit log under your name with the same reason.",
+    "تغيّرت السجلات الجاهزة أو أوقاتها المقترحة بعد عرض هذه الصفحة، فلم يُعتمد أي سجل. راجع القائمة والأوقات من جديد ثم أعد المحاولة.": "The ready records or their suggested times changed after this page was displayed, so nothing was approved. Review the list and times again, then retry.",
+    "السجلات التي سيعتمدها الزر": "Records the button will approve",
+    "راجعها قبل الاعتماد": "review them before approving",
+})
+ZH.update({
+    "يعتمد الزر كل السجلات «الجاهزة للاعتماد» ذات الأوقات المكتملة في النظام كله — وليس المعروضة في هذه الصفحة فقط — بالأوقات المقترحة المذكورة في القائمة التالية، ولا يغيّر السجلات التي تحتاج مراجعة. إن تغيّر أي سجل قبل الضغط يُرفض الاعتماد كاملًا وتُطلب مراجعة جديدة. كل يوم يُسجَّل في سجل المراجعة باسمك وبالسبب نفسه.": "该按钮将批准整个系统中所有时间完整的“待批准”记录——不仅仅是本页显示的记录——使用下列提议时间，不会更改需要审核的记录。如果在您点击之前任何记录发生变化，整个批准将被拒绝，需要重新审核。每一天都会以您的姓名和相同原因记录在审计日志中。",
+    "تغيّرت السجلات الجاهزة أو أوقاتها المقترحة بعد عرض هذه الصفحة، فلم يُعتمد أي سجل. راجع القائمة والأوقات من جديد ثم أعد المحاولة.": "显示此页面后，待批准记录或其提议时间已发生变化，因此未批准任何记录。请重新查看列表和时间后重试。",
+    "السجلات التي سيعتمدها الزر": "该按钮将批准的记录",
+    "راجعها قبل الاعتماد": "批准前请查看",
+})
+
+# Item 86: security roster upcoming-week list
+EN.update({
+    "ورديات هذا الأسبوع": "This week's shifts",
+    "لا توجد ورديات معتمدة للأيام السبعة القادمة بعد. ارفع جدول Excel من الأعلى لإضافتها.": "No approved shifts for the next seven days yet. Upload an Excel roster above to add them.",
+    "العدد:": "Count:",
+    "(قراءة فقط)": "(read-only)",
+    "الوردية": "Shift",
+})
+ZH.update({
+    "ورديات هذا الأسبوع": "本周班次",
+    "لا توجد ورديات معتمدة للأيام السبعة القادمة بعد. ارفع جدول Excel من الأعلى لإضافتها.": "未来七天暂无已批准的班次。请在上方上传 Excel 排班表以添加。",
+    "العدد:": "数量：",
+    "(قراءة فقط)": "（只读）",
+    "الوردية": "班次",
+})

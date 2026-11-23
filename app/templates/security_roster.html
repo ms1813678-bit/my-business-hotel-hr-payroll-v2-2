@@ -8,7 +8,7 @@
 <section class="notice"><h2>رفع ملف Excel</h2><p>ارفع ملف .xlsx يحتوي على التاريخ وأسماء موظفي الأمن المسجلين. اكتب وقت بداية الوردية أو OFF. المعاينة لا تحفظ أي ورديات.</p>
 {% if request.state.admin_role != 'finance' %}<form method="post" action="/security-roster/preview" enctype="multipart/form-data"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><span class="file-picker"><input id="roster-file" class="file-picker-input" type="file" name="file" accept=".xlsx" required><label for="roster-file" class="file-picker-btn">اختر الملف</label><span class="file-picker-name">لم يُختر ملف بعد</span></span><button type="submit">رفع ومعاينة</button></form>{% endif %}
 {% if filename %}<p>{{ filename }}</p>{% endif %}</section>
-{% if upcoming_days %}<section><h2>ورديات هذا الأسبوع ({{ upcoming_count }})</h2><p>الفترة: {{ week_start|fmt_d }} — {{ week_end|fmt_d }} (قراءة فقط)</p>
+{% if upcoming_days %}<section><h2>ورديات هذا الأسبوع</h2><p><span>الفترة:</span> {{ week_start|fmt_d }} — {{ week_end|fmt_d }} | <span>العدد:</span> {{ upcoming_count }} | <span>(قراءة فقط)</span></p>
 {% for day in upcoming_days %}<article class="tile notice"><h3>{{ day.work_date|fmt_d }}</h3>
 <div class="table-wrap"><table><thead><tr><th>الموظف</th><th>الكود</th><th>الوردية</th><th>من</th><th>إلى</th></tr></thead><tbody>
 {% for row in day.rows %}<tr><td>{{ row.employee_name }}</td><td>{{ row.employee_code }}</td><td>{{ row.pattern_name }}</td><td>{{ row.start_time.strftime("%H:%M") }}</td><td>{{ row.end_time.strftime("%H:%M") }}</td></tr>{% endfor %}

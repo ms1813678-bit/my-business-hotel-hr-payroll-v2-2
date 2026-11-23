@@ -140,7 +140,7 @@ from app.payroll_workflow import (
 from app.models import AdvanceRequest, BackupRun, SystemSetting, StaffAction, PayrollRun, PayrollItem, PayrollPayment, AdminAccount, AttendanceDailyRecord, AttendanceImportBatch, AttendanceImportIssue, AttendancePunch, AttendanceMonth, AuditLog, Branch, RecoveryCode, AdminSession, Department, Employee, EmployeeChange, EmployeeDataChangeRequest, EmployeeServicePeriod, LeaveBalanceTransaction, LeaveRecord, LeaveType, SecurityShiftAssignment, ShiftPattern
 from app.security_roster_import import parse_security_roster_xlsx
 from app.attendance_import import parse_attendance_workbook, normalize as normalize_attendance_alias
-from app.attendance_workflow import persist_attendance_import, prepare_and_persist_monthly_reconciliation, approve_attendance_day, approve_attendance_month, approve_all_matching_attendance, suggested_clock_pair, add_manual_attendance, resolve_unknown_attendance_employee, summarize_attendance_month_coverage
+from app.attendance_workflow import persist_attendance_import, prepare_and_persist_monthly_reconciliation, approve_attendance_day, approve_attendance_month, approve_all_matching_attendance, bulk_approval_scope, BulkScopeMismatch, suggested_clock_pair, add_manual_attendance, resolve_unknown_attendance_employee, summarize_attendance_month_coverage
 from app.security_roster_workflow import prepare_security_roster, confirm_security_roster_day
 from app.ai_assistant import ask_local_model, local_fallback_answer, local_model_status
 from app.ai_agent import is_command_request
@@ -1540,6 +1540,25 @@ def attendance_review_page(
                 "status": record.status, "review_notes": record.review_notes,
                 "review_notes_display": _attendance_notes_display(record.review_notes, request.state.language),
             })
+        # Item 52: the bulk action commits every ready record with a complete
+        # suggested pair — the page lists that exact set with its times so the
+        # reviewer inspects precisely what will be approved, and the digest
+        # token is re-verified inside the locked approval transaction.
+        bulk_pairs, bulk_scope_token = bulk_approval_scope(db)
+        bulk_employee_ids = {record.employee_id for record, _, _ in bulk_pairs}
+        bulk_employees = {
+            e.id: e for e in db.scalars(
+                select(Employee).where(Employee.id.in_(bulk_employee_ids))
+            ).all()
+        } if bulk_employee_ids else {}
+        bulk_rows = [{
+            "id": record.id,
+            "employee": bulk_employees[record.employee_id].full_name if record.employee_id in bulk_employees else "—",
+            "employee_code": bulk_employees[record.employee_id].code if record.employee_id in bulk_employees else "—",
+            "work_date": record.work_date,
+            "suggested_clock_in": clock_in,
+            "suggested_clock_out": clock_out,
+        } for record, clock_in, clock_out in bulk_pairs]
     employees = db.scalars(
         select(Employee).where(Employee.status == "active").order_by(Employee.full_name, Employee.id)
     ).all()
@@ -1549,10 +1568,13 @@ def attendance_review_page(
                  "records": records, "employees": employees, "error": None, "page": page,
                  "total_pages": total_pages, "total_records": total_records,
                  "page_size": page_size,
-                 "matching_count": status_counts.get("ready_for_review", 0),
+                 "matching_count": len(bulk_rows),
                  "needs_review_count": status_counts.get("needs_review", 0),
+                 "bulk_rows": bulk_rows,
+                 "bulk_scope_token": bulk_scope_token,
                  "bulk_approved": request.query_params.get("bulk_approved"),
-                 "bulk_skipped": request.query_params.get("bulk_skipped")},
+                 "bulk_skipped": request.query_params.get("bulk_skipped"),
+                 "bulk_stale": request.query_params.get("bulk_stale")},
     )
 
 
@@ -1611,11 +1633,23 @@ def attendance_approve(
 def attendance_approve_all_matching(
     request: Request,
     reason: str = Form(...),
+    scope_token: str = Form(default=""),
     admin: AdminAccount = Depends(require_attendance_write),
 ):
+    if not scope_token.strip():
+        # The bulk action is only valid against the exact set the reviewer saw
+        # listed on the review page; a tokenless submission cannot prove that.
+        return RedirectResponse("/attendance/review?bulk_stale=1", status_code=303)
     try:
         with SessionLocal.begin() as db:
-            result = approve_all_matching_attendance(db, actor=admin.username, reason=reason)
+            result = approve_all_matching_attendance(
+                db, actor=admin.username, reason=reason,
+                scope_token=scope_token,
+            )
+    except BulkScopeMismatch:
+        # The ready set changed since the page was rendered: refuse the whole
+        # action and ask for a fresh review instead of approving unseen times.
+        return RedirectResponse("/attendance/review?bulk_stale=1", status_code=303)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return RedirectResponse(

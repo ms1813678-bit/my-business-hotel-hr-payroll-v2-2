@@ -2485,9 +2485,19 @@ def test_approve_all_matching_route_requires_csrf_and_approves_ready_only(client
     assert rejected.status_code == 403
 
     token = csrf_from(review)
-    response = client.post(
+    scope_token = re.search(r'name="scope_token" value="([0-9a-f]+)"', review.text).group(1)
+
+    tokenless = client.post(
         "/attendance/approve-all-matching",
         data={"csrf_token": token, "reason": "مصادر متطابقة"},
+        follow_redirects=False,
+    )
+    assert tokenless.status_code == 303
+    assert "bulk_stale=1" in tokenless.headers["location"]
+
+    response = client.post(
+        "/attendance/approve-all-matching",
+        data={"csrf_token": token, "reason": "مصادر متطابقة", "scope_token": scope_token},
         follow_redirects=False,
     )
     assert response.status_code == 303
@@ -2542,7 +2552,8 @@ def test_security_roster_page_lists_upcoming_assignments(client):
     assert login(client).status_code == 303
     page = client.get("/security-roster")
     assert page.status_code == 200
-    assert "ورديات هذا الأسبوع (1)" in page.text
+    assert "ورديات هذا الأسبوع" in page.text
+    assert "العدد:</span> 1" in page.text
     assert "Roster Listed Guard" in page.text
     assert "Morning R4" in page.text
 
@@ -2552,3 +2563,133 @@ def test_security_roster_page_empty_state(client):
     page = client.get("/security-roster")
     assert page.status_code == 200
     assert "لا توجد ورديات معتمدة للأيام السبعة القادمة بعد" in page.text
+
+
+def _seed_bulk_employee(client, db, code, name):
+    from app.models import Employee
+    employee = Employee(
+        code=code, full_name=name, department_id=client.test_department_id,
+        position="Security", hire_date=date(2025, 1, 1),
+        basic_salary=1000, daily_hours=8, status="active",
+    )
+    db.add(employee)
+    db.flush()
+    return employee
+
+
+def test_bulk_count_excludes_incomplete_and_stale_token_refused(client):
+    import re as _re
+    assert login(client).status_code == 303
+    from sqlalchemy import select
+    from app.main import SessionLocal
+    from app.models import AttendanceDailyRecord
+
+    with SessionLocal.begin() as db:
+        employee = _seed_bulk_employee(client, db, "MY-9992", "Bulk Scope Employee")
+        db.add(AttendanceDailyRecord(
+            employee_id=employee.id, work_date=date(2026, 11, 12),
+            program_clock_in=datetime(2026, 11, 12, 8, 0),
+            program_clock_out=datetime(2026, 11, 12, 16, 0),
+            status="ready_for_review",
+        ))
+        db.add(AttendanceDailyRecord(
+            employee_id=employee.id, work_date=date(2026, 11, 13),
+            status="ready_for_review",  # no times at all: not approvable
+        ))
+        db.flush()
+        emp_id = employee.id
+        db.commit()
+
+    review = client.get("/attendance/review")
+    assert review.status_code == 200
+    # Only the complete record is counted/listed for the bulk action.
+    assert _re.search(r"اعتماد كل المطابق</span> \(1\)", review.text)
+    assert review.text.count("2026/11/12") >= 1 or "12/11/2026" in review.text
+    scope_token = _re.search(r'name="scope_token" value="([0-9a-f]+)"', review.text).group(1)
+    token = csrf_from(review)
+
+    # The ready set changes after the render: a new ready record appears.
+    with SessionLocal.begin() as db:
+        db.add(AttendanceDailyRecord(
+            employee_id=emp_id, work_date=date(2026, 11, 14),
+            program_clock_in=datetime(2026, 11, 14, 8, 0),
+            program_clock_out=datetime(2026, 11, 14, 16, 0),
+            status="ready_for_review",
+        ))
+        db.commit()
+
+    stale = client.post(
+        "/attendance/approve-all-matching",
+        data={"csrf_token": token, "reason": "مصادر متطابقة", "scope_token": scope_token},
+        follow_redirects=False,
+    )
+    assert stale.status_code == 303
+    assert "bulk_stale=1" in stale.headers["location"]
+    with SessionLocal.begin() as db:
+        unchanged = db.scalars(select(AttendanceDailyRecord).where(
+            AttendanceDailyRecord.employee_id == emp_id,
+            AttendanceDailyRecord.status == "ready_for_review",
+        )).all()
+        assert len(unchanged) == 3
+
+    # Fresh render + fresh token approves exactly the two complete records.
+    review2 = client.get("/attendance/review")
+    scope_token2 = _re.search(r'name="scope_token" value="([0-9a-f]+)"', review2.text).group(1)
+    token2 = csrf_from(review2)
+    approved = client.post(
+        "/attendance/approve-all-matching",
+        data={"csrf_token": token2, "reason": "مصادر متطابقة", "scope_token": scope_token2},
+        follow_redirects=False,
+    )
+    assert approved.status_code == 303
+    assert "bulk_approved=2" in approved.headers["location"]
+    assert "bulk_skipped=1" in approved.headers["location"]
+
+
+def test_bulk_approve_overnight_suggested_pair(client):
+    import re as _re
+    from datetime import time
+    assert login(client).status_code == 303
+    from sqlalchemy import select
+    from app.main import SessionLocal
+    from app.models import AttendanceDailyRecord, ShiftPattern
+
+    with SessionLocal.begin() as db:
+        employee = _seed_bulk_employee(client, db, "MY-9993", "Bulk Overnight Employee")
+        pattern = ShiftPattern(
+            department_id=client.test_department_id, code="BULK-NIGHT", name="Bulk Night",
+            start_time=time(20, 0), end_time=time(4, 0),
+            match_before_minutes=30, match_after_minutes=30, active=True,
+        )
+        db.add(pattern)
+        db.flush()
+        db.add(AttendanceDailyRecord(
+            employee_id=employee.id, work_date=date(2026, 11, 15),
+            scheduled_start_at=datetime(2026, 11, 15, 20, 0),
+            scheduled_end_at=datetime(2026, 11, 16, 4, 0),
+            first_clock_in=datetime(2026, 11, 15, 20, 5),
+            last_clock_out=datetime(2026, 11, 16, 4, 0),
+            status="ready_for_review",
+        ))
+        db.flush()
+        emp_id = employee.id
+        db.commit()
+
+    review = client.get("/attendance/review")
+    scope_token = _re.search(r'name="scope_token" value="([0-9a-f]+)"', review.text).group(1)
+    token = csrf_from(review)
+    approved = client.post(
+        "/attendance/approve-all-matching",
+        data={"csrf_token": token, "reason": "وردية ليلية مطابقة", "scope_token": scope_token},
+        follow_redirects=False,
+    )
+    assert approved.status_code == 303
+    assert "bulk_approved=1" in approved.headers["location"]
+    with SessionLocal.begin() as db:
+        record = db.scalars(select(AttendanceDailyRecord).where(
+            AttendanceDailyRecord.employee_id == emp_id,
+            AttendanceDailyRecord.work_date == date(2026, 11, 15),
+        )).one()
+        assert record.status == "approved"
+        assert record.approved_clock_in == datetime(2026, 11, 15, 20, 5)
+        assert record.approved_clock_out == datetime(2026, 11, 16, 4, 0)
