@@ -1,5 +1,9 @@
 # سجل التطوير — Changelog
 
+## 2026-11-24 - Isolated Windows verification LF checkout repair by Instinct
+
+Instinct pinned LF checkout only for the two hash-reviewed files inside verification/windows_parser_rev9. This prevents Git line-ending conversion from changing their checkout bytes; the strict original SHA-256 checks, candidate source, tests and application parser guard are unchanged. A fresh autocrlf-enabled index checkout reproduced both exact reviewed hashes. Native enforcement remains unverified until the hosted candidate run completes; this is not application integration or hotel acceptance.
+
 ## 2026-11-24 - Reviewed application preparation and disabled monthly review by Instinct
 
 Instinct implemented exact manual opening and policy source preparation; department workbook export/return/fingerprint source comparison; source-bound attendance review; the chosen dedicated monthly page; immutable assertion-only reconciliation receipts; HR/finance read-only day handoff; and the approved two-stage disabled global-close preview. Related account, local-AI approval, Settings, theme and localization changes are included with regression tests.

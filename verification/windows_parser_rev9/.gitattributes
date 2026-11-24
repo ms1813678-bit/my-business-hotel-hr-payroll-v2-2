@@ -1,0 +1,3 @@
+# Instinct: preserve exact reviewed candidate provenance on Windows checkout.
+app/windows_job_isolation.py text eol=lf
+test_candidate.py text eol=lf
