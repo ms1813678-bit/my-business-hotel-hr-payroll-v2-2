@@ -20,6 +20,17 @@ jobs:
           $ErrorActionPreference='Stop'
           Write-Host ('Runner OS: '+[Environment]::OSVersion.Version.ToString())
           $root='verification/windows_renderer_build'
+          $mp="$root/SOURCE-SHA256.json"
+          Write-Host ('Manifest checkout SHA256='+(Get-FileHash $mp -Algorithm SHA256).Hash.ToLower()+' bytes='+([IO.File]::ReadAllBytes((Join-Path $pwd $mp))).Length)
+          git ls-files --eol -- $mp
+          $mi=[Diagnostics.ProcessStartInfo]::new()
+          $mi.FileName='git';$mi.UseShellExecute=$false;$mi.RedirectStandardOutput=$true
+          $mi.ArgumentList.Add('cat-file');$mi.ArgumentList.Add('blob');$mi.ArgumentList.Add('HEAD:'+$mp)
+          $mr=[Diagnostics.Process]::Start($mi)
+          $mf=[IO.File]::Open((Join-Path $pwd $mp),[IO.FileMode]::Create,[IO.FileAccess]::Write)
+          try {$mr.StandardOutput.BaseStream.CopyTo($mf)} finally {$mf.Dispose()}
+          $mr.WaitForExit();if($mr.ExitCode -ne 0){throw 'Manifest committed blob read failed'}
+          Write-Host ('Manifest exactblob SHA256='+(Get-FileHash $mp -Algorithm SHA256).Hash.ToLower()+' bytes='+([IO.File]::ReadAllBytes((Join-Path $pwd $mp))).Length)
           if((Get-FileHash "$root/SOURCE-SHA256.json" -Algorithm SHA256).Hash.ToLower() -ne '8f90d1b9377f494871ee29e66d9095cfe91c2ef3801664a45048703ae951d251'){throw 'Manifest consistency mismatch'}
           $manifest=Get-Content "$root/SOURCE-SHA256.json" -Raw | ConvertFrom-Json -AsHashtable
           foreach($path in $manifest.Keys) {
