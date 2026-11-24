@@ -56,23 +56,36 @@ static int child_probe(const wchar_t *canary) {
  fflush(stdout);return 0;
 }
 static int verify_created_child(HANDLE process,HANDLE job,PSID expected_sid) {
- HANDLE token=NULL;DWORD size=0;PTOKEN_APPCONTAINER_INFORMATION info=NULL;
- BOOL bound=FALSE;int ok=0;DWORD lpac=0,returned=0,error=0;
- if(!IsProcessInJob(process,job,&bound)||!bound)return 0;
- if(!OpenProcessToken(process,TOKEN_QUERY,&token))return 0;
- if(!GetTokenInformation(token,TokenIsLessPrivilegedAppContainer,&lpac,sizeof(lpac),&returned)||!lpac)goto done;
- GetTokenInformation(token,TokenAppContainerSid,NULL,0,&size);
- if(!size)goto done;
+ HANDLE token=NULL;DWORD size=0,returned=0,is_ac=0;BOOL bound=FALSE;
+ PTOKEN_APPCONTAINER_INFORMATION info=NULL;int sid_matches=0;
+ BOOL ok;DWORD error;DWORD buffer[4];const DWORD lengths[]={0,4,8,16};
+ SetLastError(0);ok=IsProcessInJob(process,job,&bound);error=GetLastError();
+ fprintf(stderr,"diagnostic exact_job: api=%d bound=%d error=%lu\n",ok,bound,(unsigned long)error);
+ if(!ok || !bound)goto done;
+ SetLastError(0);ok=OpenProcessToken(process,TOKEN_QUERY,&token);error=GetLastError();
+ fprintf(stderr,"diagnostic token_open: api=%d error=%lu\n",ok,(unsigned long)error);
+ if(!ok)goto done;
+ SetLastError(0);ok=GetTokenInformation(token,TokenIsAppContainer,&is_ac,sizeof(is_ac),&returned);error=GetLastError();
+ fprintf(stderr,"diagnostic class29_control: api=%d error=%lu returned=%lu value=%lu\n",ok,(unsigned long)error,(unsigned long)returned,(unsigned long)(ok?is_ac:0));
+ if(!ok || !is_ac)goto done;
+ SetLastError(0);ok=GetTokenInformation(token,TokenAppContainerSid,NULL,0,&size);error=GetLastError();
+ fprintf(stderr,"diagnostic class31_size: api=%d error=%lu required=%lu\n",ok,(unsigned long)error,(unsigned long)size);
+ if(ok || error!=ERROR_INSUFFICIENT_BUFFER || !size || size>4096)goto done;
  info=HeapAlloc(GetProcessHeap(),HEAP_ZERO_MEMORY,size);if(!info)goto done;
- if(!GetTokenInformation(token,TokenAppContainerSid,info,size,&size))goto done;
- if(!info->TokenAppContainer || !EqualSid(info->TokenAppContainer,expected_sid))goto done;
- ok=1;
+ SetLastError(0);ok=GetTokenInformation(token,TokenAppContainerSid,info,size,&returned);error=GetLastError();
+ if(ok && info->TokenAppContainer)sid_matches=EqualSid(info->TokenAppContainer,expected_sid);
+ fprintf(stderr,"diagnostic class31_control: api=%d error=%lu returned=%lu sid_matches=%d\n",ok,(unsigned long)error,(unsigned long)returned,sid_matches);
+ if(!ok || !sid_matches)goto done;
+ for(unsigned int i=0;i<sizeof(lengths)/sizeof(lengths[0]);i++){
+  returned=0xDEADBEEF;for(unsigned int k=0;k<4;k++)buffer[k]=0xA5A5A5A5;
+  SetLastError(0);ok=GetTokenInformation(token,TokenIsLessPrivilegedAppContainer,lengths[i]?buffer:NULL,lengths[i],&returned);error=GetLastError();
+  fprintf(stderr,"diagnostic class46: enum=%d length=%lu api=%d error=%lu returned=%lu buffer_unchanged=%d\n",(int)TokenIsLessPrivilegedAppContainer,(unsigned long)lengths[i],ok,(unsigned long)error,(unsigned long)returned,buffer[0]==0xA5A5A5A5);
+ }
  done:
- error=GetLastError();
  if(info)HeapFree(GetProcessHeap(),0,info);
- if(!CloseHandle(token))ok=0;
- if(!ok)SetLastError(error);
- return ok;
+ if(token)CloseHandle(token);
+ fputs("diagnostic-only: child never resumed; no LPAC attestation or execution acceptance\n",stderr);
+ SetLastError(ERROR_NOT_SUPPORTED);return 0;
 }
 int wmain(int argc,wchar_t **argv) {
  struct owners o={0};SECURITY_ATTRIBUTES sa={sizeof(sa),NULL,TRUE};

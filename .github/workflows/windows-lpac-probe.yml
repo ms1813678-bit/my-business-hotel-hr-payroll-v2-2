@@ -22,7 +22,7 @@ jobs:
           $ErrorActionPreference='Stop'
           git -c core.autocrlf=false checkout-index --force -- verification/windows_lpac_probe/windows_probe.c verification/windows_lpac_probe/run_synthetic_probe.ps1
           if ($LASTEXITCODE -ne 0) { throw 'Exact LF source checkout failed' }
-          if ((Get-FileHash verification/windows_lpac_probe/windows_probe.c -Algorithm SHA256).Hash.ToLower() -ne 'a6d727deb964f6bdb659028c858ca3e836b7ada81733b3789b9985b8f84c7e59') { throw 'Probe source mismatch' }
+          if ((Get-FileHash verification/windows_lpac_probe/windows_probe.c -Algorithm SHA256).Hash.ToLower() -ne '6a4cac682ca1322a9ab621014aedea5adaaaa17269f90cdd3dfff25b2841bc27') { throw 'Probe source mismatch' }
           if ((Get-FileHash verification/windows_lpac_probe/run_synthetic_probe.ps1 -Algorithm SHA256).Hash.ToLower() -ne 'c32efd32c3127f6edd2c14052cd308959a3259144dd40c5013e48ecfb8e074c6') { throw 'Probe source mismatch' }
       - name: Fetch exact free compiler and verify hash
         shell: pwsh

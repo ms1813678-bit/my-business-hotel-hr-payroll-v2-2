@@ -1,3 +1,7 @@
+## 2026-11-24 - Suspended token-query controls by Instinct
+
+Instinct added separate documented-token positive controls and class46 sizing diagnostics. Diagnostic-only: the child never resumes even when queries succeed, and a nonzero diagnostic outcome is expected. No guard bypass, policy relaxation or application integration.
+
 ## 2026-11-24 - Minimal AppContainer profile environment candidate by Instinct
 
 Instinct added only LOCALAPPDATA beside SYSTEMROOT in the explicit synthetic child environment, following actual CreateProcessW error203 and source-backed evidence. No ambient environment inheritance, capabilities or ACL relaxation. Native rerun required to confirm this hypothesis.
