@@ -1,0 +1,30 @@
+name: Isolated Windows parser candidate verification
+on:
+  workflow_dispatch:
+  push:
+    branches: [ui-overhaul]
+    paths:
+      - verification/windows_parser_rev9/**
+      - .github/workflows/windows-parser-candidate.yml
+permissions:
+  contents: read
+jobs:
+  native-candidate:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install verification dependency only
+        run: python -m pip install 'pytest>=8,<9'
+      - name: Verify exact reviewed candidate provenance
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = 'verification/windows_parser_rev9'
+          if ((Get-FileHash "$root/app/windows_job_isolation.py" -Algorithm SHA256).Hash.ToLower() -ne '1e6e48591a39a7265ede3714c656b75784125fc0068fc136c4658b7c0c3e58f1') { throw 'Candidate hash mismatch' }
+          if ((Get-FileHash "$root/test_candidate.py" -Algorithm SHA256).Hash.ToLower() -ne 'c78364e4c9885b7ab4aa7ba8da403bbf95fe2baca5ce801423171e055cb82cf2') { throw 'Test hash mismatch' }
+      - name: Run bounded isolated candidate checks
+        run: python verification/windows_parser_rev9/run_native.py

@@ -1,0 +1,9 @@
+# Isolated rev9 candidate verification by Instinct
+
+This directory contains the exact source-reviewed candidate and tests, not an application integration. Candidate provenance: SHA2561e6e48591a39a7265ede3714c656b75784125fc0068fc136c4658b7c0c3e58f1; tests SHA256c78364e4c9885b7ab4aa7ba8da403bbf95fe2baca5ce801423171e055cb82cf2. Original header's native-unrun status describes authoring evidence; consult the exact hosted run for later results, never infer pass from publication.
+
+The candidate has no hotel database/account access. Job Objects bound resources/process lifetime, not filesystem/network access. Inputs are fixed synthetic subprocess snippets. All13native functions run in separate pytest processes; no skips count as native success. Every case has a120second parent watchdog, process-tree kill on timeout and overall15minute workflow cap. Limits asserted by the candidate/tests are unchanged. Some I/O roundtrip tests explicitly use10second test walls; this does not prove production3second wall performance. The orphan test deliberately lifts active-process limit only to prove descendant kill and observes retained process handles, not absent-PID guesses.
+
+Known limitations remain: fake APIs do not prove OS enforcement; asynchronous allocation/adoption exceptions and permanently quarantined ambiguous handles remain source-described residuals. A candidate pass does not authorize integration. Existing app/fingerprint_parse_worker.py continues refusing non-POSIX operational execution.
+
+Local portable evidence before publication:159passed1skipped13native deselected,9.15seconds. No native success claimed. Hosted workflow uses standard Windows runner and pytest only, no caches or artifact uploads. XML/log files are ephemeral. It triggers manually or on candidate-path pushes to ui-overhaul; the ordinary project workflow also runs on branch pushes. No main changes or paid service/billing-setting changes.
