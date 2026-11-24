@@ -2,7 +2,7 @@
 
 Fixed synthetic native test only. No application import, database, hotel file, token, secret, cache or artifact upload. New source does not replace rev9 or remove the application Windows guard. Compiler pinned llvm-mingw20261117 with release asset SHA256, using Windows system/UCRT DLLs. LLVM Apache2/exception and llvm-mingw ISC/component terms require final distribution audit; no runtime release is delivered here.
 
-The native program launches only itself with a fixed child probe. Native owner records, JOB_LIST creation-time limited job, LPAC token and exact created-job/SID check before resume; no-network capabilities, minimal SYSTEMROOT-only environment, explicit std handles. Three-second work wait/two-second cleanup wait,1024-byte result cap. Child's file/loopback probes accept only access-denied, not missing file/refused connection. All input is fixed synthetic canary data.
+The native program launches only itself with a fixed child probe. Native owner records, JOB_LIST creation-time limited job, LPAC token and exact created-job/SID check before resume; no-network capabilities, minimal explicit LOCALAPPDATA+SYSTEMROOT environment, explicit std handles. Three-second work wait/two-second cleanup wait,1024-byte result cap. Child's file/loopback probes accept only access-denied, not missing file/refused connection. All input is fixed synthetic canary data.
 
 PowerShell harness is restricted to GitHub Actions with RUNNER_TEMP. It creates one fresh random AppContainer profile, runtime and forbidden-canary directories ONLY in that ephemeral runner, removes inherited ACLs on those paths, grants synthetic profile runtime read/execute but not canary access, then deletes profile and files. No existing profile is changed, no firewall/loopback exemption/network/hotel configuration touched. Profile-deletion failure is a failure, not silent cleanup success. Job ends at10minutes, disposable VM is final backstop.
 
@@ -17,3 +17,5 @@ https://llvm.org/LICENSE.txt
 https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-updateprocthreadattribute
 https://learn.microsoft.com/en-us/windows/win32/secauthz/implementing-an-appcontainer
 https://docs.github.com/en/billing/concepts/product-billing/github-actions
+
+2026-11-24 follow-up: actual CreateProcessW stage returned203 before child creation. Candidate adds only caller LOCALAPPDATA path, not inherited environment or filesystem grants. Microsoft profile documentation and independent native reproduction reports support this specific hypothesis, own successful native run still required.

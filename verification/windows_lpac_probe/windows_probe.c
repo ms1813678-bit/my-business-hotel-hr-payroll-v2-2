@@ -79,7 +79,7 @@ int wmain(int argc,wchar_t **argv) {
  JOBOBJECT_EXTENDED_LIMIT_INFORMATION lim={0};SECURITY_CAPABILITIES cap={0};
  STARTUPINFOEXW si={0};PROCESS_INFORMATION pi={0};SIZE_T size=0;
  HANDLE inherited[2];DWORD optout=PROCESS_CREATION_ALL_APPLICATION_PACKAGES_OPT_OUT;
- wchar_t exe[32768],cmd[32768],systemroot[32768],env[32768];DWORD rootlen;DWORD wait,code=99,available=0,got=0;char output[1025]={0};
+ wchar_t exe[32768],cmd[32768],systemroot[32768],localappdata[32768],env[65536];DWORD rootlen;DWORD wait,code=99,available=0,got=0;char output[1025]={0};
  int result=1,clean=1,created=0;DWORD failure_error=0;const char *stage="arguments";
  if(argc==3 && !wcscmp(argv[1],L"--probe-child"))return child_probe(argv[2]);
  if(argc!=3 || wcschr(argv[1],L'"') || wcschr(argv[2],L'"')) {
@@ -125,8 +125,15 @@ int wmain(int argc,wchar_t **argv) {
  rootlen=GetEnvironmentVariableW(L"SYSTEMROOT",systemroot,32768);
  if(!rootlen || rootlen>=32768)goto done;
  stage="environment_format";SetLastError(ERROR_SUCCESS);
- if(_snwprintf(env,32767,L"SYSTEMROOT=%ls",systemroot)<0)goto done;
- env[wcslen(env)+1]=L'\0'; /* Explicit double NUL; no inherited secrets. */
+ stage="localappdata";SetLastError(ERROR_SUCCESS);
+ rootlen=GetEnvironmentVariableW(L"LOCALAPPDATA",localappdata,32768);
+ if(!rootlen || rootlen>=32768)goto done;
+ if(_snwprintf(env,65534,L"LOCALAPPDATA=%ls",localappdata)<0)goto done;
+ {size_t offset=wcslen(env)+1;
+  if(_snwprintf(env+offset,65534-offset,L"SYSTEMROOT=%ls",systemroot)<0)goto done;
+  env[offset+wcslen(env+offset)+1]=L'\0';}
+
+ /* Explicit LOCALAPPDATA + SYSTEMROOT block, final double NUL above. */
  stage="self_exe";SetLastError(ERROR_SUCCESS);
  if(!GetModuleFileNameW(NULL,exe,32768))goto done;
  stage="command_format";SetLastError(ERROR_SUCCESS);

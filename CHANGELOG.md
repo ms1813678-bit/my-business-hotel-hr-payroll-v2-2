@@ -1,3 +1,7 @@
+## 2026-11-24 - Minimal AppContainer profile environment candidate by Instinct
+
+Instinct added only LOCALAPPDATA beside SYSTEMROOT in the explicit synthetic child environment, following actual CreateProcessW error203 and source-backed evidence. No ambient environment inheritance, capabilities or ACL relaxation. Native rerun required to confirm this hypothesis.
+
 ## 2026-11-24 - Native probe diagnostic precision by Instinct
 
 Instinct added failing-API stage/error diagnostics and explicit synthetic profile/directory cleanup evidence. No containment policy or application changes. The first native probe refused; this diagnostic run does not assume the cause or security acceptance.
