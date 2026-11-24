@@ -61,4 +61,6 @@ try {
   if (Test-Path $base) { Remove-Item -LiteralPath $base -Recurse -Force }
  }
  if ($cleanupFailed) { throw 'Synthetic profile cleanup incomplete' }
+ if (Test-Path $base) { throw 'Synthetic directory cleanup incomplete' }
+ Write-Output 'Synthetic profile deletion and directory absence verified'
 }

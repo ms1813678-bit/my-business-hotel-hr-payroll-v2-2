@@ -1,3 +1,7 @@
+## 2026-11-24 - Native probe diagnostic precision by Instinct
+
+Instinct added failing-API stage/error diagnostics and explicit synthetic profile/directory cleanup evidence. No containment policy or application changes. The first native probe refused; this diagnostic run does not assume the cause or security acceptance.
+
 ## 2026-11-24 - Synthetic native Windows LPAC probe by Instinct
 
 Instinct added an isolated fixed-input native AppContainer/creation-time Job Object probe and disposable runner harness. This is test infrastructure only, no application integration, operational activation or hotel installation. Cross-compilation is not native acceptance; actual runtime result must be read from the exact hosted run.
