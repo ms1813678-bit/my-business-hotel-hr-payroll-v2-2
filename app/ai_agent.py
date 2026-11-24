@@ -7,6 +7,7 @@ can mutate the database, and every operation uses existing workflow rules.
 from __future__ import annotations
 
 import json
+from contextlib import nullcontext
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from decimal import Decimal
@@ -15,32 +16,38 @@ from urllib.parse import urlparse
 
 from sqlalchemy import select
 
-from app.ai_assistant import ask_local_model_json, local_model_status
-from app.employee_codes import allocate_employee_code
-from app.national_id import ERROR_MESSAGE as NATIONAL_ID_ERROR, is_valid_egyptian_national_id
 from app.advance_workflow import approve_advance, create_advance, mark_advance_paid, reject_advance
+from app.ai_assistant import local_model_status
+from app.ai_plan_validation import validate_plan_values
+from app.attendance_workflow import (
+    add_manual_attendance,
+    approve_attendance_day,
+    approve_attendance_month,
+)
 from app.db import SessionLocal
+from app.employee_codes import allocate_employee_code
+from app.leave_balance_rules import validate_manual_balance_change
 from app.leave_workflow import add_balance_entry, cancel_leave, confirm_leave, leave_balance
 from app.models import (
     AdvanceRequest,
     AttendanceDailyRecord,
     AttendanceMonth,
-    Department,
+    AuditLog,
     Branch,
+    Department,
+    Employee,
     EmployeeChange,
     EmployeeServicePeriod,
-    Employee,
-    LeaveRecord,
     LeaveBalanceTransaction,
+    LeaveRecord,
     LeaveType,
     PayrollRun,
     StaffAction,
-    AuditLog,
 )
-from app.attendance_workflow import add_manual_attendance, approve_attendance_day, approve_attendance_month
+from app.national_id import ERROR_MESSAGE as NATIONAL_ID_ERROR
+from app.national_id import is_valid_egyptian_national_id
 from app.payroll_workflow import approve_payroll_run, close_payroll_run, reopen_payroll_run
 from app.staff_actions_workflow import approve_staff_action, cancel_staff_action
-
 
 WRITE_PREFIXES = ("نفذ ", "نفّذ ", "نفذ:", "نفّذ:", "执行 ", "执行：", "执行:")
 # English execution prefixes are matched case-insensitively.
@@ -220,6 +227,7 @@ def _json_plan(question: str, context: dict[str, Any], language: str = "ar") -> 
             "The requested command is not allowed in the assistant.",
             "助手不允许该请求指令。",
         ))
+    validate_plan_values(plan, language)
     return plan
 
 
@@ -249,13 +257,16 @@ class ExecutionResult:
         return self.audit
 
 
-def execute_plan(plan: dict[str, Any], actor: str) -> ExecutionResult:
+def execute_plan(plan: dict[str, Any], actor: str, *, db=None, human_coverage_confirmed=False) -> ExecutionResult:
+    validate_plan_values(plan)
+    if type(human_coverage_confirmed) is not bool:
+        raise ValueError("Human confirmation must be explicit boolean.")
     action = plan.get("action")
     reason = str(plan.get("reason") or "").strip() or "تنفيذ بأمر صريح من مسؤول الموارد البشرية عبر المساعد المحلي."
     if action not in ALLOWED_ACTIONS:
         raise ValueError("الأمر غير مسموح.")
 
-    with SessionLocal.begin() as db:
+    with (SessionLocal.begin() if db is None else nullcontext(db)) as db:  # noqa: PLR1704
         if action == "create_manual_attendance":
             work_date = _parse_date(plan["work_date"], "تاريخ العمل")
             try:
@@ -476,6 +487,7 @@ def execute_plan(plan: dict[str, Any], actor: str) -> ExecutionResult:
             employee = db.get(Employee, int(plan["employee_id"]))
             leave_type = db.get(LeaveType, int(plan["leave_type_id"]))
             days = _decimal(plan["balance_days"], "الرصيد")
+            validate_manual_balance_change(str(plan.get("transaction_type") or "adjustment"), days)
             if employee is None or leave_type is None: raise ValueError("الموظف أو نوع الإجازة غير موجود.")
             expected_snapshot = plan.get("_confirmation_snapshot")
             expected_balance = (
@@ -536,7 +548,7 @@ def execute_plan(plan: dict[str, Any], actor: str) -> ExecutionResult:
 
         if action == "approve_attendance_month":
             approve_attendance_month(db, month_id=int(plan["month_id"]), actor=actor,
-                                     reason=reason, coverage_confirmed=bool(plan.get("coverage_confirmed")))
+                                     reason=reason, coverage_confirmed=human_coverage_confirmed)
             return ExecutionResult(action, {"month_id": plan["month_id"]})
 
         if action in {"approve_payroll_run", "close_payroll_run", "reopen_payroll_run"}:

@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% set active_nav = "payroll" %}
+{% block title %}مراجعة أيام الأوفر تايم{% endblock %}
+{% block content %}
+<header class="topbar"><div><h1>مراجعة أيام الأوفر تايم</h1><p class="muted">قائمة الأيام ثم تفاصيل اليوم والتأكيد المستقل</p></div><a href="/payroll">مسيرات الرواتب</a></header>
+<section class="notice"><p>هذه شاشة تجهيز فقط. لا تحفظ ساعات أو تعتمد أو تصرف مبالغ، ولا تغير حسابات الرواتب الحالية.</p></section>
+<section class="notice"><form method="get" action="/overtime/review"><label>الموظف<select name="employee_id" required><option value="">اختار الموظف</option>{% for item in employees %}<option value="{{ item.id }}" {% if employee and employee.id == item.id %}selected{% endif %}>{{ item.code }} · {{ item.full_name }}</option>{% endfor %}</select></label><button type="submit">عرض الأيام</button></form><p class="muted small">يعرض أحدث ٦٢ سجل حضور للموظف المحدد. عدم وجود سجل لا يعني صفر ساعات.</p></section>
+{% if employee %}
+<section class="notice"><h2>{{ employee.code }} · {{ employee.full_name }}</h2><div class="table-wrap"><table><thead><tr><th>اليوم</th><th>دقائق العمل المسجلة</th><th>المراجعة</th></tr></thead><tbody>{% for row in rows %}<tr><td>{{ row.work_date }}</td><td>{{ row.worked_minutes if row.worked_minutes is not none else 'غير متاح' }}</td><td><a href="/overtime/review?employee_id={{ employee.id }}&amp;work_date={{ row.work_date }}">تفاصيل اليوم</a></td></tr>{% else %}<tr><td colspan="3">لا توجد أيام مسجلة لهذا الموظف.</td></tr>{% endfor %}</tbody></table></div></section>
+{% if requested_day %}<section class="notice" id="overtime-day-detail"><h2>تفاصيل اليوم</h2><p>{{ requested_day }}</p>{% if selected %}<dl><dt>دقائق العمل المسجلة</dt><dd>{{ selected.worked_minutes if selected.worked_minutes is not none else 'غير متاح' }}</dd><dt>بداية الفترة المجدولة</dt><dd>{{ selected.scheduled_start_at if selected.scheduled_start_at else 'غير متاح' }}</dd><dt>نهاية الفترة المجدولة</dt><dd>{{ selected.scheduled_end_at if selected.scheduled_end_at else 'غير متاح' }}</dd></dl>{% else %}<p>سجل حضور هذا اليوم غير متاح.</p>{% endif %}
+<p>دقائق العمل ليست ساعات أوفر تايم معتمدة. المقارنة تحتاج دليل حضور لنفس اليوم.</p>
+<h3>قبل إدخال الساعات والمراجعة النهائية</h3><ul><li>يلزم تحديد مصدر ومبلغ مكافأة الأداء الفعلية للشهر المختار.</li><li>يلزم تحديد طريقة اختيار قاسم الساعة للأمن، ٨ أو ١٢، دون افتراض جدول شيفتات.</li><li>الساعات اليدوية الزائدة عن دليل نفس اليوم تحتاج سببًا ثم مراجعة المسؤول المخول.</li></ul><button type="button" disabled>التأكيد غير متاح حتى استكمال المدخلات</button><p class="muted">القيم الناقصة تظل غير معروفة. لا مبلغ تقديري أو اعتماد تلقائي.</p></section>{% endif %}
+{% endif %}
+{% endblock %}

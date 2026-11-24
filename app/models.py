@@ -51,6 +51,13 @@ class Employee(Base):
     branch_id: Mapped[int | None] = mapped_column(ForeignKey("branches.id"))
     position: Mapped[str] = mapped_column(String(120))
     hire_date: Mapped[date] = mapped_column(Date)
+    # Leave foundation: unknown values stay NULL, never inferred from identifiers.
+    birth_date: Mapped[date | None] = mapped_column(Date)
+    prior_insurance_years: Mapped[Decimal | None] = mapped_column(Numeric(8, 4))
+    __table_args__ = (
+        CheckConstraint("prior_insurance_years IS NULL OR prior_insurance_years >= 0",
+                        name="ck_employee_prior_insurance_nonnegative"),
+    )
     probation_start_date: Mapped[date | None] = mapped_column(Date)
     probation_end_date: Mapped[date | None] = mapped_column(Date)
     status: Mapped[str] = mapped_column(String(20), default="active")
@@ -462,8 +469,10 @@ class LeaveRecord(Base):
     start_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
     end_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
     calendar_days: Mapped[int] = mapped_column(Integer, nullable=False)
-    charged_days: Mapped[Decimal] = mapped_column(Numeric(7, 2), nullable=False)
+    charged_days: Mapped[Decimal] = mapped_column(Numeric(), nullable=False)
     reason: Mapped[str] = mapped_column(Text, nullable=False)
+    # NULL is unknown for legacy records; false is a deliberate declaration.
+    certificate_attached: Mapped[bool | None] = mapped_column(Boolean)
     status: Mapped[str] = mapped_column(String(20), default="draft", nullable=False)
     created_by: Mapped[str] = mapped_column(String(80), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
@@ -474,9 +483,93 @@ class LeaveRecord(Base):
     cancellation_reason: Mapped[str | None] = mapped_column(Text)
 
 
+class LeaveHoliday(Base):
+    """HR-entered calendar facts; credits are posted separately and idempotently."""
+    __tablename__ = "leave_holidays"
+    __table_args__ = (CheckConstraint("length(trim(name)) > 0", name="ck_leave_holiday_name"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    holiday_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    created_by: Mapped[str] = mapped_column(String(80), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class LeaveRegisterEntry(Base):
+    """Evidence-preserving day register. NULL is unknown, empty is explicit present.
+
+    No attendance inference is made by this table. A write service must enforce
+    service dates, precedence, operator authorization, month close and audit.
+    """
+    __tablename__ = "leave_register_entries"
+    __table_args__ = (
+        UniqueConstraint("employee_id", "work_date", name="uq_leave_register_employee_day"),
+        CheckConstraint("code IS NULL OR code IN ('', 'U', 'A', 'S', 'H', 'W', '—')",
+                        name="ck_leave_register_code"),
+        CheckConstraint("length(trim(source)) > 0", name="ck_leave_register_source"),
+        CheckConstraint("revision >= 1", name="ck_leave_register_revision"),
+    )
+    id: Mapped[int] = mapped_column(primary_key=True)
+    employee_id: Mapped[int] = mapped_column(ForeignKey("employees.id", ondelete="RESTRICT"), nullable=False, index=True)
+    work_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    code: Mapped[str | None] = mapped_column(String(1))
+    certificate_attached: Mapped[bool | None] = mapped_column(Boolean)
+    notes: Mapped[str | None] = mapped_column(Text)
+    source: Mapped[str] = mapped_column(String(80), nullable=False)
+    leave_record_id: Mapped[int | None] = mapped_column(ForeignKey("leave_records.id", ondelete="RESTRICT"))
+    revision: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    recorded_by: Mapped[str] = mapped_column(String(80), nullable=False)
+    recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class LeaveMonthNote(Base):
+    __tablename__ = "leave_month_notes"
+    __table_args__ = (
+        UniqueConstraint("employee_id", "year", "month", name="uq_leave_month_note_employee_period"),
+        CheckConstraint("month BETWEEN 1 AND 12", name="ck_leave_month_note_month"),
+        CheckConstraint("year BETWEEN 1 AND 9999", name="ck_leave_month_note_year"),
+    )
+    id: Mapped[int] = mapped_column(primary_key=True)
+    employee_id: Mapped[int] = mapped_column(ForeignKey("employees.id", ondelete="RESTRICT"), nullable=False)
+    year: Mapped[int] = mapped_column(Integer, nullable=False)
+    month: Mapped[int] = mapped_column(Integer, nullable=False)
+    notes: Mapped[str] = mapped_column(Text, nullable=False)
+    recorded_by: Mapped[str] = mapped_column(String(80), nullable=False)
+    recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class LeaveMonthClose(Base):
+    """Closure fact, never set merely because a calendar date arrived.
+
+    Write workflow must verify the referenced host backup, authorize the actual
+    operator, audit and serialize changes. No workflow is enabled by this model.
+    """
+    __tablename__ = "leave_month_close"
+    __table_args__ = (
+        UniqueConstraint("year", "month", name="uq_leave_close_period"),
+        CheckConstraint("month BETWEEN 1 AND 12", name="ck_leave_close_month"),
+        CheckConstraint("year BETWEEN 1 AND 9999", name="ck_leave_close_year"),
+        CheckConstraint("length(trim(closed_by)) > 0", name="ck_leave_close_actor"),
+    )
+    id: Mapped[int] = mapped_column(primary_key=True)
+    year: Mapped[int] = mapped_column(Integer, nullable=False)
+    month: Mapped[int] = mapped_column(Integer, nullable=False)
+    backup_run_id: Mapped[int] = mapped_column(ForeignKey("backup_runs.id", ondelete="RESTRICT"), nullable=False)
+    closed_by: Mapped[str] = mapped_column(String(80), nullable=False)
+    closed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    # Explicit policy snapshot/version for later previewed recalculation.
+    policy_snapshot_json: Mapped[str] = mapped_column(Text, nullable=False)
+
+
 class LeaveBalanceTransaction(Base):
     __tablename__ = "leave_balance_transactions"
     __table_args__ = (
+        UniqueConstraint("source_operation_key", name="uq_leave_ledger_source_operation"),
+        CheckConstraint(
+            "(source_operation_key IS NULL AND source_digest IS NULL AND earning_year IS NULL AND released_on IS NULL) OR "
+            "(source_operation_key IS NOT NULL AND length(trim(source_operation_key)) > 0 "
+            "AND source_digest IS NOT NULL AND length(source_digest) = 64 "
+            "AND earning_year IS NOT NULL AND earning_year BETWEEN 1 AND 9999 AND released_on IS NOT NULL)",
+            name="ck_leave_ledger_source_identity"),
         CheckConstraint(
             "transaction_type IN ('opening', 'adjustment', 'leave_use', 'leave_reversal')",
             name="ck_leave_balance_transaction_type",
@@ -498,7 +591,11 @@ class LeaveBalanceTransaction(Base):
         ForeignKey("leave_records.id", ondelete="RESTRICT"), index=True
     )
     transaction_type: Mapped[str] = mapped_column(String(24), nullable=False)
-    days_delta: Mapped[Decimal] = mapped_column(Numeric(7, 2), nullable=False)
+    days_delta: Mapped[Decimal] = mapped_column(Numeric(), nullable=False)
+    source_operation_key: Mapped[str | None] = mapped_column(String(160))
+    source_digest: Mapped[str | None] = mapped_column(String(64))
+    earning_year: Mapped[int | None] = mapped_column(Integer)
+    released_on: Mapped[date | None] = mapped_column(Date)
     reason: Mapped[str] = mapped_column(Text, nullable=False)
     created_by: Mapped[str] = mapped_column(String(80), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
@@ -810,3 +907,225 @@ class ReportPreset(Base):
     config: Mapped[str] = mapped_column(Text, nullable=False)
     created_by: Mapped[str] = mapped_column(String(80), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class LeaveRegisterReviewReceipt(Base):
+    """Server-side short-lived reviewed preparation, consumed atomically with edit."""
+    __tablename__ = "leave_register_review_receipts"
+    token_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    actor_id: Mapped[int] = mapped_column(ForeignKey("admin_accounts.id"), nullable=False)
+    session_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    session_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    proposal_json: Mapped[str] = mapped_column(Text, nullable=False)
+    snapshot_json: Mapped[str] = mapped_column(Text, nullable=False)
+    source_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class DepartmentWorkbookExport(Base):
+    """Server-held identity/snapshot. Not a transferable authorization grant."""
+    __tablename__ = 'department_workbook_exports'
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    actor_id: Mapped[int] = mapped_column(ForeignKey('admin_accounts.id'), nullable=False)
+    manifest_json: Mapped[str] = mapped_column(Text, nullable=False)
+    manifest_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    source_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    restore_epoch: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    invalidated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class DepartmentWorkbookPreparation(Base):
+    """Clean returned evidence receipt only. No accepted/posting state implied."""
+    __tablename__ = 'department_workbook_preparations'
+    __table_args__ = (UniqueConstraint('export_id', 'return_sha256', name='uq_dept_workbook_preparation'),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    export_id: Mapped[str] = mapped_column(ForeignKey('department_workbook_exports.id'), nullable=False)
+    return_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    actor_id: Mapped[int] = mapped_column(ForeignKey('admin_accounts.id'), nullable=False)
+    evidence_json: Mapped[str] = mapped_column(Text, nullable=False)
+    evidence_sha256: Mapped[str | None] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class LeaveHistoricalEvidencePreparation(Base):
+    """HR historical source proposal only. Never an accepted opening or grant."""
+    __tablename__ = 'leave_historical_evidence_preparations'
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    actor_id: Mapped[int] = mapped_column(ForeignKey('admin_accounts.id'), nullable=False)
+    source_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    proposal_json: Mapped[str] = mapped_column(Text, nullable=False)
+    proposal_sha256: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    restore_epoch: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class LeaveManualOpeningGroup(Base):
+    """Explicit pending A/W/H selection, not accepted balances or a grant."""
+    __tablename__ = 'leave_manual_opening_groups'
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    actor_id: Mapped[int] = mapped_column(ForeignKey('admin_accounts.id'), nullable=False)
+    annual_id: Mapped[str] = mapped_column(ForeignKey('leave_historical_evidence_preparations.id'), nullable=False)
+    weekly_id: Mapped[str] = mapped_column(ForeignKey('leave_historical_evidence_preparations.id'), nullable=False)
+    holiday_id: Mapped[str] = mapped_column(ForeignKey('leave_historical_evidence_preparations.id'), nullable=False)
+    selection_sha256: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    restore_epoch: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class LeavePolicyVersion(Base):
+    """Explicit immutable policy snapshot, never an automatic recalculation."""
+    __tablename__ = 'leave_policy_versions'
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    actor_id: Mapped[int] = mapped_column(ForeignKey('admin_accounts.id'), nullable=False)
+    policy_json: Mapped[str] = mapped_column(Text, nullable=False)
+    policy_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+    restore_epoch: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class LeaveOpeningSelection(Base):
+    """Audited confirmed source selection, not a ledger opening or cash grant."""
+    __tablename__ = 'leave_opening_selections'
+    __table_args__ = (UniqueConstraint('employee_id','revision',name='uq_leave_opening_selection_revision'),)
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    employee_id: Mapped[int] = mapped_column(ForeignKey('employees.id'), nullable=False)
+    group_id: Mapped[str] = mapped_column(ForeignKey('leave_manual_opening_groups.id'), nullable=False)
+    policy_id: Mapped[str] = mapped_column(ForeignKey('leave_policy_versions.id'), nullable=False)
+    previous_id: Mapped[str | None] = mapped_column(ForeignKey('leave_opening_selections.id'))
+    revision: Mapped[int] = mapped_column(Integer, nullable=False)
+    actor_id: Mapped[int] = mapped_column(ForeignKey('admin_accounts.id'), nullable=False)
+    source_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+    restore_epoch: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class DepartmentPreparationContract(Base):
+    """Persist explicit confirmed export source inputs, not browser freshness."""
+    __tablename__ = 'department_preparation_contracts'
+    export_id: Mapped[str] = mapped_column(ForeignKey('department_workbook_exports.id'),primary_key=True)
+    selection_json: Mapped[str] = mapped_column(Text,nullable=False)
+    selection_sha256: Mapped[str] = mapped_column(String(64),nullable=False)
+
+
+class DepartmentFingerprintPreparation(Base):
+    """Original raw fingerprint and bounded comparison evidence, never registration."""
+    __tablename__ = 'department_fingerprint_preparations'
+    id: Mapped[str] = mapped_column(String(64),primary_key=True)
+    return_id: Mapped[int] = mapped_column(ForeignKey('department_workbook_preparations.id'),nullable=False)
+    actor_id: Mapped[int] = mapped_column(ForeignKey('admin_accounts.id'),nullable=False)
+    fingerprint_bytes: Mapped[bytes] = mapped_column(LargeBinary,nullable=False)
+    fingerprint_sha256: Mapped[str] = mapped_column(String(64),nullable=False)
+    review_json: Mapped[str] = mapped_column(Text,nullable=False)
+    review_sha256: Mapped[str] = mapped_column(String(64),nullable=False)
+    restore_epoch: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True),nullable=False)
+
+
+class LeavePolicyEditDraft(Base):
+    """Explicit server-held settings preview, not active policy/recalculation."""
+    __tablename__='leave_policy_edit_drafts'
+    id: Mapped[str]=mapped_column(String(64),primary_key=True)
+    actor_id: Mapped[int]=mapped_column(ForeignKey('admin_accounts.id'),nullable=False)
+    base_policy_id: Mapped[str]=mapped_column(ForeignKey('leave_policy_versions.id'),nullable=False)
+    base_sha256: Mapped[str]=mapped_column(String(64),nullable=False)
+    policy_json: Mapped[str]=mapped_column(Text,nullable=False)
+    reason: Mapped[str]=mapped_column(Text,nullable=False)
+    restore_epoch: Mapped[str | None]=mapped_column(Text)
+    review_sha256: Mapped[str]=mapped_column(String(64),nullable=False)
+    created_at: Mapped[datetime]=mapped_column(DateTime(timezone=True),nullable=False)
+    saved_policy_id: Mapped[str | None]=mapped_column(ForeignKey('leave_policy_versions.id'))
+
+
+class AttendanceEvidenceReviewReceipt(Base):
+    """Pending source-bound review intent, not attendance/leave approval."""
+    __tablename__='attendance_evidence_review_receipts'
+    id: Mapped[str]=mapped_column(String(64),primary_key=True)
+    actor_id: Mapped[int]=mapped_column(ForeignKey('admin_accounts.id'),nullable=False)
+    session_id: Mapped[str]=mapped_column(String(128),nullable=False)
+    session_version: Mapped[int]=mapped_column(Integer,nullable=False)
+    restore_epoch: Mapped[str | None]=mapped_column(Text)
+    comparison_id: Mapped[str]=mapped_column(ForeignKey('department_fingerprint_preparations.id'),nullable=False)
+    employee_id: Mapped[int]=mapped_column(ForeignKey('employees.id'),nullable=False)
+    work_date: Mapped[date]=mapped_column(Date,nullable=False)
+    proposal_json: Mapped[str]=mapped_column(Text,nullable=False)
+    evidence_json: Mapped[str]=mapped_column(Text,nullable=False)
+    source_digest: Mapped[str]=mapped_column(String(64),nullable=False)
+    request_digest: Mapped[str]=mapped_column(String(64),nullable=False)
+    created_at: Mapped[datetime]=mapped_column(DateTime(timezone=True),nullable=False)
+
+
+class AttendanceEvidenceConsumption(Base):
+    """Immutable receipt consumption link; attendance remains pending review."""
+    __tablename__='attendance_evidence_consumptions'
+    receipt_id: Mapped[str]=mapped_column(ForeignKey('attendance_evidence_review_receipts.id'),primary_key=True)
+    attendance_id: Mapped[int]=mapped_column(ForeignKey('attendance_daily_records.id'),nullable=False,unique=True)
+    attendance_digest: Mapped[str]=mapped_column(String(64),nullable=False)
+    created_at: Mapped[datetime]=mapped_column(DateTime(timezone=True),nullable=False)
+
+
+class AttendanceEvidenceOccurrenceClaim(Base):
+    """One original-byte occurrence cannot back two attendance registrations."""
+    __tablename__='attendance_evidence_occurrence_claims'
+    fingerprint_sha256: Mapped[str]=mapped_column(String(64),primary_key=True)
+    ordinal: Mapped[int]=mapped_column(Integer,primary_key=True)
+    receipt_id: Mapped[str]=mapped_column(ForeignKey('attendance_evidence_review_receipts.id'),nullable=False)
+
+
+class LeaveSyntheticTransition(Base):
+    """Local synthetic-only transition result, never a production authorization."""
+    __tablename__ = 'leave_synthetic_transitions'
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    scope_key: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    actor_id: Mapped[int] = mapped_column(ForeignKey('admin_accounts.id'), nullable=False)
+    session_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    session_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    restore_epoch: Mapped[str | None] = mapped_column(Text)
+    request_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    result_json: Mapped[str] = mapped_column(Text, nullable=False)
+    post_reconciliation_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class LeaveSyntheticTransitionEntry(Base):
+    __tablename__ = 'leave_synthetic_transition_entries'
+    operation_id: Mapped[str] = mapped_column(ForeignKey('leave_synthetic_transitions.id'), primary_key=True)
+    employee_id: Mapped[int] = mapped_column(ForeignKey('employees.id'), primary_key=True)
+    code: Mapped[str] = mapped_column(String(1), primary_key=True)
+    ledger_id: Mapped[int | None] = mapped_column(ForeignKey('leave_balance_transactions.id'), unique=True)
+    ledger_digest: Mapped[str | None] = mapped_column(String(64))
+
+
+class LeaveSyntheticRegisterConsumption(Base):
+    __tablename__='leave_synthetic_register_consumptions'
+    id: Mapped[str]=mapped_column(String(64),primary_key=True)
+    comparison_id: Mapped[str]=mapped_column(ForeignKey('department_fingerprint_preparations.id'),nullable=False)
+    employee_id: Mapped[int]=mapped_column(ForeignKey('employees.id'),nullable=False)
+    actor_id: Mapped[int]=mapped_column(ForeignKey('admin_accounts.id'),nullable=False)
+    session_id: Mapped[str]=mapped_column(String(128),nullable=False)
+    session_version: Mapped[int]=mapped_column(Integer,nullable=False)
+    restore_epoch: Mapped[str | None]=mapped_column(Text)
+    source_digest: Mapped[str]=mapped_column(String(64),nullable=False)
+    result_json: Mapped[str]=mapped_column(Text,nullable=False)
+    __table_args__=(UniqueConstraint('comparison_id','employee_id',name='uq_synthetic_register_comparison_employee'),)
+
+
+class LeaveReconciliationReviewReceipt(Base):
+    """Recorded operator assertions only; never verified facts or approval."""
+    __tablename__='leave_reconciliation_review_receipts'
+    id: Mapped[str]=mapped_column(String(64),primary_key=True)
+    comparison_id: Mapped[str]=mapped_column(ForeignKey('department_fingerprint_preparations.id'),nullable=False)
+    employee_id: Mapped[int]=mapped_column(ForeignKey('employees.id'),nullable=False)
+    actor_id: Mapped[int]=mapped_column(ForeignKey('admin_accounts.id'),nullable=False)
+    session_id: Mapped[str]=mapped_column(String(128),nullable=False)
+    session_version: Mapped[int]=mapped_column(Integer,nullable=False)
+    restore_epoch: Mapped[str | None]=mapped_column(Text)
+    source_digest: Mapped[str]=mapped_column(String(64),nullable=False)
+    decision_digest: Mapped[str]=mapped_column(String(64),nullable=False)
+    assertions_json: Mapped[str]=mapped_column(Text,nullable=False)
+    reason: Mapped[str]=mapped_column(Text,nullable=False)
+    integrity_digest: Mapped[str]=mapped_column(String(64),nullable=False)
+    created_at: Mapped[datetime]=mapped_column(DateTime(timezone=True),nullable=False)

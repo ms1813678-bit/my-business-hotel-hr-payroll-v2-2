@@ -1,3 +1,11 @@
+from app.pay_basis_routes import pay_basis_router
+from app.leave_balance_explanation_routes import balance_explanation_router
+from app.leave_policy_routes import policy_editor_router
+from app.leave_policy_impact_routes import policy_impact_router
+from app.department_workflow_routes import department_workflow_router
+from app.leave_manual_opening_routes import manual_opening_router
+from app.overtime_review_routes import overtime_preparation_router
+from app.leave_workbench_routes import leave_workbench_router
 import asyncio
 from calendar import monthrange
 import functools
@@ -147,7 +155,7 @@ from app.ai_assistant import ask_local_model, local_fallback_answer, local_model
 from app.ai_agent import is_command_request
 from app.ai_smart_scan import build_smart_scan
 from app.ai_hr_queries import is_structured_hr_query, answer_structured_hr_query
-from app.ai_gateway import prepare_command, approve_command, reject_command, recent_memory, record_exchange
+from app.ai_gateway import review_command, verify_review_receipt, prepare_command, approve_command, reject_command, recent_memory, record_exchange
 
 SECURITY_ROSTER_MAX_BYTES = 5 * 1024 * 1024
 SECURITY_ROSTER_STAGING_DIR = Path("var") / "security_roster_staging"
@@ -1023,15 +1031,36 @@ def ai_ask(
     )
 
 
+@app.post("/ai/review", response_class=HTMLResponse, dependencies=[Depends(csrf_protect)])
+def ai_review(request: Request, token: str = Form(...),
+              admin: AdminAccount = Depends(require_system_admin)):
+    try:
+        pending = review_command(token.strip(), admin.username, request.state.language)
+        answer = None
+    except (RuntimeError, ValueError, SQLAlchemyError):
+        pending = None
+        answer = _translate_text("تغيرت البيانات. جهز معاينة جديدة.", request.state.language)
+    return templates.TemplateResponse(request=request, name="ai.html", context={
+        "admin": admin.display_name or admin.username, "csrf_token": get_csrf_token(request),
+        "status": local_model_status(request.state.language), "scan": build_smart_scan(request.state.language),
+        "question": "", "answer": answer, "answer_language": request.state.language,
+        "pending": pending, "memory": recent_memory(admin.username), "ui_language": request.state.language})
+
+
 @app.post("/ai/approve", response_class=HTMLResponse, dependencies=[Depends(csrf_protect)])
 def ai_approve(
     request: Request,
     token: str = Form(...),
+    review_receipt: str = Form(""),
+    human_coverage_confirmed: str = Form(""),
     admin: AdminAccount = Depends(require_system_admin),
 ):
     history = recent_memory(admin.username)
     try:
-        answer = approve_command(token.strip(), admin.username, language=request.state.language)
+        if not verify_review_receipt(token.strip(), admin.username, review_receipt):
+            raise ValueError(_translate_text("راجع التفاصيل قبل التأكيد.", request.state.language))
+        answer = approve_command(token.strip(), admin.username, language=request.state.language,
+                                 human_coverage_confirmed=human_coverage_confirmed == "confirmed")
         # structured execution results render fully in the UI language
         answer_language = request.state.language
     except (RuntimeError, ValueError, SQLAlchemyError) as exc:
@@ -2168,7 +2197,7 @@ def create_leave_record(
     reason: str = Form(...),
     admin: AdminAccount = Depends(require_attendance_write),
 ):
-    if end_date < start_date or charged_days <= 0 or not reason.strip():
+    if not charged_days.is_finite() or end_date < start_date or charged_days <= 0 or not reason.strip():
         return RedirectResponse("/leave?error=dates", status_code=303)
     calendar_days = (end_date - start_date).days + 1
     if charged_days > Decimal(calendar_days):
@@ -3493,6 +3522,14 @@ def _telegram_context(request: Request) -> dict:
         "tg_bind_expires": bind_expires,
         "tg_status": request.query_params.get("tg"),
     }
+
+
+@app.get("/settings", response_class=HTMLResponse)
+def settings_hub(request: Request, admin: AdminAccount = Depends(get_current_admin)):
+    return templates.TemplateResponse(
+        request=request, name="settings.html",
+        context={"csrf_token": get_csrf_token(request)},
+    )
 
 
 @app.get("/settings/password", response_class=HTMLResponse)
@@ -5054,3 +5091,28 @@ def rehire_employee(
             old_value="archived", new_value="active", reason=reason,
         ))
     return RedirectResponse("/employees", status_code=303)
+
+
+# Owner-selected overtime day-list preparation, no payroll mutation.
+app.include_router(overtime_preparation_router(templates))
+
+app.include_router(leave_workbench_router(templates))
+app.include_router(manual_opening_router(templates))
+
+app.include_router(department_workflow_router(templates))
+app.include_router(policy_editor_router(templates))
+app.include_router(policy_impact_router(templates))
+app.include_router(balance_explanation_router(templates))
+app.include_router(pay_basis_router(templates))
+
+from app.shift_day_routes import shift_day_router
+app.include_router(shift_day_router(templates))
+
+from app.leave_month_review_routes import monthly_review_router
+app.include_router(monthly_review_router(templates))
+
+from app.leave_reconciliation_editor_routes import reconciliation_editor_router
+app.include_router(reconciliation_editor_router(templates))
+
+from app.leave_payroll_day_routes import payroll_day_handoff_router
+app.include_router(payroll_day_handoff_router(templates))

@@ -1,0 +1,36 @@
+<section class="notice" id="month-close">
+<h2>{% if close_stage=='summary' %}٣. ملخص القفل قبل التأكيد{% else %}٣. جاهزية قفل الشهر{% endif %}</h2>
+<p>قفل الشهر يخص الفندق كله، وليس ملف قسم واحد.</p>
+{% if not month %}<p>اختر شهرًا صريحًا لعرض الملفات، دون افتراض الشهر الحالي.</p>
+{% else %}<p><bdi>{{ month }}</bdi></p>
+<div style="padding:18px;background:#fff9ec;border:1px solid #e7d5ac;border-radius:12px"><strong>معاينة فقط، التنفيذ معطّل</strong><p>لم تُنشأ نسخة احتياطية، ولم يُقفل الشهر من هذه الصفحة.</p></div>
+{% if close_stage=='summary' %}
+<p>هذه معاينة للخطوة التالية، وليست إقرارًا باكتمال المراجعة.</p>
+<h3>الفترة والنطاق</h3><p>كل موظفي نطاق الشهر</p><p>{{ close_preview.rows|length }} <span>موظفون ضمن نطاق المراجعة</span></p>
+<h3>آخر فحص للمصادر</h3><p>عند تفعيل التنفيذ لاحقًا، يعاد فحص المصادر عند التأكيد؛ أي تغيير يتطلب مراجعة جديدة.</p>
+<h3>أثر القفل المقترح</h3><p>تسجيل قفل الشهر ومنع التعديل العادي عليه. التصحيح أو إعادة الفتح يحتاج مسار مراجعة منفصلًا.</p>
+<p>لا يمنح رصيدًا متاحًا، ولا يغيّر مرتبًا، ولا يصرف مستحقات تلقائيًا.</p>
+<label>سبب القفل<textarea disabled rows="2"></textarea></label>
+<label style="display:flex;gap:12px;align-items:flex-start;padding:18px 0"><input disabled type="checkbox" style="width:20px;height:20px;margin-top:5px"><span>راجعت نطاق الفندق كله والموانع والمصادر، وأطلب قفل هذا الشهر فقط.</span></label>
+<button disabled style="color:#626b78;background:#e6e9ed;cursor:not-allowed">إنشاء النسخة والتحقق ثم قفل الشهر · معطّل</button>
+<p><a class="button-link" href="?month={{ month }}#month-close">العودة إلى الجاهزية دون قفل</a></p>
+{% else %}
+<p>{{ close_preview.rows|length }} <span>موظفون ضمن نطاق المراجعة</span></p>
+{% if close_preview.closed %}<p>يوجد قفل مسجل لهذا الشهر. هذه الصفحة لا تعيد فتحه.</p>{% endif %}
+{% if close_preview.payroll_blocked %}<p>يوجد مرتب معتمد أو مقفل يتداخل مع الشهر.</p>{% endif %}
+<h3>مراجعة كل موظفي النطاق</h3>
+{% for row in close_preview.rows %}<article style="padding:18px 0;border-bottom:1px solid #dbe1e7"><h3>{{ row.code }} · {{ row.name }}</h3>
+{% if row.evidence.service_evidence_missing %}<p>لا توجد خدمة موثقة؛ لا نفترض أن الموظف غير موجود.</p>{% endif %}
+{% if row.overlapping_service %}<p>توجد فترات خدمة متداخلة تحتاج تصحيحًا.</p>{% endif %}
+{% if row.evidence.unknown_days %}<p><span>أيام غير معروفة</span>: {{ row.evidence.unknown_days }}</p>{% endif %}
+{% if row.evidence.conflicting_dates %}<p>تواريخ متعارضة</p>{% for d in row.evidence.conflicting_dates %}<p><bdi>{{ d }}</bdi></p>{% endfor %}{% endif %}
+{% if row.ready %}<p>تغطية السجل مكتملة، ليست اعتمادًا نهائيًا</p>{% endif %}
+<p>تسوية المصدر وإتاحة الرصيد لم تُعتمدا في هذه المعاينة.</p>
+<p><a href="/leave/payroll-day-handoff?employee_id={{ row.employee_id }}&amp;month={{ month }}">فتح أيام الشهر</a></p></article>
+{% else %}<p>لا توجد أدلة موظفين في النطاق؛ لا يُستنتج اكتمال الشهر.</p>{% endfor %}
+<div style="padding:18px;background:#fff9ec;border:1px solid #e7d5ac;border-radius:12px;margin:20px 0"><h3>النسخة الاحتياطية شرط مستقل</h3><p>عند تفعيل القفل لاحقًا: إنشاء نسخة مشفّرة جديدة والتحقق من نفس الملف قبل تسجيل القفل. وجود نسخة قديمة لا يكفي.</p></div>
+<p>اكتمال الأيام ليس اعتمادًا للتسوية، ولا يثبت رصيدًا متاحًا أو يسمح بصرف مرتب.</p>
+<a class="button-link" href="?month={{ month }}&amp;close_stage=summary#month-close">معاينة ملخص القفل، دون تنفيذ</a>
+<p>يمكن معاينة شكل الملخص مع بقاء الموانع؛ لا يعني ذلك السماح بالتأكيد.</p>
+{% endif %}{% endif %}
+</section>

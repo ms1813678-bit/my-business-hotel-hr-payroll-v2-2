@@ -71,6 +71,9 @@ def test_gate_exemptions_cover_every_credential_write_site():
         ("POST", "/settings/backup/restore"),
     }
     assert set(gated) == expected, set(gated) ^ expected
+    # Modular manual route reaches historical guard's exclusive lock.
+    assert restore_gate_exempt('POST', '/leave/opening/review')
+    assert not restore_gate_exempt('GET', '/leave/opening')
 
 
 def test_restore_route_itself_is_exempt():
@@ -80,6 +83,16 @@ def test_restore_route_itself_is_exempt():
 def test_exemption_table_has_no_unknown_entries():
     expected_exact = {
         ("POST", "/login"),
+        ("POST", "/leave/opening/review"),
+        ("POST", "/leave/departments/export"),
+        ("POST", "/leave/departments/return"),
+        ("POST", "/leave/departments/compare"),
+    ("POST", "/leave/policies/preview"),
+    ("POST", "/leave/policies/confirm"),
+    ("POST", "/leave/policies/impact"),
+    ("POST", "/leave/balance-explanation"),
+        ("POST", "/leave/opening/policy-defaults"),
+        ("POST", "/leave/opening/confirm-source"),
         ("POST", "/settings/password"),
         ("POST", "/settings/telegram"),
         ("POST", "/settings/telegram/bind-link"),
@@ -95,8 +108,18 @@ def test_exemption_table_has_no_unknown_entries():
     # state, and a mid-window read of that state is exactly what the gate
     # exists to block (peer finding on bc74a88).
     assert not restore_gate_exempt("GET", "/settings/password")
-    assert len(GATE_EXEMPT_POST_PATTERNS) == 2
+    assert len(GATE_EXEMPT_POST_PATTERNS) == 5
+    assert restore_gate_exempt("POST", "/leave/month-review/reconciliation-snapshot")
+    assert restore_gate_exempt("POST", "/leave/month-review/reconciliation-draft")
+    assert not restore_gate_exempt("POST", "/leave/month-review/reconciliation-draft/x")
+    assert restore_gate_exempt("POST", "/leave/month-review/register-review")
+    assert restore_gate_exempt("POST", "/leave/month-review/register-confirm")
+    assert not restore_gate_exempt("GET", "/leave/month-review")
+    assert not restore_gate_exempt("POST", "/leave/month-review/register-confirm/other")
     # Reads of ordinary pages must NOT be exempt - that is the whole point.
+    assert restore_gate_exempt('POST','/attendance/shift-evidence/'+('a'*64)+'/1/review')
+    assert restore_gate_exempt('POST','/attendance/shift-evidence/'+('a'*64)+'/1/confirm')
+    assert not restore_gate_exempt('GET','/attendance/shift-evidence/'+('a'*64)+'/1')
     assert not restore_gate_exempt("GET", "/")
     assert not restore_gate_exempt("GET", "/settings/accounts")
     assert not restore_gate_exempt("GET", "/employees")
@@ -121,3 +144,22 @@ def test_parallel_shared_gates_do_not_serialize():
     finally:
         c1.rollback(); c1.close()
         c2.rollback(); c2.close()
+
+
+def test_operational_router_canonical_validation_precedes_exclusive_service():
+    """APIRouter-aware AST pin; main.py decorator scanner cannot see handlers."""
+    import ast
+    path=MAIN.parent/'shift_day_routes.py';tree=ast.parse(path.read_text())
+    handlers={v.name:v for v in ast.walk(tree) if isinstance(v,ast.AsyncFunctionDef) and v.name in ('prepare','confirm')}
+    assert set(handlers)=={'prepare','confirm'}
+    for name,node in handlers.items():
+        calls=[v for v in ast.walk(node) if isinstance(v,ast.Call)]
+        canonical=min(v.lineno for v in calls if isinstance(v.func,ast.Name) and v.func.id=='canonical_operational_path')
+        sensitive=[v.lineno for v in calls if isinstance(v.func,ast.Name) and v.func.id in ('prepare_evidence_review','consume_evidence_review','_identity')]
+        assert sensitive and canonical<min(sensitive)
+    for suffix in ('review','confirm'):
+        path='/attendance/shift-evidence/'+('a'*64)+'/1/'+suffix
+        assert restore_gate_exempt('POST',path)
+        assert not restore_gate_exempt('POST',path+'\n')
+        assert not restore_gate_exempt('POST',path.replace('/1/','/01/'))
+        assert not restore_gate_exempt('POST',path.replace('a'*64,'A'*64))

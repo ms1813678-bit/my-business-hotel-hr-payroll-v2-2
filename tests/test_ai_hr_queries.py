@@ -101,7 +101,7 @@ def test_leave_balance_report(monkeypatch):
         monkeypatch.setattr(queries, "SessionLocal", factory)
         report = queries.build_leave_balance_report("رصيد إجازة MY-0002")
         assert report["employees"]
-        assert report["employees"][0]["balances"][0]["days"] == "15.00"
+        assert Decimal(report["employees"][0]["balances"][0]["days"]) == Decimal("15")
         text = queries.format_leave_balance_ar(report)
         assert "سنوية" in text
     finally:

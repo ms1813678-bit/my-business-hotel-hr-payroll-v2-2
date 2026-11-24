@@ -83,7 +83,7 @@ def test_stale_confirmation_snapshot_stays_invalidated_and_never_executes(monkey
         monkeypatch.setattr(
             gateway,
             "build_confirmation_preview",
-            lambda candidate: {
+            lambda candidate, **kwargs: {
                 "snapshot": {
                     "action": "edit_employee",
                     "target": {"type": "employee", "id": 5},
@@ -167,8 +167,8 @@ def test_leave_balance_preview_shows_current_and_resulting_balance_and_rejects_s
             "reason": "تصحيح رصيد تجريبي",
         }
         preview = gateway.build_confirmation_preview(plan)
-        assert preview["old_values"]["current_balance"] == "5.00"
-        assert preview["new_values"]["resulting_balance"] == "7.00"
+        assert Decimal(preview["old_values"]["current_balance"]) == Decimal("5")
+        assert Decimal(preview["new_values"]["resulting_balance"]) == Decimal("7")
 
         # Simulate another approved HR change after the preview was shown.
         with factory.begin() as db:
@@ -440,7 +440,7 @@ def test_approve_command_returns_ui_language_but_stores_arabic_audit(monkeypatch
     engine = _memory_engine(monkeypatch)
     token = "structured-token"
     now = datetime.now(timezone.utc)
-    plan = {"action": "approve_payroll_run", "payroll_run_id": 9}
+    plan = {"action": "approve_payroll_run", "payroll_run_id": 9, "_confirmation_snapshot": {"synthetic": True}}
     try:
         from sqlalchemy.orm import sessionmaker
         factory = sessionmaker(bind=engine, autoflush=False, autocommit=False)
@@ -455,10 +455,10 @@ def test_approve_command_returns_ui_language_but_stores_arabic_audit(monkeypatch
                 created_at=now,
                 expires_at=now + timedelta(minutes=10),
             ))
-        monkeypatch.setattr(gateway, "build_confirmation_preview", lambda candidate: None)
+        monkeypatch.setattr(gateway, "build_confirmation_preview", lambda candidate, **kwargs: {"snapshot": {"synthetic": True}})
         monkeypatch.setattr(
             gateway, "execute_plan",
-            lambda plan_, actor: ExecutionResult("approve_payroll_run", {"run_id": plan_["payroll_run_id"]}),
+            lambda plan_, actor, **kwargs: ExecutionResult("approve_payroll_run", {"run_id": plan_["payroll_run_id"]}),
         )
         message = gateway.approve_command(token, "tester", language="en")
         assert message == "Payroll run #9 was approved."

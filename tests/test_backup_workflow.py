@@ -569,11 +569,14 @@ def test_export_key_file_digest_collision_uses_longer_name(tmp_path):
     assert jsonlib.loads(squatter.read_text(encoding="utf-8"))["wrapped_key"] == other["wrapped_key"]
 
 
-def test_export_key_file_store_failure_keeps_existing_canonical(tmp_path):
-    """When the record store is unwritable the export fails loudly and the
-    existing canonical record is NOT overwritten."""
+def test_export_key_file_store_failure_keeps_existing_canonical(tmp_path, monkeypatch):
+    """Injected filesystem denial must fail without replacing canonical record.
+
+    Directory chmod is not an effective write-denial fixture on Windows.
+    """
     import json as jsonlib
 
+    from app import backup_workflow
     from app.backup_crypto import export_public_record
     from app.backup_workflow import KEY_FILE_NAME, export_key_file
 
@@ -584,13 +587,15 @@ def test_export_key_file_store_failure_keeps_existing_canonical(tmp_path):
     canonical.write_text(jsonlib.dumps(old_record), encoding="utf-8")
 
     engine, factory = _key_export_session(backup_root, "synthetic-passphrase-alice")
-    backup_root.chmod(0o555)
+    def deny_record_creation(*args, **kwargs):
+        raise PermissionError('Synthetic record-store denial')
+
+    monkeypatch.setattr(backup_workflow, '_claim_record_slot', deny_record_creation)
     try:
         with factory() as db:
-            with pytest.raises(OSError):
+            with pytest.raises(PermissionError, match='Synthetic record-store denial'):
                 export_key_file(db)
     finally:
-        backup_root.chmod(0o755)
         engine.dispose()
     # The only usable record was not silently overwritten.
     assert jsonlib.loads(canonical.read_text(encoding="utf-8"))["wrapped_key"] == old_record["wrapped_key"]
@@ -982,3 +987,19 @@ def test_read_record_file_tolerates_briefly_partial_slot(tmp_path):
     record = backup_workflow._read_record_file(slot)
     writer.join()
     assert record is not None and record["wrapped_key"] == "ef" * 48
+
+
+def test_full_database_dump_has_no_attendance_claim_table_selection_exclusion():
+    """Source selection regression, not archive restore execution."""
+    import ast,inspect
+    from app import backup_workflow
+    tree=ast.parse(inspect.getsource(backup_workflow.create_backup))
+    dump_command=next(node.value for node in ast.walk(tree) if isinstance(node,ast.Assign)
+        and any(isinstance(v,ast.Name) and v.id=='command' for v in node.targets))
+    flags=[v.value for v in dump_command.elts if isinstance(v,ast.Constant) and isinstance(v.value,str)]
+    assert '--format=custom' in flags
+    assert not any(v.startswith(('--table','--exclude-table','--schema','--exclude-schema','--data-only','--schema-only')) or v in ('-t','-T','-n','-N','-a','-s') for v in flags)
+    from app.models import Base
+    tables=Base.metadata.tables
+    for name in ('attendance_daily_records','attendance_evidence_review_receipts','attendance_evidence_consumptions','attendance_evidence_occurrence_claims'):
+        assert name in tables and tables[name].schema is None

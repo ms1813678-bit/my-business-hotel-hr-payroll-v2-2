@@ -2048,7 +2048,7 @@ def test_all_main_html_pages_render_in_each_supported_language(
                 f"Untranslated Arabic UI content for {language} on {path}: "
                 f"{probe.arabic_parts[:8]}"
             )
-        assert 'href="/settings/backup"' in response.text
+        assert 'href="/settings"' in response.text
         assert 'href="/backup"' not in response.text
 
 
@@ -2083,7 +2083,8 @@ def test_ai_pending_confirmation_uses_v22_routes_and_shows_before_after(monkeypa
     assert "البيانات الحالية قبل التنفيذ" in response.text
     assert "التغييرات المطلوبة بعد التنفيذ" in response.text
     assert "5000" in response.text and "5500" in response.text
-    assert 'action="/ai/approve"' in response.text
+    assert 'action="/ai/review"' in response.text
+    assert 'action="/ai/approve"' not in response.text
     assert 'action="/ai/reject"' in response.text
     assert 'name="token" value="single-use-test-token"' in response.text
     assert 'action="/ai/prepare"' not in response.text
@@ -2353,19 +2354,20 @@ def test_ai_approve_turn_does_not_duplicate_bubbles(client, monkeypatch):
     language; the stored memory bubble keeps the Arabic audit original."""
     gateway, engine = _real_gateway_memory(monkeypatch)
     try:
-        def fake_approve(token, actor, language="ar"):
+        def fake_approve(token, actor, language="ar", **kwargs):
             # mirrors the real gateway: Arabic audit original stored verbatim,
             # UI-language rendering returned to the page
             gateway._memory(actor, "assistant", "تم تنفيذ العملية التجريبية.", "ar")
             return "Test operation completed."
 
         monkeypatch.setattr("app.main.approve_command", fake_approve)
+        monkeypatch.setattr("app.main.verify_review_receipt", lambda *args: True)
         assert login(client).status_code == 303
         client.cookies.set("my_hr_language", "en")
         page = client.get("/ai")
         response = client.post(
             "/ai/approve",
-            data={"token": "tok", "csrf_token": csrf_from(page)},
+            data={"token": "tok", "review_receipt": "synthetic-reviewed", "csrf_token": csrf_from(page)},
         )
         assert response.status_code == 200
         assert response.text.count("ai-msg-assistant") == 1

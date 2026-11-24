@@ -92,49 +92,60 @@
 {% endif %}
 
 {% if pending %}
-<section class="card">
+<section class="card" id="ai-exact-review">
+  <p class="eyebrow">{% if pending.reviewed %}٢. تأكيد مستقل{% else %}١. مراجعة التفاصيل{% endif %}</p>
   <h2>خطة تحتاج موافقتك</h2>
-  <p><strong>{{ pending.summary }}</strong></p>
-  {% if pending.old_values %}
-  <h3>البيانات الحالية قبل التنفيذ</h3>
-  <div class="table-wrap mb-2">
-    <table>
-      <thead><tr><th>الحقل</th><th>القيمة</th></tr></thead>
-      <tbody>{% for key, value in pending.old_values.items() %}<tr><td>{{ key }}</td><td>{{ value }}</td></tr>{% endfor %}</tbody>
-    </table>
-  </div>
+  <p data-no-translate dir="auto">{{ pending.summary }}</p>
+  {% if pending.old_values.payroll_items is defined %}
+  <h3>المبالغ المعروضة للمراجعة</h3>
+  <p class="muted">كل المبالغ بالجنيه المصري. أي تعديل بعد المراجعة يتطلب معاينة جديدة.</p>
+  {% for row in pending.old_values.payroll_items %}
+  <article class="card" style="margin:12px 0">
+    <h3><bdi data-no-translate>{{ row.employee_code_snapshot }} · {{ row.employee_name_snapshot }}</bdi></h3>
+    <dl class="ai-money-grid">
+    {% for key, label in [('salary_basis','أساس الراتب'),('base_salary','الراتب الأساسي'),('attendance_bonus','مكافأة الحضور'),('performance_bonus','مكافأة الأداء'),('occupancy_bonus','مكافأة الإشغال'),('overtime_hours','ساعات العمل الإضافي'),('overtime_amount','قيمة العمل الإضافي'),('other_bonus','إضافات أخرى'),('absence_deduction','خصم الغياب'),('lateness_deduction','خصم التأخير'),('insurance_share','التأمينات'),('taxes','الضرائب'),('other_deductions','استقطاعات أخرى'),('advance_deduction','خصم السلف'),('staff_reward_amount','مكافآت إدارية'),('staff_sanction_amount','جزاءات إدارية'),('net_pay','صافي الراتب')] %}
+      <div><dt>{{ label }}</dt><dd><bdi>{{ row[key] }}</bdi></dd></div>
+    {% endfor %}
+    </dl>
+  </article>
+  {% endfor %}
+  <h3>الصافي بعد إعادة الحساب</h3>
+  <dl class="ai-money-grid">{% for row in pending.old_values.calculated_items %}<div><dt><bdi data-no-translate>{{ row.employee_code }} · {{ row.employee_name }}</bdi></dt><dd><bdi>{{ row.net_pay }}</bdi></dd></div>{% endfor %}</dl>
+  {% else %}
+    {% if pending.old_values %}<h3>البيانات الحالية قبل التنفيذ</h3><div class="table-wrap"><table><tbody>
+    {% for key, value in pending.old_values.items() if key != 'source_digest' %}<tr><th>{{ 'الحالة' if key == 'status' else ('بداية الفترة' if key == 'period_start' else ('نهاية الفترة' if key == 'period_end' else (key | field_label))) }}</th><td dir="auto">{% if key == 'status' %}{{ value | status_label }}{% else %}<span data-no-translate>{{ value }}</span>{% endif %}</td></tr>{% endfor %}
+    </tbody></table></div>{% endif %}
+    {% if pending.new_values %}<h3>التغييرات المطلوبة بعد التنفيذ</h3><div class="table-wrap"><table><tbody>
+    {% for key, value in pending.new_values.items() if key != 'coverage_confirmed' %}<tr><th>{{ 'الحالة' if key == 'status' else ('بداية الفترة' if key == 'period_start' else ('نهاية الفترة' if key == 'period_end' else (key | field_label))) }}</th><td dir="auto">{% if key == 'status' %}{{ value | status_label }}{% else %}<span data-no-translate>{{ value }}</span>{% endif %}</td></tr>{% endfor %}
+    </tbody></table></div>{% endif %}
   {% endif %}
-  {% if pending.new_values %}
-  <h3>التغييرات المطلوبة بعد التنفيذ</h3>
-  <div class="table-wrap mb-2">
-    <table>
-      <thead><tr><th>الحقل</th><th>القيمة</th></tr></thead>
-      <tbody>{% for key, value in pending.new_values.items() %}<tr><td>{{ key }}</td><td>{{ value }}</td></tr>{% endfor %}</tbody>
-    </table>
-  </div>
-  {% endif %}
-  {% if pending.risks %}
-  <h3>الآثار والتنبيهات</h3>
-  <ul class="risks">{% for risk in pending.risks %}<li>{{ risk }}</li>{% endfor %}</ul>
-  {% endif %}
-  <details>
-    <summary>تفاصيل خطة التنفيذ</summary>
-    <pre class="ai-plan">{{ pending.plan | tojson(indent=2) }}</pre>
-  </details>
   <p class="muted">هذه الخطة محفوظة ببصمة. صلاحيتها محدودة، ولا يمكن إعادة استخدام الموافقة بعد التنفيذ.</p>
-  <div class="actions">
-    <form method="post" action="/ai/approve">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-      <input type="hidden" name="token" value="{{ pending.token }}">
-      <button type="submit" class="btn-primary">موافقة وتنفيذ</button>
-    </form>
-    <form method="post" action="/ai/reject">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-      <input type="hidden" name="token" value="{{ pending.token }}">
-      <button type="submit" class="btn-danger">رفض العملية</button>
-    </form>
-  </div>
+  {% if pending.reviewed %}
+  <h3>تأكيد نهائي</h3><p>راجعت التفاصيل المعروضة وأؤكد تنفيذ هذه العملية.</p>
+  <form method="post" action="/ai/approve" class="stack">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="token" value="{{ pending.token }}">
+    <input type="hidden" name="review_receipt" value="{{ pending.review_receipt }}">
+    {% if pending.plan.action == 'approve_attendance_month' %}
+    <label class="ai-human-check"><input type="checkbox" name="human_coverage_confirmed" value="confirmed" required>
+      <span>أؤكد بنفسي مراجعة تغطية كل الموظفين والأيام وحل الفجوات.</span></label>
+    <p class="muted">هذا تأكيدك الشخصي، ولا يمكن للمساعد تحديده نيابة عنك.</p>
+    {% endif %}
+    <button type="submit" class="btn-primary">راجعت التفاصيل وأعتمد التنفيذ</button>
+  </form>
+  {% else %}
+  <form method="post" action="/ai/review">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="token" value="{{ pending.token }}">
+    <button type="submit" class="btn-primary">راجعت التفاصيل، انتقل للتأكيد</button>
+  </form>
+  {% endif %}
+  <form method="post" action="/ai/reject" style="margin-top:12px">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="token" value="{{ pending.token }}">
+    <button type="submit" class="btn-danger">رفض العملية</button>
+  </form>
 </section>
+<style>.ai-money-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px 24px}.ai-money-grid div{display:flex;justify-content:space-between;gap:16px;border-bottom:1px solid #ddd;padding:6px 0}.ai-money-grid dd{margin:0;font-weight:600}.ai-human-check{display:flex;align-items:start;gap:12px;padding:16px;border:1px solid #73a89a}.ai-human-check input{width:20px;min-width:20px;height:20px}</style>
 {% endif %}
 
 <section class="card">

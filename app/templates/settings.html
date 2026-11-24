@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% set active_nav = 'settings' %}
+{% block title %}الإعدادات{% endblock %}
+{% block content %}
+<header class="page-header"><div><h1>الإعدادات</h1><p class="muted">اللغة والحساب وإدارة النظام في مكان واحد</p></div></header>
+<div class="settings-grid">
+<section class="card settings-wide"><h2>عام</h2><div class="settings-row"><div><strong>اللغة</strong><p class="muted small">تُحفظ على هذا المتصفح</p></div><nav class="settings-languages" aria-label="اللغة">{% for code, label in [('ar', 'العربية'), ('en', 'English'), ('zh', '中文')] %}<a href="/language/{{ code }}" lang="{{ code }}" data-no-translate {% if request.state.language == code %}class="active" aria-current="true"{% endif %}>{{ label }}</a>{% endfor %}</nav></div></section>
+<section class="card"><h2>حسابي</h2><div class="settings-row"><span>كلمة المرور</span><a class="button-link" href="/settings/password">تغيير</a></div>{% if request.state.admin_role == 'system_admin' %}<div class="settings-row"><span>تنبيهات تيليجرام</span><a class="button-link" href="/settings/password#telegram-settings">إعداد</a></div>{% endif %}</section>
+{% if request.state.admin_role == 'system_admin' %}
+<section class="card"><h2>حماية البيانات <span class="settings-admin">لمدير النظام فقط</span></h2><div class="settings-row"><span>نسخة احتياطية مشفرة</span><a class="button-link" href="/settings/backup">فتح</a></div><div class="settings-row"><span>استعادة نسخة</span><a class="button-link" href="/settings/backup#restore-backup">فتح</a></div></section>
+<section class="card"><h2>الإدارة <span class="settings-admin">لمدير النظام فقط</span></h2><div class="settings-row"><span>حسابات المستخدمين</span><a class="button-link" href="/settings/accounts">إدارة</a></div><div class="settings-row"><span>الجلسات المفتوحة</span><a class="button-link" href="/settings/accounts#account-sessions">عرض</a></div><div class="settings-row"><span>استرداد الحساب</span><a class="button-link" href="/settings/accounts#account-recovery">إدارة</a></div></section>
+<section class="card"><h2>سجل المراجعة <span class="settings-admin">لمدير النظام فقط</span></h2><div class="settings-row"><span>سجل العمليات على النظام</span><a class="button-link" href="/settings/audit">عرض</a></div></section>
+{% endif %}
+<section class="card settings-wide"><h2>معلومات النظام <span class="settings-readonly">للعرض فقط</span></h2><div class="settings-row"><span>الفندق</span><span>M.Y. BUSINESS HOTEL</span></div><div class="settings-row"><span>المنطقة الزمنية</span><span>القاهرة</span></div></section>
+</div>
+{% endblock %}

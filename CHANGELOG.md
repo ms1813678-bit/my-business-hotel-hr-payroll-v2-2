@@ -1,5 +1,13 @@
 # سجل التطوير — Changelog
 
+## 2026-11-24 - Reviewed application preparation and disabled monthly review by Instinct
+
+Instinct implemented exact manual opening and policy source preparation; department workbook export/return/fingerprint source comparison; source-bound attendance review; the chosen dedicated monthly page; immutable assertion-only reconciliation receipts; HR/finance read-only day handoff; and the approved two-stage disabled global-close preview. Related account, local-AI approval, Settings, theme and localization changes are included with regression tests.
+
+This is a development/preparation batch, not an operational release. Reconciliation assertions do not prove verification or establish spendable balances. Attendance/register/transition/close acceptance harnesses remain disabled by default and require explicit test/synthetic environment plus narrowly named test databases. Global-close reason/confirmation/execution remain disabled, with no actual close POST endpoint. No production leave posting, new payroll formula, device install, certificate, network configuration, offline transport or Windows isolation candidate is enabled here. Existing Windows import preparation remains fail-closed pending native acceptance.
+
+Verification of this isolated application tree: 1643 tests passed with 25 explicitly manual tests skipped across compatible fresh PostgreSQL 0063 databases; the dedicated committed monthly HTTP acceptance then passed separately, including Arabic/English/Chinese, roles, unchanged business effects and disabled close preview. A prior Chinese weekly-rest override regression was found and fixed by preserving the existing canonical label. CI workflow, desktop/runtime candidates, native Windows, offline reference models and historical status notes are excluded. No hosted CI success is claimed.
+
 ## 2026-11-24 - Isolated calculation and evidence foundation by Instinct
 
 Instinct added independently callable day-only leave calculations, explicit carry-window validation, full-calendar-month annual-release preview, exact employee-identity matching and same-day overtime-rate preview, with regression tests. These modules do not add routes, select real employee facts, post balances, close a month, change payroll, issue certificates or install software. Verified against the unchanged branch base on freshly migrated PostgreSQL: 852 tests passed, including 80 new foundation tests. The rest of the local development candidate is not included in this batch. Native Windows and operational workflow acceptance remain separate.

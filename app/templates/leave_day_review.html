@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% set active_nav = "leave" %}
+{% block title %}مراجعة تجهيز بيانات اليوم{% endblock %}
+{% block content %}<header class="topbar"><h1>مراجعة تجهيز بيانات اليوم</h1><a href="/leave/workbench">ملف الإجازات للموظف</a></header>
+<section class="notice"><p>هذا تسجيل بيانات يوم فقط، وليس طلب إجازة أو اعتماد خصم من الرصيد.</p></section>
+{% if error %}<section class="notice error"><h2>لم يتم تسجيل أي تغيير.</h2><p>انتهت المراجعة أو تغيرت البيانات أو الصلاحية، أو توجد فترة مقفلة أو إجازة مرتبطة. افتح ملف الموظف وراجع البيانات من جديد. لا تعاد المحاولة تلقائيًا.</p></section>{% endif %}
+{% if saved %}<section class="notice"><h2>تم تسجيل تجهيز بيانات اليوم.</h2><p>المراجعة المحفوظة: {{ saved[1] }}</p><p>لم يخصم رصيد ولم يعتمد طلب إجازة.</p></section>{% endif %}
+{% if token %}<section class="notice" id="leave-day-exact-review"><h2>راجع قبل التسجيل</h2><dl><dt>الموظف</dt><dd>{{ edit.employee_id }}</dd><dt>اليوم</dt><dd>{{ edit.work_date }}</dd><dt>بداية الفترة</dt><dd>{{ edit.period_start }}</dd><dt>نهاية الفترة</dt><dd>{{ edit.period_end }}</dd><dt>البيان السابق</dt><dd>{{ review.previous_code if review.previous_code is not none else 'غير معروف' }}</dd><dt>البيان المقترح</dt><dd>{% if edit.code is none %}غير معروف{% elif edit.code == '' %}حضور مؤكد{% else %}{{ edit.code }}{% endif %}</dd><dt>ملاحظات</dt><dd>{{ edit.notes or '' }}</dd></dl><form method="post" action="/leave/workbench/confirm"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="receipt" value="{{ token }}"><label><input type="checkbox" name="human_confirmed" value="confirmed" required> راجعت بيانات اليوم وأريد تسجيلها فقط.</label><button type="submit">تأكيد تسجيل بيانات اليوم</button></form></section>{% endif %}
+{% endblock %}

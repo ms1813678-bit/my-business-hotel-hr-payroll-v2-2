@@ -2,6 +2,7 @@
 {% set active_nav = "leave" %}
 {% block title %}إدارة الإجازات | M.Y. Business Hotel{% endblock %}
 {% block content %}
+<p><a href="/leave/workbench">ملف الإجازات للموظف</a></p>
   <header class="topbar">
     <div><p class="eyebrow">M.Y. BUSINESS HOTEL</p><h1>إدارة الإجازات والأرصدة</h1>
       <p class="muted">إدارة الإجازات والأرصدة{% if request.state.admin_role == 'finance' %} · اطلاع فقط{% endif %}</p></div>
@@ -12,7 +13,7 @@
   <section class="notice error">
     {% if error == "notice" %}الإجازة المخططة تحتاج إلى تسجيل قبل موعد بدايتها بـ72 ساعة على الأقل.
     {% elif error == "balance" %}تعذر تسجيل حركة الرصيد. راجع الموظف ونوع الإجازة والقيمة والسبب، وتأكد من عدم تكرار الرصيد الافتتاحي.
-    {% elif error == "confirm" %}تعذر اعتماد الإجازة. قد يكون الرصيد غير كافٍ أو أن السجل لم يعد مسودة.
+    {% elif error == "confirm" %}تعذر اعتماد الإجازة. راجع حالة المسودة والبيانات. الرصيد السالب مسموح ولا يمنع الاعتماد.
     {% elif error == "cancel" %}تعذر إلغاء الإجازة. أدخل سببًا واضحًا وتأكد أن السجل غير ملغى بالفعل.
     {% elif error == "dates" %}راجع تاريخ البداية والنهاية والسبب.
     {% elif error == "days" %}عدد الأيام المحتسبة لا يمكن أن يزيد على عدد الأيام التقويمية في الفترة.
@@ -40,7 +41,7 @@
         </label>
         <label>من تاريخ<input type="date" name="start_date" required></label>
         <label>إلى تاريخ<input type="date" name="end_date" required></label>
-        <label>أيام الخصم من الرصيد<input type="number" name="charged_days" min="0" step="0.25" required></label>
+        <label>أيام الخصم من الرصيد<input type="number" name="charged_days" min="0" step="any" required></label>
         <label>السبب<input name="reason" maxlength="2000" required></label>
       </div>
       <button type="submit">تسجيل الإجازة كمسودة</button>
@@ -60,7 +61,7 @@
         <label>الموظف<select name="employee_id" required>{% for e in employees %}<option value="{{ e.id }}">{{ e.code }} — {{ e.full_name }}</option>{% endfor %}</select></label>
         <label>نوع الرصيد<select name="leave_type_id" required>{% for t in leave_types if t.tracks_balance %}<option value="{{ t.id }}">{{ leave_type_name(t, request.state.language) }}</option>{% endfor %}</select></label>
         <label>نوع الحركة<select name="transaction_type"><option value="opening">رصيد افتتاحي</option><option value="adjustment">تسوية</option></select></label>
-        <label>عدد الأيام<input type="number" name="days_delta" step="0.25" required></label>
+        <label>عدد الأيام<input type="number" name="days_delta" step="any" required></label>
         <label>السبب<input name="reason" maxlength="2000" required></label>
       </div>
       <button type="submit">تسجيل الحركة</button>

@@ -4013,3 +4013,721 @@ ZH.update({
     "النسخ الاحتياطي الجديد يتطلب تفعيل التشفير أولًا. عيّن كلمة سر التشفير من الأسفل.": "新备份需要先启用加密。请在下方设置备份加密密码。",
     "لن يُنشأ أي نسخ احتياطي جديد قبل إتمام هذه الخطوة.": "在完成此步骤之前,不会创建任何新备份。",
 })
+
+# Exact local AI review, owner-selected two-step confirmation.
+EN.update({
+'١. مراجعة التفاصيل':'1. Review details', '٢. تأكيد مستقل':'2. Separate confirmation',
+'المبالغ المعروضة للمراجعة':'Amounts presented for review',
+'كل المبالغ بالجنيه المصري. أي تعديل بعد المراجعة يتطلب معاينة جديدة.':'All amounts are in EGP. Any change after review requires a new preview.',
+'تأكيد نهائي':'Final confirmation',
+'راجعت التفاصيل المعروضة وأؤكد تنفيذ هذه العملية.':'I reviewed the displayed details and confirm this operation.',
+'راجعت التفاصيل وأعتمد التنفيذ':'I reviewed the details and approve execution',
+'راجعت التفاصيل، انتقل للتأكيد':'Details reviewed, continue to confirmation',
+'أؤكد بنفسي مراجعة تغطية كل الموظفين والأيام وحل الفجوات.':'I personally confirm reviewing all employee and day coverage and resolving gaps.',
+'هذا تأكيدك الشخصي، ولا يمكن للمساعد تحديده نيابة عنك.':'This is your personal attestation. The assistant cannot select it for you.',
+'راجع التفاصيل قبل التأكيد.':'Review the details before confirmation.',
+'تغيرت البيانات. جهز معاينة جديدة.':'Data changed. Prepare a new preview.',
+'أساس الراتب':'Salary basis','مكافآت إدارية':'Staff rewards','جزاءات إدارية':'Staff sanctions',
+'قيمة العمل الإضافي':'Overtime amount','خصم السلف':'Advance deduction',
+})
+ZH.update({
+'١. مراجعة التفاصيل':'1. 审核明细', '٢. تأكيد مستقل':'2. 独立确认',
+'المبالغ المعروضة للمراجعة':'待审核金额',
+'كل المبالغ بالجنيه المصري. أي تعديل بعد المراجعة يتطلب معاينة جديدة.':'所有金额均为埃及镑。审核后如有任何更改,必须重新生成预览。',
+'تأكيد نهائي':'最终确认',
+'راجعت التفاصيل المعروضة وأؤكد تنفيذ هذه العملية.':'我已审核显示的明细并确认执行此操作。',
+'راجعت التفاصيل وأعتمد التنفيذ':'已审核明细并批准执行',
+'راجعت التفاصيل، انتقل للتأكيد':'已审核明细,继续确认',
+'أؤكد بنفسي مراجعة تغطية كل الموظفين والأيام وحل الفجوات.':'我本人确认已审核所有员工及日期的出勤覆盖情况并解决缺漏。',
+'هذا تأكيدك الشخصي، ولا يمكن للمساعد تحديده نيابة عنك.':'这是您本人的确认,助手不能代为勾选。',
+'راجع التفاصيل قبل التأكيد.':'请先审核明细,再确认。',
+'تغيرت البيانات. جهز معاينة جديدة.':'数据已变更。请重新生成预览。',
+'أساس الراتب':'工资基数','مكافآت إدارية':'员工奖励','جزاءات إدارية':'员工处罚',
+'قيمة العمل الإضافي':'加班金额','خصم السلف':'预支扣款',
+})
+
+EN.update({'الصافي بعد إعادة الحساب': 'Net pay after recalculation'})
+ZH.update({'الصافي بعد إعادة الحساب': '重新计算后的实发金额'})
+EN.update({'مكافأة الحضور':'Attendance bonus','مكافأة الأداء':'Performance bonus','مكافأة الإشغال':'Occupancy bonus','إضافات أخرى':'Other additions','التأمينات':'Insurance','استقطاعات أخرى':'Other deductions','صافي الراتب':'Net pay'})
+ZH.update({'مكافأة الحضور':'出勤奖金','مكافأة الأداء':'绩效奖金','مكافأة الإشغال':'入住率奖金','إضافات أخرى':'其他补贴','التأمينات':'保险','استقطاعات أخرى':'其他扣款','صافي الراتب':'实发工资'})
+EN.update({'بداية الفترة':'Period start','نهاية الفترة':'Period end'})
+ZH.update({'بداية الفترة':'期间开始','نهاية الفترة':'期间结束'})
+
+# Owner-selected overtime day-list preparation interface.
+EN.update({
+'مراجعة أيام الأوفر تايم': 'Overtime day review',
+'قائمة الأيام ثم تفاصيل اليوم والتأكيد المستقل': 'Day list, then day details and separate confirmation',
+'هذه شاشة تجهيز فقط. لا تحفظ ساعات أو تعتمد أو تصرف مبالغ، ولا تغير حسابات الرواتب الحالية.': 'Preparation only. This screen does not save hours, approve or pay amounts, or change existing payroll calculations.',
+'اختار الموظف': 'Choose an employee', 'عرض الأيام': 'Show days',
+'يعرض أحدث ٦٢ سجل حضور للموظف المحدد. عدم وجود سجل لا يعني صفر ساعات.': 'Shows the selected employee\'s latest 62 attendance records. A missing record does not mean zero hours.',
+'دقائق العمل المسجلة': 'Recorded worked minutes', 'تفاصيل اليوم': 'Day details',
+'لا توجد أيام مسجلة لهذا الموظف.': 'No recorded days for this employee.',
+'بداية الفترة المجدولة': 'Scheduled start', 'نهاية الفترة المجدولة': 'Scheduled end',
+'سجل حضور هذا اليوم غير متاح.': 'Attendance for this day is unavailable.',
+'دقائق العمل ليست ساعات أوفر تايم معتمدة. المقارنة تحتاج دليل حضور لنفس اليوم.': 'Worked minutes are not approved overtime hours. Comparison needs attendance evidence for the same day.',
+'قبل إدخال الساعات والمراجعة النهائية': 'Before entering hours and final review',
+'يلزم تحديد مصدر ومبلغ مكافأة الأداء الفعلية للشهر المختار.': 'The source and amount of the actual performance award for the selected month must be specified.',
+'يلزم تحديد طريقة اختيار قاسم الساعة للأمن، ٨ أو ١٢، دون افتراض جدول شيفتات.': 'The way to select the security hourly divisor, 8 or 12, must be specified without assuming a shift schedule.',
+'الساعات اليدوية الزائدة عن دليل نفس اليوم تحتاج سببًا ثم مراجعة المسؤول المخول.': 'Manual hours above the same-day evidence need a reason and then authorized review.',
+'التأكيد غير متاح حتى استكمال المدخلات': 'Confirmation unavailable until inputs are complete',
+'القيم الناقصة تظل غير معروفة. لا مبلغ تقديري أو اعتماد تلقائي.': 'Missing values stay unknown. No estimated amount or automatic approval.',
+})
+ZH.update({
+'مراجعة أيام الأوفر تايم': '加班日期审核',
+'قائمة الأيام ثم تفاصيل اليوم والتأكيد المستقل': '日期列表，然后查看当日详情并单独确认',
+'هذه شاشة تجهيز فقط. لا تحفظ ساعات أو تعتمد أو تصرف مبالغ، ولا تغير حسابات الرواتب الحالية.': '此页面仅用于准备。不保存工时、不批准或支付金额，也不更改现有工资计算。',
+'اختار الموظف': '选择员工', 'عرض الأيام': '显示日期',
+'يعرض أحدث ٦٢ سجل حضور للموظف المحدد. عدم وجود سجل لا يعني صفر ساعات.': '显示所选员工最近的62条考勤记录。缺少记录并不代表零工时。',
+'دقائق العمل المسجلة': '已记录的工作分钟数', 'تفاصيل اليوم': '当日详情',
+'لا توجد أيام مسجلة لهذا الموظف.': '该员工暂无日期记录。',
+'بداية الفترة المجدولة': '计划开始时间', 'نهاية الفترة المجدولة': '计划结束时间',
+'سجل حضور هذا اليوم غير متاح.': '此日期的考勤记录不可用。',
+'دقائق العمل ليست ساعات أوفر تايم معتمدة. المقارنة تحتاج دليل حضور لنفس اليوم.': '工作分钟数不是已批准的加班工时。比较需要同一天的考勤依据。',
+'قبل إدخال الساعات والمراجعة النهائية': '输入工时和最终审核之前',
+'يلزم تحديد مصدر ومبلغ مكافأة الأداء الفعلية للشهر المختار.': '必须指定所选月份实际绩效奖金的来源和金额。',
+'يلزم تحديد طريقة اختيار قاسم الساعة للأمن، ٨ أو ١٢، دون افتراض جدول شيفتات.': '必须明确保安小时费率除数8或12的选择方式，不推定排班。',
+'الساعات اليدوية الزائدة عن دليل نفس اليوم تحتاج سببًا ثم مراجعة المسؤول المخول.': '手工输入超出当日依据的工时需要原因，然后由授权人员审核。',
+'التأكيد غير متاح حتى استكمال المدخلات': '输入完整之前无法确认',
+'القيم الناقصة تظل غير معروفة. لا مبلغ تقديري أو اعتماد تلقائي.': '缺失数值保持未知。不估算金额，也不自动批准。',
+})
+EN.update({'اليوم': 'Day', 'المراجعة': 'Review', 'غير متاح': 'Unavailable'})
+ZH.update({'اليوم': '日期', 'المراجعة': '审核', 'غير متاح': '不可用'})
+EN.update({'تعذر اعتماد الإجازة. راجع حالة المسودة والبيانات. الرصيد السالب مسموح ولا يمنع الاعتماد.': 'Could not confirm leave. Check the draft status and data. A negative balance is allowed and does not block confirmation.'})
+ZH.update({'تعذر اعتماد الإجازة. راجع حالة المسودة والبيانات. الرصيد السالب مسموح ولا يمنع الاعتماد.': '无法确认休假。请检查草稿状态和数据。允许负余额，不会因此阻止确认。'})
+
+# Employee-first leave workbench labels.
+EN.update({'ملف الإجازات للموظف': 'Employee leave profile', 'ابدأ بالموظف ثم راجع الأيام والأرصدة المتاحة لصلاحيتك.': 'Start with an employee, then review the days and balances available to your role.', 'تجهيز بيانات اليوم ليس طلب إجازة معتمدًا، ولا يخصم رصيدًا أو يصرف مبلغًا.': 'Preparing day evidence is not an approved leave request and does not debit a balance or pay money.', 'طلب الإجازة يخص الموظف المحدد. المساعد يجهز الطلب، ومدير الموارد البشرية يراجعه ويعتمده. هذه الصفحة لا تفعل دورة الطلب الجديدة بعد.': 'A leave request concerns the selected employee. The assistant prepares it and the HR manager reviews and approves it. This page does not yet enable the new request workflow.', 'عرض ملف الموظف': 'Show employee profile', 'الأرصدة المسجلة بالأيام': 'Recorded day balances', 'الرصيد من دفتر الحركات الحالي، وليس استحقاقًا جديدًا أو مبلغًا للصرف.': 'The balance is from the current transaction ledger, not a new entitlement or payout amount.', 'لا توجد أنواع رصيد مسجلة.': 'No balance types recorded.', 'بيانات الأيام المسجلة': 'Recorded day evidence', 'بيان اليوم': 'Day evidence', 'حضور مؤكد': 'Explicitly confirmed present', 'غير معروف': 'Unknown', 'لا توجد بيانات أيام مسجلة في الفترة. الأيام الناقصة تظل غير معروفة.': 'No day evidence recorded in this period. Missing days remain unknown.', 'حدد فترة صريحة لا تزيد عن سنة لعرض الأيام، دون افتراض دورة شهرية.': 'Select an explicit period of no more than one year to view days, without assuming a monthly cycle.', 'تعديل بيانات اليوم ومراجعته البشرية قيد الربط. لا يوجد اعتماد أو خصم تلقائي.': 'Day editing and human review are being integrated. There is no automatic approval or debit.'})
+ZH.update({'ملف الإجازات للموظف': '员工休假档案', 'ابدأ بالموظف ثم راجع الأيام والأرصدة المتاحة لصلاحيتك.': '先选择员工，再查看您权限范围内的日期和余额。', 'تجهيز بيانات اليوم ليس طلب إجازة معتمدًا، ولا يخصم رصيدًا أو يصرف مبلغًا.': '准备当日资料并不代表已批准休假，不扣减余额也不支付款项。', 'طلب الإجازة يخص الموظف المحدد. المساعد يجهز الطلب، ومدير الموارد البشرية يراجعه ويعتمده. هذه الصفحة لا تفعل دورة الطلب الجديدة بعد.': '休假申请属于所选员工。助理准备申请，人力资源经理审核并批准。此页面尚未启用新的申请流程。', 'عرض ملف الموظف': '显示员工档案', 'الأرصدة المسجلة بالأيام': '已记录的天数余额', 'الرصيد من دفتر الحركات الحالي، وليس استحقاقًا جديدًا أو مبلغًا للصرف.': '余额来自现有流水账，不代表新增权益或应支付金额。', 'لا توجد أنواع رصيد مسجلة.': '暂无余额类型。', 'بيانات الأيام المسجلة': '已记录的日期资料', 'بيان اليوم': '当日资料', 'حضور مؤكد': '已明确确认出勤', 'غير معروف': '未知', 'لا توجد بيانات أيام مسجلة في الفترة. الأيام الناقصة تظل غير معروفة.': '此期间没有日期资料。缺失日期仍为未知。', 'حدد فترة صريحة لا تزيد عن سنة لعرض الأيام، دون افتراض دورة شهرية.': '请选择不超过一年的明确期间以查看日期，不推定月度周期。', 'تعديل بيانات اليوم ومراجعته البشرية قيد الربط. لا يوجد اعتماد أو خصم تلقائي.': '当日资料编辑及人工审核尚在接入中，不会自动批准或扣减。'})
+EN.update({
+'مراجعة تجهيز بيانات اليوم':'Review day evidence preparation',
+'هذا تسجيل بيانات يوم فقط، وليس طلب إجازة أو اعتماد خصم من الرصيد.':'This records day evidence only, not a leave request or approval to debit a balance.',
+'لم يتم تسجيل أي تغيير.':'No change was recorded.',
+'انتهت المراجعة أو تغيرت البيانات أو الصلاحية، أو توجد فترة مقفلة أو إجازة مرتبطة. افتح ملف الموظف وراجع البيانات من جديد. لا تعاد المحاولة تلقائيًا.':'The review expired, data or authority changed, or the period is closed or linked to leave. Open the employee profile and review again. No automatic retry.',
+'تم تسجيل تجهيز بيانات اليوم.':'Day evidence preparation was recorded.',
+'المراجعة المحفوظة:':'Saved revision:',
+'لم يخصم رصيد ولم يعتمد طلب إجازة.':'No balance was debited and no leave request approved.',
+'راجع قبل التسجيل':'Review before recording',
+'البيان السابق':'Previous day evidence','البيان المقترح':'Proposed day evidence',
+'راجعت بيانات اليوم وأريد تسجيلها فقط.':'I reviewed the day evidence and want only to record it.',
+'تأكيد تسجيل بيانات اليوم':'Confirm recording day evidence',
+'تجهيز بيانات يوم للمراجعة':'Prepare day evidence for review',
+'اختار بيان اليوم صراحة. تسجيله لا يعتمد طلب إجازة ولا يخصم الرصيد.':'Select the day evidence explicitly. Recording it does not approve a leave request or debit a balance.',
+'خارج الخدمة':'Outside employment','الشهادة':'Certificate','مراجعة بيانات اليوم':'Review day evidence',
+})
+ZH.update({
+'مراجعة تجهيز بيانات اليوم':'审核当日资料准备',
+'هذا تسجيل بيانات يوم فقط، وليس طلب إجازة أو اعتماد خصم من الرصيد.':'此操作仅记录当日资料，不是休假申请，也不批准扣减余额。',
+'لم يتم تسجيل أي تغيير.':'未记录任何更改。',
+'انتهت المراجعة أو تغيرت البيانات أو الصلاحية، أو توجد فترة مقفلة أو إجازة مرتبطة. افتح ملف الموظف وراجع البيانات من جديد. لا تعاد المحاولة تلقائيًا.':'审核已过期、资料或权限已更改，或期间已关闭或关联休假。请打开员工档案重新审核，不会自动重试。',
+'تم تسجيل تجهيز بيانات اليوم.':'已记录当日资料准备。',
+'المراجعة المحفوظة:':'已保存版本：',
+'لم يخصم رصيد ولم يعتمد طلب إجازة.':'未扣减余额，也未批准休假申请。',
+'راجع قبل التسجيل':'记录前请审核',
+'البيان السابق':'之前的当日资料','البيان المقترح':'拟议的当日资料',
+'راجعت بيانات اليوم وأريد تسجيلها فقط.':'我已审核当日资料，仅希望记录这些资料。',
+'تأكيد تسجيل بيانات اليوم':'确认记录当日资料',
+'تجهيز بيانات يوم للمراجعة':'准备当日资料以供审核',
+'اختار بيان اليوم صراحة. تسجيله لا يعتمد طلب إجازة ولا يخصم الرصيد.':'请明确选择当日资料。记录资料不会批准休假申请或扣减余额。',
+'خارج الخدمة':'不在雇佣期间','الشهادة':'证明','مراجعة بيانات اليوم':'审核当日资料',
+})
+EN.update({'نعم':'Yes','لا':'No',
+'المصدر المطلوب هو ملف البصمة وإكسلات الحضور والإجازات من الأقسام. المطابق يسجل بعد تحديد قواعد المطابقة، والمختلف يعرض للمراجعة. لا توجد دورة تقديم طلب إجازة جديدة.':'The inputs are a fingerprint file and department attendance and leave spreadsheets. Matching records will be registered after match rules are specified; discrepancies go to review. There is no new leave-request submission workflow.',
+'استيراد الملفات ومراجعة الفروق قيد التجهيز. لا تسجيل تلقائي أو خصم رصيد من هذه الصفحة.':'File import and discrepancy review are being prepared. This page performs no automatic registration or balance debit.'})
+ZH.update({'نعم':'是','لا':'否',
+'المصدر المطلوب هو ملف البصمة وإكسلات الحضور والإجازات من الأقسام. المطابق يسجل بعد تحديد قواعد المطابقة، والمختلف يعرض للمراجعة. لا توجد دورة تقديم طلب إجازة جديدة.':'输入为指纹文件以及各部门的考勤和休假表格。明确匹配规则后将登记匹配记录，差异交由人工审核。不新增休假申请提交流程。',
+'استيراد الملفات ومراجعة الفروق قيد التجهيز. لا تسجيل تلقائي أو خصم رصيد من هذه الصفحة.':'文件导入和差异审核正在准备中。此页面不会自动登记或扣减余额。'})
+
+# Approved settings organization, no configuration scope beyond existing routes.
+EN.update({
+'الإعدادات':'Settings','اللغة والحساب وإدارة النظام في مكان واحد':'Language, account and system management in one place',
+'عام':'General','تُحفظ على هذا المتصفح':'Saved in this browser','حسابي':'My account','تغيير':'Change','إعداد':'Set up',
+'حماية البيانات':'Data protection','لمدير النظام فقط':'System administrator only','نسخة احتياطية مشفرة':'Encrypted backup',
+'فتح':'Open','استعادة نسخة':'Restore a backup','الإدارة':'Management','حسابات المستخدمين':'User accounts',
+'إدارة':'Manage','استرداد الحساب':'Account recovery','سجل العمليات على النظام':'System activity log',
+'معلومات النظام':'System information','للعرض فقط':'Read only','الفندق':'Hotel','المنطقة الزمنية':'Time zone','القاهرة':'Cairo',
+})
+ZH.update({
+'الإعدادات':'设置','اللغة والحساب وإدارة النظام في مكان واحد':'在一处管理语言、账户和系统',
+'عام':'通用','تُحفظ على هذا المتصفح':'保存在此浏览器中','حسابي':'我的账户','تغيير':'更改','إعداد':'设置',
+'حماية البيانات':'数据保护','لمدير النظام فقط':'仅限系统管理员','نسخة احتياطية مشفرة':'加密备份',
+'فتح':'打开','استعادة نسخة':'恢复备份','الإدارة':'管理','حسابات المستخدمين':'用户账户',
+'إدارة':'管理','استرداد الحساب':'账户恢复','سجل العمليات على النظام':'系统操作日志',
+'معلومات النظام':'系统信息','للعرض فقط':'只读','الفندق':'酒店','المنطقة الزمنية':'时区','القاهرة':'开罗',
+})
+
+# Manual opening review, selected grouped entry. No apply endpoint.
+EN.update({
+'الأرصدة الافتتاحية اليدوية':'Manual opening balances','أرصدة الموظف الثلاثة معًا، ثم المراجعة.':'Enter all three employee balances, then review.',
+'هذه الخطوة تحفظ مسودة للمراجعة فقط. لا تضيف رصيدًا معتمدًا ولا تغيّر دفتر الحركات.':'This saves a review draft only. It does not approve balances or change the ledger.',
+'تاريخ البداية هو اليوم الذي يبدأ منه الحساب بعد الرصيد المدخل. ترحيل السالب منفصل، والخانة الفارغة ليست صفرًا.':'The start date is when calculation begins after the entered balance. Negative carry is separate. Blank is not zero.',
+'لم تُحفظ المجموعة.':'The group was not saved.','راجع القيم والموظف والصلاحية، ثم أعد المراجعة. لا توجد محاولة تلقائية.':'Check the values, employee and permission, then review again. There is no automatic retry.',
+'راجع الأرصدة الافتتاحية':'Review opening balances','بداية الرصيد':'Balance start','بداية الأرصدة':'Balances start','ملاحظة المراجعة':'Review note',
+'سنوي A':'Annual A','أسبوعي W':'Weekly W','رسمي H':'Holiday H','مراجعة الأرصدة':'Review balances','إدخال مجموعة أخرى':'Enter another group',
+'حُفظت مسودات المراجعة دون اعتماد الأرصدة. الاعتماد والربط النهائي بالحساب قيد التجهيز.':'Review drafts saved without approving balances. Approval and final calculation integration are being prepared.'})
+ZH.update({
+'الأرصدة الافتتاحية اليدوية':'手动期初余额','أرصدة الموظف الثلاثة معًا، ثم المراجعة.':'一起输入员工的三类余额，然后审核。',
+'هذه الخطوة تحفظ مسودة للمراجعة فقط. لا تضيف رصيدًا معتمدًا ولا تغيّر دفتر الحركات.':'此步骤仅保存审核草稿，不批准余额，也不更改台账。',
+'تاريخ البداية هو اليوم الذي يبدأ منه الحساب بعد الرصيد المدخل. ترحيل السالب منفصل، والخانة الفارغة ليست صفرًا.':'开始日期表示在所输入余额基础上开始计算的日期。负数结转单独处理，空白不表示零。',
+'لم تُحفظ المجموعة.':'未保存此组数据。','راجع القيم والموظف والصلاحية، ثم أعد المراجعة. لا توجد محاولة تلقائية.':'请检查数值、员工和权限，然后重新审核。不会自动重试。',
+'راجع الأرصدة الافتتاحية':'审核期初余额','بداية الرصيد':'余额起始日期','بداية الأرصدة':'余额开始日期','ملاحظة المراجعة':'审核备注',
+'سنوي A':'年假 A','أسبوعي W':'周休 W','رسمي H':'节假日 H','مراجعة الأرصدة':'审核余额','إدخال مجموعة أخرى':'输入另一组',
+'حُفظت مسودات المراجعة دون اعتماد الأرصدة. الاعتماد والربط النهائي بالحساب قيد التجهيز.':'已保存审核草稿，但未批准余额。批准流程和最终计算关联仍在准备中。'})
+
+EN.update({'مجموعات المراجعة المحفوظة':'Saved review groups',
+'آخر ٢٠ مجموعة، دون اعتماد أو اختيار تلقائي للأحدث.':'Latest 20 groups, without approval or automatic latest-group selection.',
+'وقت الحفظ':'Saved at','مرجع المجموعة':'Group reference','فتح المجموعة المحفوظة':'Open saved group'})
+ZH.update({'مجموعات المراجعة المحفوظة':'已保存的审核组',
+'آخر ٢٠ مجموعة، دون اعتماد أو اختيار تلقائي للأحدث.':'最近20组，不代表批准，也不会自动选择最新组。',
+'وقت الحفظ':'保存时间','مرجع المجموعة':'组编号','فتح المجموعة المحفوظة':'打开已保存组'})
+
+EN.update({'وقت الحفظ بالقاهرة':'Saved at, Cairo'})
+ZH.update({'وقت الحفظ بالقاهرة':'保存时间，开罗'})
+
+EN.update({
+'تأكيد مصدر الأرصدة':'Confirm opening source','تأكيد المصدر لا يضيف رصيدًا إلى دفتر الحركات ولا يسمح بالصرف. لا تُستبدل الحركات القديمة تلقائيًا.':'Confirming a source does not credit the ledger or permit cashout. Existing transactions are not replaced automatically.',
+'الإعدادات المحددة: التأمين والعمر ٥٠ مفعّلان، الغياب يخصم من السنوي، المرضي لا يخصم من السنوي ولا يضيف الرسمي، سنة ميلادية، أساس سنوي نسبي، تنبيهات مرضي ٩٠ و١٨٠.':'Defined settings: insurance and age 50 enabled, unpaid absence reduces annual accrual, sick leave does not reduce annual accrual or credit holidays, calendar year, prorated annual basis, sick alerts at 90 and 180.',
+'نسخة الإعدادات':'Policy version','اختار نسخة الإعدادات':'Choose a policy version','مراجعة المصدر والإعدادات':'Review source and settings','حفظ نسخة الإعدادات المحددة ومراجعتها':'Save and review the defined settings',
+'تم تأكيد المصدر للمراجعة الحسابية فقط، دون ترحيل إلى دفتر الحركات.':'Source confirmed for calculation review only. No ledger posting.',
+'راجع الأرصدة والإعدادات قبل التأكيد. تعديل الإعدادات لا يعيد حساب الشهور المغلقة.':'Review balances and settings before confirming. Changing settings does not recalculate closed months.',
+'يوجد مصدر مؤكد سابق. التأكيد يستبدل اختيار المصدر مع الاحتفاظ بالتاريخ، ولا يعدل دفتر الحركات.':'A confirmed source exists. Confirmation replaces the selection and preserves its history, without changing the ledger.',
+'سبب تأكيد المصدر':'Source confirmation reason','أؤكد القيم واختيار المصدر، دون صرف أو ترحيل':'I confirm the values and source selection, without cashout or posting',
+'حُفظت قيم الأرصدة. تأكيد المصدر خطوة منفصلة ولا يغير دفتر الحركات.':'Opening values saved. Source confirmation is separate and does not change the ledger.'})
+ZH.update({
+'تأكيد مصدر الأرصدة':'确认期初余额来源','تأكيد المصدر لا يضيف رصيدًا إلى دفتر الحركات ولا يسمح بالصرف. لا تُستبدل الحركات القديمة تلقائيًا.':'确认来源不会增加台账余额，也不允许兑现。现有记录不会自动替换。',
+'الإعدادات المحددة: التأمين والعمر ٥٠ مفعّلان، الغياب يخصم من السنوي، المرضي لا يخصم من السنوي ولا يضيف الرسمي، سنة ميلادية، أساس سنوي نسبي، تنبيهات مرضي ٩٠ و١٨٠.':'规定设置：启用保险年限及50岁规则，无薪缺勤减少年假累积，病假不减少年假累积且不增加节假日额度，自然年，按比例年度基数，病假提醒为90和180天。',
+'نسخة الإعدادات':'政策版本','اختار نسخة الإعدادات':'选择政策版本','مراجعة المصدر والإعدادات':'审核来源和设置','حفظ نسخة الإعدادات المحددة ومراجعتها':'保存并审核规定设置',
+'تم تأكيد المصدر للمراجعة الحسابية فقط، دون ترحيل إلى دفتر الحركات.':'来源已确认，仅供计算审核，未记入台账。',
+'راجع الأرصدة والإعدادات قبل التأكيد. تعديل الإعدادات لا يعيد حساب الشهور المغلقة.':'确认前请审核余额和设置。修改设置不会重新计算已关闭月份。',
+'يوجد مصدر مؤكد سابق. التأكيد يستبدل اختيار المصدر مع الاحتفاظ بالتاريخ، ولا يعدل دفتر الحركات.':'已有确认来源。确认将替换来源选择并保留历史，不更改台账。',
+'سبب تأكيد المصدر':'来源确认原因','أؤكد القيم واختيار المصدر، دون صرف أو ترحيل':'确认数值及来源选择，不兑现也不记账',
+'حُفظت قيم الأرصدة. تأكيد المصدر خطوة منفصلة ولا يغير دفتر الحركات.':'已保存期初数值。来源确认是独立步骤，不更改台账。'})
+
+EN.update({
+'ملفات الأقسام':'Department workbooks','تجهيز ومراجعة فقط. لا تسجيل حضور أو خصم رصيد أو صرف. ملف البصمة غير متاح في هذه الخطوة.':'Preparation and review only. No attendance registration, balance deduction or cashout. Fingerprint review is not available in this step.',
+'تُستخدم المصادر المؤكدة صراحةً. الأيام المجهولة لا تعني حضورًا، والحقول الفارغة للتأمين لا تعني صفرًا.':'Uses explicitly confirmed sources. Unknown days do not mean presence, and blank insurance fields do not mean zero.',
+'تعذر تجهيز الملف أو مراجعته. راجع المصدر والفترة والقيم ثم أعد المحاولة صراحةً.':'Could not prepare or review the workbook. Check the source, period and values, then retry explicitly.',
+'حُفظت مراجعة ملف القسم':'Department return review saved','مرجع المراجعة':'Review reference','عدد الأيام':'Day count',
+'لم تُسجل الأيام في الحضور أو دفتر الحركات. مطابقة البصمة والمراجعة النهائية خطوة لاحقة.':'Days were not registered in attendance or the ledger. Fingerprint matching and final review are a later step.',
+'اختار القسم':'Choose a department','عرض المصادر المؤكدة':'Show confirmed sources','مصادر الملف وأدلة الاستحقاق':'Workbook sources and entitlement evidence',
+'اختر الموظفين صراحةً. تاريخ تقييم العمر داخل كل شهر مطلوب، وسنوات التأمين الحالية تُدخل من الدليل ولا تُحسب من مدة الخدمة.':'Select employees explicitly. An age evaluation date within each month is required. Enter current insurance years from evidence, not service tenure.',
+'تاريخ تقييم العمر':'Age evaluation date','سنوات التأمين الحالية':'Current insurance years','تنزيل ملف القسم للمراجعة':'Download department review workbook',
+'لا توجد مصادر مؤكدة صالحة في القسم. أكمل الأرصدة الافتتاحية أولًا.':'No valid confirmed sources in this department. Complete opening sources first.',
+'إعادة ملف القسم بعد التعبئة':'Return the completed department workbook',
+'مرجع التصدير هو الجزء بين department- و.xlsx في اسم الملف. تعديل البيانات المحمية أو تغير المصدر يرفض الملف بدل التسجيل.':'The export reference is between department- and .xlsx in the filename. Protected-data edits or source changes cause refusal, not registration.',
+'مرجع التصدير':'Export reference','ملف القسم':'Department workbook','مراجعة ملف القسم المعاد':'Review returned department workbook'})
+ZH.update({
+'ملفات الأقسام':'部门工作簿','تجهيز ومراجعة فقط. لا تسجيل حضور أو خصم رصيد أو صرف. ملف البصمة غير متاح في هذه الخطوة.':'仅供准备和审核。不登记考勤、不扣余额、不兑现。本步骤不提供指纹审核。',
+'تُستخدم المصادر المؤكدة صراحةً. الأيام المجهولة لا تعني حضورًا، والحقول الفارغة للتأمين لا تعني صفرًا.':'仅使用明确确认的来源。未知日期不代表出勤，保险空白不代表零。',
+'تعذر تجهيز الملف أو مراجعته. راجع المصدر والفترة والقيم ثم أعد المحاولة صراحةً.':'无法准备或审核工作簿。请检查来源、期间和数值后明确重试。',
+'حُفظت مراجعة ملف القسم':'部门回传审核已保存','مرجع المراجعة':'审核编号','عدد الأيام':'日期数量',
+'لم تُسجل الأيام في الحضور أو دفتر الحركات. مطابقة البصمة والمراجعة النهائية خطوة لاحقة.':'日期未登记到考勤或台账。指纹匹配和最终审核将在后续步骤进行。',
+'اختار القسم':'选择部门','عرض المصادر المؤكدة':'显示已确认来源','مصادر الملف وأدلة الاستحقاق':'工作簿来源和额度证据',
+'اختر الموظفين صراحةً. تاريخ تقييم العمر داخل كل شهر مطلوب، وسنوات التأمين الحالية تُدخل من الدليل ولا تُحسب من مدة الخدمة.':'请明确选择员工。每月需填写当月年龄评估日期。当前保险年限须根据证据输入，不以工龄推算。',
+'تاريخ تقييم العمر':'年龄评估日期','سنوات التأمين الحالية':'当前保险年限','تنزيل ملف القسم للمراجعة':'下载部门审核工作簿',
+'لا توجد مصادر مؤكدة صالحة في القسم. أكمل الأرصدة الافتتاحية أولًا.':'本部门没有有效的已确认来源。请先完成期初来源。',
+'إعادة ملف القسم بعد التعبئة':'回传填写后的部门工作簿',
+'مرجع التصدير هو الجزء بين department- و.xlsx في اسم الملف. تعديل البيانات المحمية أو تغير المصدر يرفض الملف بدل التسجيل.':'导出编号为文件名中 department- 与 .xlsx 之间的部分。修改受保护数据或来源变更将拒绝工作簿，而非登记。',
+'مرجع التصدير':'导出编号','ملف القسم':'部门工作簿','مراجعة ملف القسم المعاد':'审核回传部门工作簿'})
+
+EN.update({'أول ٢٠٠ يوم محفوظ للمراجعة، لا تُعد موافقة على التسجيل.':'First 200 saved days for review, not approval to register.', 'مرجع الخلية':'Cell reference'})
+ZH.update({'أول ٢٠٠ يوم محفوظ للمراجعة، لا تُعد موافقة على التسجيل.':'前200个已保存日期仅供审核，不表示批准登记。', 'مرجع الخلية':'单元格位置'})
+
+EN.update({'مرجع الخلية الأصلي':'Original source cell','إجازة سنوية':'Annual leave','راحة أسبوعية':'Weekly rest','إجازة رسمية':'Public holiday leave','إجازة مرضية':'Sick leave','غياب بدون أجر':'Unpaid absence'})
+ZH.update({'مرجع الخلية الأصلي':'原始来源单元格','إجازة سنوية':'年假','راحة أسبوعية':'每周休息','إجازة رسمية':'节假日休假','إجازة مرضية':'病假','غياب بدون أجر':'无薪缺勤'})
+
+EN.update({
+'تجهيز ومراجعة فقط. لا تسجيل حضور أو خصم رصيد أو صرف. البصمات تجمع حسب التاريخ فقط دون تحديد الدخول والخروج أو الوردية.':'Preparation and review only. No attendance registration, balance deduction or cashout. Punches are grouped by calendar date, without assigning in/out direction or a shift.',
+'مراجعة ملف القسم والبصمة':'Department and fingerprint review',
+'لا توجد موافقة تسجيل. أول ٢٠٠ يوم وأول ٥٠ ملاحظة وبصمة غير مرتبطة للعرض، والأصل محفوظ للمراجعة.':'No registration approval. Shows the first 200 days and first 50 notes and unmatched punches. Original evidence is retained for review.',
+'ملاحظات المصدر':'Source notes','بصمات غير مرتبطة':'Unmatched punches','البصمات حسب التاريخ':'Calendar-date punches',
+'لا توجد بصمة مقروءة في هذا التاريخ':'No readable punch on this calendar date','مصدر غير مقروء، لا يعني غيابًا':'Unreadable source, not proof of absence',
+'إجازة مسجلة بلا بصمة، ليست اختلافًا بذاتها':'Explicit leave without a punch is not itself a discrepancy','يوم القسم غير معروف':'Unknown department day',
+'تحتاج مراجعة الوردية والاتجاه والمصدر':'Needs shift, direction and source review','ملاحظة من المصدر الأصلي':'Original source note','بصمة غير مرتبطة':'Unmatched punch',
+'ارفع ملف القسم المعاد وملف البصمة الأصلي. الربط بالكود أو رقم جهاز البصمة المسجل فقط، دون تخمين بالأسماء.':'Upload the returned department workbook and original fingerprint file. Links use registered employee codes or fingerprint IDs only, not name guesses.',
+'ملف البصمة الأصلي':'Original fingerprint file','مراجعة المصدرين دون تسجيل':'Review both sources without registration'})
+ZH.update({
+'تجهيز ومراجعة فقط. لا تسجيل حضور أو خصم رصيد أو صرف. البصمات تجمع حسب التاريخ فقط دون تحديد الدخول والخروج أو الوردية.':'仅供准备和审核。不登记考勤、不扣余额、不兑现。指纹按自然日期分组，不指定上下班方向或班次。',
+'مراجعة ملف القسم والبصمة':'部门与指纹审核',
+'لا توجد موافقة تسجيل. أول ٢٠٠ يوم وأول ٥٠ ملاحظة وبصمة غير مرتبطة للعرض، والأصل محفوظ للمراجعة.':'未批准登记。显示前200个日期及前50条备注和未匹配指纹，原始证据已保存供审核。',
+'ملاحظات المصدر':'来源备注','بصمات غير مرتبطة':'未匹配指纹','البصمات حسب التاريخ':'自然日期指纹',
+'لا توجد بصمة مقروءة في هذا التاريخ':'此自然日期没有可读指纹','مصدر غير مقروء، لا يعني غيابًا':'来源不可读，不证明缺勤',
+'إجازة مسجلة بلا بصمة، ليست اختلافًا بذاتها':'明确休假但无指纹本身不构成差异','يوم القسم غير معروف':'部门日期状态未知',
+'تحتاج مراجعة الوردية والاتجاه والمصدر':'需要审核班次、方向和来源','ملاحظة من المصدر الأصلي':'原始来源备注','بصمة غير مرتبطة':'未匹配指纹',
+'ارفع ملف القسم المعاد وملف البصمة الأصلي. الربط بالكود أو رقم جهاز البصمة المسجل فقط، دون تخمين بالأسماء.':'请上传回传部门工作簿及原始指纹文件。仅按已登记员工编号或指纹编号匹配，不按姓名猜测。',
+'ملف البصمة الأصلي':'原始指纹文件','مراجعة المصدرين دون تسجيل':'审核两个来源，不登记'})
+
+EN.update({'لا توجد موافقة تسجيل. العرض مقسم إلى صفحات، وليس مراجعة كاملة. الأصل محفوظ للمراجعة.':'No registration approval. This is a paged view, not a complete review. Original evidence is retained.','الأيام':'Days'})
+ZH.update({'لا توجد موافقة تسجيل. العرض مقسم إلى صفحات، وليس مراجعة كاملة. الأصل محفوظ للمراجعة.':'未批准登记。此为分页显示，并非完整审核。原始证据已保存。','الأيام':'日期'})
+
+EN.update({'المراجعات المحفوظة':'Saved reviews','السجل للمراجعة فقط، ولا يعني أن المصدر ما زال صالحًا أو أن التسجيل معتمد.':'History is for review only. It does not mean the source is still current or registration is approved.','فتح المراجعة':'Open review','لا توجد مراجعات محفوظة في الحالة الحالية.':'No saved reviews in the current state.','مراجعات أقدم':'Older reviews'})
+ZH.update({'المراجعات المحفوظة':'已保存审核','السجل للمراجعة فقط، ولا يعني أن المصدر ما زال صالحًا أو أن التسجيل معتمد.':'历史记录仅供审核，不表示来源仍有效或已批准登记。','فتح المراجعة':'打开审核','لا توجد مراجعات محفوظة في الحالة الحالية.':'当前状态没有已保存审核。','مراجعات أقدم':'更早审核'})
+
+EN.update({'العرض مقسم إلى صفحات من الأيام المحفوظة، ولا يُعد موافقة على التسجيل.':'Saved days are shown in pages. This is not registration approval.'})
+ZH.update({'العرض مقسم إلى صفحات من الأيام المحفوظة، ولا يُعد موافقة على التسجيل.':'已保存日期分页显示，不代表批准登记。'})
+
+EN.update({'مراجعات ملفات الأقسام المحفوظة':'Saved department workbook reviews','مراجعات البصمة المحفوظة':'Saved fingerprint reviews'})
+ZH.update({'مراجعات ملفات الأقسام المحفوظة':'已保存部门工作簿审核','مراجعات البصمة المحفوظة':'已保存指纹审核'})
+
+EN.update({'نسخ سياسة الإجازات':'Leave policy versions','حفظ نسخة إعدادات فقط. لا تفعيل تلقائي، ولا تغيير للمصادر المختارة أو الأشهر المغلقة أو الأرصدة. مراجعة أثر إعادة الحساب خطوة مستقلة لم تُنفذ هنا.':'Save a settings version only. No automatic activation or changes to selected sources, closed months or balances. Recalculation impact review is a separate step, not implemented here.','اختر نسخة البداية صراحةً. لا تُختار أحدث نسخة تلقائيًا.':'Choose a base version explicitly. The latest version is never selected automatically.','نسخة البداية':'Base version','اختر نسخة البداية':'Choose a base version','عرض الإعدادات':'Show settings','ابدأ بتهيئة الإعدادات المعتمدة من شاشة الأرصدة الافتتاحية.':'First initialize the approved defaults from manual opening balances.','سبب التعديل':'Reason for change','مراجعة التغييرات قبل الحفظ':'Review changes before saving','قبل':'Before','بعد':'After','حُفظت نسخة مستقلة. لم تُفعّل ولم تُبدّل المصادر السابقة.':'A separate version was saved. It was not activated and previous sources were not replaced.','أؤكد حفظ نسخة الإعدادات المعروضة فقط، دون تفعيل أو إعادة حساب':'I confirm saving only the displayed settings version, without activation or recalculation','تأكيد حفظ نسخة مستقلة':'Confirm separate version save','يناير إلى ديسمبر':'January to December','الاستحقاق الفعلي':'Actual earned entitlement','الشريحة الكاملة':'Full annual tier','استحقاق ٣٠ يومًا بعد ١٠ سنوات تأمين':'30-day tier after 10 insured years','استحقاق ٣٠ يومًا من عمر ٥٠ سنة':'30-day tier from age 50','استبعاد الغياب بدون أجر من استحقاق السنوي':'Exclude unpaid absence from annual accrual','استبعاد المرضي من استحقاق السنوي':'Exclude sick days from annual accrual','أساس سنة الإجازات':'Leave year basis','أساس استحقاق نهاية السنة':'Year-end entitlement basis','إضافة الرسمي أثناء المرضي':'Credit public holidays during sick leave','حدود تنبيه المرضي':'Sick-day alert thresholds','تعذر تجهيز السياسة أو حفظها. راجع القيم والصلاحية ثم حاول صراحةً.':'Could not prepare or save the policy. Check the values and permission, then retry explicitly.'})
+ZH.update({'نسخ سياسة الإجازات':'休假政策版本','حفظ نسخة إعدادات فقط. لا تفعيل تلقائي، ولا تغيير للمصادر المختارة أو الأشهر المغلقة أو الأرصدة. مراجعة أثر إعادة الحساب خطوة مستقلة لم تُنفذ هنا.':'仅保存设置版本，不自动启用，不改变已选来源、已关闭月份或余额。重新计算影响审核为尚未实现的独立步骤。','اختر نسخة البداية صراحةً. لا تُختار أحدث نسخة تلقائيًا.':'请明确选择基础版本，不自动选择最新版本。','نسخة البداية':'基础版本','اختر نسخة البداية':'选择基础版本','عرض الإعدادات':'显示设置','ابدأ بتهيئة الإعدادات المعتمدة من شاشة الأرصدة الافتتاحية.':'请先在期初余额页面初始化已批准默认设置。','سبب التعديل':'更改原因','مراجعة التغييرات قبل الحفظ':'保存前审核更改','قبل':'更改前','بعد':'更改后','حُفظت نسخة مستقلة. لم تُفعّل ولم تُبدّل المصادر السابقة.':'已保存独立版本，未启用，也未替换之前的来源。','أؤكد حفظ نسخة الإعدادات المعروضة فقط، دون تفعيل أو إعادة حساب':'我确认仅保存显示的设置版本，不启用，也不重新计算','تأكيد حفظ نسخة مستقلة':'确认保存独立版本','يناير إلى ديسمبر':'一月至十二月','الاستحقاق الفعلي':'实际累计权益','الشريحة الكاملة':'完整年假档位','استحقاق ٣٠ يومًا بعد ١٠ سنوات تأمين':'投保满十年后为三十天档位','استحقاق ٣٠ يومًا من عمر ٥٠ سنة':'年满五十岁后为三十天档位','استبعاد الغياب بدون أجر من استحقاق السنوي':'年假累计排除无薪缺勤','استبعاد المرضي من استحقاق السنوي':'年假累计排除病假','أساس سنة الإجازات':'休假年度依据','أساس استحقاق نهاية السنة':'年末权益依据','إضافة الرسمي أثناء المرضي':'病假期间累计法定假日','حدود تنبيه المرضي':'病假提醒阈值','تعذر تجهيز السياسة أو حفظها. راجع القيم والصلاحية ثم حاول صراحةً.':'无法准备或保存政策，请检查值和权限后明确重试。'})
+
+EN.update({'حُفظت السياسة أو أُعيد استخدام النسخة المطابقة. لم تُفعّل ولم تُبدّل المصادر السابقة.':'The policy was saved or an identical version was reused. It was not activated and previous sources were not replaced.','تأكيد حفظ السياسة دون تفعيل':'Confirm policy save without activation'})
+ZH.update({'حُفظت السياسة أو أُعيد استخدام النسخة المطابقة. لم تُفعّل ولم تُبدّل المصادر السابقة.':'政策已保存或已复用相同版本。未启用，也未替换之前的来源。','تأكيد حفظ السياسة دون تفعيل':'确认保存政策，不启用'})
+
+EN.update({'الإعدادات مطابقة لنسخة محفوظة. التأكيد يعيد استخدام هذه النسخة ولا ينشئ نسخة إضافية.':'These settings match a saved version. Confirmation reuses that version and does not create another version.'})
+ZH.update({'الإعدادات مطابقة لنسخة محفوظة. التأكيد يعيد استخدام هذه النسخة ولا ينشئ نسخة إضافية.':'这些设置与已保存版本相同。确认将复用该版本，不创建其他版本。'})
+
+EN.update({
+'معاينة أثر السياسة على الأيام المكتسبة':'Preview policy impact on earned days',
+'مقارنة افتراضية بأثر رجعي، تشمل الأشهر المغلقة داخل الفترة. لا تعدل أي سجل مغلق، ولا تغير المصادر أو الأرصدة القابلة للاستخدام. لا تتضمن الإفراج أو التسوية أو تنبيهات المرضي.':'Hypothetical retroactive comparison, including closed months in the period. It changes no closed records, sources or usable balances. Release, settlement and sick alerts are excluded.',
+'يلزم سجل كامل لكل أيام العمل ودليل الشريحة لكل شهر من يناير إلى الشهر المختار، حتى الأشهر السابقة للتعيين أو رصيد البداية. القيمة الفارغة للتأمين تعني غير معلوم، وليست صفرًا.':'Complete employed-day records and tier evidence are required for every month from January through the selected month, including months before hire or the opening basis. Blank insurance means unknown, not zero.',
+'عرض المصادر':'Show sources','تاريخ تقييم العمر':'Age evaluation date','سنوات التأمين الحالية':'Current insured years','معاينة الأيام فقط':'Preview days only',
+'نتيجة افتراضية، ليست إعادة حساب معتمدة':'Hypothetical result, not an approved recalculation','الأشهر المغلقة المشمولة افتراضيًا':'Closed months included hypothetically','لا توجد سجلات إغلاق في الفترة.':'No closed-month records in this period.','الفرق':'Difference'})
+ZH.update({
+'معاينة أثر السياسة على الأيام المكتسبة':'预览政策对已累计天数的影响',
+'مقارنة افتراضية بأثر رجعي، تشمل الأشهر المغلقة داخل الفترة. لا تعدل أي سجل مغلق، ولا تغير المصادر أو الأرصدة القابلة للاستخدام. لا تتضمن الإفراج أو التسوية أو تنبيهات المرضي.':'假设性追溯比较，包括期间内已关闭的月份。不更改已关闭记录、来源或可用余额。不包含释放、结算或病假提醒。',
+'يلزم سجل كامل لكل أيام العمل ودليل الشريحة لكل شهر من يناير إلى الشهر المختار، حتى الأشهر السابقة للتعيين أو رصيد البداية. القيمة الفارغة للتأمين تعني غير معلوم، وليست صفرًا.':'需要完整的在职日期记录，以及从一月到所选月份每个月的档位证据，包括入职或期初日期之前的月份。保险年限留空表示未知，不是零。',
+'عرض المصادر':'显示来源','تاريخ تقييم العمر':'年龄评估日期','سنوات التأمين الحالية':'当前参保年限','معاينة الأيام فقط':'仅预览天数',
+'نتيجة افتراضية، ليست إعادة حساب معتمدة':'假设结果，不是已批准的重新计算','الأشهر المغلقة المشمولة افتراضيًا':'假设比较包含的已关闭月份','لا توجد سجلات إغلاق في الفترة.':'该期间无已关闭月份记录。','الفرق':'差额'})
+
+EN.update({'الأرقام المعروضة مقربة إلى منزلتين فقط؛ يُحسب الفرق قبل التقريب.':'Displayed numbers are rounded to two decimal places. The difference is calculated before rounding.'})
+ZH.update({'الأرقام المعروضة مقربة إلى منزلتين فقط؛ يُحسب الفرق قبل التقريب.':'显示值四舍五入为两位小数。差额在四舍五入前计算。'})
+
+EN.update({'أيام مكتسبة حتى':'Earned days through','ليست أرصدة متاحة أو مُفرجًا عنها.':'These are not available or released balances.'})
+ZH.update({'أيام مكتسبة حتى':'截至该日的累计天数','ليست أرصدة متاحة أو مُفرجًا عنها.':'这些不是可用或已释放余额。'})
+
+EN.update({'تغير غير صفري أقل من 0.01 يوم؛ القيمة الدقيقة أدناه.':'Nonzero change below 0.01 day. Exact value below.','القيم الدقيقة بالأيام':'Exact values in days'})
+ZH.update({'تغير غير صفري أقل من 0.01 يوم؛ القيمة الدقيقة أدناه.':'变化不为零且小于0.01天。精确值如下。','القيم الدقيقة بالأيام':'精确天数'})
+
+EN.update({'كل نموذج يعاين الموظف المعروض فقط. تُعرض المصادر الحالية المطابقة لنسخة البداية فقط؛ لا تُستعاد نسخة قديمة لمجرد المطابقة. الحد المحلي 300 مصدر.':'Each form previews only the displayed employee. Only current sources matching the base version are listed. Older matching sources are not restored. Local limit: 300 sources.','اختر القسم':'Choose a department'})
+ZH.update({'كل نموذج يعاين الموظف المعروض فقط. تُعرض المصادر الحالية المطابقة لنسخة البداية فقط؛ لا تُستعاد نسخة قديمة لمجرد المطابقة. الحد المحلي 300 مصدر.':'每个表单仅预览显示的员工。仅列出与基础版本匹配的当前来源。不恢复旧的匹配来源。本地限制为300个来源。','اختر القسم':'选择部门'})
+
+EN.update({'تفسير الرصيد والإفراج والمطابقة':'Balance, release and reconciliation explanation','هذا تفسير للمصادر، وليس اعتماد رصيد متاح. يظهر الرصيد الافتتاحي مرة واحدة، والاستعمال المسجل مرة واحدة. دفتر الحركات مستقل ولا يُضاف إلى السيناريو أو يُخصم منه.':'This explains the sources, not approved available credit. Opening and registered usage appear once each. The ledger stays separate and is not added to or subtracted from the scenario.','تأكيد مصدر البداية لا يثبت الإفراج عن رصيده أو تسوية تداخله مع دفتر الحركات. الرصيد الحالي والمتاح غير مثبتين حتى تُحسم هذه النقاط.':'Confirming the opening source does not establish its release or reconcile overlap with the ledger. Current and available balances remain unestablished until these points are settled.','عرض أدلة الفترة':'Show period evidence','يلزم سجل كامل للأيام وأدلة الشريحة من يناير إلى الشهر المختار. التأمين الفارغ غير معلوم وليس صفرًا.':'Complete day records and tier evidence are required from January through the selected month. Blank insurance is unknown, not zero.','تاريخ تقييم الإفراج':'Release evaluation date','عرض تفسير الرصيد دون تسجيل':'Show balance explanation without posting','الرصيد الحالي والمتاح غير مثبتين':'Current and available balances are not established','بداية مختارة':'Selected opening','مكتسب':'Earned','مكتسب مؤهل للإفراج':'Earned eligible for release','مكتسب محتجز':'Held earned days','استعمال مسجل':'Registered usage','سيناريو المكتسب':'Earned scenario','سيناريو المؤهل للإفراج':'Release-eligible scenario','دفتر مستقل غير مضاف':'Separate ledger, not added','حتى التطابق المرتبط صراحةً مرشح مراجعة فقط، ولا يسمح بالمقاصة.':'Even an explicitly linked match is only a review candidate and does not permit netting.','عدد روابط التداخل المرشحة':'Overlap candidate count','عدد حركات الدفتر المستقل':'Separate ledger row count','كل روابط التداخل بما فيها غير المحسومة':'All overlap links, including unresolved links','لا تسجيل أو مقاصة أو تغيير في دفتر الحركات.':'No posting, netting or ledger changes.'})
+ZH.update({'تفسير الرصيد والإفراج والمطابقة':'余额、释放和核对说明','هذا تفسير للمصادر، وليس اعتماد رصيد متاح. يظهر الرصيد الافتتاحي مرة واحدة، والاستعمال المسجل مرة واحدة. دفتر الحركات مستقل ولا يُضاف إلى السيناريو أو يُخصم منه.':'此处解释来源，不批准可用余额。期初和已登记使用各计一次。分类账独立保留，不加入或扣除假设结果。','تأكيد مصدر البداية لا يثبت الإفراج عن رصيده أو تسوية تداخله مع دفتر الحركات. الرصيد الحالي والمتاح غير مثبتين حتى تُحسم هذه النقاط.':'确认期初来源不代表余额已释放，也不代表与分类账的重叠已核对。在这些问题解决之前，当前和可用余额仍未确定。','عرض أدلة الفترة':'显示期间证据','يلزم سجل كامل للأيام وأدلة الشريحة من يناير إلى الشهر المختار. التأمين الفارغ غير معلوم وليس صفرًا.':'需要从一月到所选月份的完整日期记录和档位证据。保险留空表示未知，不是零。','تاريخ تقييم الإفراج':'释放评估日期','عرض تفسير الرصيد دون تسجيل':'显示余额说明，不记账','الرصيد الحالي والمتاح غير مثبتين':'当前和可用余额未确定','بداية مختارة':'所选期初','مكتسب':'已累计','مكتسب مؤهل للإفراج':'符合释放条件的累计天数','مكتسب محتجز':'暂扣累计天数','استعمال مسجل':'已登记使用','سيناريو المكتسب':'累计假设结果','سيناريو المؤهل للإفراج':'符合释放条件的假设结果','دفتر مستقل غير مضاف':'独立分类账，不加入','حتى التطابق المرتبط صراحةً مرشح مراجعة فقط، ولا يسمح بالمقاصة.':'即使明确关联的匹配也仅是待审候选，不允许抵销。','عدد روابط التداخل المرشحة':'重叠候选数量','عدد حركات الدفتر المستقل':'独立分类账行数','كل روابط التداخل بما فيها غير المحسومة':'全部重叠关联，包括未确定关联','لا تسجيل أو مقاصة أو تغيير في دفتر الحركات.':'不记账、不抵销、不更改分类账。'})
+EN.update({'لم ينته أول شهر عمل تقويمي كامل؛ المكتسب السنوي محتجز.':'The first complete calendar work month has not ended. Annual earned days remain held.','دليل إكمال أول شهر عمل تقويمي غير محسوم؛ لا إفراج.':'Completion of the first calendar work month is not established. No release.','تصنيف دفتر الحركات غير محسوم؛ إجماليه غير معروف وليس صفرًا.':'The ledger category is unresolved. Its total is unknown, not zero.'})
+ZH.update({'لم ينته أول شهر عمل تقويمي كامل؛ المكتسب السنوي محتجز.':'首个完整工作日历月尚未结束，累计年假仍暂扣。','دليل إكمال أول شهر عمل تقويمي غير محسوم؛ لا إفراج.':'尚未证明已完成首个完整工作日历月，不释放。','تصنيف دفتر الحركات غير محسوم؛ إجماليه غير معروف وليس صفرًا.':'分类账类别未确定，总数未知，不是零。'})
+
+EN.update({'سيناريو افتراضي مع كامل البداية، ليس رصيدًا مفرجًا':'Hypothetical scenario with full opening, not released credit'})
+ZH.update({'سيناريو افتراضي مع كامل البداية، ليس رصيدًا مفرجًا':'包含全部期初的假设结果，不是已释放余额'})
+EN.update({'عدد رموز الاستعمال الخام، وليس استعمالًا متحققًا':'Raw usage-code count, not verified usage','عدد خام دون تعارض مرتبط مكتشف، ليس اعتمادًا':'Raw count with no detected linked conflict, not approval','غير محسوم':'Unresolved','توجد قيمة سالبة؛ لم تُحذف أو تُحوّل إلى صفر، ولا تُعد تسوية معتمدة.':'A negative value is present. It was not removed or clamped to zero and is not an approved settlement.','سجل مرتبط للمراجعة':'Linked record for review','رابط صريح متوافق ظاهريًا، غير مُسوّى':'Apparently consistent explicit link, not reconciled','سجل ملغى يحتاج مراجعة':'Cancelled record requiring review','تعارض مرتبط غير محسوم':'Unresolved linked conflict','حركات مرتبطة':'Linked ledger rows','أيام سجل مرتبطة':'Linked register days','توجد أدلة مرتبطة متعارضة أو ناقصة؛ راجع السجل الأصلي.':'Linked evidence is conflicting or incomplete. Review the original record.','السجل ملغى، لكن أيامه ما زالت مرتبطة بسجل الأيام.':'The record is cancelled, but its days remain linked in the register.','الخصم كسري ولا يطابق عدد أيام كاملة دون توزيع صريح.':'The charge is fractional and cannot match whole days without explicit allocation.','السجل المرتبط غير مؤكد.':'The linked record is not confirmed.','كمية السجل غير صالحة؛ بقيت ظاهرة للمراجعة.':'The record amount is invalid and remains visible for review.','هوية الموظف أو نوع اليوم لا يطابق السجل المرتبط.':'The employee identity or day type does not match the linked record.','هوية حركة الدفتر لا تطابق السجل المرتبط.':'The ledger row identity does not match the linked record.','تغطية الأيام المرتبطة ناقصة أو متعارضة.':'Linked day coverage is incomplete or conflicting.','عدد حركات الاستعمال أو كميتها لا يطابق السجل.':'The usage row count or amount does not match the record.'})
+ZH.update({'عدد رموز الاستعمال الخام، وليس استعمالًا متحققًا':'原始使用代码数量，不是已核实使用','عدد خام دون تعارض مرتبط مكتشف، ليس اعتمادًا':'未发现关联冲突的原始数量，不代表批准','غير محسوم':'未确定','توجد قيمة سالبة؛ لم تُحذف أو تُحوّل إلى صفر، ولا تُعد تسوية معتمدة.':'存在负值，未删除或归零，不代表已批准结算。','سجل مرتبط للمراجعة':'待审关联记录','رابط صريح متوافق ظاهريًا، غير مُسوّى':'明确关联表面一致，尚未核对','سجل ملغى يحتاج مراجعة':'已取消记录，需要审查','تعارض مرتبط غير محسوم':'关联冲突未确定','حركات مرتبطة':'关联分类账行','أيام سجل مرتبطة':'关联登记日期','توجد أدلة مرتبطة متعارضة أو ناقصة؛ راجع السجل الأصلي.':'关联证据存在冲突或不完整，请审查原始记录。','السجل ملغى، لكن أيامه ما زالت مرتبطة بسجل الأيام.':'记录已取消，但日期仍关联在登记表中。','الخصم كسري ولا يطابق عدد أيام كاملة دون توزيع صريح.':'扣除数为小数，未经明确分配无法对应完整日期。','السجل المرتبط غير مؤكد.':'关联记录未确认。','كمية السجل غير صالحة؛ بقيت ظاهرة للمراجعة.':'记录数量无效，保留显示供审查。','هوية الموظف أو نوع اليوم لا يطابق السجل المرتبط.':'员工身份或日期类型与关联记录不符。','هوية حركة الدفتر لا تطابق السجل المرتبط.':'分类账行身份与关联记录不符。','تغطية الأيام المرتبطة ناقصة أو متعارضة.':'关联日期覆盖不完整或有冲突。','عدد حركات الاستعمال أو كميتها لا يطابق السجل.':'使用行数量或金额与记录不符。'})
+EN.update({'السجل يتجاوز فترة المقارنة؛ لم يُوزع على الفترة تلقائيًا.':'The record crosses the comparison period. No automatic allocation was made.','نوع السجل لا يتتبع رصيدًا.':'The record type does not track a balance.','ربط نوع الإجازة بتصنيف الرصيد غير فريد.':'The leave-type to balance-category mapping is not unique.','تصنيف رصيد السجل غير محسوم.':'The record balance category is unresolved.','مدة السجل تتجاوز نطاق المراجعة المحلية.':'The record duration exceeds the local review scope.','الأيام المخصومة والتقويمية غير متطابقة.':'Charged days and calendar days disagree.','توجد حركة مرتبطة من نوع غير متوقع.':'A linked transaction has an unexpected type.','السجل مؤكد وله حركة عكسية مرتبطة.':'The record is confirmed but has a linked reversal.','الحركة العكسية للسجل الملغى ناقصة أو مختلفة.':'The cancelled record reversal is missing or differs.'})
+ZH.update({'السجل يتجاوز فترة المقارنة؛ لم يُوزع على الفترة تلقائيًا.':'记录跨越比较期间，未自动分配。','نوع السجل لا يتتبع رصيدًا.':'记录类型不跟踪余额。','ربط نوع الإجازة بتصنيف الرصيد غير فريد.':'假期类型与余额类别的映射不唯一。','تصنيف رصيد السجل غير محسوم.':'记录余额类别未确定。','مدة السجل تتجاوز نطاق المراجعة المحلية.':'记录时长超出本地审查范围。','الأيام المخصومة والتقويمية غير متطابقة.':'扣除天数与日历天数不一致。','توجد حركة مرتبطة من نوع غير متوقع.':'关联交易类型异常。','السجل مؤكد وله حركة عكسية مرتبطة.':'记录已确认，但存在关联冲销。','الحركة العكسية للسجل الملغى ناقصة أو مختلفة.':'已取消记录的冲销缺失或不一致。'})
+EN.update({'معاينة سياسة أساس الأجر':'Pay-basis policy preview','معاينة افتراضية فقط، لا تعديل أو اعتماد أو دفع. لا تثبت أهلية صرف الإجازات أو اعتماد ساعات إضافية أو اكتمال الحضور.':'Hypothetical preview only. No changes, approval or payment. It does not establish leave cashout eligibility, overtime approval or attendance completeness.','القيم من بند راتب محفوظ، وليست الراتب الحالي للموظف. مكافأة الأداء هي القيمة المحفوظة لهذا الشهر، وقد تكون صفرًا افتراضيًا؛ ليست دليل تقييم معتمد أو استحقاق مؤكد.':'Values come from a saved payroll item, not the employee current salary. Performance bonus is the saved amount for this month and may default to zero. It is not proof of an approved evaluation or confirmed entitlement.','مسير محفوظ':'Saved payroll run','بند محفوظ':'Saved payroll item','حالة المسير':'Run status','أيام الشهر الفعلية':'Actual calendar month days','أساسي الشهر المحفوظ':'Saved full-month basic salary','الأساسي المستحق المحفوظ':'Saved payable basic salary','مكافأة الأداء تدخل أساس الكاش والإضافي فقط مع الأساسي؛ مكافآت الحضور والإشغال والأخرى ومكافآت الموظفين منفصلة ومستبعدة من هذا الأساس.':'Basic salary plus performance bonus form the cashout and overtime basis. Attendance, occupancy, other bonuses and staff rewards stay separate and are excluded from this basis.','أيام كاش افتراضية، ليست رصيدًا معتمدًا':'Hypothetical cashout days, not approved credit','ساعات إضافي يدوية، ليست معتمدة':'Manual overtime hours, not approved','مقسوم ساعات سعر الإضافي، ليس جدول ورديات':'Hourly-rate divisor, not a shift schedule','اختر صراحةً':'Choose explicitly','معاينة دون تعديل الراتب':'Preview without changing payroll','مقارنة افتراضية دون اعتماد':'Hypothetical comparison, no approval','سعر يوم الأساسي على أيام الشهر':'Basic daily rate using actual month days','أساس الكاش والإضافي':'Cashout and overtime basis','سعر يوم الكاش على 30':'Cashout daily rate using 30 days','قيمة الكاش الافتراضية قبل التقريب':'Hypothetical cashout amount before rounding','سعر ساعة الإضافي الافتراضي':'Hypothetical overtime hourly rate','الإضافي الافتراضي قبل التقريب':'Hypothetical overtime amount before rounding','الإضافي المحفوظ دون تعديل':'Stored overtime amount, unchanged','مكافآت أخرى مستبعدة من الأساس':'Other bonuses excluded from the basis','الساعات 8 و9 و12 مقسوم سعر فقط. الزيادة عن حضور نفس اليوم تحتاج مراجعة منفصلة وسببًا عند المنح؛ هذه الشاشة لا تمنحها.':'8, 9 and 12 are rate divisors only. Hours beyond same-day attendance need separate review and a reason when awarded. This screen awards nothing.','القيمة الدقيقة قبل التقريب':'Exact value before rounding'})
+ZH.update({'معاينة سياسة أساس الأجر':'工资基数政策预览','معاينة افتراضية فقط، لا تعديل أو اعتماد أو دفع. لا تثبت أهلية صرف الإجازات أو اعتماد ساعات إضافية أو اكتمال الحضور.':'仅为假设预览，不修改、不批准、不付款。不证明假期兑现资格、加班批准或考勤完整。','القيم من بند راتب محفوظ، وليست الراتب الحالي للموظف. مكافأة الأداء هي القيمة المحفوظة لهذا الشهر، وقد تكون صفرًا افتراضيًا؛ ليست دليل تقييم معتمد أو استحقاق مؤكد.':'数值来自已保存工资项，不是员工当前工资。绩效奖金是本月已保存数值，可能默认为零，不证明已批准评估或已确认权益。','مسير محفوظ':'已保存工资单','بند محفوظ':'已保存工资项','حالة المسير':'工资单状态','أيام الشهر الفعلية':'当月实际天数','أساسي الشهر المحفوظ':'已保存全月基本工资','الأساسي المستحق المحفوظ':'已保存应付基本工资','مكافأة الأداء تدخل أساس الكاش والإضافي فقط مع الأساسي؛ مكافآت الحضور والإشغال والأخرى ومكافآت الموظفين منفصلة ومستبعدة من هذا الأساس.':'基本工资与绩效奖金构成假期兑现和加班基数。考勤、入住率、其他奖金和员工奖励保持独立，不计入此基数。','أيام كاش افتراضية، ليست رصيدًا معتمدًا':'假设兑现天数，不是已批准余额','ساعات إضافي يدوية، ليست معتمدة':'手动加班小时，未批准','مقسوم ساعات سعر الإضافي، ليس جدول ورديات':'小时费率除数，不是排班','اختر صراحةً':'明确选择','معاينة دون تعديل الراتب':'预览，不更改工资','مقارنة افتراضية دون اعتماد':'假设比较，未批准','سعر يوم الأساسي على أيام الشهر':'按当月实际天数计算基本日薪','أساس الكاش والإضافي':'兑现和加班基数','سعر يوم الكاش على 30':'按30天计算兑现日薪','قيمة الكاش الافتراضية قبل التقريب':'舍入前假设兑现数额','سعر ساعة الإضافي الافتراضي':'假设加班小时费率','الإضافي الافتراضي قبل التقريب':'舍入前假设加班金额','الإضافي المحفوظ دون تعديل':'已保存加班金额，未更改','مكافآت أخرى مستبعدة من الأساس':'不计入基数的其他奖金','الساعات 8 و9 و12 مقسوم سعر فقط. الزيادة عن حضور نفس اليوم تحتاج مراجعة منفصلة وسببًا عند المنح؛ هذه الشاشة لا تمنحها.':'8、9、12仅为费率除数。超过同日考勤的小时数需单独审查并在发放时说明原因。本页面不发放任何款项。','القيمة الدقيقة قبل التقريب':'舍入前精确值'})
+
+EN.update({'أساس الأداء المحفوظ لهذا الشهر':'Saved performance amount for this month'})
+ZH.update({'أساس الأداء المحفوظ لهذا الشهر':'本月已保存绩效金额'})
+
+EN.update({'العرض مقرب إلى منزلتين؛ القيمة غير المقربة في التفاصيل.':'Display rounded to two decimals. Unrounded values are in the details.','قيمة الكاش الافتراضية، عرض مقرب':'Hypothetical cashout amount, rounded display','الإضافي الافتراضي، عرض مقرب':'Hypothetical overtime amount, rounded display'})
+ZH.update({'العرض مقرب إلى منزلتين؛ القيمة غير المقربة في التفاصيل.':'显示值四舍五入至两位小数。未舍入值见详情。','قيمة الكاش الافتراضية، عرض مقرب':'假设兑现数额，已舍入显示','الإضافي الافتراضي، عرض مقرب':'假设加班金额，已舍入显示'})
+EN.update({'مقارنة إضافي اليوم دون اعتماد':'Same-day overtime comparison, no approval','هذه معاينة للمراجعة فقط. لا تحفظ ساعات أو سببًا، ولا تعتمد أو تمنح أو تدفع إضافيًا.':'Review preview only. No hours or reason are saved. No overtime is approved, awarded or paid.','مكافأة الأداء قيمة محفوظة قد تكون صفرًا افتراضيًا؛ ليست تقييمًا معتمدًا. المقسوم 8 أو9 أو12 للسعر فقط، وليس جدول ورديات.':'Performance is a saved amount that may default to zero, not an approved evaluation. 8, 9 and 12 are rate divisors only, not shift schedules.','اليوم داخل شهر المسير':'Day within the saved payroll month','سبب الساعات الزائدة، لا يعد اعتمادًا':'Reason for excess hours, not approval','عرض المقارنة دون حفظ':'Show comparison without saving','تفاصيل نفس اليوم قبل المراجعة المستقلة':'Same-day details before separate review','المقارنة التشخيصية هي دقائق العمل المعتمدة ناقص مدة الجدول المحفوظ، بحد أدنى صفر. ليست أهلية إضافي أو سياسة استراحات، ولا تعني اعتماد الساعات اليدوية.':'The diagnostic compares approved worked minutes minus the saved schedule duration, with a zero floor. It is not overtime eligibility or a break policy, and does not approve manual hours.','ساعات يدوية مطلوبة':'Requested manual hours','ساعات زيادة مدة العمل، ليست استحقاقًا':'Duration-surplus hours, not entitlement','فرق الساعات اليدوية عن المقارنة':'Manual hours minus comparison hours','غير معروف، ليس صفرًا':'Unknown, not zero','دليل نفس اليوم غير مكتمل أو غير متسق؛ لا تستخدم المقارنة كاعتماد.':'Same-day evidence is incomplete or inconsistent. Do not use the comparison as approval.','الساعات اليدوية أعلى من المقارنة؛ يلزم السبب ثم مراجعة المسؤول المخول.':'Manual hours exceed the comparison. A reason and then authorized review are required.','السبب موجود للمعاينة فقط؛ ما زالت الزيادة تحتاج مراجعة المسؤول المخول.':'The reason is preview-only. Excess hours still need authorized review.','المقارنة لا تعتمد الساعات حتى عندما لا توجد زيادة.':'The comparison does not approve hours even when there is no excess.','السبب المدخل، غير محفوظ':'Entered reason, not saved','تفاصيل مصدر الحضور المحفوظ':'Saved attendance source details','لا يوجد زر تأكيد أو منح في هذه المعاينة.':'There is no confirmation or award button in this preview.'})
+ZH.update({'مقارنة إضافي اليوم دون اعتماد':'同日加班比较，未批准','هذه معاينة للمراجعة فقط. لا تحفظ ساعات أو سببًا، ولا تعتمد أو تمنح أو تدفع إضافيًا.':'仅供审查预览。不保存小时数或原因。不批准、发放或支付加班费。','مكافأة الأداء قيمة محفوظة قد تكون صفرًا افتراضيًا؛ ليست تقييمًا معتمدًا. المقسوم 8 أو9 أو12 للسعر فقط، وليس جدول ورديات.':'绩效为已保存金额，可能默认为零，并非已批准评估。8、9、12仅为费率除数，不是排班。','اليوم داخل شهر المسير':'已保存工资月份内的日期','سبب الساعات الزائدة، لا يعد اعتمادًا':'超出小时数的原因，不代表批准','عرض المقارنة دون حفظ':'显示比较，不保存','تفاصيل نفس اليوم قبل المراجعة المستقلة':'单独审查前的同日详情','المقارنة التشخيصية هي دقائق العمل المعتمدة ناقص مدة الجدول المحفوظ، بحد أدنى صفر. ليست أهلية إضافي أو سياسة استراحات، ولا تعني اعتماد الساعات اليدوية.':'诊断比较为已批准工作分钟数减去已保存排班时长，最小为零。不是加班资格或休息政策，也不批准手动小时数。','ساعات يدوية مطلوبة':'申请的手动小时数','ساعات زيادة مدة العمل، ليست استحقاقًا':'工作时长超出小时数，并非权益','فرق الساعات اليدوية عن المقارنة':'手动小时数减去比较小时数','غير معروف، ليس صفرًا':'未知，不是零','دليل نفس اليوم غير مكتمل أو غير متسق؛ لا تستخدم المقارنة كاعتماد.':'同日证据不完整或不一致。不得将比较作为批准。','الساعات اليدوية أعلى من المقارنة؛ يلزم السبب ثم مراجعة المسؤول المخول.':'手动小时数超过比较值。需要原因及授权人员审查。','السبب موجود للمعاينة فقط؛ ما زالت الزيادة تحتاج مراجعة المسؤول المخول.':'原因仅供预览。超出小时数仍需授权人员审查。','المقارنة لا تعتمد الساعات حتى عندما لا توجد زيادة.':'即使没有超出，比较也不批准小时数。','السبب المدخل، غير محفوظ':'已输入原因，未保存','تفاصيل مصدر الحضور المحفوظ':'已保存考勤来源详情','لا يوجد زر تأكيد أو منح في هذه المعاينة.':'此预览没有确认或发放按钮。'})
+EN.update({'قائمة الأيام وتفاصيل الوردية':'Day list and shift details','مراجعة فقط. لا تسجيل حضور ولا تحديد دخول وخروج ولا اعتماد إضافي. الإعداد الحالي ليس إثبات تكليف قديم أو اكتمال المصدر.':'Review only. No attendance registration, IN/OUT direction or overtime approval. Current configuration does not prove a historical assignment or source completeness.','العودة إلى المصدر المحفوظ':'Back to saved source','أيام الموظف من ملف القسم':'Employee days from department file','رمز القسم المحفوظ':'Saved department code','اختر نوافذ إعداد حالية للمقارنة فقط. ليست ورديات مكلفًا بها الموظف. أضف النافذة المجاورة لكشف التداخل، دون اختيار تلقائي.':'Select current configured windows for comparison only. These are not employee assignments. Include adjacent windows to show overlaps. No automatic selection.','هوامش المطابقة':'Matching margins','لا يوجد إعداد وردية حالي متاح لهذا القسم.':'No current shift configuration is available for this department.','عرض البصمات الخام دون حفظ':'Show raw punches without saving','البصمات داخل النوافذ المختارة':'Punches within selected windows','الترتيب ترتيب المصدر، وليس اتجاه حركة أو زوج دخول وخروج. كل تكرار محفوظ منفصلًا. نقص البصمة لا يعني غيابًا.':'Source order, not movement direction or an IN/OUT pair. Every duplicate remains separate. A missing punch does not mean absence.','بصمة':'Punch','النوافذ المحتملة':'Candidate windows','اتجاه البصمة غير معروف':'Punch direction unknown','لا توجد بصمة مرتبطة بالموظف داخل النوافذ المختارة، وهذا لا يثبت الغياب.':'No employee-linked punch within selected windows. This does not prove absence.','نوافذ الإعداد المختارة متداخلة، حتى لو لم تقع بصمة في منطقة التداخل.':'Selected configured windows overlap, even if there is no punch in the overlap.','بصمات بهوية غير محسومة، ليست للموظف تلقائيًا':'Unresolved-identity punches, not automatically this employee','ملاحظات مصدر غير مقروءة تحتاج مراجعة':'Unreadable source issues need review','تفاصيل النوافذ والمصدر':'Window and source details','نطاق تواريخ الملف كله، ليس تغطية الموظف':'Whole-file date span, not employee coverage','هذه المقارنة لا تمنح صلاحية تسجيل أو اعتماد.':'This comparison grants no registration or approval authority.'})
+ZH.update({'قائمة الأيام وتفاصيل الوردية':'日期列表与班次详情','مراجعة فقط. لا تسجيل حضور ولا تحديد دخول وخروج ولا اعتماد إضافي. الإعداد الحالي ليس إثبات تكليف قديم أو اكتمال المصدر.':'仅供审查。不登记考勤，不确定进出方向，不批准加班。当前配置不证明历史排班或来源完整性。','العودة إلى المصدر المحفوظ':'返回已保存来源','أيام الموظف من ملف القسم':'部门文件中的员工日期','رمز القسم المحفوظ':'已保存部门代码','اختر نوافذ إعداد حالية للمقارنة فقط. ليست ورديات مكلفًا بها الموظف. أضف النافذة المجاورة لكشف التداخل، دون اختيار تلقائي.':'选择当前配置时间窗口，仅供比较。这些不是员工排班。可加入相邻窗口以显示重叠，不自动选择。','هوامش المطابقة':'匹配余量','لا يوجد إعداد وردية حالي متاح لهذا القسم.':'此部门没有可用的当前班次配置。','عرض البصمات الخام دون حفظ':'显示原始打卡，不保存','البصمات داخل النوافذ المختارة':'所选窗口内的打卡','الترتيب ترتيب المصدر، وليس اتجاه حركة أو زوج دخول وخروج. كل تكرار محفوظ منفصلًا. نقص البصمة لا يعني غيابًا.':'按来源顺序，不代表进出方向或上下班配对。每次重复均单独保留。缺少打卡不代表缺勤。','بصمة':'打卡','النوافذ المحتملة':'候选窗口','اتجاه البصمة غير معروف':'打卡方向未知','لا توجد بصمة مرتبطة بالموظف داخل النوافذ المختارة، وهذا لا يثبت الغياب.':'所选窗口内没有关联此员工的打卡。这不证明缺勤。','نوافذ الإعداد المختارة متداخلة، حتى لو لم تقع بصمة في منطقة التداخل.':'所选配置窗口重叠，即使重叠区没有打卡。','بصمات بهوية غير محسومة، ليست للموظف تلقائيًا':'身份未确定的打卡，不自动归属此员工','ملاحظات مصدر غير مقروءة تحتاج مراجعة':'无法读取的来源问题需要审查','تفاصيل النوافذ والمصدر':'窗口与来源详情','نطاق تواريخ الملف كله، ليس تغطية الموظف':'整个文件的日期范围，并非员工覆盖范围','هذه المقارنة لا تمنح صلاحية تسجيل أو اعتماد.':'此比较不授予登记或批准权限。'})
+
+# Local synthetic source-bound operational attendance labels.
+EN.update({'مراجعة الدخول والخروج': 'Review IN and OUT', 'بصمة الدخول': 'IN occurrence', 'بصمة الخروج': 'OUT occurrence', 'سبب المراجعة': 'Review reason', 'اختر بصمة': 'Choose an occurrence', 'نافذة اليوم المختارة': 'Selected workday window', 'عرض ملخص المراجعة دون تسجيل': 'Review summary without registration', 'راجع قبل التسجيل': 'Review before registration', 'تسجيل اليوم يحتاج مراجعة': 'Register day as needs review', 'تم تسجيل اليوم ويحتاج مراجعة': 'Day registered and needs review', 'لم يتم اعتماد الحضور نهائيًا أو منح إضافي أو ترحيل مالي.': 'No final attendance approval, overtime award or financial posting.', 'أؤكد اتجاه البصمتين والسبب المعروض': 'I confirm the occurrence directions and displayed reason', 'اختيارك الصريح، وليس تحديدًا تلقائيًا للدخول والخروج.': 'Your explicit choice, not automatic IN/OUT inference.', 'كل البصمات الأصلية والتكرارات محفوظة. إعداد المقارنة ليس تكليف وردية.': 'All original occurrences and duplicates are retained. Comparison configuration is not a roster assignment.', 'لا اختيار تلقائي. اختر بصمتين مختلفتين وحدد اتجاههما صراحة. التسجيل يحتاج شهر حضور قيد المراجعة وفترة خدمة مسجلة.': 'No automatic choice. Select two distinct occurrences and explicitly set their directions. Registration requires an under-review attendance month and a recorded service period.', 'التسجيل محلي تجريبي فقط. يعاد فحص الجلسة والمصدر والفترة قبل الحفظ.': 'Local synthetic registration only. Session, source and period are checked again before saving.', 'إذا استُخدمت البصمة في مراجعة أخرى يتوقف هذا الطلب وتبقى المراجعة المعلقة محفوظة. لا يوجد إلغاء حاليًا. الملف المعدل مصدر مختلف، ولا يوجد منع تلقائي للتكرار بين الملفات المختلفة.': 'If an occurrence was used by another review, this request stops and its pending review remains saved. Cancellation is not available. An edited file is a different source; duplicates across different files are not automatically prevented.'})
+ZH.update({'مراجعة الدخول والخروج': '复核签到和签退', 'بصمة الدخول': '签到记录', 'بصمة الخروج': '签退记录', 'سبب المراجعة': '复核原因', 'اختر بصمة': '选择记录', 'نافذة اليوم المختارة': '所选工作日时间窗', 'عرض ملخص المراجعة دون تسجيل': '查看摘要但不登记', 'راجع قبل التسجيل': '登记前复核', 'تسجيل اليوم يحتاج مراجعة': '登记为待复核', 'تم تسجيل اليوم ويحتاج مراجعة': '已登记，待复核', 'لم يتم اعتماد الحضور نهائيًا أو منح إضافي أو ترحيل مالي.': '未最终批准考勤、加班或财务入账。', 'أؤكد اتجاه البصمتين والسبب المعروض': '我确认记录方向和所示原因', 'اختيارك الصريح، وليس تحديدًا تلقائيًا للدخول والخروج.': '由您明确选择，并非自动推断签到或签退。', 'كل البصمات الأصلية والتكرارات محفوظة. إعداد المقارنة ليس تكليف وردية.': '保留所有原始记录及重复项。比较设置并非排班安排。', 'لا اختيار تلقائي. اختر بصمتين مختلفتين وحدد اتجاههما صراحة. التسجيل يحتاج شهر حضور قيد المراجعة وفترة خدمة مسجلة.': '不会自动选择。请选择两条不同记录并明确方向。登记需要待复核的考勤月份和已记录的在职期间。', 'التسجيل محلي تجريبي فقط. يعاد فحص الجلسة والمصدر والفترة قبل الحفظ.': '仅限本地测试登记。保存前重新检查会话、来源和期间。', 'إذا استُخدمت البصمة في مراجعة أخرى يتوقف هذا الطلب وتبقى المراجعة المعلقة محفوظة. لا يوجد إلغاء حاليًا. الملف المعدل مصدر مختلف، ولا يوجد منع تلقائي للتكرار بين الملفات المختلفة.': '若记录已被其他复核使用，本请求将停止，待复核内容仍会保留。目前无法取消。修改后的文件是不同来源，不会自动阻止不同文件之间的重复。'})
+
+EN['مقارنة البصمات لا تحدد الاتجاه تلقائيًا. التسجيل التجريبي المعلق يتطلب اختيارًا صريحًا وتأكيد الملخص، بلا اعتماد نهائي أو إضافي.']="Punch comparison does not infer direction. Pending synthetic registration requires explicit selection and summary confirmation, without final approval or overtime award."
+ZH['مقارنة البصمات لا تحدد الاتجاه تلقائيًا. التسجيل التجريبي المعلق يتطلب اختيارًا صريحًا وتأكيد الملخص، بلا اعتماد نهائي أو إضافي.']="记录比较不会自动推断方向。测试登记需要明确选择并确认摘要，不会最终批准或授予加班。"
+
+EN["المقارنة الخام وحدها لا تسجل حضورًا ولا تمنح اعتمادًا."]="The raw comparison alone neither registers attendance nor grants approval."
+ZH["المقارنة الخام وحدها لا تسجل حضورًا ولا تمنح اعتمادًا."]="仅原始记录比较不会登记考勤或授予批准。"
+
+# Owner-selected dedicated month review.
+EN['مراجعة الشهر']='Monthly review'
+ZH['مراجعة الشهر']='月度复核'
+EN['صفحة واحدة لمراجعة ملفات الأقسام والسجل والأرصدة قبل القفل.']='Review department files, the register and balances before closing.'
+ZH['صفحة واحدة لمراجعة ملفات الأقسام والسجل والأرصدة قبل القفل.']='在结账前复核部门文件、登记簿和余额。'
+EN['ملفات الأقسام']='Department files'
+ZH['ملفات الأقسام']='部门文件'
+EN['تسوية الأرصدة']='Balance reconciliation'
+ZH['تسوية الأرصدة']='余额核对'
+EN['قفل الشهر']='Month close'
+ZH['قفل الشهر']='月度结账'
+EN['الشهر']='Month'
+ZH['الشهر']='月份'
+EN['عرض مراجعة الشهر']='Show monthly review'
+ZH['عرض مراجعة الشهر']='查看月度复核'
+EN['فتح ملفات الأقسام']='Open department files'
+ZH['فتح ملفات الأقسام']='打开部门文件'
+EN['التسجيل محلي تجريبي فقط، ولا يعتمد إجازة أو يخصم رصيدًا أو يعدل مرتبًا.']='Registration is local and synthetic only. It does not approve leave, debit balances or change pay.'
+ZH['التسجيل محلي تجريبي فقط، ولا يعتمد إجازة أو يخصم رصيدًا أو يعدل مرتبًا.']='登记仅用于本地测试，不会批准休假、扣减余额或更改工资。'
+EN['تم تسجيل أيام الملف']='File days registered'
+ZH['تم تسجيل أيام الملف']='文件日期已登记'
+EN['لم يتم اعتماد إجازة أو ترحيل مالي أو قفل الشهر.']='No leave approval, financial posting or month close occurred.'
+ZH['لم يتم اعتماد إجازة أو ترحيل مالي أو قفل الشهر.']='未批准休假、进行财务过账或月度结账。'
+EN['راجع قبل تسجيل أيام الملف']='Review before registering file days'
+ZH['راجع قبل تسجيل أيام الملف']='登记前请复核'
+EN['اليوم']='Day'
+ZH['اليوم']='日期'
+EN['بيان اليوم']='Day status'
+ZH['بيان اليوم']='日期状态'
+EN['خلية المصدر']='Source cell'
+ZH['خلية المصدر']='来源单元格'
+EN['حضور صريح']='Explicit presence'
+ZH['حضور صريح']='明确出勤'
+EN['الشهادات والملاحظات غير الموجودة في الملف تبقى غير معروفة. لا يتم استبدال يوم مسجل.']='Certificates and notes absent from the file remain unknown. Existing register days are not replaced.'
+ZH['الشهادات والملاحظات غير الموجودة في الملف تبقى غير معروفة. لا يتم استبدال يوم مسجل.']='文件中没有的证明和备注仍为未知。不会替换已登记日期。'
+EN['أؤكد الأيام والمصدر والسبب المعروض']='I confirm the displayed days, source and reason'
+ZH['أؤكد الأيام والمصدر والسبب المعروض']='我确认所示日期、来源和原因'
+EN['تسجيل أيام الملف بعد المراجعة']='Register reviewed file days'
+ZH['تسجيل أيام الملف بعد المراجعة']='登记已复核日期'
+EN['١. سجل الشهر']='1. Monthly register'
+ZH['١. سجل الشهر']='1. 月度登记簿'
+EN['موظفون في خدمة مسجلة خلال الشهر']='Employees with recorded service this month'
+ZH['موظفون في خدمة مسجلة خلال الشهر']='本月有在职记录的员工'
+EN['هذه مقارنات محفوظة، وليست قائمة الأقسام المكتملة. قد يظهر أكثر من ملف لنفس الموظف.']='These are saved comparisons, not a list of completed departments. An employee can appear in more than one file.'
+ZH['هذه مقارنات محفوظة، وليست قائمة الأقسام المكتملة. قد يظهر أكثر من ملف لنفس الموظف.']='这些是已保存的比较，并非已完成部门清单。同一员工可能出现在多个文件中。'
+EN['العرض محدود بأحدث المقارنات. افتح ملفات الأقسام لتضييق المصدر؛ لا يعد هذا إثبات اكتمال الشهر.']='Only the latest comparisons are shown. Narrow the source in department files. This is not proof that the month is complete.'
+ZH['العرض محدود بأحدث المقارنات. افتح ملفات الأقسام لتضييق المصدر؛ لا يعد هذا إثبات اكتمال الشهر.']='仅显示最新比较。请在部门文件中缩小来源范围。这不能证明整月已完成。'
+EN['تم تسجيل أيام هذه المقارنة']='Days from this comparison were registered'
+ZH['تم تسجيل أيام هذه المقارنة']='此比较的日期已登记'
+EN['يحتاج مراجعة المصدر قبل التسجيل']='Source review required before registration'
+ZH['يحتاج مراجعة المصدر قبل التسجيل']='登记前需复核来源'
+EN['تفاصيل الأيام والبصمات']='Day and punch details'
+ZH['تفاصيل الأيام والبصمات']='日期和打卡详情'
+EN['مراجعة الرصيد والحركات السابقة']='Review balance and past transactions'
+ZH['مراجعة الرصيد والحركات السابقة']='复核余额和历史交易'
+EN['سبب المراجعة']='Review reason'
+ZH['سبب المراجعة']='复核原因'
+EN['عرض ملخص التسجيل']='Show registration summary'
+ZH['عرض ملخص التسجيل']='查看登记摘要'
+EN['لا توجد مقارنة محفوظة ظاهرة لهذا الشهر. لا يعني ذلك اكتمال الشهر أو غياب الموظفين.']='No saved comparison is visible for this month. This does not mean the month is complete or employees were absent.'
+ZH['لا توجد مقارنة محفوظة ظاهرة لهذا الشهر. لا يعني ذلك اكتمال الشهر أو غياب الموظفين.']='此月份未显示已保存的比较。这不代表整月已完成或员工缺勤。'
+EN['اختر شهرًا صريحًا لعرض الملفات، دون افتراض الشهر الحالي.']='Choose a month to view files. The current month is not assumed.'
+ZH['اختر شهرًا صريحًا لعرض الملفات، دون افتراض الشهر الحالي.']='请选择月份以查看文件，不会默认当前月份。'
+EN['٢. مراجعة الأرصدة']='2. Balance review'
+ZH['٢. مراجعة الأرصدة']='2. 余额复核'
+EN['الرصيد المتاح: غير محسوم']='Available balance: unresolved'
+ZH['الرصيد المتاح: غير محسوم']='可用余额：尚未确定'
+EN['يلزم إثبات إتاحة الرصيد الافتتاحي وتسوية الحركات السابقة. لا يُعامل الرصيد المجهول كصفر.']='Opening-balance availability and past transactions need evidence. An unknown balance is not treated as zero.'
+ZH['يلزم إثبات إتاحة الرصيد الافتتاحي وتسوية الحركات السابقة. لا يُعامل الرصيد المجهول كصفر.']='期初余额可用性和历史交易需要证据。未知余额不会视为零。'
+EN['افتح تفسير الرصيد من ملف الموظف. السيناريو المحسوب ودفتر الحركات يعرضان منفصلين، ولا يمنحان رصيدًا متاحًا تلقائيًا.']='Open the employee balance explanation. Calculated scenarios and ledger transactions remain separate and do not automatically establish available credit.'
+ZH['افتح تفسير الرصيد من ملف الموظف. السيناريو المحسوب ودفتر الحركات يعرضان منفصلين، ولا يمنحان رصيدًا متاحًا تلقائيًا.']='请打开员工余额说明。计算方案和交易账簿分别显示，不会自动产生可用额度。'
+EN['٣. جاهزية القفل']='3. Close readiness'
+ZH['٣. جاهزية القفل']='3. 结账准备'
+EN['يوجد قفل مسجل لهذا الشهر. هذه الصفحة لا تعيد فتحه.']='This month has a recorded close. This page does not reopen it.'
+ZH['يوجد قفل مسجل لهذا الشهر. هذه الصفحة لا تعيد فتحه.']='此月份已有结账记录。本页面不会重新开放。'
+EN['قفل الشهر يخص الفندق كله، وليس ملف قسم واحد.']='Month close covers the entire hotel, not one department file.'
+ZH['قفل الشهر يخص الفندق كله، وليس ملف قسم واحد.']='月度结账涵盖整个酒店，而非单个部门文件。'
+EN['النسخة الاحتياطية تُتحقق قبل القفل، بعد اكتمال مراجعة السجل والتسوية.']='The backup must be verified before closing, after register review and reconciliation are complete.'
+ZH['النسخة الاحتياطية تُتحقق قبل القفل، بعد اكتمال مراجعة السجل والتسوية.']='登记簿复核和余额核对完成后，结账前必须验证备份。'
+EN['قفل الشهر غير متاح الآن']='Month close is unavailable'
+ZH['قفل الشهر غير متاح الآن']='月度结账暂不可用'
+EN['لا قفل فعلي أو صرف من هذه الصفحة. الأرصدة غير المحسومة تمنع تفعيل القفل هنا.']='This page cannot close a real month or release money. Unresolved balances keep closing disabled here.'
+ZH['لا قفل فعلي أو صرف من هذه الصفحة. الأرصدة غير المحسومة تمنع تفعيل القفل هنا.']='此页面不能执行实际月度结账或发放资金。余额未确定时，结账保持禁用。'
+EN['تعذرت مراجعة الشهر. راجع المصدر والفترة والجلسة.']='Monthly review unavailable. Recheck the source, period and session.'
+ZH['تعذرت مراجعة الشهر. راجع المصدر والفترة والجلسة.']='无法复核月份。请检查来源、期间和会话。'
+
+EN['اختر الشهر']='Choose month'
+ZH['اختر الشهر']='选择月份'
+
+EN['السنة']='Year'
+ZH['السنة']='年份'
+
+EN['الملخص معروض؛ لم يتم التسجيل بعد']='Summary shown; not registered yet'
+ZH['الملخص معروض؛ لم يتم التسجيل بعد']='摘要已显示，尚未登记'
+
+EN['لم يتم التسجيل؛ افتح المصدر أو اعرض الملخص']='Not registered; open source or show summary'
+ZH['لم يتم التسجيل؛ افتح المصدر أو اعرض الملخص']='尚未登记；请打开来源或查看摘要'
+
+EN['يناير']='January'
+ZH['يناير']='一月'
+
+EN['فبراير']='February'
+ZH['فبراير']='二月'
+
+EN['مارس']='March'
+ZH['مارس']='三月'
+
+EN['أبريل']='April'
+ZH['أبريل']='四月'
+
+EN['مايو']='May'
+ZH['مايو']='五月'
+
+EN['يونيو']='June'
+ZH['يونيو']='六月'
+
+EN['يوليو']='July'
+ZH['يوليو']='七月'
+
+EN['أغسطس']='August'
+ZH['أغسطس']='八月'
+
+EN['سبتمبر']='September'
+ZH['سبتمبر']='九月'
+
+EN['أكتوبر']='October'
+ZH['أكتوبر']='十月'
+
+EN['نوفمبر']='November'
+ZH['نوفمبر']='十一月'
+
+EN['ديسمبر']='December'
+ZH['ديسمبر']='十二月'
+
+EN['مسودة تسوية الأرصدة']='Balance reconciliation draft'
+ZH['مسودة تسوية الأرصدة']='余额核对草稿'
+
+EN['العودة إلى مراجعة الشهر']='Back to monthly review'
+ZH['العودة إلى مراجعة الشهر']='返回月度复核'
+
+EN['مسودة فقط؛ الرصيد المتاح غير مثبت']='Draft only; available balance is not established'
+ZH['مسودة فقط؛ الرصيد المتاح غير مثبت']='仅为草稿；可用余额尚未确定'
+
+EN['لا تحفظ هذه الصفحة قرارات أو تغير دفتر الحركات أو تقفل الشهر. الاختيارات أدلة للمراجعة وليست اعتمادًا لصحتها.']='This page does not save decisions, change the ledger or close a month. Selections are review assertions, not verification of their truth.'
+ZH['لا تحفظ هذه الصفحة قرارات أو تغير دفتر الحركات أو تقفل الشهر. الاختيارات أدلة للمراجعة وليست اعتمادًا لصحتها.']='本页不保存决定、更改账簿或执行月度结账。选择仅为待复核陈述，不代表真实性已获验证。'
+
+EN['لا تفترض أن الرصيد الافتتاحي مُفرج عنه، أو أن حركة قديمة محسوبة مرتين. اترك غير المحسوم واضحًا.']='Do not assume opening credit was released or a legacy transaction was counted twice. Keep unknowns explicit.'
+ZH['لا تفترض أن الرصيد الافتتاحي مُفرج عنه، أو أن حركة قديمة محسوبة مرتين. اترك غير المحسوم واضحًا.']='不要默认期初额度已释放，或历史交易被重复计算。请明确保留未知状态。'
+
+EN['تُستخدم أدلة العمر والتأمين المحفوظة مع مصدر هذا الملف، دون افتراض قيم جديدة.']='Use the age and insurance evidence saved with this file source. No new values are assumed.'
+ZH['تُستخدم أدلة العمر والتأمين المحفوظة مع مصدر هذا الملف، دون افتراض قيم جديدة.']='使用此文件来源保存的年龄和保险证据，不会假设新值。'
+
+EN['عرض مصادر التسوية']='Show reconciliation sources'
+ZH['عرض مصادر التسوية']='查看核对来源'
+
+EN['مصادر المراجعة']='Review sources'
+ZH['مصادر المراجعة']='复核来源'
+
+EN['الأرقام المقربة للعرض فقط. القيم الدقيقة محفوظة في حساب المسودة دون تقريب.']='Rounded numbers are display-only. Draft calculations keep exact values without rounding.'
+ZH['الأرقام المقربة للعرض فقط. القيم الدقيقة محفوظة في حساب المسودة دون تقريب.']='四舍五入仅用于显示。草稿计算保留精确值，不进行舍入。'
+
+EN['نوع الرصيد']='Balance category'
+ZH['نوع الرصيد']='余额类别'
+
+EN['مرجع المصدر والقيم الدقيقة']='Source reference and exact values'
+ZH['مرجع المصدر والقيم الدقيقة']='来源标识和精确值'
+
+EN['التطابق المرتبط لا يثبت التسوية. تعارض الهوية أو التغطية لا يحله اختيار يدوي.']='A linked match is not proof of reconciliation. A manual choice cannot fix identity or coverage conflicts.'
+ZH['التطابق المرتبط لا يثبت التسوية. تعارض الهوية أو التغطية لا يحله اختيار يدوي.']='关联匹配不能证明核对完成。手动选择无法解决身份或覆盖范围冲突。'
+
+EN['أدلة إتاحة البداية']='Opening availability evidence'
+ZH['أدلة إتاحة البداية']='期初可用性证据'
+
+EN['حدد كل نوع على حدة، حتى إن كانت قيمته صفرًا. المرجع مطلوب، ويمكن أن يوضح أن الدليل ناقص.']='Review each category, even a zero opening. A reference is required and can state that evidence is missing.'
+ZH['حدد كل نوع على حدة، حتى إن كانت قيمته صفرًا. المرجع مطلوب، ويمكن أن يوضح أن الدليل ناقص.']='请逐项复核各类别，包括零期初值。必须提供标识，也可说明证据缺失。'
+
+EN['حالة إتاحة البداية']='Opening availability status'
+ZH['حالة إتاحة البداية']='期初可用状态'
+
+EN['يوجد دليل إفراج']='Release evidence supplied'
+ZH['يوجد دليل إفراج']='已提供释放证据'
+
+EN['غير مُفرج عنه']='Not released'
+ZH['غير مُفرج عنه']='尚未释放'
+
+EN['مرجع الدليل']='Evidence reference'
+ZH['مرجع الدليل']='证据标识'
+
+EN['كل حركات الدفتر في هذا النطاق']='Every ledger transaction in this scope'
+ZH['كل حركات الدفتر في هذا النطاق']='此范围内的全部账簿交易'
+
+EN['محسوبة داخل السيناريو تعني أن نفس هذه الحركة ممثلة فيه بالفعل. مستقلة تعني الاحتفاظ بها إضافةً إلى السيناريو. لا يُحذف أي سجل.']='Included means this exact transaction is already represented in the scenario. External means it remains additional to the scenario. No record is deleted.'
+ZH['محسوبة داخل السيناريو تعني أن نفس هذه الحركة ممثلة فيه بالفعل. مستقلة تعني الاحتفاظ بها إضافةً إلى السيناريو. لا يُحذف أي سجل.']='已包含表示此笔交易已在方案中体现。独立表示保留并另计于方案之外。不会删除记录。'
+
+EN['حركة']='Transaction'
+ZH['حركة']='交易'
+
+EN['القيمة الدقيقة بالأيام']='Exact value in days'
+ZH['القيمة الدقيقة بالأيام']='精确天数'
+
+EN['معاملة الحركة']='Transaction treatment'
+ZH['معاملة الحركة']='交易处理方式'
+
+EN['محسوبة داخل السيناريو']='Included in scenario'
+ZH['محسوبة داخل السيناريو']='已包含在方案中'
+
+EN['مستقلة عن السيناريو']='External to scenario'
+ZH['مستقلة عن السيناريو']='独立于方案'
+
+EN['لا توجد حركات دفتر ضمن المصادر المعروضة.']='No ledger transactions exist in the displayed source scope.'
+ZH['لا توجد حركات دفتر ضمن المصادر المعروضة.']='显示的来源范围内没有账簿交易。'
+
+EN['حساب مسودة دون حفظ أو ترحيل']='Calculate draft without saving or posting'
+ZH['حساب مسودة دون حفظ أو ترحيل']='计算草稿，不保存或过账'
+
+EN['نتيجة المسودة دون حفظ']='Unsaved draft result'
+ZH['نتيجة المسودة دون حفظ']='未保存的草稿结果'
+
+EN['توجد أدلة غير محسومة أو تعارضات. لا هدف أو فرق قابل للاعتماد.']='Evidence is unresolved or conflicting. No target or delta can be accepted.'
+ZH['توجد أدلة غير محسومة أو تعارضات. لا هدف أو فرق قابل للاعتماد.']='证据尚未确定或存在冲突，无法确认目标值或差额。'
+
+EN['الأدلة المختارة مكتملة حسابيًا فقط؛ لم يتم اعتماد صحتها أو إتاحة الرصيد.']='The selected assertions are computationally complete only. Their truth and available credit are not verified.'
+ZH['الأدلة المختارة مكتملة حسابيًا فقط؛ لم يتم اعتماد صحتها أو إتاحة الرصيد.']='所选陈述仅在计算上完整。真实性和可用额度尚未验证。'
+
+EN['هدف افتراضي بالأيام']='Hypothetical target in days'
+ZH['هدف افتراضي بالأيام']='假设目标天数'
+
+EN['فرق افتراضي بالأيام']='Hypothetical delta in days'
+ZH['فرق افتراضي بالأيام']='假设差额天数'
+
+EN['الترحيل الفعلي غير متاح']='Actual posting is unavailable'
+ZH['الترحيل الفعلي غير متاح']='实际过账不可用'
+
+EN['تعذرت مسودة التسوية. راجع المصدر والأدلة والجلسة.']='Reconciliation draft unavailable. Recheck source, evidence and session.'
+ZH['تعذرت مسودة التسوية. راجع المصدر والأدلة والجلسة.']='无法生成核对草稿。请检查来源、证据和会话。'
+
+EN['أدلة المصدر المحفوظة']='Saved source evidence'
+ZH['أدلة المصدر المحفوظة']='已保存的来源证据'
+
+EN['القرارات والمراجع المستخدمة في المسودة']='Decisions and references used in this draft'
+ZH['القرارات والمراجع المستخدمة في المسودة']='此草稿所用决定和标识'
+
+EN['إتاحة الرصيد الافتتاحي غير مثبتة.']='Opening availability is not established.'
+ZH['إتاحة الرصيد الافتتاحي غير مثبتة.']='期初可用性尚未确定。'
+
+EN['نوع الرصيد غير نشط.']='Balance category is inactive.'
+ZH['نوع الرصيد غير نشط.']='余额类别未启用。'
+
+EN['نوع الإجازة لا يتتبع رصيدًا.']='Leave category does not track balances.'
+ZH['نوع الإجازة لا يتتبع رصيدًا.']='此休假类别不跟踪余额。'
+
+EN['تصنيف حركة الدفتر غير محسوم.']='Ledger category is unresolved.'
+ZH['تصنيف حركة الدفتر غير محسوم.']='账簿交易类别尚未确定。'
+
+EN['معاملة حركة الدفتر غير محسومة.']='Ledger treatment is unresolved.'
+ZH['معاملة حركة الدفتر غير محسومة.']='账簿交易处理方式尚未确定。'
+
+EN['تعارض تداخل المصدر يحتاج تصحيحًا.']='Source overlap conflict requires correction.'
+ZH['تعارض تداخل المصدر يحتاج تصحيحًا.']='来源重叠冲突需要更正。'
+
+EN['تعارض هوية المصدر يحتاج تصحيحًا.']='Source identity conflict requires correction.'
+ZH['تعارض هوية المصدر يحتاج تصحيحًا.']='来源身份冲突需要更正。'
+
+EN['حساب المسودة لا يحفظ قرارات. حفظ الإفادات خطوة صريحة منفصلة ولا يغير دفتر الحركات أو يقفل الشهر. الاختيارات ليست اعتمادًا لصحتها.']='Calculating a draft saves nothing. Recording assertions is a separate explicit step and does not change the ledger or close a month. Selections are not verified facts.'
+ZH['حساب المسودة لا يحفظ قرارات. حفظ الإفادات خطوة صريحة منفصلة ولا يغير دفتر الحركات أو يقفل الشهر. الاختيارات ليست اعتمادًا لصحتها.']='计算草稿不会保存决定。记录陈述需要单独明确操作，不会更改账簿或结账。选择不代表已验证事实。'
+
+EN['سبب حفظ إفادات المراجع']='Reason to record reviewer assertions'
+ZH['سبب حفظ إفادات المراجع']='记录复核人陈述的原因'
+
+EN['أؤكد حفظ إفاداتي ومراجعها فقط، دون اعتماد صحتها أو ترحيل رصيد']='I confirm recording my assertions and references only, without verifying their truth or posting credit'
+ZH['أؤكد حفظ إفاداتي ومراجعها فقط، دون اعتماد صحتها أو ترحيل رصيد']='我确认仅记录陈述和标识，不验证真实性或过账额度'
+
+EN['حفظ إفادات المراجعة فقط']='Record review assertions only'
+ZH['حفظ إفادات المراجعة فقط']='仅记录复核陈述'
+
+EN['إفادات مراجعة محفوظة، ليست اعتمادًا']='Review assertions recorded, not approved'
+ZH['إفادات مراجعة محفوظة، ليست اعتمادًا']='复核陈述已记录，并非批准'
+
+EN['لم يتم التحقق من صحة الإفادات أو إتاحة رصيد أو ترحيل حركة.']='Assertions were not verified. No credit was released or transaction posted.'
+ZH['لم يتم التحقق من صحة الإفادات أو إتاحة رصيد أو ترحيل حركة.']='陈述未经验证，未释放额度或进行过账。'
+
+EN['فتح إيصال الإفادات المحفوظة']='Open recorded assertion receipt'
+ZH['فتح إيصال الإفادات المحفوظة']='打开已记录陈述凭据'
+
+EN['هذا سجل تاريخي. لم تُفحص حداثة مصادره في هذا العرض. ابدأ مراجعة جديدة قبل أي استخدام لاحق.']='This is a historical record. Source freshness was not checked in this view. Start a new review before further use.'
+ZH['هذا سجل تاريخي. لم تُفحص حداثة مصادره في هذا العرض. ابدأ مراجعة جديدة قبل أي استخدام لاحق.']='这是历史记录。本视图未检查来源是否最新。后续使用前请重新复核。'
+
+EN['تسليم الأيام للرواتب، قراءة فقط']='Payroll day handoff, read only'
+ZH['تسليم الأيام للرواتب، قراءة فقط']='工资日期交接，只读'
+
+EN['العودة إلى ملف الموظف']='Back to employee file'
+ZH['العودة إلى ملف الموظف']='返回员工档案'
+
+EN['أعداد أيام الشهر وملاحظاته فقط. لا مبلغ أو خصم أو تعديل مرتب أو اعتماد رصيد متاح.']='Monthly day counts and notes only. No money, deduction, salary change or available credit approval.'
+ZH['أعداد أيام الشهر وملاحظاته فقط. لا مبلغ أو خصم أو تعديل مرتب أو اعتماد رصيد متاح.']='仅显示每月日期计数和备注。不涉及金额、扣款、工资更改或可用额度批准。'
+
+EN['هذا العرض لا يثبت اعتماد الحضور أو الإجازة نهائيًا. اكتمال التسجيل لا يعني اعتماد الصرف.']='This view does not establish final attendance or leave approval. Complete records do not authorize payment.'
+ZH['هذا العرض لا يثبت اعتماد الحضور أو الإجازة نهائيًا. اكتمال التسجيل لا يعني اعتماد الصرف.']='此视图不代表考勤或休假已最终批准。记录完整不代表授权付款。'
+
+EN['عرض أعداد الأيام']='Show day counts'
+ZH['عرض أعداد الأيام']='查看日期计数'
+
+EN['تغطية السجل مكتملة، ليست اعتمادًا نهائيًا']='Register coverage complete, not final approval'
+ZH['تغطية السجل مكتملة، ليست اعتمادًا نهائيًا']='登记覆盖完整，并非最终批准'
+
+EN['تسليم الأيام غير مكتمل']='Day handoff incomplete'
+ZH['تسليم الأيام غير مكتمل']='日期交接不完整'
+
+EN['راجع الخدمة والأيام غير المعروفة والتعارضات قبل استخدام الملخص.']='Review service, unknown days and conflicts before using this summary.'
+ZH['راجع الخدمة والأيام غير المعروفة والتعارضات قبل استخدام الملخص.']='使用摘要前，请复核在职记录、未知日期和冲突。'
+
+EN['لا توجد خدمة موثقة؛ لا نفترض أن الموظف غير موجود.']='No recorded service. We do not assume the employee was not employed.'
+ZH['لا توجد خدمة موثقة؛ لا نفترض أن الموظف غير موجود.']='没有在职记录，不默认员工未在职。'
+
+EN['توجد فترات خدمة متداخلة تحتاج تصحيحًا.']='Overlapping service periods require correction.'
+ZH['توجد فترات خدمة متداخلة تحتاج تصحيحًا.']='在职期间存在重叠，需要更正。'
+
+EN['أيام خدمة مسجلة']='Recorded service days'
+ZH['أيام خدمة مسجلة']='已记录在职天数'
+
+EN['أيام غير معروفة']='Unknown days'
+ZH['أيام غير معروفة']='未知天数'
+
+EN['ملاحظات مسجلة، دون تعديل']='Recorded notes, unchanged'
+ZH['ملاحظات مسجلة، دون تعديل']='已记录备注，未修改'
+
+EN['لا توجد ملاحظات مسجلة لهذا الشهر.']='No notes recorded for this month.'
+ZH['لا توجد ملاحظات مسجلة لهذا الشهر.']='此月没有已记录备注。'
+
+EN['تواريخ متعارضة']='Conflicting dates'
+ZH['تواريخ متعارضة']='冲突日期'
+
+EN['سيناريو الأرصدة وتفسير دفتر الحركات لهما مراجعة مصدر منفصلة؛ لا تُجمع الأرقام في مرتب تلقائيًا.']='Balance scenarios and ledger explanations require separate source review. Figures are not automatically added to pay.'
+ZH['سيناريو الأرصدة وتفسير دفتر الحركات لهما مراجعة مصدر منفصلة؛ لا تُجمع الأرقام في مرتب تلقائيًا.']='余额方案和账簿说明需要单独复核来源。数字不会自动计入工资。'
+
+EN['تعذر عرض تسليم الأيام. راجع الموظف والفترة والجلسة.']='Day handoff unavailable. Recheck employee, period and session.'
+ZH['تعذر عرض تسليم الأيام. راجع الموظف والفترة والجلسة.']='无法查看日期交接。请检查员工、期间和会话。'
+EN['مرجع المصدر']='Source reference'
+ZH['مرجع المصدر']='来源标识'
+
+# Owner-approved disabled monthly close preview
+EN['٣. ملخص القفل قبل التأكيد']='3. Close summary before confirmation'
+ZH['٣. ملخص القفل قبل التأكيد']='3. 确认前的月结摘要'
+EN['٣. جاهزية قفل الشهر']='3. Month-close readiness'
+ZH['٣. جاهزية قفل الشهر']='3. 月结准备情况'
+EN['معاينة فقط، التنفيذ معطّل']='Preview only, execution disabled'
+ZH['معاينة فقط، التنفيذ معطّل']='仅供预览，执行已禁用'
+EN['لم تُنشأ نسخة احتياطية، ولم يُقفل الشهر من هذه الصفحة.']='No backup was created and no month was closed from this page.'
+ZH['لم تُنشأ نسخة احتياطية، ولم يُقفل الشهر من هذه الصفحة.']='此页面未创建备份，也未执行月结。'
+EN['هذه معاينة للخطوة التالية، وليست إقرارًا باكتمال المراجعة.']='This previews the next step. It does not confirm review completion.'
+ZH['هذه معاينة للخطوة التالية، وليست إقرارًا باكتمال المراجعة.']='这是下一步的预览，不代表复核已完成。'
+EN['الفترة والنطاق']='Period and scope'
+ZH['الفترة والنطاق']='期间和范围'
+EN['كل موظفي نطاق الشهر']='Every employee in the month scope'
+ZH['كل موظفي نطاق الشهر']='本月范围内的所有员工'
+EN['موظفون ضمن نطاق المراجعة']='Employees in the review scope'
+ZH['موظفون ضمن نطاق المراجعة']='复核范围内的员工'
+EN['آخر فحص للمصادر']='Latest source check'
+ZH['آخر فحص للمصادر']='最新来源检查'
+EN['عند تفعيل التنفيذ لاحقًا، يعاد فحص المصادر عند التأكيد؛ أي تغيير يتطلب مراجعة جديدة.']='If execution is enabled later, sources must be checked again at confirmation. Any change requires a new review.'
+ZH['عند تفعيل التنفيذ لاحقًا، يعاد فحص المصادر عند التأكيد؛ أي تغيير يتطلب مراجعة جديدة.']='日后启用执行时，确认前必须重新检查来源。任何变化都需要重新复核。'
+EN['أثر القفل المقترح']='Proposed close effect'
+ZH['أثر القفل المقترح']='拟议月结影响'
+EN['تسجيل قفل الشهر ومنع التعديل العادي عليه. التصحيح أو إعادة الفتح يحتاج مسار مراجعة منفصلًا.']='Record the month close and prevent ordinary changes. Corrections or reopening require a separate review workflow.'
+ZH['تسجيل قفل الشهر ومنع التعديل العادي عليه. التصحيح أو إعادة الفتح يحتاج مسار مراجعة منفصلًا.']='记录月结并阻止常规修改。更正或重新开放需要单独的复核流程。'
+EN['لا يمنح رصيدًا متاحًا، ولا يغيّر مرتبًا، ولا يصرف مستحقات تلقائيًا.']='This does not establish an available balance, change pay or automatically pay entitlements.'
+ZH['لا يمنح رصيدًا متاحًا، ولا يغيّر مرتبًا، ولا يصرف مستحقات تلقائيًا.']='这不会确立可用余额、改变工资或自动支付应得款项。'
+EN['سبب القفل']='Reason for closing'
+ZH['سبب القفل']='月结原因'
+EN['راجعت نطاق الفندق كله والموانع والمصادر، وأطلب قفل هذا الشهر فقط.']='I reviewed the whole-hotel scope, blockers and sources, and request closing this month only.'
+ZH['راجعت نطاق الفندق كله والموانع والمصادر، وأطلب قفل هذا الشهر فقط.']='我已复核全酒店范围、阻碍和来源，仅请求结算本月。'
+EN['إنشاء النسخة والتحقق ثم قفل الشهر · معطّل']='Create and verify backup, then close month · disabled'
+ZH['إنشاء النسخة والتحقق ثم قفل الشهر · معطّل']='创建并验证备份，然后月结 · 已禁用'
+EN['العودة إلى الجاهزية دون قفل']='Return to readiness without closing'
+ZH['العودة إلى الجاهزية دون قفل']='返回准备情况，不执行月结'
+EN['يوجد مرتب معتمد أو مقفل يتداخل مع الشهر.']='An approved or closed payroll overlaps this month.'
+ZH['يوجد مرتب معتمد أو مقفل يتداخل مع الشهر.']='已批准或已关闭的工资期间与本月重叠。'
+EN['مراجعة كل موظفي النطاق']='Review every employee in scope'
+ZH['مراجعة كل موظفي النطاق']='复核范围内的每位员工'
+EN['تسوية المصدر وإتاحة الرصيد لم تُعتمدا في هذه المعاينة.']='Source reconciliation and balance availability are not approved by this preview.'
+ZH['تسوية المصدر وإتاحة الرصيد لم تُعتمدا في هذه المعاينة.']='此预览未批准来源对账或余额可用性。'
+EN['فتح أيام الشهر']='Open month days'
+ZH['فتح أيام الشهر']='查看本月日期'
+EN['لا توجد أدلة موظفين في النطاق؛ لا يُستنتج اكتمال الشهر.']='No employee evidence in scope. Month completeness is not inferred.'
+ZH['لا توجد أدلة موظفين في النطاق؛ لا يُستنتج اكتمال الشهر.']='范围内没有员工证据，不能推断本月已完整。'
+EN['النسخة الاحتياطية شرط مستقل']='Backup is a separate requirement'
+ZH['النسخة الاحتياطية شرط مستقل']='备份是单独的要求'
+EN['عند تفعيل القفل لاحقًا: إنشاء نسخة مشفّرة جديدة والتحقق من نفس الملف قبل تسجيل القفل. وجود نسخة قديمة لا يكفي.']='If closing is enabled later, create a fresh encrypted backup and verify that exact file before recording the close. An older backup is not enough.'
+ZH['عند تفعيل القفل لاحقًا: إنشاء نسخة مشفّرة جديدة والتحقق من نفس الملف قبل تسجيل القفل. وجود نسخة قديمة لا يكفي.']='日后启用月结时，必须创建新的加密备份，并在记录月结前验证该文件。旧备份不够。'
+EN['اكتمال الأيام ليس اعتمادًا للتسوية، ولا يثبت رصيدًا متاحًا أو يسمح بصرف مرتب.']='Complete days do not approve reconciliation, establish available balances or authorize pay.'
+ZH['اكتمال الأيام ليس اعتمادًا للتسوية، ولا يثبت رصيدًا متاحًا أو يسمح بصرف مرتب.']='日期完整不代表批准对账、确立可用余额或授权支付工资。'
+EN['معاينة ملخص القفل، دون تنفيذ']='Preview close summary, no execution'
+ZH['معاينة ملخص القفل، دون تنفيذ']='预览月结摘要，不执行'
+EN['يمكن معاينة شكل الملخص مع بقاء الموانع؛ لا يعني ذلك السماح بالتأكيد.']='The summary layout can be previewed while blockers remain. Confirmation is not enabled.'
+ZH['يمكن معاينة شكل الملخص مع بقاء الموانع؛ لا يعني ذلك السماح بالتأكيد.']='存在阻碍时仍可预览摘要布局，但确认未启用。'

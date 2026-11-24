@@ -95,7 +95,7 @@
   </section>
   {% endif %}
 
-  <h2>رموز استعادة مدير النظام</h2>
+  <h2 id="account-recovery">رموز استعادة مدير النظام</h2>
   <p class="muted">لو نسيت كلمة مرورك، تستعيد الدخول من صفحة تسجيل الدخول برمز من رموز الاستعادة؛ كل رمز يعمل مرة واحدة. الرموز غير المستخدمة حاليًا: <bdi>{{ unused_recovery_codes }}</bdi>. إنشاء رموز جديدة يبطل كل الرموز السابقة.</p>
   <form method="post" action="/settings/accounts/recovery-codes" class="inline-form">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -103,7 +103,7 @@
     <button type="submit" class="btn-soft">إنشاء رموز استعادة جديدة</button>
   </form>
 
-  <h2>الجلسات المفتوحة</h2>
+  <h2 id="account-sessions">الجلسات المفتوحة</h2>
   <p class="muted">كل دخول ناجح يسجَّل هنا ويمكن إنهاؤه فورًا فيسقط حتى لو كان الكوكي ما زال صالحًا. بيانات المتصفح وعنوان IP وصفية من الطلب نفسه وقد لا تكون دقيقة، وليست إثباتًا لهوية جهاز.</p>
   {% if sessions %}
   <div class="table-scroll">

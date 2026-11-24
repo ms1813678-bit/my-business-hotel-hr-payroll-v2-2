@@ -9,6 +9,10 @@ class Settings(BaseSettings):
     # Interactive API docs (/docs, /openapi.json) stay off unless the
     # administrator explicitly enables them for troubleshooting.
     app_expose_docs: bool = False
+    attendance_synthetic_review_enabled: bool = False
+    leave_synthetic_transition_enabled: bool = False
+    leave_synthetic_month_close_enabled: bool = False
+    leave_synthetic_register_enabled: bool = False
     app_host: str = "127.0.0.1"
     app_port: int = 8000
     database_url: str

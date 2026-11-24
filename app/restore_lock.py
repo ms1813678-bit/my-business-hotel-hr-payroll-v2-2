@@ -18,7 +18,7 @@ import re
 from contextlib import contextmanager
 
 from fastapi import HTTPException
-from sqlalchemy import text
+from sqlalchemy import select, text
 from sqlalchemy.engine import make_url
 
 from app.config import settings
@@ -42,8 +42,7 @@ def read_restore_epoch(db) -> str | None:
         return None
     from app.models import SystemSetting
 
-    row = db.get(SystemSetting, RESTORE_EPOCH_KEY)
-    return row.value if row is not None else None
+    return db.scalar(select(SystemSetting.value).where(SystemSetting.key == RESTORE_EPOCH_KEY))
 
 
 def database_is_postgres() -> bool:
@@ -136,6 +135,16 @@ def open_direct_connection(*, autocommit: bool = True):
 # main.py so a new credential-write site without an exemption fails the suite.
 GATE_EXEMPT_EXACT = {
     ("POST", "/login"),
+    ("POST", "/leave/opening/review"),
+    ("POST", "/leave/departments/export"),
+    ("POST", "/leave/departments/return"),
+    ("POST", "/leave/departments/compare"),
+    ("POST", "/leave/policies/preview"),
+    ("POST", "/leave/policies/confirm"),
+    ("POST", "/leave/policies/impact"),
+    ("POST", "/leave/balance-explanation"),
+    ("POST", "/leave/opening/policy-defaults"),
+    ("POST", "/leave/opening/confirm-source"),
     ("POST", "/settings/password"),
     ("POST", "/settings/telegram"),
     ("POST", "/settings/telegram/bind-link"),
@@ -147,6 +156,9 @@ GATE_EXEMPT_EXACT = {
     ("POST", "/settings/backup/restore"),
 }
 GATE_EXEMPT_POST_PATTERNS = (
+    re.compile(r'/leave/month-review/register-(?:review|confirm)'),
+    re.compile(r'/leave/month-review/reconciliation-(?:snapshot|draft|record)'),
+    re.compile(r'/attendance/shift-evidence/[0-9a-f]{64}/[1-9][0-9]*/(?:review|confirm)'),
     re.compile(r"^/settings/accounts/[^/]+/(deactivate|activate|reset-password)$"),
     re.compile(r"^/settings/accounts/sessions/[^/]+/end$"),
 )
@@ -156,7 +168,7 @@ GATE_EXEMPT_PREFIXES = ("/static", "/language")
 def restore_gate_exempt(method: str, path: str) -> bool:
     if (method, path) in GATE_EXEMPT_EXACT:
         return True
-    if method == "POST" and any(pattern.match(path) for pattern in GATE_EXEMPT_POST_PATTERNS):
+    if method == "POST" and any(pattern.fullmatch(path) for pattern in GATE_EXEMPT_POST_PATTERNS):
         return True
     return any(path.startswith(prefix) for prefix in GATE_EXEMPT_PREFIXES)
 

@@ -84,6 +84,7 @@
         </dl>
         <div class="payroll-card-actions">
           {% if run.status in ["draft", "reopened"] %}<button type="button" class="payroll-edit-toggle btn-primary">تعديل</button>{% elif run.status == "closed" and payments_by_item.get(item.id) %}<button type="button" class="payroll-edit-toggle btn-primary">الدفعات</button>{% endif %}
+          {% if request.state.admin_role=='system_admin' %}<a class="button-link" href="/payroll/items/{{ item.id }}/basis-preview">معاينة سياسة أساس الأجر</a>{% endif %}
           <a class="button-link" href="/payroll/runs/{{ run.id }}/items/{{ item.id }}/payslip.pdf" target="_blank">قسيمة PDF</a>
         </div>
       </div>

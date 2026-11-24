@@ -220,7 +220,7 @@ def test_leave_balance_is_deducted_once_and_restored_on_cancellation(leave_clien
         assert "leave_cancelled" in actions
 
 
-def test_insufficient_balance_and_short_notice_are_not_approved(leave_client):
+def test_short_notice_refused_but_explicit_confirmation_can_make_balance_negative(leave_client):
     client = leave_client
     login(client)
     token = csrf(client.get("/leave"))
@@ -267,11 +267,12 @@ def test_insufficient_balance_and_short_notice_are_not_approved(leave_client):
         follow_redirects=False,
     )
     assert insufficient.status_code == 303
-    assert "error=confirm" in insufficient.headers["location"]
+    assert "error=confirm" not in insufficient.headers["location"]
     with client.test_session_factory() as db:
         record = db.get(LeaveRecord, record_id)
-        assert record.status == "draft"
-        assert db.scalars(select(LeaveBalanceTransaction)).all() == []
+        assert record.status == "confirmed"
+        entries = db.scalars(select(LeaveBalanceTransaction)).all()
+        assert len(entries) == 1 and entries[0].days_delta == Decimal("-1")
 
 
 def test_leave_page_and_mutations_require_the_single_admin_and_csrf(leave_client):

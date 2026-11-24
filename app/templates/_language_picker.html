@@ -1,0 +1,7 @@
+{% set native_names = {'ar': 'العربية', 'en': 'English', 'zh': '中文'} %}
+<details class="language-picker">
+  <summary><span aria-hidden="true">◎</span> <span data-no-translate lang="{{ request.state.language }}">{{ native_names[request.state.language] }}</span></summary>
+  <nav aria-label="اللغة">
+    {% for code, label in native_names.items() %}<a href="/language/{{ code }}" lang="{{ code }}" data-no-translate {% if request.state.language == code %}class="active" aria-current="true"{% endif %}>{{ label }}</a>{% endfor %}
+  </nav>
+</details>

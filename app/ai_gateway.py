@@ -9,21 +9,34 @@ from __future__ import annotations
 import hashlib
 import json
 import secrets
-from datetime import datetime, timedelta, timezone
+from contextlib import nullcontext
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 
 from app.ai_agent import build_plan, execute_plan
 from app.ai_execution_render import render_execution_result
+from app.ai_plan_validation import validate_plan_values
 from app.db import SessionLocal
+from app.leave_balance_rules import preview_manual_balance
 from app.leave_workflow import leave_balance
 from app.models import (
-    AICommandApproval, AIConversationMessage, AdminAccount, AuditLog,
-    Employee, Department, Branch, LeaveRecord, LeaveType, AdvanceRequest,
-    StaffAction, AttendanceDailyRecord, AttendanceMonth, PayrollRun,
+    AdvanceRequest,
+    AICommandApproval,
+    AIConversationMessage,
+    AttendanceDailyRecord,
+    AttendanceMonth,
+    AuditLog,
+    Employee,
     LeaveBalanceTransaction,
+    LeaveRecord,
+    LeaveType,
+    PayrollItem,
+    PayrollPayment,
+    PayrollRun,
+    StaffAction,
 )
 
 APPROVAL_TTL_MINUTES = 10
@@ -49,15 +62,18 @@ def _display_value(value: Any) -> Any:
     return str(value)
 
 
-def build_confirmation_preview(plan: dict[str, Any]) -> dict[str, Any]:
+def build_confirmation_preview(plan: dict[str, Any], *, session=None) -> dict[str, Any]:
     """Read current database values and build an operation-specific before/after preview."""
+    validate_plan_values(plan)
     action = str(plan.get("action") or "")
     old: dict[str, Any] = {}
     new_values: dict[str, Any] = {}
     snapshot: dict[str, Any] = {"action": action, "target": None, "current": {}}
     risks: list[str] = []
 
-    with SessionLocal() as db:
+    with (SessionLocal() if session is None else nullcontext(session)) as db:
+        if session is None:
+            _lock_command_business_tables(db)
         if action in {"create_employee", "edit_employee", "transfer_employee", "archive_employee", "rehire_employee"}:
             employee_id = plan.get("employee_id")
             if employee_id is not None:
@@ -125,20 +141,16 @@ def build_confirmation_preview(plan: dict[str, Any]) -> dict[str, Any]:
             if not leave_type.tracks_balance:
                 raise ValueError("نوع الإجازة المحدد لا يستخدم رصيدًا.")
             current_balance = leave_balance(db, employee_id, leave_type_id)
-            delta = Decimal(str(plan.get("balance_days") or "0")).quantize(Decimal("0.01"))
+            delta = Decimal(str(plan.get("balance_days") or "0"))
             transaction_type = str(plan.get("transaction_type") or "adjustment")
             opening_exists = db.scalar(select(LeaveBalanceTransaction.id).where(
                 LeaveBalanceTransaction.employee_id == employee_id,
                 LeaveBalanceTransaction.leave_type_id == leave_type_id,
                 LeaveBalanceTransaction.transaction_type == "opening",
             ).limit(1)) is not None
-            resulting_balance = current_balance + delta
-            if delta == 0:
-                raise ValueError("تعديل الرصيد يجب أن يكون بقيمة غير صفرية.")
+            resulting_balance = preview_manual_balance(current_balance, transaction_type, delta)
             if transaction_type == "opening" and opening_exists:
                 raise ValueError("تم تسجيل الرصيد الافتتاحي من قبل؛ استخدم تعديلًا بدلًا منه.")
-            if transaction_type == "adjustment" and resulting_balance < 0:
-                raise ValueError("التعديل المقترح سيجعل رصيد الإجازة سالبًا.")
             old = {
                 "employee_code": employee.code,
                 "employee_name": employee.full_name,
@@ -257,7 +269,16 @@ def build_confirmation_preview(plan: dict[str, Any]) -> dict[str, Any]:
                 raise ValueError("شهر الحضور المستهدف غير موجود.")
             old = {"status": item.status, "period_start": item.period_start.isoformat(),
                    "period_end": item.period_end.isoformat()}
-            new_values = {"status": "approved", "coverage_confirmed": bool(plan.get("coverage_confirmed"))}
+            attendance_source = {}
+            for table in sorted(Employee.metadata.sorted_tables, key=lambda t: t.name):
+                if (table.name.startswith(("attendance_", "fingerprint_", "program_"))
+                        or table.name in {"employees", "employee_service_periods", "shift_patterns",
+                                          "leave_records", "leave_types"}):
+                    rows = db.execute(select(table).order_by(*table.primary_key.columns)).mappings().all()
+                    attendance_source[table.name] = [{key: _display_value(value) for key, value in row.items()}
+                                                     for row in rows]
+            old["source_digest"] = hashlib.sha256(_canonical_json(attendance_source).encode()).hexdigest()
+            new_values = {"status": "approved", "coverage_confirmed": False}
             snapshot = {"action": action, "target": {"type": "attendance_month", "id": item.id}, "current": old}
             risks.append("اعتماد الشهر شرط سابق لإنشاء واعتماد مسير الرواتب.")
 
@@ -269,6 +290,41 @@ def build_confirmation_preview(plan: dict[str, Any]) -> dict[str, Any]:
                 raise ValueError("مسير الرواتب المستهدف غير موجود.")
             old = {"status": item.status, "period_start": item.period_start.isoformat(),
                    "period_end": item.period_end.isoformat()}
+            # Bind every stored financial input, output and review flag, not
+            # merely run status. String encoding preserves Decimal precision.
+            items = db.scalars(select(PayrollItem).where(
+                PayrollItem.payroll_run_id == item.id).order_by(PayrollItem.id).with_for_update()).all()
+            old["payroll_items"] = [{column.name: _display_value(getattr(row, column.name))
+                for column in PayrollItem.__table__.columns} for row in items]
+            payments = db.scalars(select(PayrollPayment).join(PayrollItem,
+                PayrollPayment.payroll_item_id == PayrollItem.id).where(
+                PayrollItem.payroll_run_id == item.id).order_by(PayrollPayment.id)).all()
+            old["payments"] = [{column.name: _display_value(getattr(row, column.name))
+                for column in PayrollPayment.__table__.columns} for row in payments]
+            # Source facts whose edits can invalidate absence/advance/staff
+            # review must also invalidate the financial confirmation. Broad
+            # source coverage deliberately prefers false-stale over omission.
+            source_names = {"leave_records", "leave_types", "attendance_months",
+                "attendance_daily_records", "advance_requests", "advance_installments",
+                "staff_actions", "employees", "employee_service_periods", "employee_changes"}
+            source_payload = {}
+            for table in sorted(Employee.metadata.sorted_tables, key=lambda t: t.name):
+                if table.name in source_names:
+                    rows = db.execute(select(table).order_by(*table.primary_key.columns)).mappings().all()
+                    source_payload[table.name] = [{key: _display_value(value) for key, value in row.items()}
+                                                  for row in rows]
+            old["source_digest"] = hashlib.sha256(_canonical_json(source_payload).encode()).hexdigest()
+            from app.payroll_workflow import recompute_payroll_item
+            projected = []
+            for row in items:
+                clone = PayrollItem(**{column.name: getattr(row, column.name)
+                                       for column in PayrollItem.__table__.columns})
+                recompute_payroll_item(clone, item)
+                projected.append({"id": row.id, "employee_code": row.employee_code_snapshot,
+                                  "employee_name": row.employee_name_snapshot, "net_pay": str(clone.net_pay),
+                                  "overtime_amount": str(clone.overtime_amount),
+                                  "absence_deduction": str(clone.absence_deduction)})
+            old["calculated_items"] = projected
             target_status = {"approve_payroll_run": "approved", "close_payroll_run": "closed",
                              "reopen_payroll_run": "reopened"}[action]
             new_values = {"status": target_status, "reason": _display_value(plan.get("reason"))}
@@ -286,8 +342,8 @@ def build_confirmation_preview(plan: dict[str, Any]) -> dict[str, Any]:
 def _as_utc(value: datetime) -> datetime:
     """Normalize database timestamps from SQLite/PostgreSQL to aware UTC."""
     if value.tzinfo is None:
-        return value.replace(tzinfo=timezone.utc)
-    return value.astimezone(timezone.utc)
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)
 
 
 def _msg(language: str, ar: str, en: str, zh: str) -> str:
@@ -338,7 +394,7 @@ def prepare_command(question: str, actor: str, language: str = "ar") -> dict[str
     preview = build_confirmation_preview(plan)
     plan["_confirmation_snapshot"] = preview["snapshot"]
     token = secrets.token_urlsafe(32)
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     expires = now + timedelta(minutes=APPROVAL_TTL_MINUTES)
     summary = str(plan.get("summary") or _msg(
         language,
@@ -389,7 +445,7 @@ def reject_command(
     reason: str = "رفض المسؤول العملية.",
     language: str = "ar",
 ) -> str:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     expired = False
     with SessionLocal.begin() as db:
         approval = db.scalar(
@@ -441,139 +497,141 @@ def reject_command(
     )
 
 
-def approve_command(token: str, actor: str, language: str = "ar") -> str:
-    now = datetime.now(timezone.utc)
-    plan: dict[str, Any] | None = None
-    terminal_error: str | None = None
+def _lock_command_business_tables(db):
+    """Serialize deterministic execution with ALL ordinary business writers.
+
+    Never held while waiting for model output or human approval. PostgreSQL
+    SHARE ROW EXCLUSIVE conflicts with DML, including writers that do not take
+    our application row locks. A short timeout fails closed, never retries a
+    partly committed mutation. Table order is stable across AI executions.
+    """
+    if db.bind.dialect.name == "postgresql":
+        db.execute(text("SET LOCAL lock_timeout = '3s'"))
+        names = sorted(table.name for table in Employee.metadata.sorted_tables
+                       if table.name not in {"ai_command_approvals", "ai_conversation_messages"})
+        db.execute(text("LOCK TABLE " + ", ".join('"' + name + '"' for name in names)
+                        + " IN SHARE ROW EXCLUSIVE MODE"))
+
+
+def approve_command(token: str, actor: str, language: str = "ar", *,
+                    human_coverage_confirmed: bool = False) -> str:
+    if type(human_coverage_confirmed) is not bool:
+        raise ValueError(_msg(language, "يلزم تأكيد صريح من مسؤول الموارد البشرية.", "Explicit human HR confirmation required.", "需要人力资源人员明确确认。"))
+    now = datetime.now(UTC)
+    terminal_error = None
+    result = None
+    rendered = None
     with SessionLocal.begin() as db:
-        approval = db.scalar(
-            select(AICommandApproval)
-            .where(AICommandApproval.token_hash == _token_hash(token))
-            .with_for_update()
-        )
+        # Acquire table locks before token row locks, consistently across calls.
+        _lock_command_business_tables(db)
+        now = datetime.now(UTC)
+        approval = db.scalar(select(AICommandApproval).where(
+            AICommandApproval.token_hash == _token_hash(token)).with_for_update())
         if approval is None or approval.actor != actor:
-            raise ValueError(_msg(
-                language, "طلب الموافقة غير موجود.",
-                "Approval request not found.", "未找到该批准请求。",
-            ))
+            raise ValueError(_msg(language, "طلب الموافقة غير موجود.",
+                                  "Approval request not found.", "未找到该批准请求。"))
         if approval.status != "pending":
-            raise ValueError(_msg(
-                language,
+            raise ValueError(_msg(language,
                 "هذا الطلب سبق التعامل معه ولا يمكن تنفيذه مرة أخرى.",
                 "This request was already handled and cannot be executed again.",
-                "该请求已处理，无法再次执行。",
-            ))
+                "该请求已处理，无法再次执行。"))
         if _as_utc(approval.expires_at) <= now:
             approval.status = "expired"
-            db.add(AuditLog(
-                actor=actor, action="ai_command_expired", entity_type="ai_command",
-                entity_id=str(approval.id), reason="انتهت صلاحية طلب الموافقة.",
-            ))
-            terminal_error = _msg(
-                language, "انتهت صلاحية طلب الموافقة.",
-                "The approval request has expired.", "批准请求已过期。",
-            )
+            terminal_error = _msg(language, "انتهت صلاحية طلب الموافقة.",
+                                  "The approval request has expired.", "批准请求已过期。")
+            db.add(AuditLog(actor=actor, action="ai_command_expired", entity_type="ai_command",
+                           entity_id=str(approval.id), reason=terminal_error))
         else:
             try:
-                candidate = json.loads(approval.plan_json)
-                if not isinstance(candidate, dict):
-                    raise ValueError("stored plan is not a JSON object")
-                candidate_hash = plan_hash(candidate)
-            except (TypeError, ValueError, json.JSONDecodeError):
-                candidate = None
-                candidate_hash = None
-            if candidate is None or candidate_hash != approval.plan_hash:
+                plan = json.loads(approval.plan_json)
+                validate_plan_values(plan, language)
+                valid_hash = plan_hash(plan) == approval.plan_hash
+            except (ValueError, TypeError, json.JSONDecodeError):
+                plan, valid_hash = None, False
+            expected = plan.get("_confirmation_snapshot") if plan else None
+            if not valid_hash or expected is None:
                 approval.status = "invalidated"
-                db.add(AuditLog(
-                    actor=actor, action="ai_command_invalidated", entity_type="ai_command",
-                    entity_id=str(approval.id),
-                    reason="خطة التنفيذ المخزنة غير صالحة أو لم تعد مطابقة للخطة المعروضة.",
-                ))
-                terminal_error = _msg(
-                    language,
+                terminal_error = _msg(language,
                     "خطة التنفيذ لم تعد مطابقة للخطة التي تم عرضها.",
                     "The stored plan no longer matches the one that was shown.",
-                    "存储的执行计划与已展示的计划不一致。",
-                )
+                    "存储的执行计划与已展示的计划不一致。")
             else:
-                expected_snapshot = candidate.get("_confirmation_snapshot")
                 try:
-                    current_preview = build_confirmation_preview(candidate)
+                    current = build_confirmation_preview(plan, session=db)
                 except ValueError:
-                    current_preview = None
-                if expected_snapshot is not None and (
-                    current_preview is None or current_preview["snapshot"] != expected_snapshot
-                ):
+                    current = None
+                if current is None or current["snapshot"] != expected:
                     approval.status = "invalidated"
-                    db.add(AuditLog(
-                        actor=actor, action="ai_command_invalidated", entity_type="ai_command",
-                        entity_id=str(approval.id),
-                        reason="تغيرت بيانات السجل بعد عرض المعاينة وقبل التأكيد.",
-                    ))
-                    terminal_error = _msg(
-                        language,
+                    terminal_error = _msg(language,
                         "تغيرت بيانات السجل منذ عرض المعاينة. جهّز الأمر مرة أخرى وراجع القيم الجديدة.",
                         "The record changed since the preview was shown. Prepare the command again and review the new values.",
-                        "自预览以来记录已变更。请重新准备指令并核对新值。",
-                    )
+                        "自预览以来记录已变更。请重新准备指令并核对新值。")
                 else:
-                    plan = candidate
-                    approval.status = "executing"
+                    # Any domain failure rolls back this entire transaction;
+                    # process crash rolls back business effects and token.
+                    # There is never a separately committed executing state.
+                    if plan.get("action") == "approve_attendance_month" and not human_coverage_confirmed:
+                        raise ValueError(_msg(language, "يلزم تأكيدك الشخصي لمراجعة تغطية الحضور.", "Your explicit attendance coverage confirmation is required.", "需要您明确确认已审核出勤覆盖情况。"))
+                    result = execute_plan(plan, actor, db=db,
+                        human_coverage_confirmed=human_coverage_confirmed)
+                    rendered = render_execution_result(result, language)
+                    approval.status = "consumed"
                     approval.approved_at = now
-                    db.add(AuditLog(
-                        actor=actor, action="ai_command_approved", entity_type="ai_command",
+                    approval.consumed_at = datetime.now(UTC)
+                    db.add(AuditLog(actor=actor, action="ai_command_approved", entity_type="ai_command",
                         entity_id=str(approval.id), new_value=f"plan_hash={approval.plan_hash}",
-                        reason="موافقة صريحة من مسؤول الموارد البشرية.",
-                    ))
-    # Persist expired/invalidated states before surfacing the corresponding error.
-    if terminal_error is not None:
+                        reason="Explicit HR approval, atomic business transaction."))
+                    db.add(AuditLog(actor=actor, action="ai_command_executed", entity_type="ai_command",
+                        entity_id=str(approval.id), new_value=f"plan_hash={approval.plan_hash}", reason=result.audit))
+                    # History is part of this commit, not a post-success step
+                    # whose failure could misreport a committed operation.
+                    db.add(AIConversationMessage(actor=actor, role="assistant",
+                        content=result.audit[:10000], language="ar"))
+            if terminal_error:
+                db.add(AuditLog(actor=actor, action="ai_command_invalidated", entity_type="ai_command",
+                    entity_id=str(approval.id), reason=terminal_error))
+    if terminal_error:
         raise ValueError(terminal_error)
-    if plan is None:
-        raise RuntimeError(_msg(
-            language,
-            "لم يتم تجهيز خطة تنفيذ صالحة بعد الموافقة.",
-            "No valid execution plan was prepared after approval.",
-            "批准后未准备有效的执行计划。",
-        ))
-    try:
-        result = execute_plan(plan, actor)
-    except Exception as exc:
-        with SessionLocal.begin() as db:
-            approval = db.scalar(
-                select(AICommandApproval)
-                .where(AICommandApproval.token_hash == _token_hash(token))
-                .with_for_update()
-            )
-            if approval is not None and approval.status == "executing":
-                approval.status = "failed"
-                # failure_reason stays in the original error language (audit record).
-                approval.failure_reason = str(exc)[:2000]
-                db.add(AuditLog(
-                    actor=actor, action="ai_command_failed", entity_type="ai_command",
-                    entity_id=str(approval.id), reason=str(exc)[:2000],
-                ))
-        raise
+    return rendered
+
+
+def review_command(token: str, actor: str, language: str = 'ar') -> dict:
+    """Re-read a pending exact snapshot for the separate confirmation screen."""
     with SessionLocal.begin() as db:
-        approval = db.scalar(
-            select(AICommandApproval)
-            .where(AICommandApproval.token_hash == _token_hash(token))
-            .with_for_update()
-        )
-        if approval is None or approval.status != "executing":
-            raise RuntimeError(_msg(
-                language,
-                "حالة الموافقة غير صالحة بعد التنفيذ.",
-                "Approval state is invalid after execution.",
-                "执行后批准状态无效。",
-            ))
-        approval.status = "consumed"
-        approval.consumed_at = datetime.now(timezone.utc)
-        db.add(AuditLog(
-            actor=actor, action="ai_command_executed", entity_type="ai_command",
-            entity_id=str(approval.id), new_value=f"plan_hash={approval.plan_hash}",
-            reason=result.audit,
-        ))
-    # The Arabic audit original is stored verbatim in memory (labeled ar);
-    # the caller renders the same structured result in the UI language.
-    _memory(actor, "assistant", result.audit, "ar")
-    return render_execution_result(result, language)
+        _lock_command_business_tables(db)
+        record = db.scalar(select(AICommandApproval).where(
+            AICommandApproval.token_hash == _token_hash(token)).with_for_update())
+        if (record is None or record.actor != actor or record.status != 'pending'
+                or _as_utc(record.expires_at) <= datetime.now(UTC)):
+            raise ValueError(_msg(language, 'طلب الموافقة غير متاح أو انتهت صلاحيته.',
+                                  'Approval is unavailable or expired.', '批准请求不可用或已过期。'))
+        plan = json.loads(record.plan_json)
+        if plan_hash(plan) != record.plan_hash:
+            raise ValueError('Invalid plan.')
+        preview = build_confirmation_preview(plan, session=db)
+        if preview['snapshot'] != plan.get('_confirmation_snapshot'):
+            raise ValueError(_msg(language, 'تغيرت البيانات. جهز معاينة جديدة.',
+                                  'Data changed. Prepare a new preview.', '数据已变更。请重新生成预览。'))
+        return {'token': token, 'plan': {key: value for key, value in plan.items()
+                if key != '_confirmation_snapshot'}, 'summary': str(plan.get('summary') or ''),
+                'old_values': preview['old_values'], 'new_values': preview['new_values'],
+                'risks': preview['risks'], 'expires_at': record.expires_at,
+                'reviewed': True, 'review_receipt': review_receipt(token, actor, record.plan_hash)}
+
+
+def review_receipt(token: str, actor: str, digest: str) -> str:
+    import hmac
+
+    from app.config import settings
+    return hmac.new(settings.session_secret.encode(),
+        _canonical_json({'token': token, 'actor': actor, 'plan_hash': digest}).encode(),
+        hashlib.sha256).hexdigest()
+
+
+def verify_review_receipt(token: str, actor: str, receipt: str) -> bool:
+    import hmac
+    with SessionLocal() as db:
+        record = db.scalar(select(AICommandApproval).where(
+            AICommandApproval.token_hash == _token_hash(token)))
+        return bool(record and record.actor == actor and hmac.compare_digest(
+            review_receipt(token, actor, record.plan_hash), receipt))
