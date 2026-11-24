@@ -1,0 +1,47 @@
+name: Isolated synthetic Windows LPAC probe
+on:
+  workflow_dispatch:
+  push:
+    branches: [ui-overhaul]
+    paths:
+      - verification/windows_lpac_probe/**
+      - .github/workflows/windows-lpac-probe.yml
+permissions:
+  contents: read
+jobs:
+  lpac-probe:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verify exact probe sources
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          git -c core.autocrlf=false checkout-index --force -- verification/windows_lpac_probe/windows_probe.c verification/windows_lpac_probe/run_synthetic_probe.ps1
+          if ($LASTEXITCODE -ne 0) { throw 'Exact LF source checkout failed' }
+          if ((Get-FileHash verification/windows_lpac_probe/windows_probe.c -Algorithm SHA256).Hash.ToLower() -ne '0aeaebe88dd47a922df74523f3b621e386bf9b46228db096a3172e42a32e3e99') { throw 'Probe source mismatch' }
+          if ((Get-FileHash verification/windows_lpac_probe/run_synthetic_probe.ps1 -Algorithm SHA256).Hash.ToLower() -ne '130e141f6ea3e59e1e7ca71f897ecc1bc827d1cd2d72b06fd013e83d8217bd38') { throw 'Probe source mismatch' }
+      - name: Fetch exact free compiler and verify hash
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $zip=Join-Path $env:RUNNER_TEMP 'llvm-mingw.zip'
+          Invoke-WebRequest 'https://github.com/mstorsjo/llvm-mingw/releases/download/20261117/llvm-mingw-20261117-ucrt-x86_64.zip' -OutFile $zip
+          if ((Get-FileHash $zip -Algorithm SHA256).Hash.ToLower() -ne '4d002e330a0f703625aa5ccbc37e96f8f824413e163bfc7336774aabd2c3a412') { throw 'Compiler provenance mismatch' }
+          Expand-Archive -LiteralPath $zip -DestinationPath (Join-Path $env:RUNNER_TEMP 'compiler')
+      - name: Compile fixed synthetic native probe
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $cc=Join-Path $env:RUNNER_TEMP 'compiler/llvm-mingw-20261117-ucrt-x86_64/bin/clang.exe'
+          $exe=Join-Path $env:RUNNER_TEMP 'windows_probe.exe'
+          & $cc --target=x86_64-w64-mingw32 -std=c11 -Wall -Wextra -Werror -municode -DUNICODE -D_UNICODE verification/windows_lpac_probe/windows_probe.c -o $exe -luserenv -ladvapi32 -lws2_32
+          if ($LASTEXITCODE -ne 0) { throw 'Probe build failed' }
+      - name: Run disposable synthetic LPAC probe
+        shell: pwsh
+        run: |
+          & ./verification/windows_lpac_probe/run_synthetic_probe.ps1 -ProbeExe (Join-Path $env:RUNNER_TEMP 'windows_probe.exe')
+          if ($LASTEXITCODE -ne 0) { throw 'Synthetic probe failed' }

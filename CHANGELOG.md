@@ -1,3 +1,7 @@
+## 2026-11-24 - Synthetic native Windows LPAC probe by Instinct
+
+Instinct added an isolated fixed-input native AppContainer/creation-time Job Object probe and disposable runner harness. This is test infrastructure only, no application integration, operational activation or hotel installation. Cross-compilation is not native acceptance; actual runtime result must be read from the exact hosted run.
+
 # سجل التطوير — Changelog
 
 ## 2026-11-24 - Isolated Windows verification LF checkout repair by Instinct
