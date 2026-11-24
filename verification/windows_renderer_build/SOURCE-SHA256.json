@@ -2,7 +2,7 @@
   "verification/windows_renderer_build/CMakeLists.txt": "96151d11022a311a6a6cc7b4f273b892045763885b6c34303f5a875c29f8f0a3",
   "verification/windows_renderer_build/src/raii.h": "375c238df56b45021480444db98baff5e650bcfb450bfaab126edb873f646269",
   "verification/windows_renderer_build/src/probe_index.html": "f7b465edf64add970a9ff9f23432f9fe0150c0908ebf3546a6a5712bf96057d9",
-  "verification/windows_renderer_build/src/host.cpp": "5baaafa9de23522671fbb44ffed081a3a4b57c75e7cd5c30e6698704071ee543",
+  "verification/windows_renderer_build/src/host.cpp": "e67a882adcb891510a0122ed225f924ad79e7269bfa8375ad2b93d8e06c160f6",
   "verification/windows_renderer_build/src/common.h": "57c82de62a990d3d2f1788b2b7a2692e8b541dd35c48624b0fc726383fbc865b",
   "verification/windows_renderer_build/src/launcher.cpp": "06f4871e869f9d98c0b8bbc81c7bc1e1c35a38fc545f1db34e421ccf43cc31d6"
 }

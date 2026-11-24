@@ -3,6 +3,7 @@
 #include <windows.h>
 #include <shlwapi.h>
 #include <shlobj.h>
+#include <shellapi.h>
 #include <sddl.h>
 #include <winsock2.h>
 #include <ws2tcpip.h>
