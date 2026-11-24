@@ -219,7 +219,7 @@ gateway.approve_command(os.environ['SYNTHETIC_TOKEN'],'synthetic')
     # Engine connect_args are known from fixture, not introspected secrets.
     with engine.connect() as connection:
         schema=connection.execute(text('SELECT current_schema()')).scalar_one()
-    env={**os.environ,'SYNTHETIC_DB_URL':str(engine.url),
+    env={**os.environ,'SYNTHETIC_DB_URL':engine.url.render_as_string(hide_password=False),
          'SYNTHETIC_DB_OPTIONS':'-csearch_path='+schema,'SYNTHETIC_TOKEN':token,
          'PYTHONPATH':str(__import__('pathlib').Path(__file__).resolve().parents[1])}
     child=subprocess.run([sys.executable,str(script)],env=env,capture_output=True,timeout=8,check=False)

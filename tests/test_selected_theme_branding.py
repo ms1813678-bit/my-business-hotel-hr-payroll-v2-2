@@ -19,8 +19,8 @@ def test_selected_hony_variant_geometry_matches():
 
 
 def test_shared_brand_surfaces_use_correct_variants():
-    base = (ROOT / 'app/templates/base.html').read_text()
-    login = (ROOT / 'app/templates/login.html').read_text()
+    base = (ROOT / 'app/templates/base.html').read_text(encoding="utf-8")
+    login = (ROOT / 'app/templates/login.html').read_text(encoding="utf-8")
     assert 'sidebar-product-logo' in base
     assert '/static/hony-logo-light.svg' in base
     assert '/static/hony-logo.svg' in base and '/static/hony-logo.svg' in login
@@ -29,13 +29,13 @@ def test_shared_brand_surfaces_use_correct_variants():
 
 
 def test_decorations_are_not_inputs_or_print_content():
-    css = (STATIC / 'app.css').read_text()
+    css = (STATIC / 'app.css').read_text(encoding="utf-8")
     assert 'pointer-events: none' in css
     assert '.theme-corners, .theme-lotus { display: none !important; }' in css
     for file in ['base.html', 'login.html']:
-        text = (ROOT / 'app/templates' / file).read_text()
+        text = (ROOT / 'app/templates' / file).read_text(encoding="utf-8")
         assert text.count('class="theme-corners" aria-hidden="true"') == 1
-    assert 'theme-lotus' not in (ROOT / 'app/templates/base.html').read_text()
+    assert 'theme-lotus' not in (ROOT / 'app/templates/base.html').read_text(encoding="utf-8")
 
 
 def test_approved_hotel_print_asset_is_original():

@@ -18,14 +18,14 @@ from app.db import engine as configured_engine
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
-ADMIN_URL = str(configured_engine.url).rsplit("/", 1)[0] + "/postgres"
+ADMIN_URL = configured_engine.url.set(database="postgres").render_as_string(hide_password=False)
 
 
 def _make_db(name: str) -> str:
     admin = create_engine(ADMIN_URL, isolation_level="AUTOCOMMIT")
     with admin.connect() as conn:
         conn.execute(text(f'CREATE DATABASE "{name}"'))
-    return str(configured_engine.url).rsplit("/", 1)[0] + f"/{name}"
+    return configured_engine.url.set(database=name).render_as_string(hide_password=False)
 
 
 def _drop_db(name: str) -> None:
