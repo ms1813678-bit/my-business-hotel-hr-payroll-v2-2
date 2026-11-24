@@ -1,0 +1,7 @@
+{
+  "verification/windows_resource_build/src/windows_resource_probe.c": "d6c39b1b531d9d5ec06d9df538a5162dd6358324422b189eb3ca6799a7362916",
+  "verification/windows_resource_build/src/fixed_child_resources.c": "8063e6d8cf6dbfcbe023638a08cabf86fbc1439474adfe138ebe20f5ce349efa",
+  "verification/windows_resource_build/src/positive_loopback_controls.c": "9650cd5284ecab9ad6db5628ff6cd4640a924b8f6f97cfef0ab72f69a9a13ebd",
+  "verification/windows_resource_acceptance/run_resource_probe.ps1": "5e1884e2030b5d8f943d1b340c7315e69ff776054adf25ce1461a1f6f2c7d8e7",
+  "verification/windows_resource_acceptance/observe_parent_death.ps1": "eced6881730c844f97f99db37dfc02beb3b655931c56e02286f30ab75ef3d25f"
+}

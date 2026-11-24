@@ -1,0 +1,71 @@
+name: Fixed synthetic Windows resource acceptance
+on:
+  push:
+    branches: [ui-overhaul]
+    paths:
+      - .github/workflows/windows-resource-acceptance.yml
+permissions:
+  contents: read
+jobs:
+  build-only:
+    runs-on: windows-2022
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Restore exact committed source bytes and verify
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          Write-Host ('Runner OS: '+[Environment]::OSVersion.Version.ToString())
+          $root='verification/windows_resource_acceptance'
+          $mp="$root/SOURCE-SHA256.json"
+          Write-Host ('Manifest checkout SHA256='+(Get-FileHash $mp -Algorithm SHA256).Hash.ToLower()+' bytes='+([IO.File]::ReadAllBytes((Join-Path $pwd $mp))).Length)
+          git ls-files --eol -- $mp
+          $mi=[Diagnostics.ProcessStartInfo]::new()
+          $mi.FileName='git';$mi.UseShellExecute=$false;$mi.RedirectStandardOutput=$true
+          $mi.ArgumentList.Add('cat-file');$mi.ArgumentList.Add('blob');$mi.ArgumentList.Add('HEAD:'+$mp)
+          $mr=[Diagnostics.Process]::Start($mi)
+          $mf=[IO.File]::Open((Join-Path $pwd $mp),[IO.FileMode]::Create,[IO.FileAccess]::Write)
+          try {$mr.StandardOutput.BaseStream.CopyTo($mf)} finally {$mf.Dispose()}
+          $mr.WaitForExit();if($mr.ExitCode -ne 0){throw 'Manifest committed blob read failed'}
+          Write-Host ('Manifest exactblob SHA256='+(Get-FileHash $mp -Algorithm SHA256).Hash.ToLower()+' bytes='+([IO.File]::ReadAllBytes((Join-Path $pwd $mp))).Length)
+          if((Get-FileHash "$root/SOURCE-SHA256.json" -Algorithm SHA256).Hash.ToLower() -ne '28543332255a07cfd2506208659c9a1d970376004714fd443ee95219a2b75d6c'){throw 'Manifest consistency mismatch'}
+          $manifest=Get-Content "$root/SOURCE-SHA256.json" -Raw | ConvertFrom-Json -AsHashtable
+          foreach($path in $manifest.Keys) {
+            $psi=[Diagnostics.ProcessStartInfo]::new()
+            $psi.FileName='git';$psi.UseShellExecute=$false;$psi.RedirectStandardOutput=$true
+            $psi.ArgumentList.Add('cat-file');$psi.ArgumentList.Add('blob');$psi.ArgumentList.Add('HEAD:'+$path)
+            $proc=[Diagnostics.Process]::Start($psi)
+            $stream=[IO.File]::Open((Join-Path $pwd $path),[IO.FileMode]::Create,[IO.FileAccess]::Write)
+            try {$proc.StandardOutput.BaseStream.CopyTo($stream)} finally {$stream.Dispose()}
+            $proc.WaitForExit();if($proc.ExitCode -ne 0){throw 'Committed blob read failed'}
+            $hash=(Get-FileHash $path -Algorithm SHA256).Hash.ToLower()
+            Write-Host ($path+' SHA256='+$hash)
+            if($hash -ne $manifest[$path]){throw 'Source hash mismatch'}
+          }
+      - name: Compile and link only with installed MSVC
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $vs=(& "${env:ProgramFiles(x86)}/Microsoft Visual Studio/Installer/vswhere.exe" -latest -property installationPath)
+          if(-not $vs){throw 'Installed MSVC unavailable'}
+          Import-Module (Join-Path $vs 'Common7/Tools/Microsoft.VisualStudio.DevShell.dll')
+          Enter-VsDevShell -VsInstallPath $vs -SkipAutomaticLocation -DevCmdArguments '-arch=x64 -host_arch=x64'
+          $output=Join-Path $env:RUNNER_TEMP 'resource-probe.exe'
+          & cl.exe /nologo /std:c11 /W4 /WX /guard:cf /GS /DUNICODE /D_UNICODE verification/windows_resource_build/src/windows_resource_probe.c "/Fe:$output" userenv.lib advapi32.lib ws2_32.lib ole32.lib /link /DYNAMICBASE /NXCOMPAT
+          if($LASTEXITCODE -ne 0){throw 'MSVC compile/link failed'}
+          Get-Item $output | Select-Object Length
+          Get-FileHash $output -Algorithm SHA256
+          Write-Output 'Build complete; only fixed synthetic disposable-runner tests follow.'
+      - name: Fixed synthetic resource and lifetime checks
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $output=Join-Path $env:RUNNER_TEMP 'resource-probe.exe'
+          $harness='./verification/windows_resource_acceptance/run_resource_probe.ps1'
+          & $harness -ProbeExe $output
+          & $harness -ProbeExe $output -FaultSweep
+          & $harness -ProbeExe $output -ParentDeath
+          Write-Output 'Fixed synthetic checks only. No Python parser or product acceptance.'
