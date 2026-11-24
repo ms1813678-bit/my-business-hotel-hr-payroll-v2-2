@@ -12,7 +12,7 @@ add_executable(wv2host WIN32 src/host.cpp)
 target_include_directories(wv2host PRIVATE ${WV2_SDK_DIR}/build/native/include)
 # static loader: no WebView2Loader.dll to ACL or hijack
 target_link_libraries(wv2host PRIVATE ${WV2_SDK_DIR}/build/native/x64/WebView2LoaderStatic.lib
-  ole32 shell32 user32 advapi32 ws2_32 userenv)
+  ole32 shell32 user32 advapi32 ws2_32 userenv shlwapi)
 add_executable(wv2launcher src/launcher.cpp)
 target_link_libraries(wv2launcher PRIVATE advapi32 userenv ws2_32 iphlpapi wintrust crypt32 ntdll bcrypt)
 if(WV2_PROBE)

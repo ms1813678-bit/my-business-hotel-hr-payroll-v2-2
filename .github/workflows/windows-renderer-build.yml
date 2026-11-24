@@ -31,7 +31,7 @@ jobs:
           try {$mr.StandardOutput.BaseStream.CopyTo($mf)} finally {$mf.Dispose()}
           $mr.WaitForExit();if($mr.ExitCode -ne 0){throw 'Manifest committed blob read failed'}
           Write-Host ('Manifest exactblob SHA256='+(Get-FileHash $mp -Algorithm SHA256).Hash.ToLower()+' bytes='+([IO.File]::ReadAllBytes((Join-Path $pwd $mp))).Length)
-          if((Get-FileHash "$root/SOURCE-SHA256.json" -Algorithm SHA256).Hash.ToLower() -ne '7b668dc3e70f84689ee80fbd618c9b1a81acf2b661e45c15f4819bd3844ae394'){throw 'Manifest consistency mismatch'}
+          if((Get-FileHash "$root/SOURCE-SHA256.json" -Algorithm SHA256).Hash.ToLower() -ne 'd769ccdb9819d07057f056e05b9bd9436402b4affba32305c4b79bd8ca8c2e2d'){throw 'Manifest consistency mismatch'}
           $manifest=Get-Content "$root/SOURCE-SHA256.json" -Raw | ConvertFrom-Json -AsHashtable
           foreach($path in $manifest.Keys) {
             $psi=[Diagnostics.ProcessStartInfo]::new()
