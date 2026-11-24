@@ -1,6 +1,10 @@
 name: Suspended synthetic Windows policy controls
 on:
   workflow_dispatch:
+  push:
+    branches: [ui-overhaul]
+    paths:
+      - .github/workflows/windows-policy-controls.yml
 permissions:
   contents: read
 jobs:
