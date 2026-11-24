@@ -71,7 +71,7 @@ int inspect_policy(HANDLE primary_token,PSID package_sid,const char *label,int i
  fprintf(stderr,"policy duplicate: label=%s api=%d error=%lu\n",label,duplicated,(unsigned long)duplicate_error);
  if(!duplicated)return 0;
  if(!ConvertSidToStringSidW(package_sid,&text_sid)){complete=0;goto done;}
- if(_snwprintf(profile,512,L"O:SYG:SYD:(A;;FR;;;WD)(A;;FR;;;%ls)",text_sid)<0){complete=0;goto done;}
+ if(_snwprintf_s(profile,512,_TRUNCATE,L"O:SYG:SYD:(A;;FR;;;WD)(A;;FR;;;%ls)",text_sid)<0){complete=0;goto done;}
  descriptors[0]=profile;
  descriptors[1]=L"O:SYG:SYD:(A;;FR;;;WD)(A;;FR;;;S-1-15-2-1)";
  descriptors[2]=L"O:SYG:SYD:(A;;FR;;;WD)";
@@ -152,7 +152,7 @@ static int run_case(int argc,wchar_t **argv,int is_lpac) {
  }
  /* Parent canary positive control; deny replacement/writers until child ends. */
  BY_HANDLE_FILE_INFORMATION canary_identity={0};
- wchar_t canary[32768];if(_snwprintf(canary,32768,L"%ls\\private\\canary.txt",argv[2])<0)return 3;
+ wchar_t canary[32768];if(_snwprintf_s(canary,32768,_TRUNCATE,L"%ls\\private\\canary.txt",argv[2])<0)return 3;
  canary_guard=CreateFileW(canary,GENERIC_READ|READ_CONTROL,FILE_SHARE_READ,NULL,OPEN_EXISTING,FILE_ATTRIBUTE_NORMAL,NULL);
  if(canary_guard==INVALID_HANDLE_VALUE)return 3;
  if(!GetFileInformationByHandle(canary_guard,&canary_identity) || !security_snapshot(canary_guard,&canary_sd_before))goto done;
@@ -213,9 +213,9 @@ static int run_case(int argc,wchar_t **argv,int is_lpac) {
  stage="localappdata";SetLastError(ERROR_SUCCESS);
  rootlen=GetEnvironmentVariableW(L"LOCALAPPDATA",localappdata,32768);
  if(!rootlen || rootlen>=32768)goto done;
- if(_snwprintf(env,65534,L"LOCALAPPDATA=%ls",localappdata)<0)goto done;
+ if(_snwprintf_s(env,65534,_TRUNCATE,L"LOCALAPPDATA=%ls",localappdata)<0)goto done;
  {size_t offset=wcslen(env)+1;
-  if(_snwprintf(env+offset,65534-offset,L"SYSTEMROOT=%ls",systemroot)<0)goto done;
+  if(_snwprintf_s(env+offset,65534-offset,_TRUNCATE,L"SYSTEMROOT=%ls",systemroot)<0)goto done;
   env[offset+wcslen(env+offset)+1]=L'\0';}
 
  /* Explicit LOCALAPPDATA + SYSTEMROOT block, final double NUL above. */
@@ -223,8 +223,8 @@ static int run_case(int argc,wchar_t **argv,int is_lpac) {
  rootlen=GetModuleFileNameW(NULL,exe,32768);if(!rootlen || rootlen>=32768)goto done;
  stage="command_format";SetLastError(ERROR_SUCCESS);
  if(is_lpac){
- if(_snwprintf(cmd,32768,L"\"%ls\" --resource-child \"%ls\" %u %u %u %u",exe,argv[2],listeners[0].port,listeners[1].port,listeners[2].port,listeners[3].port)<0)goto done;
- }else if(_snwprintf(cmd,32768,L"\"%ls\" --never-execute",exe)<0)goto done;
+ if(_snwprintf_s(cmd,32768,_TRUNCATE,L"\"%ls\" --resource-child \"%ls\" %u %u %u %u",exe,argv[2],(unsigned int)listeners[0].port,(unsigned int)listeners[1].port,(unsigned int)listeners[2].port,(unsigned int)listeners[3].port)<0)goto done;
+ }else if(_snwprintf_s(cmd,32768,_TRUNCATE,L"\"%ls\" --never-execute",exe)<0)goto done;
  si.StartupInfo.cb=sizeof(si);si.lpAttributeList=o.attrs;si.StartupInfo.dwFlags=STARTF_USESTDHANDLES;
  si.StartupInfo.hStdInput=o.nul;si.StartupInfo.hStdOutput=o.write_pipe;si.StartupInfo.hStdError=o.nul;
  /* Output pair is written directly into the stack-owned pi structure by OS.
@@ -295,14 +295,14 @@ static int fixed_child(int argc,wchar_t **argv){
  if(argc!=7)return 125;
  wchar_t allowed[32768],forbidden[32768],scratch[32768],blocked[32768];unsigned short ports[4];
  for(int i=0;i<4;i++){wchar_t *end=NULL;unsigned long p=wcstoul(argv[3+i],&end,10);if(!end||*end||!p||p>65535)return 125;ports[i]=(unsigned short)p;}
- if(_snwprintf(allowed,32768,L"%ls\\runtime\\allowed.txt",argv[2])<0 ||
- _snwprintf(forbidden,32768,L"%ls\\private\\canary.txt",argv[2])<0 ||
- _snwprintf(scratch,32768,L"%ls\\scratch\\created.txt",argv[2])<0 ||
- _snwprintf(blocked,32768,L"%ls\\private\\must-not-exist.txt",argv[2])<0)return 125;
+ if(_snwprintf_s(allowed,32768,_TRUNCATE,L"%ls\\runtime\\allowed.txt",argv[2])<0 ||
+ _snwprintf_s(forbidden,32768,_TRUNCATE,L"%ls\\private\\canary.txt",argv[2])<0 ||
+ _snwprintf_s(scratch,32768,_TRUNCATE,L"%ls\\scratch\\created.txt",argv[2])<0 ||
+ _snwprintf_s(blocked,32768,_TRUNCATE,L"%ls\\private\\must-not-exist.txt",argv[2])<0)return 125;
  struct resource_paths paths={allowed,forbidden,scratch,blocked};
  int rc=run_fixed_child_resources(&paths,ports);
  wchar_t exe[32768],cmd[32768];DWORD n=GetModuleFileNameW(NULL,exe,32768);if(!n||n>=32768)return 1;
- if(_snwprintf(cmd,32768,L"\"%ls\" --never-execute",exe)<0)return 1;
+ if(_snwprintf_s(cmd,32768,_TRUNCATE,L"\"%ls\" --never-execute",exe)<0)return 1;
  STARTUPINFOW si={0};PROCESS_INFORMATION pi={0};si.cb=sizeof(si);SetLastError(0);
  BOOL created=CreateProcessW(exe,cmd,NULL,NULL,FALSE,CREATE_SUSPENDED|CREATE_NO_WINDOW,NULL,NULL,&si,&pi);DWORD err=GetLastError();
  fprintf(stdout,"resource test=fixed_child_process_creation_denied created=%d error=%lu\n",created,(unsigned long)err);
