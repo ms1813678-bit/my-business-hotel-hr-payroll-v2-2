@@ -1,3 +1,7 @@
+## 2026-11-24 - Exact-blob provenance diagnostics by Instinct
+
+Instinct added before/after checkout byte/hash/config evidence and raw committed-blob restoration before unchanged strict SHA256 checks. Native source and never-resume token controls are unchanged. No source executes on mismatch.
+
 ## 2026-11-24 - Suspended token-query controls by Instinct
 
 Instinct added separate documented-token positive controls and class46 sizing diagnostics. Diagnostic-only: the child never resumes even when queries succeed, and a nonzero diagnostic outcome is expected. No guard bypass, policy relaxation or application integration.

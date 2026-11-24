@@ -20,8 +20,42 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference='Stop'
+          Write-Host ('Runner OS: '+[Environment]::OSVersion.Version.ToString())
+          git rev-parse HEAD
+          foreach ($key in @('core.autocrlf','core.eol','core.safecrlf','core.attributesfile')) {
+            $v = git config --get $key
+            Write-Host ($key+'='+$v)
+          }
+          function PrintBytes([string]$path,[string]$label) {
+            $b=[IO.File]::ReadAllBytes((Join-Path $pwd $path))
+            $cr=0; $lf=0; $crlf=0
+            for ($i=0;$i -lt $b.Length;$i++) {
+              if ($b[$i] -eq 13) {$cr++}
+              if ($b[$i] -eq 10) {$lf++;if($i -gt 0 -and $b[$i-1] -eq 13){$crlf++}}
+            }
+            Write-Host ($label+' '+$path+' sha256='+(Get-FileHash $path -Algorithm SHA256).Hash.ToLower()+' bytes='+$b.Length+' CR='+$cr+' LF='+$lf+' CRLF='+$crlf)
+            git hash-object --no-filters -- $path
+          }
+          foreach ($path in @('verification/windows_lpac_probe/windows_probe.c','verification/windows_lpac_probe/run_synthetic_probe.ps1')) {
+            git check-attr --all -- $path
+            git ls-files --eol -- $path
+            git rev-parse ('HEAD:'+$path)
+            PrintBytes $path 'checkout-before'
+          }
           git -c core.autocrlf=false checkout-index --force -- verification/windows_lpac_probe/windows_probe.c verification/windows_lpac_probe/run_synthetic_probe.ps1
           if ($LASTEXITCODE -ne 0) { throw 'Exact LF source checkout failed' }
+          foreach ($path in @('verification/windows_lpac_probe/windows_probe.c','verification/windows_lpac_probe/run_synthetic_probe.ps1')) {
+            PrintBytes $path 'checkout-after'
+            # Byte stream from exact committed blob; no PowerShell text encoding or git checkout filters.
+            $psi=[Diagnostics.ProcessStartInfo]::new()
+            $psi.FileName='git';$psi.UseShellExecute=$false;$psi.RedirectStandardOutput=$true
+            $psi.ArgumentList.Add('cat-file');$psi.ArgumentList.Add('blob');$psi.ArgumentList.Add('HEAD:'+$path)
+            $proc=[Diagnostics.Process]::Start($psi)
+            $stream=[IO.File]::Open((Join-Path $pwd $path),[IO.FileMode]::Create,[IO.FileAccess]::Write)
+            try {$proc.StandardOutput.BaseStream.CopyTo($stream)} finally {$stream.Dispose()}
+            $proc.WaitForExit();if($proc.ExitCode -ne 0){throw 'Committed blob read failed'}
+            PrintBytes $path 'exact-blob'
+          }
           if ((Get-FileHash verification/windows_lpac_probe/windows_probe.c -Algorithm SHA256).Hash.ToLower() -ne '6a4cac682ca1322a9ab621014aedea5adaaaa17269f90cdd3dfff25b2841bc27') { throw 'Probe source mismatch' }
           if ((Get-FileHash verification/windows_lpac_probe/run_synthetic_probe.ps1 -Algorithm SHA256).Hash.ToLower() -ne 'c32efd32c3127f6edd2c14052cd308959a3259144dd40c5013e48ecfb8e074c6') { throw 'Probe source mismatch' }
       - name: Fetch exact free compiler and verify hash
