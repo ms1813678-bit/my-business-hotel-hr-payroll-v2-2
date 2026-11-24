@@ -1,3 +1,8 @@
+## Unpublished item1 renderer build-only validation
+- Add isolated native renderer compatibility candidate source and a supported MSVC x64 compile/link workflow.
+- Verify exact source and official NuGet SDK hashes. Do not download a WebView runtime or execute built binaries.
+- Build results are compiler evidence only, not renderer initialization, lifecycle confinement, no-egress or operational installer acceptance.
+
 ## Unpublished item1 suspended policy diagnostic proposal
 - Add a separate manual-only disposable Windows control experiment. Ordinary AppContainer and requested LPAC remain suspended throughout.
 - Compare documented token SID/capabilities/job controls and effective in-memory AccessCheck outcomes against positive, negative and differential descriptors.

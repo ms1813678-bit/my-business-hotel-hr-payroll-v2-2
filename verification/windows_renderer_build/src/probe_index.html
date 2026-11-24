@@ -1,0 +1,15 @@
+<!doctype html><meta charset=utf-8><title>pending</title>
+<script>
+// PROBE PAGE (test build only). Reports through document.title, which the host reads via DocumentTitleChanged. No bridge.
+const q=new URLSearchParams(location.search), loop=q.get('loop'), remote=q.get('remote'), arm=q.get('arm'), r={};
+const tmo=(p,ms)=>Promise.race([p,new Promise(x=>setTimeout(()=>x('timeout'),ms))]);
+const f=async(k,u)=>{try{await tmo(fetch(u,{mode:'no-cors',cache:'no-store'}).then(()=>{r[k]='connected'}),5000);if(!r[k])r[k]='timeout'}catch(e){r[k]='blocked'}};
+const ws=(k,u)=>new Promise(res=>{try{const s=new WebSocket(u);s.onopen=()=>{r[k]='connected';s.close();res()};s.onerror=()=>{r[k]='blocked';res()};setTimeout(()=>{r[k]=r[k]||'timeout';res()},5000)}catch(e){r[k]='blocked';res()}});
+(async()=>{
+  await f('fetch_loop','http://'+loop+'/p?src=renderer&arm='+arm);
+  await f('fetch_remote','http://'+remote+'/p?src=renderer&arm='+arm);
+  await f('fetch_remote_tls','https://'+remote+'/p?src=renderer&arm='+arm);
+  await ws('ws_remote','ws://'+remote+'/p?arm='+arm);
+  document.title='EGRESS '+JSON.stringify(r);
+})();
+</script>

@@ -1,0 +1,54 @@
+name: Renderer MSVC build only (no runtime execution)
+on:
+  push:
+    branches: [ui-overhaul]
+    paths:
+      - .github/workflows/windows-renderer-build.yml
+permissions:
+  contents: read
+jobs:
+  build-only:
+    runs-on: windows-2022
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Restore exact committed source bytes and verify
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          Write-Host ('Runner OS: '+[Environment]::OSVersion.Version.ToString())
+          $root='verification/windows_renderer_build'
+          if((Get-FileHash "$root/SOURCE-SHA256.json" -Algorithm SHA256).Hash.ToLower() -ne '8f90d1b9377f494871ee29e66d9095cfe91c2ef3801664a45048703ae951d251'){throw 'Manifest consistency mismatch'}
+          $manifest=Get-Content "$root/SOURCE-SHA256.json" -Raw | ConvertFrom-Json -AsHashtable
+          foreach($path in $manifest.Keys) {
+            $psi=[Diagnostics.ProcessStartInfo]::new()
+            $psi.FileName='git';$psi.UseShellExecute=$false;$psi.RedirectStandardOutput=$true
+            $psi.ArgumentList.Add('cat-file');$psi.ArgumentList.Add('blob');$psi.ArgumentList.Add('HEAD:'+$path)
+            $proc=[Diagnostics.Process]::Start($psi)
+            $stream=[IO.File]::Open((Join-Path $pwd $path),[IO.FileMode]::Create,[IO.FileAccess]::Write)
+            try {$proc.StandardOutput.BaseStream.CopyTo($stream)} finally {$stream.Dispose()}
+            $proc.WaitForExit();if($proc.ExitCode -ne 0){throw 'Committed blob read failed'}
+            $hash=(Get-FileHash $path -Algorithm SHA256).Hash.ToLower()
+            Write-Host ($path+' SHA256='+$hash)
+            if($hash -ne $manifest[$path]){throw 'Source hash mismatch'}
+          }
+      - name: Fetch exact official SDK only (not runtime)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $pkg=Join-Path $env:RUNNER_TEMP 'webview2-sdk.zip'
+          Invoke-WebRequest 'https://api.nuget.org/v3-flatcontainer/microsoft.web.webview2/1.0.4314.35/microsoft.web.webview2.1.0.4314.35.nupkg' -OutFile $pkg
+          if((Get-FileHash $pkg -Algorithm SHA256).Hash.ToLower() -ne '90778deb1b77e36292828b4b5833c9255c27533f40e0ddd55891ae718944edc4'){throw 'SDK provenance mismatch'}
+          Expand-Archive $pkg (Join-Path $env:RUNNER_TEMP 'wv2-sdk')
+      - name: Compile and link with installed MSVC only
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          cmake --version
+          cmake -S verification/windows_renderer_build -B "$env:RUNNER_TEMP/wv2-build" -G 'Visual Studio 17 2022' -A x64 -DWV2_PROBE=ON "-DWV2_SDK_DIR=$env:RUNNER_TEMP/wv2-sdk"
+          if($LASTEXITCODE -ne 0){throw 'CMake configure failed'}
+          cmake --build "$env:RUNNER_TEMP/wv2-build" --config Release -- /v:minimal
+          if($LASTEXITCODE -ne 0){throw 'MSVC compile/link failed'}
+          Write-Host 'BUILD ONLY: binaries were not launched. No runtime acquired, profile/ACL/firewall/install operations performed.'

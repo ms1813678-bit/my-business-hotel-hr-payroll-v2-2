@@ -1,0 +1,23 @@
+cmake_minimum_required(VERSION 3.24)
+project(hotelhr_wv2_box CXX)
+set(CMAKE_CXX_STANDARD 20)
+# Extract Microsoft.Web.WebView2 1.0.4314.35 (sha256 in pins/PINS.json) to WV2_SDK_DIR first.
+set(WV2_SDK_DIR "" CACHE PATH "extracted nupkg root")
+if(NOT WV2_SDK_DIR)
+  message(FATAL_ERROR "set -DWV2_SDK_DIR to the extracted, hash-checked nupkg")
+endif()
+add_compile_definitions(UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX _WIN32_WINNT=0x0A00)
+option(WV2_PROBE "test build: probe page + title reporting + egress attempts" ON)
+add_executable(wv2host WIN32 src/host.cpp)
+target_include_directories(wv2host PRIVATE ${WV2_SDK_DIR}/build/native/include)
+# static loader: no WebView2Loader.dll to ACL or hijack
+target_link_libraries(wv2host PRIVATE ${WV2_SDK_DIR}/build/native/x64/WebView2LoaderStatic.lib
+  ole32 shell32 user32 advapi32 ws2_32 userenv)
+add_executable(wv2launcher src/launcher.cpp)
+target_link_libraries(wv2launcher PRIVATE advapi32 userenv ws2_32 iphlpapi wintrust crypt32 ntdll bcrypt)
+if(WV2_PROBE)
+  target_compile_definitions(wv2host PRIVATE WV2_PROBE=1)
+  target_compile_definitions(wv2launcher PRIVATE WV2_PROBE=1)
+endif()
+target_compile_options(wv2host PRIVATE /W4 /WX /guard:cf /GS)
+target_compile_options(wv2launcher PRIVATE /W4 /WX /guard:cf /GS)
