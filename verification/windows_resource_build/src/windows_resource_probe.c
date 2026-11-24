@@ -135,7 +135,7 @@ static int verify_created_child(HANDLE process,HANDLE job,PSID expected_sid,int 
  if(groups && !HeapFree(GetProcessHeap(),0,groups))success=0;
  if(info && !HeapFree(GetProcessHeap(),0,info))success=0;
  if(token && !CloseHandle(token))success=0;
- fputs("diagnostic-only: child never resumed; no LPAC attestation or execution acceptance\n",stderr);
+ fputs("inspection checkpoint: child is suspended here; this token/policy check alone is not execution acceptance\n",stderr);
  SetLastError(refusal_error);return success;
 }
 static int run_case(int argc,wchar_t **argv,int is_lpac) {
@@ -247,7 +247,12 @@ static int run_case(int argc,wchar_t **argv,int is_lpac) {
  stage="close_parent_writer";if(injected_fault(stage))goto done;close_once(&o.write_pipe,&clean);if(!clean)goto done;
  stage="resume_fixed_child";if(injected_fault(stage))goto done;if(ResumeThread(o.thread)!=1)goto done;
  stage="bounded_child_wait";if(WaitForSingleObject(o.process,3000)!=WAIT_OBJECT_0)goto done;
- stage="child_exit";if(!GetExitCodeProcess(o.process,&code)||code!=0)goto done;
+ stage="child_exit_query";if(!GetExitCodeProcess(o.process,&code))goto done;
+ {char output[2049]={0};DWORD available=0,got=0;stage="bounded_output";
+ if(!PeekNamedPipe(o.read_pipe,NULL,0,NULL,&available,NULL)||available>2048)goto done;
+ if(available && (!ReadFile(o.read_pipe,output,available,&got,NULL)||got!=available))goto done;
+ fwrite(output,1,got,stdout);}
+ stage="child_exit";if(code!=0)goto done;
  {int notified=0;ULONGLONG deadline=GetTickCount64()+1000;stage="active_process_limit_notification";
   while(GetTickCount64()<deadline){DWORD message=0;ULONG_PTR key=0;LPOVERLAPPED payload=NULL;
    if(!GetQueuedCompletionStatus(o.completion,&message,&key,&payload,50)){if(GetLastError()==WAIT_TIMEOUT)continue;goto done;}
@@ -257,10 +262,6 @@ static int run_case(int argc,wchar_t **argv,int is_lpac) {
   if(!notified)goto done;
   fputs("Exact owned Job ACTIVE_PROCESS_LIMIT notification observed\n",stderr);
  }
- {char output[2049]={0};DWORD available=0,got=0;stage="bounded_output";
- if(!PeekNamedPipe(o.read_pipe,NULL,0,NULL,&available,NULL)||available>2048)goto done;
- if(available && (!ReadFile(o.read_pipe,output,available,&got,NULL)||got!=available))goto done;
- fwrite(output,1,got,stdout);}
  {BY_HANDLE_FILE_INFORMATION after={0};stage="canary_identity_after";
  if(!GetFileInformationByHandle(canary_guard,&after) || after.dwVolumeSerialNumber!=canary_identity.dwVolumeSerialNumber || after.nFileIndexHigh!=canary_identity.nFileIndexHigh || after.nFileIndexLow!=canary_identity.nFileIndexLow)goto done;}
  if(!security_snapshot(canary_guard,&canary_sd_after) || wcscmp(canary_sd_before,canary_sd_after))goto done;

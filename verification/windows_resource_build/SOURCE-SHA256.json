@@ -1,5 +1,5 @@
 {
   "verification/windows_resource_build/src/fixed_child_resources.c": "8063e6d8cf6dbfcbe023638a08cabf86fbc1439474adfe138ebe20f5ce349efa",
   "verification/windows_resource_build/src/positive_loopback_controls.c": "9650cd5284ecab9ad6db5628ff6cd4640a924b8f6f97cfef0ab72f69a9a13ebd",
-  "verification/windows_resource_build/src/windows_resource_probe.c": "d6c39b1b531d9d5ec06d9df538a5162dd6358324422b189eb3ca6799a7362916"
+  "verification/windows_resource_build/src/windows_resource_probe.c": "7c5c0c7ded26692973ed3d3652612c27fbb9213e79c11a684d5ab98c539cb3ca"
 }
