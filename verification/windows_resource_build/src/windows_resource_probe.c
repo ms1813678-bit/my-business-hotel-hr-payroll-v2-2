@@ -293,23 +293,29 @@ static int run_case(int argc,wchar_t **argv,int is_lpac) {
 }
 
 static int fixed_child(int argc,wchar_t **argv){
- if(argc!=7)return 125;
+ if(argc!=7){child_diag("argc",argc,0);return 125;}
  wchar_t allowed[32768],forbidden[32768],scratch[32768],blocked[32768];unsigned short ports[4];
- for(int i=0;i<4;i++){wchar_t *end=NULL;unsigned long p=wcstoul(argv[3+i],&end,10);if(!end||*end||!p||p>65535)return 125;ports[i]=(unsigned short)p;}
+ for(int i=0;i<4;i++){wchar_t *end=NULL;unsigned long p=wcstoul(argv[3+i],&end,10);if(!end||*end||!p||p>65535){child_diag("port_argument",i,0);return 125;}ports[i]=(unsigned short)p;}
+ errno=0;
  if(_snwprintf_s(allowed,32768,_TRUNCATE,L"%ls\\runtime\\allowed.txt",argv[2])<0 ||
  _snwprintf_s(forbidden,32768,_TRUNCATE,L"%ls\\private\\canary.txt",argv[2])<0 ||
  _snwprintf_s(scratch,32768,_TRUNCATE,L"%ls\\scratch\\created.txt",argv[2])<0 ||
- _snwprintf_s(blocked,32768,_TRUNCATE,L"%ls\\private\\must-not-exist.txt",argv[2])<0)return 125;
+ _snwprintf_s(blocked,32768,_TRUNCATE,L"%ls\\private\\must-not-exist.txt",argv[2])<0){child_diag("path_format",-1,(unsigned long)errno);return 125;}
  struct resource_paths paths={allowed,forbidden,scratch,blocked};
  int rc=run_fixed_child_resources(&paths,ports);
- wchar_t exe[32768],cmd[32768];DWORD n=GetModuleFileNameW(NULL,exe,32768);if(!n||n>=32768)return 1;
- if(_snwprintf_s(cmd,32768,_TRUNCATE,L"\"%ls\" --never-execute",exe)<0)return 1;
+ wchar_t exe[32768],cmd[32768];DWORD n=GetModuleFileNameW(NULL,exe,32768);if(!n||n>=32768){child_diag("GetModuleFileNameW",(long)n,(unsigned long)GetLastError());return 1;}
+ errno=0;
+ if(_snwprintf_s(cmd,32768,_TRUNCATE,L"\"%ls\" --never-execute",exe)<0){child_diag("command_format",-1,(unsigned long)errno);return 1;}
  STARTUPINFOW si={0};PROCESS_INFORMATION pi={0};si.cb=sizeof(si);SetLastError(0);
  BOOL created=CreateProcessW(exe,cmd,NULL,NULL,FALSE,CREATE_SUSPENDED|CREATE_NO_WINDOW,NULL,NULL,&si,&pi);DWORD err=GetLastError();
  fprintf(stdout,"resource test=fixed_child_process_creation_denied created=%d error=%lu\n",created,(unsigned long)err);
- if(created){TerminateProcess(pi.hProcess,125);WaitForSingleObject(pi.hProcess,1000);CloseHandle(pi.hThread);CloseHandle(pi.hProcess);return 1;}
- if(err!=ERROR_ACCESS_DENIED && err!=ERROR_NOT_ENOUGH_QUOTA)return 1;
- if(fflush(stdout))return 1;
+ if(created){
+ BOOL terminated=TerminateProcess(pi.hProcess,125);DWORD terminate_error=terminated?0:GetLastError();child_diag("unexpected_child_terminate",terminated,(unsigned long)terminate_error);
+ DWORD waited=WaitForSingleObject(pi.hProcess,1000);DWORD wait_error=waited==WAIT_FAILED?GetLastError():0;child_diag("unexpected_child_wait",(long)waited,(unsigned long)wait_error);
+ child_close_handle(pi.hThread);child_close_handle(pi.hProcess);child_diag("fixed_child_return",1,0);child_flush();return 1;}
+ if(err!=ERROR_ACCESS_DENIED && err!=ERROR_NOT_ENOUGH_QUOTA){child_diag("process_denial_rejected",0,(unsigned long)err);return 1;}
+ child_diag("fixed_child_return",rc,0);
+ if(child_flush())return 1;
  return rc;
 }
 int wmain(int argc,wchar_t **argv) {
