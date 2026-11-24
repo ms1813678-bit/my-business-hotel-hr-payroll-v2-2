@@ -1,3 +1,8 @@
+## Unpublished item1 suspended policy diagnostic proposal
+- Add a separate manual-only disposable Windows control experiment. Ordinary AppContainer and requested LPAC remain suspended throughout.
+- Compare documented token SID/capabilities/job controls and effective in-memory AccessCheck outcomes against positive, negative and differential descriptors.
+- Retain exact committed-source and compiler hashes. No parser execution, file/network containment acceptance, product gate change or operational install.
+
 ## 2026-11-24 - Exact-blob provenance diagnostics by Instinct
 
 Instinct added before/after checkout byte/hash/config evidence and raw committed-blob restoration before unchanged strict SHA256 checks. Native source and never-resume token controls are unchanged. No source executes on mismatch.

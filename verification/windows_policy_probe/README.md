@@ -1,0 +1,35 @@
+# Local policy-verification experiment, not authorization or acceptance
+
+Goal: measure effective access restrictions before untrusted code runs. Not infer a class46 token label from undocumented output or replace the gate by ordinary AppContainer identity.
+
+Use documented primary-token queries for AppContainer flag, exact profile SID and zero capability count; exact parent Job Object and limits; explicit LPAC creation attribute. Obtain TOKEN_QUERY|TOKEN_DUPLICATE only in parent. Create no extra child-accessible handles. Duplicate for AccessCheck only and close before parent lifecycle cleanup.
+
+Three synthetic descriptor controls: Everyone+specific profile SID (positive), Everyone+ALL_APPLICATION_PACKAGES (differential), Everyone only (negative). Mandatory comparison uses ordinary AppContainer and requested LPAC created with identical user/profile/job/environment and fixed suspended self-image. Expected observations: profile positive for both; Everyone-only denied for both; ALL_APPLICATION_PACKAGES allowed ordinary AC and denied requested LPAC. Any API failure, inconclusive or nondiscriminating result stops. Never resume in this experiment, even if expected matrix holds. No actual resources changed by AccessCheck.
+
+Why both controls: a wrong SID, unreadable token or malformed DACL can deny everything and produce a false safe result. Positive profile access rules that out. Ordinary AC comparison distinguishes a general denied or unsupported AccessCheck path from LPAC semantics. API return must succeed before AccessStatus is interpreted. Failed output never used. Descriptor owner/group present, GENERIC_READ explicitly mapped through the real FILE_GENERIC_READ/WRITE/EXECUTE/ALL_ACCESS mapping, with FR ACEs and exact FILE_GENERIC_READ result, correct impersonation duplicate.
+
+Remaining security-equivalence gap: AccessCheck documents arbitrary security-descriptor permission checks, not LPAC type detection or complete AppContainer resource semantics. The combined interpretation is derived from documented LPAC ALL_APPLICATION_PACKAGES exclusion and requires actual OS measurement. A successful differential matrix proves only those effective descriptor checks, not all file/registry/COM/namedpipe/network paths. It is useful prerequisite evidence, not standalone release criterion.
+
+Before parser can execute: verify complete allowed runtime read/execute vs forbidden existing synthetic resources, actual filesystem and output bounds, TCP/UDP/DNS/loopback/IPv4/IPv6 denials, process creation denial, job lifetime, parent forced death, CPU/memory/wall/output caps, no inherited secrets/handles, shutdown/cancel recovery, and Python cold-start/all parser formats with exact runtime hashes. No OS or hotel configuration/publication authorized. No registry, firewall, certificate, profile or ACL mutations are part of this local code.
+
+Native ownership remains separate: all raw outputs adopted within one native process, cleanup errors refuse, whole broker process exit is final resource backstop. AppContainer profile persistence and deletion failure must be bounded and reported, not hidden.
+
+Sources read: Microsoft AccessCheck, DuplicateToken, TOKEN_INFORMATION_CLASS, AppContainer launch documentation. This module compiled Windows x64 warnings-as-errors only. No Windows call executed locally.
+
+
+## Prepared experiment disposition
+
+A complete self-only native candidate is now locally compiled (warnings-as-errors), with 16 static/model tests. It creates ordinary AC first, then requested LPAC sequentially under separate identical-limits jobs using the same profile SID and environment. No ResumeThread call exists anywhere, no child entrypoint or parser dispatch exists, and no class46 query exists in this NEW diagnostic. Existing published refusal diagnostic is unchanged. New diagnostic has an accidental-launch sentinel (exit125), logged refusal stages and API errors, checked token allocations/handle release. It directly verifies exact job limits, class29 exact return/value, class31 size/pointer-bounded expectedSID and TokenCapabilities zero count before accessing duplicate-token policy checks. It terminates each suspended process/job and waits within2seconds, tracks all parent handles within the native process.
+
+No Windows execution has occurred. Official API behavior has not been inferred from a NULL privilege buffer. Removing the unusable class46 query from this isolated never-resume measurement does not authorize removing it from the published execution gate; there is no execution gate to pass in this diagnostic, only observed expected-policy discrimination. The published probe and production parser remain refused. Until actual measurements are known, a mismatch is an unresolved diagnostic outcome, not a candidate for weaker expected results.
+
+Potential next reviewed batch: add this separate diagnostic source + hash-pinned wrapper/workflow + source-contract tests and changelog, one zero-capability synthetic profile identical to current approved harness, two sequential never-resumed self-image processes, explicit profile cleanup; no production broker or parser and no runtime network/file operations. Existing compiler/provenance enforcement retained. Must inspect/stage exact files and obtain fresh owner approval before publishing or running. This packet alone is not that approval request.
+
+Security-equivalence assessment: technically appropriate as a supported-API measurement of AAP policy exclusion with independent positive/negative/ordinary controls. Not yet demonstrated, and not security equivalent to product containment. Full execution gate can only be redesigned after actual results plus independent real-resource/network tests and broker/resource ownership assessment. Required security properties are retained as release blockers, not assumed from the matrix.
+
+
+## Final static review refinements
+- Real file-read mapping is used to make the interpreted permission concrete; this remains an in-memory descriptor check, not an actual file open. Original synthetic right1 was valid private-object semantics, but calling its arbitrary mapping a validity control was not useful.
+- The retrieved Microsoft syntax annotates PrivilegeSet as out, optional, but no claim that its NULL-buffer sizing branch is guaranteed live or dead is made. Final candidate instead supplies an actual initialized PRIVILEGE_SET and only allocates/retries on ERROR_INSUFFICIENT_BUFFER with a sane larger size. Used privileges are not security evidence in this diagnostic.
+- Checkout action is now immutable-SHA pinned from the observed actions/checkout v4 ref. Source/compiler hashes establish consistency against separately communicated expected values; a same-commit hash is not an independent defense against a coordinated source+hash alteration. Runner OS remains recorded/moving; output claims apply only to the measured build.
+- All tests are static/model, Windows x64 crosscompilation and PowerShell parsing only. Never confuse any with native Windows execution.
