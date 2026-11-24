@@ -288,3 +288,7 @@ Instinct added independently callable day-only leave calculations, explicit carr
 ## Instinct, ordinary Windows compatibility check, 2026-11-25
 
 Added a synthetic BIFF8/XLSX parser compatibility-only workflow. It uses a disposable Windows2022 runner and exact temporary parser dependencies, checks source hashes and duplicate/source preservation, and removes its temporary runtime. It does not change the production Windows refusal gate or establish LPAC/network isolation acceptance.
+
+## Instinct, integrated Windows parser candidate preparation, 2026-11-25
+
+Added a separate synthetic real-parser LPAC qualification candidate with bounded stdin/stdout, owned Job lifetime, canonical runtime holds and pinned source/runtime acquisition. Official Python3.14.10 replaces the old3.11.9 disposable baseline for this candidate. This does not enable the production Windows parser, change network policy or claim final security acceptance.
