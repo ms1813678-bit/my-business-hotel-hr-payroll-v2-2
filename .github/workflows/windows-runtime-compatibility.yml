@@ -1,0 +1,54 @@
+name: Synthetic ordinary Windows parser compatibility
+on:
+  push:
+    branches: [ui-overhaul]
+    paths: [.github/workflows/windows-runtime-compatibility.yml]
+permissions:
+  contents: read
+jobs:
+  compatibility:
+    runs-on: windows-2022
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Verify exact sources and run synthetic compatibility only
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $owned=Join-Path $env:RUNNER_TEMP ('hony-compat-'+$env:GITHUB_RUN_ID+'-'+$env:GITHUB_RUN_ATTEMPT)
+          if(Test-Path -LiteralPath $owned){throw 'Owned temporary path already exists'}
+          try {
+            New-Item -ItemType Directory -Path $owned | Write-Output
+            $root='verification/windows_runtime_compatibility'
+            $manifest=Get-Content "$root/SOURCE-SHA256.json" -Raw | ConvertFrom-Json -AsHashtable
+            foreach($path in $manifest.Keys){
+              $psi=[Diagnostics.ProcessStartInfo]::new()
+              $psi.FileName='git';$psi.UseShellExecute=$false;$psi.RedirectStandardOutput=$true
+              $psi.ArgumentList.Add('cat-file');$psi.ArgumentList.Add('blob');$psi.ArgumentList.Add('HEAD:'+$path)
+              $proc=[Diagnostics.Process]::Start($psi)
+              $stream=[IO.File]::Open((Join-Path $pwd $path),[IO.FileMode]::Create,[IO.FileAccess]::Write)
+              try {$proc.StandardOutput.BaseStream.CopyTo($stream)} finally {$stream.Dispose()}
+              $proc.WaitForExit();if($proc.ExitCode -ne 0){throw 'Committed source read failed'}
+              if((Get-FileHash $path -Algorithm SHA256).Hash.ToLower() -ne $manifest[$path]){throw 'Source hash mismatch'}
+              Write-Output ($path+' SHA256='+$manifest[$path])
+            }
+            Write-Output ('OS='+[Environment]::OSVersion.VersionString)
+            & py -3.11 --version
+            if($LASTEXITCODE -ne 0){throw 'Preinstalled Python3.11 unavailable'}
+            & py -3.11 -m venv (Join-Path $owned 'venv')
+            if($LASTEXITCODE -ne 0){throw 'Temporary venv creation failed'}
+            $python=Join-Path $owned 'venv/Scripts/python.exe'
+            & $python -m pip install --disable-pip-version-check --no-cache-dir --only-binary=:all: openpyxl==3.1.5 xlrd==2.0.2 et_xmlfile==2.0.0
+            if($LASTEXITCODE -ne 0){throw 'Pinned dependency staging failed'}
+            foreach($suffix in @('xls','xlsx')){
+              & $python "$root/probe.py" --root $pwd --source "$root/fixtures/synthetic.$suffix"
+              if($LASTEXITCODE -ne 0){throw ('Synthetic parse failed: '+$suffix)}
+            }
+            Write-Output 'Ordinary Windows compatibility PASS; NOT LPAC or network acceptance.'
+          } finally {
+            if(Test-Path -LiteralPath $owned){Remove-Item -LiteralPath $owned -Recurse -Force}
+            if(Test-Path -LiteralPath $owned){throw 'Owned temporary cleanup failed'}
+            Write-Output 'Owned compatibility venv and temporary root cleanup verified.'
+          }

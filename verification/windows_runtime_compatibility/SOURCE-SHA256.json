@@ -1,0 +1,9 @@
+{
+  "app/attendance_import.py": "d5c3ff8cf79ae8426fa2ff8341e1269262f19b4523804ce6b8517eac7fb62c29",
+  "app/fingerprint_bounded_parse.py": "f65ce3cea072599737163bca5522e1195d5f2082ca3540421cbd844eeb405b67",
+  "app/fingerprint_evidence.py": "18b6facef376f3a6d22b0a8e59893063521d434d760a0f4af6a0a3abf941af48",
+  "app/fingerprint_parse_worker.py": "1ecd78c3c11905b2a34a27b0760798fd2836b3e3aae7052b556a02c87ca50b4e",
+  "verification/windows_runtime_compatibility/fixtures/synthetic.xls": "f0302c74d467bfc9ad8691ea3f90b2c41d756d15ba99c978da6306a17b9876de",
+  "verification/windows_runtime_compatibility/fixtures/synthetic.xlsx": "0bf4aece77af2bd87382b52e30bcc829bbd09935b09775904e865f50fbf1dfa7",
+  "verification/windows_runtime_compatibility/probe.py": "1b1b16ae9d95428929a655b37d7cb039f8ed2d4e63e3fe501686d879a5c97ba5"
+}

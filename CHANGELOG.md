@@ -284,3 +284,7 @@ Instinct added independently callable day-only leave calculations, explicit carr
 
 ##2026-11-24 HR reconciliation approval only
 - Developed by Instinct: exact immutable HR approval/correction and audit, current-source review, reason/confirmation and role/session/restore gates. No posting, balance release or financial activation.
+
+## Instinct, ordinary Windows compatibility check, 2026-11-25
+
+Added a synthetic BIFF8/XLSX parser compatibility-only workflow. It uses a disposable Windows2022 runner and exact temporary parser dependencies, checks source hashes and duplicate/source preservation, and removes its temporary runtime. It does not change the production Windows refusal gate or establish LPAC/network isolation acceptance.
