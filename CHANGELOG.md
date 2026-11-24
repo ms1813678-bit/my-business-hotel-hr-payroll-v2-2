@@ -1,5 +1,9 @@
 # سجل التطوير — Changelog
 
+## 2026-11-24 - Isolated calculation and evidence foundation by Instinct
+
+Instinct added independently callable day-only leave calculations, explicit carry-window validation, full-calendar-month annual-release preview, exact employee-identity matching and same-day overtime-rate preview, with regression tests. These modules do not add routes, select real employee facts, post balances, close a month, change payroll, issue certificates or install software. Verified against the unchanged branch base on freshly migrated PostgreSQL: 852 tests passed, including 80 new foundation tests. The rest of the local development candidate is not included in this batch. Native Windows and operational workflow acceptance remain separate.
+
 ## نوفمبر 2026 — إصلاح ذرّية الاستعادة وقفل الحسابات الراجعة من الأرشيف (فرع ui-overhaul)
 
 استجابةً لنتائج المراجعة الأمنية المستقلة، أصلحت **Instinct** ثغرة حرجة في استرجاع النسخ الاحتياطية وأتمّت قفل الحسابات الراجعة من الأرشيف المعتمد من المالك، من دون أي تكلفة أو خدمة خارجية:
