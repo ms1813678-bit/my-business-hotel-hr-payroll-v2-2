@@ -26,7 +26,9 @@ struct Cfg {
 struct Attempt { std::wstring id, outcome=L"not_attempted"; int wsa=0, so=-1; };
 std::vector<Attempt> g_att; std::vector<std::pair<std::wstring,long>> g_apiErr;
 void ApiErr(const wchar_t* api,long code){ g_apiErr.push_back({api,code}); }
-#define HR(x) do{ HRESULT hr_=(x); if(FAILED(hr_)) ApiErr(L#x,(long)hr_); }while(0)
+#define HR_STR2(x) L##x
+#define HR_STR(x) HR_STR2(#x)
+#define HR(x) do{ HRESULT hr_=(x); if(FAILED(hr_)) ApiErr(HR_STR(x),(long)hr_); }while(0)
 std::wstring Nonce(const std::wstring& id){ for(auto&n:g.nonces) if(n.first==id) return n.second; return L""; }
 // one owned wstring copy, converted once to a constant narrow string (launcher nonces are lowercase hex; anything else is refused, never guessed)
 std::string NonceAscii(const std::wstring& id){ const std::wstring w=Nonce(id); std::string s; s.reserve(w.size());
@@ -126,42 +128,60 @@ void Hardening(){
   // NOT used, by design: AddHostObjectToScript, PostWebMessage*, ExecuteScript, AddScriptToExecuteOnDocumentCreated, CallDevToolsProtocolMethod.
 }
 
-void Wire(){
-  HR(g_wv->add_NavigationStarting(Callback<ICoreWebView2NavigationStartingEventHandler>([](ICoreWebView2*,ICoreWebView2NavigationStartingEventArgs* a){
-    LPWSTR u; a->get_Uri(&u); std::wstring uri=u; CoTaskMemFree(u);
-    bool ok = uri.rfind(std::wstring(L"https://")+kVHost+L"/",0)==0;
+
+HRESULT OnNavStarting(ICoreWebView2*,ICoreWebView2NavigationStartingEventArgs* a){
+  LPWSTR u; a->get_Uri(&u); std::wstring uri=u; CoTaskMemFree(u);
+  bool ok = uri.rfind(std::wstring(L"https://")+kVHost+L"/",0)==0;
 #ifdef WV2_PROBE
-    ok = true; // probe navigates to loopback/remote targets on purpose to exercise the network service
+  ok = true; // probe navigates to loopback/remote targets on purpose to exercise the network service
 #endif
-    if(!ok){ a->put_Cancel(TRUE); Log(L"nav-blocked"); } return S_OK; }).Get(),nullptr));
+  if(!ok){ a->put_Cancel(TRUE); Log(L"nav-blocked"); } return S_OK; }
+
+HRESULT OnWebResourceRequested(ICoreWebView2*,ICoreWebView2WebResourceRequestedEventArgs* a){
+  ComPtr<ICoreWebView2WebResourceRequest> rq; a->get_Request(&rq); LPWSTR u,m; rq->get_Uri(&u); rq->get_Method(&m); std::wstring uri=u, meth=m; CoTaskMemFree(u); CoTaskMemFree(m);
+  std::wstring pre=std::wstring(L"https://")+kVHost+L"/";
+  if(uri.rfind(pre,0)!=0){
+#ifdef WV2_PROBE
+    return S_OK;
+#endif
+    Respond(a,403,L"Forbidden","", L"Cache-Control: no-store"); Log(L"req-denied-nonvhost"); return S_OK; }
+  if(meth!=L"GET"){ Respond(a,405,L"Method Not Allowed","",L""); return S_OK; }
+  std::wstring rel=uri.substr(pre.size()); auto q=rel.find_first_of(L"?#"); if(q!=std::wstring::npos) rel.resize(q); if(rel.empty()) rel=L"index.html";
+  std::string body; std::wstring mime; auto err=ReadAllowlisted(rel,body,mime);
+  if(!err.empty()){ Respond(a,err==L"notfound"?404:403,L"Denied","",L""); Log(L"serve-"+err); return S_OK; }
+  Respond(a,200,L"OK",body,L"Content-Type: "+mime+L"\r\n"+CspHeader()); return S_OK; }
+
+HRESULT OnNavCompleted(ICoreWebView2*,ICoreWebView2NavigationCompletedEventArgs* a){
+  BOOL ok; a->get_IsSuccess(&ok); Log(std::wstring(L"nav-completed ok=")+(ok?L"1":L"0"));
+#ifdef WV2_PROBE
+  SetTimer(g_hwnd,1,25000,nullptr); // let lazily spawned children (gpu, network, utility, crashpad) appear, page finish attempts
+#endif
+  return S_OK; }
+
+void Wire(){
+  HR(g_wv->add_NavigationStarting(Callback<ICoreWebView2NavigationStartingEventHandler>(OnNavStarting).Get(),nullptr));
   HR(g_wv->add_NewWindowRequested(Callback<ICoreWebView2NewWindowRequestedEventHandler>([](ICoreWebView2*,ICoreWebView2NewWindowRequestedEventArgs* a){ a->put_Handled(TRUE); return S_OK; }).Get(),nullptr));
   ComPtr<ICoreWebView2_4> w4; if(SUCCEEDED(g_wv.As(&w4))) HR(w4->add_DownloadStarting(Callback<ICoreWebView2DownloadStartingEventHandler>([](ICoreWebView2*,ICoreWebView2DownloadStartingEventArgs* a){ a->put_Cancel(TRUE); return S_OK; }).Get(),nullptr));
   HR(g_wv->add_PermissionRequested(Callback<ICoreWebView2PermissionRequestedEventHandler>([](ICoreWebView2*,ICoreWebView2PermissionRequestedEventArgs* a){ a->put_State(COREWEBVIEW2_PERMISSION_STATE_DENY); return S_OK; }).Get(),nullptr));
   HR(g_wv->add_ProcessFailed(Callback<ICoreWebView2ProcessFailedEventHandler>([](ICoreWebView2*,ICoreWebView2ProcessFailedEventArgs* a){ COREWEBVIEW2_PROCESS_FAILED_KIND k; a->get_ProcessFailedKind(&k); Log(L"process-failed kind="+std::to_wstring((int)k)); return S_OK; }).Get(),nullptr));
   HR(g_wv->AddWebResourceRequestedFilter(L"*",COREWEBVIEW2_WEB_RESOURCE_CONTEXT_ALL));
-  HR(g_wv->add_WebResourceRequested(Callback<ICoreWebView2WebResourceRequestedEventHandler>([](ICoreWebView2*,ICoreWebView2WebResourceRequestedEventArgs* a){
-    ComPtr<ICoreWebView2WebResourceRequest> rq; a->get_Request(&rq); LPWSTR u,m; rq->get_Uri(&u); rq->get_Method(&m); std::wstring uri=u, meth=m; CoTaskMemFree(u); CoTaskMemFree(m);
-    std::wstring pre=std::wstring(L"https://")+kVHost+L"/";
-    if(uri.rfind(pre,0)!=0){
-#ifdef WV2_PROBE
-      return S_OK;
-#endif
-      Respond(a,403,L"Forbidden","", L"Cache-Control: no-store"); Log(L"req-denied-nonvhost"); return S_OK; }
-    if(meth!=L"GET"){ Respond(a,405,L"Method Not Allowed","",L""); return S_OK; }
-    std::wstring rel=uri.substr(pre.size()); auto q=rel.find_first_of(L"?#"); if(q!=std::wstring::npos) rel.resize(q); if(rel.empty()) rel=L"index.html";
-    std::string body; std::wstring mime; auto err=ReadAllowlisted(rel,body,mime);
-    if(!err.empty()){ Respond(a,err==L"notfound"?404:403,L"Denied","",L""); Log(L"serve-"+err); return S_OK; }
-    Respond(a,200,L"OK",body,L"Content-Type: "+mime+L"\r\n"+CspHeader()); return S_OK; }).Get(),nullptr));
+  HR(g_wv->add_WebResourceRequested(Callback<ICoreWebView2WebResourceRequestedEventHandler>(OnWebResourceRequested).Get(),nullptr));
 #ifdef WV2_PROBE
   HR(g_wv->add_DocumentTitleChanged(Callback<ICoreWebView2DocumentTitleChangedEventHandler>([](ICoreWebView2* s,IUnknown*){ LPWSTR t; s->get_DocumentTitle(&t); g_title=t; CoTaskMemFree(t); if(g_title.rfind(L"R|",0)==0){ WriteReport(); SetTimer(g_hwnd,2,60000,nullptr); } return S_OK; }).Get(),nullptr)); // read-only channel, not a bridge
 #endif
-  HR(g_wv->add_NavigationCompleted(Callback<ICoreWebView2NavigationCompletedEventHandler>([](ICoreWebView2*,ICoreWebView2NavigationCompletedEventArgs* a){
-    BOOL ok; a->get_IsSuccess(&ok); Log(std::wstring(L"nav-completed ok=")+(ok?L"1":L"0"));
-#ifdef WV2_PROBE
-    SetTimer(g_hwnd,1,25000,nullptr); // let lazily spawned children (gpu, network, utility, crashpad) appear, page finish attempts
-#endif
-    return S_OK; }).Get(),nullptr));
+  HR(g_wv->add_NavigationCompleted(Callback<ICoreWebView2NavigationCompletedEventHandler>(OnNavCompleted).Get(),nullptr));
 }
+
+
+HRESULT OnControllerReady(HRESULT r2,ICoreWebView2Controller* c){
+  g_ctlHr=r2; if(FAILED(r2)){ Log(L"controller-failed"); WriteReport(); PostQuitMessage(31); return S_OK; }
+  g_ctl=c; HR(c->get_CoreWebView2(&g_wv)); if(!g_wv){ ApiErr(L"CoreWebView2-null",0); WriteReport(); PostQuitMessage(33); return S_OK; } RECT rc; GetClientRect(g_hwnd,&rc); HR(c->put_Bounds(rc)); Hardening(); Wire();
+  std::wstring url=std::wstring(L"https://")+kVHost+L"/index.html";
+#ifdef WV2_PROBE
+  url+=L"?loop="+g.loop+L"&remote="+g.remote; for(auto&n:g.nonces) if(n.first.rfind(L"rend_",0)==0) url+=L"&n_"+n.first+L"="+n.second;
+  TryConnect(L"host_tcp_loopback",g.loop); TryConnect(L"host_tcp_remote",g.remote);
+#endif
+  HR(g_wv->Navigate(url.c_str())); return S_OK; }
 
 void Start(){
   auto opts=Microsoft::WRL::Make<CoreWebView2EnvironmentOptions>();
@@ -170,15 +190,7 @@ void Start(){
   HRESULT hr=CreateCoreWebView2EnvironmentWithOptions(g.runtime.c_str(),g.udf.c_str(),opts.Get(),
     Callback<ICoreWebView2CreateCoreWebView2EnvironmentCompletedHandler>([](HRESULT r,ICoreWebView2Environment* e){
       g_envHr=r; if(FAILED(r)){ Log(L"env-failed"); WriteReport(); PostQuitMessage(30); return S_OK; } g_env=e;
-      HR(e->CreateCoreWebView2Controller(g_hwnd,Callback<ICoreWebView2CreateCoreWebView2ControllerCompletedHandler>([](HRESULT r2,ICoreWebView2Controller* c){
-        g_ctlHr=r2; if(FAILED(r2)){ Log(L"controller-failed"); WriteReport(); PostQuitMessage(31); return S_OK; }
-        g_ctl=c; HR(c->get_CoreWebView2(&g_wv)); if(!g_wv){ ApiErr(L"CoreWebView2-null",0); WriteReport(); PostQuitMessage(33); return S_OK; } RECT rc; GetClientRect(g_hwnd,&rc); HR(c->put_Bounds(rc)); Hardening(); Wire();
-        std::wstring url=std::wstring(L"https://")+kVHost+L"/index.html";
-#ifdef WV2_PROBE
-        url+=L"?loop="+g.loop+L"&remote="+g.remote; for(auto&n:g.nonces) if(n.first.rfind(L"rend_",0)==0) url+=L"&n_"+n.first+L"="+n.second;
-        TryConnect(L"host_tcp_loopback",g.loop); TryConnect(L"host_tcp_remote",g.remote);
-#endif
-        HR(g_wv->Navigate(url.c_str())); return S_OK; }).Get())); return S_OK; }).Get());
+      HR(e->CreateCoreWebView2Controller(g_hwnd,Callback<ICoreWebView2CreateCoreWebView2ControllerCompletedHandler>(OnControllerReady).Get())); return S_OK; }).Get());
   if(FAILED(hr)){ g_envHr=hr; Log(L"create-env-call-failed"); WriteReport(); PostQuitMessage(32); }
 }
 LRESULT CALLBACK Proc(HWND h,UINT m,WPARAM w,LPARAM l){
