@@ -1,10 +1,10 @@
 # Windows 10 / Windows 11 installation and first administrator
 
-This is the initial setup path for the local M.Y. Business Hotel HR application. It does not install a Windows service or configure auto-start.
+This is the initial setup path for the local M.Y. Business Hotel HR application. It does not install a Windows service or configure auto-start. It is not a complete offline first-install bundle: setup upgrades pip and installs dependencies from package sources, while Python and PostgreSQL must already be installed. Offline runtime after installation is a separate acceptance test.
 
 ## Prerequisites
 1. Windows 10 or Windows 11.
-2. Python 3.11 with the Python Launcher for Windows (the setup script invokes `py -3.11`).
+2. Python3.11 with the Python Launcher for Windows is the application-tested choice. The setup script tries3.11 first, then3.12/3.13 if unavailable. Those fallback versions have dependency-resolution evidence only, not full application/native acceptance.
 3. PostgreSQL 16 (or a compatible supported release), installed and running locally.
 4. A dedicated PostgreSQL database and database user with schema permissions, bound to this computer only (`localhost`, `127.0.0.1`, or `::1`). Remote database hosts are rejected.
 5. The project repository checked out locally.
@@ -33,7 +33,7 @@ Reports are generated manually by the administrator and saved locally as Excel o
 - Press Ctrl+C to stop the application.
 - PostgreSQL must be running before starting the application.
 
-The application binds only to 127.0.0.1. Do not expose it publicly.
+The application binds only to127.0.0.1 over HTTP. This launcher does not configure TLS, LAN/mobile access or three-device synchronization. Do not expose it publicly.
 
 ## Automatic backup schedule (separate step)
 Setup does NOT schedule automatic backups. After the first installation, and after the backup folder is set inside the app (Backup & Restore page), run once in PowerShell:
@@ -75,4 +75,4 @@ Before production use, verify backup creation, SHA-256/integrity validation, tha
 - /health reports database connectivity only; it does not certify release readiness.
 
 ## Release limitation
-This branch is feature-complete for local testing, but it is not production-accepted until the final acceptance gates in docs/PROJECT_HANDOFF.md are executed. Use synthetic records only until then.
+This branch contains reviewed development preparations, but it is not production-accepted until the final acceptance gates in docs/PROJECT_HANDOFF.md are executed. Use synthetic records only until then.
