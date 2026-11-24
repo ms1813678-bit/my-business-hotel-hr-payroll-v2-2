@@ -1129,3 +1129,25 @@ class LeaveReconciliationReviewReceipt(Base):
     reason: Mapped[str]=mapped_column(Text,nullable=False)
     integrity_digest: Mapped[str]=mapped_column(String(64),nullable=False)
     created_at: Mapped[datetime]=mapped_column(DateTime(timezone=True),nullable=False)
+
+
+class LeaveReconciliationApproval(Base):
+    """Immutable HR decision only, never a ledger or money instruction."""
+    __tablename__='leave_reconciliation_approvals'
+    id: Mapped[str]=mapped_column(String(64),primary_key=True)
+    receipt_id: Mapped[str]=mapped_column(ForeignKey('leave_reconciliation_review_receipts.id'),nullable=False,unique=True)
+    predecessor_id: Mapped[str | None]=mapped_column(ForeignKey('leave_reconciliation_approvals.id'),unique=True)
+    scope_key: Mapped[str]=mapped_column(String(64),nullable=False,index=True)
+    employee_id: Mapped[int]=mapped_column(ForeignKey('employees.id'),nullable=False)
+    actor_id: Mapped[int]=mapped_column(ForeignKey('admin_accounts.id'),nullable=False)
+    session_id: Mapped[str]=mapped_column(String(128),nullable=False)
+    session_version: Mapped[int]=mapped_column(Integer,nullable=False)
+    restore_epoch: Mapped[str | None]=mapped_column(Text)
+    source_digest: Mapped[str]=mapped_column(String(64),nullable=False)
+    decision_digest: Mapped[str]=mapped_column(String(64),nullable=False)
+    comparison_digest: Mapped[str]=mapped_column(String(64),nullable=False)
+    request_digest: Mapped[str]=mapped_column(String(64),nullable=False)
+    reason: Mapped[str]=mapped_column(Text,nullable=False)
+    integrity_digest: Mapped[str]=mapped_column(String(64),nullable=False)
+    created_at: Mapped[datetime]=mapped_column(DateTime(timezone=True),nullable=False)
+    __table_args__=(Index('uq_reconciliation_approval_baseline','scope_key',unique=True,postgresql_where=__import__('sqlalchemy').text('predecessor_id IS NULL')),)

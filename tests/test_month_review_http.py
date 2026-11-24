@@ -234,6 +234,71 @@ def test_selected_month_review_real_http_register_and_unknown_close_block(histor
             (capture/('receipt-'+lang+'.html')).write_text(localized.text)
         client.cookies.set('my_hr_language','ar')
 
+        # Explicit owner-reviewed HR approval only, distinct from assertions.
+        approval_url='/leave/month-review/reconciliation-approval/'+receipt_id
+        approval_preview=client.get(approval_url)
+        assert approval_preview.status_code==200 and 'name="approval_proof"' in approval_preview.text
+        approval_proof=re.search('name="approval_proof" value="([^"]+)"',approval_preview.text).group(1)
+        approval_fields=dict(csrf_token=token(approval_preview),approval_proof=approval_proof,reason='Synthetic reviewed HR approval only',human_confirmed='yes')
+        from app.models import LeaveReconciliationApproval
+        approval_before=counts()
+        for omitted in ('csrf_token','human_confirmed'):
+            assert client.post('/leave/month-review/reconciliation-approve',data={k:v for k,v in approval_fields.items() if k!=omitted}).status_code in (400,403)
+        assert client.post('/leave/month-review/reconciliation-approve',data={**approval_fields,'approval_proof':approval_proof+'x'}).status_code==400
+        assert client.post('/leave/month-review/reconciliation-approve',data={**approval_fields,'extra':'1'}).status_code==400
+        def fail_approval_audit(session,*_):
+            if any(isinstance(row,AuditLog) and row.action=='leave_reconciliation_approved' for row in session.new):
+                raise ValueError('Synthetic approval audit failure')
+        event.listen(Session,'before_flush',fail_approval_audit)
+        try:assert client.post('/leave/month-review/reconciliation-approve',data=approval_fields).status_code==400
+        finally:event.remove(Session,'before_flush',fail_approval_audit)
+        with SessionLocal() as checked:assert checked.scalar(select(func.count()).select_from(LeaveReconciliationApproval))==0
+        approved=client.post('/leave/month-review/reconciliation-approve',data=approval_fields)
+        assert approved.status_code==200 and 'reconciliation-hr-approved' in approved.text
+        assert 'reconciliation-approval-stale' not in approved.text
+        assert client.post('/leave/month-review/reconciliation-approve',data=approval_fields).status_code==200
+        assert client.post('/leave/month-review/reconciliation-approve',data={**approval_fields,'reason':'Changed reason'}).status_code==400
+        assert counts()==approval_before
+        with SessionLocal() as checked:
+            assert checked.scalar(select(func.count()).select_from(LeaveReconciliationApproval))==1
+            assert checked.scalar(select(func.count()).select_from(AuditLog))==audit_before+2
+        for lang in ('ar','en','zh'):
+            client.cookies.set('my_hr_language',lang)
+            for state,url in (('approved',approval_url),):
+                localized=client.get(url)
+                assert localized.status_code==200 and localized.headers['cache-control']=='no-store'
+                content=localized.text.split('<main class="content">',1)[1].split('<footer>',1)[0]
+                if lang!='ar':assert re.search(r'[\u0600-\u06ff]',content) is None
+                (capture/(state+'-'+lang+'.html')).write_text(localized.text)
+        client.cookies.set('my_hr_language','ar')
+        (capture/'approval-ar.html').write_text(approval_preview.text)
+        # An ordinary source writer makes approval stale without deleting it.
+        with SessionLocal.begin() as changed:
+            changed.get(LeaveBalanceTransaction,legacy_id).reason='Synthetic changed source reason'
+        stale_approval=client.get(approval_url)
+        assert stale_approval.status_code==200 and 'reconciliation-approval-stale' in stale_approval.text
+        for lang in ('ar','en','zh'):
+            client.cookies.set('my_hr_language',lang)
+            stale_localized=client.get(approval_url)
+            (capture/('stale-'+lang+'.html')).write_text(stale_localized.text)
+            if lang!='ar':assert re.search(r'[\u0600-\u06ff]',stale_localized.text.split('<main class="content">',1)[1].split('<footer>',1)[0]) is None
+        with SessionLocal.begin() as changed:
+            changed.get(LeaveBalanceTransaction,legacy_id).reason='Synthetic external evidence'
+        for lang in ('en','zh'):
+            # New receipt has not been approved, mint localized preview via separate
+            # exact assertions recording with the same source and fresh operation.
+            client.cookies.set('my_hr_language',lang)
+            from itsdangerous import URLSafeTimedSerializer
+            proof_signer=URLSafeTimedSerializer(settings.session_secret,salt='monthly-reconciliation-draft-v1')
+            new_payload=proof_signer.loads(record_proof);new_payload['operation_id']=('d' if lang=='en' else 'e')*64
+            new_record=client.post('/leave/month-review/reconciliation-record',data={**record_fields,'record_proof':proof_signer.dumps(new_payload)})
+            assert new_record.status_code==200
+            preview_local=client.get('/leave/month-review/reconciliation-approval/'+new_payload['operation_id'])
+            assert preview_local.status_code==200 and 'name="approval_proof"' in preview_local.text
+            assert re.search(r'[\u0600-\u06ff]',preview_local.text.split('<main class="content">',1)[1].split('<footer>',1)[0]) is None
+            (capture/('approval-'+lang+'.html')).write_text(preview_local.text)
+        client.cookies.set('my_hr_language','ar')
+
         preview_before=counts()
         with SessionLocal() as checked:
             preview_audit=checked.scalar(select(func.count()).select_from(AuditLog))
@@ -271,6 +336,8 @@ def test_selected_month_review_real_http_register_and_unknown_close_block(histor
         assert client.post('/login',data=dict(csrf_token=token(client.get('/login')),username='synthetic-month-finance',password='Synthetic-Monthly-Only-1500!'),follow_redirects=False).status_code==303
         assert client.get('/leave/month-review',params={'month':'2026-05'}).status_code==403
         assert client.get(editor_root).status_code==403
+        assert client.get(approval_url).status_code==403
+        assert client.post('/leave/month-review/reconciliation-approve',data={**approval_fields,'csrf_token':token(client.get('/'))}).status_code==403
         handoff='/leave/payroll-day-handoff'
         report=client.get(handoff,params={'employee_id':employee.id,'month':'2026-05'})
         assert report.status_code==200 and 'تغطية السجل مكتملة، ليست اعتمادًا نهائيًا' in report.text and report.headers['cache-control']=='no-store'
@@ -292,4 +359,6 @@ def test_selected_month_review_real_http_register_and_unknown_close_block(histor
         assert counts()==handoff_before
     with TestClient(main.app) as assistant:
         assert assistant.post('/login',data=dict(csrf_token=token(assistant.get('/login')),username='synthetic-month-assistant',password='Synthetic-Monthly-Only-1500!'),follow_redirects=False).status_code==303
+        assert assistant.get(approval_url).status_code==403
+        assert assistant.post('/leave/month-review/reconciliation-approve',data={**approval_fields,'csrf_token':token(assistant.get('/'))}).status_code==403
         assert assistant.get('/leave/payroll-day-handoff',params={'employee_id':employee.id,'month':'2026-05'}).status_code==403

@@ -157,7 +157,7 @@ GATE_EXEMPT_EXACT = {
 }
 GATE_EXEMPT_POST_PATTERNS = (
     re.compile(r'/leave/month-review/register-(?:review|confirm)'),
-    re.compile(r'/leave/month-review/reconciliation-(?:snapshot|draft|record)'),
+    re.compile(r'/leave/month-review/reconciliation-(?:snapshot|draft|record|approve)'),
     re.compile(r'/attendance/shift-evidence/[0-9a-f]{64}/[1-9][0-9]*/(?:review|confirm)'),
     re.compile(r"^/settings/accounts/[^/]+/(deactivate|activate|reset-password)$"),
     re.compile(r"^/settings/accounts/sessions/[^/]+/end$"),
@@ -167,6 +167,10 @@ GATE_EXEMPT_PREFIXES = ("/static", "/language")
 
 def restore_gate_exempt(method: str, path: str) -> bool:
     if (method, path) in GATE_EXEMPT_EXACT:
+        return True
+    # Approval preview revalidates the exact source under its own bounded
+    # exclusive transaction gate; middleware must not hold a shared gate.
+    if method == "GET" and re.fullmatch(r'/leave/month-review/reconciliation-approval/[0-9a-f]{64}',path):
         return True
     if method == "POST" and any(pattern.fullmatch(path) for pattern in GATE_EXEMPT_POST_PATTERNS):
         return True

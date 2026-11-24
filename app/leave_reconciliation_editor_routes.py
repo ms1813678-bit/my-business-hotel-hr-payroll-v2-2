@@ -22,28 +22,24 @@ from app.leave_source_reconciliation import reconcile_selected_opening
 from app.leave_transition_draft import draft_transition,LedgerDecision,OpeningReleaseDecision
 
 
+def exact_approval_days(value):
+    """Lossless display, no rounding/context arithmetic or scientific notation."""
+    from decimal import Decimal
+    if not isinstance(value,Decimal) or not value.is_finite():
+        raise ValueError('Exact finite approval amount required.')
+    raw=format(value,'f')
+    return raw.rstrip('0').rstrip('.') if '.' in raw else raw
+
+
 def reconciliation_editor_router(templates):
+    templates.env.filters['approval_exact_days']=exact_approval_days
     router=APIRouter();signer=URLSafeTimedSerializer(settings.session_secret,salt='monthly-reconciliation-draft-v1')
     def identity(request,admin):
         return dict(actor_id=admin.id,session_id=request.session.get('admin_session_id'),session_version=request.session.get('admin_session_version'),expected_epoch=request.state.restore_epoch)
     def day(value):
         if not isinstance(value,str) or re.fullmatch('[0-9]{4}-[0-9]{2}-[0-9]{2}',value) is None:raise ValueError('Exact date required.')
         return date.fromisoformat(value)
-    @bounded_workbook_operation
-    def source(db,comparison_id,employee_id,auth):
-        if re.fullmatch('[0-9a-f]{64}',comparison_id) is None or not 0<employee_id<=2147483647:raise ValueError('Exact source required.')
-        raw=read_saved_shift_days(db,comparison_id=comparison_id,employee_id=employee_id,**auth)
-        comparison=db.get(DepartmentFingerprintPreparation,comparison_id,populate_existing=True)
-        returned=db.get(DepartmentWorkbookPreparation,comparison.return_id,populate_existing=True)
-        contract=db.get(DepartmentPreparationContract,returned.export_id,populate_existing=True)
-        if contract is None or sha256(contract.selection_json.encode()).hexdigest()!=contract.selection_sha256:raise ValueError('Confirmed source contract required.')
-        selection=decode_selection(contract.selection_json)
-        selected=db.scalars(select(LeaveOpeningSelection).where(LeaveOpeningSelection.id.in_(selection['selection_ids']),LeaveOpeningSelection.employee_id==employee_id)).all()
-        if len(selected)!=1:raise ValueError('One exact selected employee source required.')
-        selection['selection_ids']=(selected[0].id,)
-        selection['current_insurance_years']={k:v for k,v in selection['current_insurance_years'].items() if k[0]==employee_id}
-        employee=db.get(Employee,employee_id,populate_existing=True)
-        return selection,dict(code=employee.code,name=employee.full_name),raw
+    from app.leave_reconciliation_source import reconciliation_source as source
     def render(request,actor,comparison_id,employee_id,selection,employee,result=None,proof=None,ledger=(),draft=None,decisions=(),record_proof=None,receipt=None,stale=False):
         response=templates.TemplateResponse(request=request,name='leave_reconciliation_editor.html',context=dict(
             admin=actor.username,csrf_token=get_csrf_token(request),comparison_id=comparison_id,employee_id=employee_id,
@@ -155,4 +151,81 @@ def reconciliation_editor_router(templates):
                 assertions=json.loads(row.assertions_json);selection=dict(month_start=day(assertions['month']))
                 return render(request,admin,row.comparison_id,row.employee_id,selection,employee,receipt=dict(id=row.id,reason=row.reason,created_at=row.created_at,assertions=assertions),stale=True)
         except (ValueError,TypeError,KeyError,SQLAlchemyError) as exc:fail(exc)
+    def approval_render(request,actor,receipt,employee,selection,prepared=None,proof=None,approval=None,stale=False,predecessor=None):
+        response=templates.TemplateResponse(request=request,name='leave_reconciliation_approval.html',context=dict(
+            admin=actor.username,csrf_token=get_csrf_token(request),employee=employee,month=selection['month_start'].strftime('%Y-%m'),
+            receipt=receipt,assertions=json.loads(receipt.assertions_json),prepared=prepared,approval_proof=proof,approval=approval,stale=stale,predecessor=predecessor))
+        response.headers['Cache-Control']='no-store'
+        return response
+    @router.get('/leave/month-review/reconciliation-approval/{receipt_id}')
+    def approval_page(request:Request,receipt_id:str,admin:AdminAccount=Depends(require_system_admin)):
+        from app.models import LeaveReconciliationReviewReceipt,LeaveReconciliationApproval
+        from app.leave_reconciliation_receipt import receipt_hash
+        from app.leave_reconciliation_approval import review_approval,approval_hash
+        try:
+            if re.fullmatch('[0-9a-f]{64}',receipt_id) is None:raise ValueError('Exact receipt required.')
+            auth=identity(request,admin)
+            with SessionLocal() as db:
+                db.execute(text("SET LOCAL lock_timeout='3s'"))
+                from app.department_workbook_store import _guard
+                _guard(db,**auth)
+                row=db.get(LeaveReconciliationReviewReceipt,receipt_id,populate_existing=True)
+                if row is None or receipt_hash(row)!=row.integrity_digest:raise ValueError('Intact receipt required.')
+                saved=json.loads(row.assertions_json)
+                employee_row=db.get(Employee,row.employee_id,populate_existing=True)
+                if employee_row is None:raise ValueError('Receipt employee missing.')
+                employee=dict(code=employee_row.code,name=employee_row.full_name)
+                minimal=dict(month_start=day(saved['month']))
+                old=db.scalar(select(LeaveReconciliationApproval).where(LeaveReconciliationApproval.receipt_id==receipt_id))
+                if old and approval_hash(old)!=old.integrity_digest:raise ValueError('Approval integrity mismatch.')
+                # History stays visible, but no proof is minted for stale sources.
+                try:
+                    selection,employee,_=source(db,row.comparison_id,row.employee_id,auth)
+                    selection['release_evaluated_on']=day(saved['release_evaluated_on'])
+                    _,prepared,existing,predecessor=review_approval(db,receipt_id=receipt_id,employee_id=row.employee_id,**selection,**auth)
+                except (ValueError,KeyError,TypeError):
+                    return approval_render(request,admin,row,employee,minimal,approval=old,stale=True)
+                proof=None
+                if old is None:
+                    proof=signer.dumps(dict(kind='hr_approval',operation_id=secrets.token_hex(32),receipt_id=row.id,
+                        receipt_digest=row.integrity_digest,comparison_digest=source(db,row.comparison_id,row.employee_id,auth)[2].source_digest,employee_id=row.employee_id,predecessor_id=predecessor,identity=auth))
+                return approval_render(request,admin,row,employee,selection,prepared=prepared,proof=proof,
+                    approval=old,predecessor=predecessor,stale=bool(old and existing is None))
+        except (ValueError,TypeError,KeyError,SQLAlchemyError) as exc:fail(exc)
+    @router.post('/leave/month-review/reconciliation-approve',dependencies=[Depends(csrf_protect)])
+    async def approve(request:Request,admin:AdminAccount=Depends(require_system_admin)):
+        from app.models import LeaveReconciliationReviewReceipt
+        from app.leave_reconciliation_approval import approve_reconciliation
+        try:
+            if request.scope.get('path')!='/leave/month-review/reconciliation-approve':raise ValueError('Canonical path required.')
+            form=await request.form()
+            if (set(form)!={'csrf_token','approval_proof','reason','human_confirmed'}
+                    or any(len(form.getlist(k))!=1 for k in form) or form['human_confirmed']!='yes'
+                    or len(str(form['approval_proof']))>10000):raise ValueError('Exact explicit approval required.')
+            payload=signer.loads(str(form['approval_proof']),max_age=1800);auth=identity(request,admin)
+            if (type(payload) is not dict or set(payload)!={'kind','operation_id','receipt_id','receipt_digest','comparison_digest','employee_id','predecessor_id','identity'}
+                    or payload['kind']!='hr_approval' or payload['identity']!=auth):raise ValueError('Current reviewed HR session required.')
+            reason=str(form['reason']);actor=SimpleNamespace(username=admin.username)
+            def transaction():
+                from app.department_workbook_store import _guard
+                with SessionLocal() as db:
+                    db.execute(text("SET LOCAL lock_timeout='3s'"));_guard(db,**auth)
+                    receipt=db.get(LeaveReconciliationReviewReceipt,payload['receipt_id'],populate_existing=True)
+                    if receipt is None:raise ValueError('Receipt missing.')
+                    selection,employee,_=source(db,receipt.comparison_id,payload['employee_id'],auth)
+                    selection['release_evaluated_on']=day(json.loads(receipt.assertions_json)['release_evaluated_on'])
+                    row=approve_reconciliation(db,operation_id=payload['operation_id'],receipt_id=payload['receipt_id'],
+                        employee_id=payload['employee_id'],reviewed_receipt_digest=payload['receipt_digest'],reviewed_comparison_digest=payload['comparison_digest'],
+                        predecessor_id=payload['predecessor_id'],reason=reason,human_confirmed=True,**selection,**auth)
+                    # Recheck applicability even on exact historical retry.
+                    from app.leave_reconciliation_approval import review_approval
+                    stale=False;prepared=None
+                    try:
+                        _,prepared,existing,_=review_approval(db,receipt_id=receipt.id,employee_id=receipt.employee_id,**selection,**auth)
+                        stale=existing is None
+                    except (ValueError,TypeError,KeyError):stale=True
+                    response=approval_render(request,actor,receipt,employee,selection,prepared=prepared,approval=row,stale=stale)
+                    db.commit();return response
+            return await run_in_threadpool(transaction)
+        except (BadSignature,ValueError,TypeError,KeyError,SQLAlchemyError) as exc:fail(exc)
     return router

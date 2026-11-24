@@ -247,3 +247,6 @@ Instinct added independently callable day-only leave calculations, explicit carr
 - التوقيتات: كل الطوابع الزمنية تُخزَّن الآن كقيم UTC واعية المنطقة الزمنية، وحدود تواريخ التقارير وسجل المراجعة ومهلة الإجازة المخططة تُفسَّر صراحةً بتوقيت القاهرة (شتاءً UTC+2 وصيفًا UTC+3) فلا تتأثر بإعداد المنطقة الزمنية لجلسة قاعدة البيانات. لم تُعدَّل أي سجلات قديمة.
 - قائمة اختبار القبول: بنود جديدة للقفل بعد محاولتين وصفحة كلمة المرور وسجل المراجعة وبحث الموظفين وترقيم الطلبات وصور EXIF وقسيمة المرتب وتنبيهات لوحة التحكم وفحص المنطقة الزمنية التشخيصي.
 - كل اختبارات النظام (426) ناجحة بعد التغييرات.
+
+##2026-11-24 HR reconciliation approval only
+- Developed by Instinct: exact immutable HR approval/correction and audit, current-source review, reason/confirmation and role/session/restore gates. No posting, balance release or financial activation.
