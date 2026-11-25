@@ -1,3 +1,7 @@
+# Historical project ledger notice
+
+Consult and update [the current project decision notebook](PROJECT_DECISIONS_NOTEBOOK_AR.md) before work. The material below preserves earlier snapshots, not current authority or acceptance. Source gaps and partial amendments remain explicit in the notebook.
+
 > Historical record below. Current branch, candidate identities, test outcomes and open work are in [CURRENT_SOURCE_STATUS.md](CURRENT_SOURCE_STATUS.md), updated25November2026. Old HEAD/readiness/pending-publication statements below describe their original checkpoint, not current state. No history has been removed.
 
 # دفتر التعليمات والخطة وسجل التنفيذ — M.Y. Business Hotel HR & Payroll V2.2

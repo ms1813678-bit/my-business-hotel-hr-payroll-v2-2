@@ -1,3 +1,9 @@
+## 2026-11-25, Instinct: maintained project decision notebook
+
+- Preserve the corrected Arabic decision register, seven-group remaining-work index, full91-item history and timeline in one canonical project document, with source gaps and acceptance limits intact.
+- Record ongoing owner-requested maintenance and partial-supersession rules. Correct recovery-code chat prohibition, reject negative manual opening balances and retain the isolated UID1687 qualification boundary. Historical access descriptions do not settle the unresolved field-policy matrix.
+- Point README, current status and historical ledger to the notebook. Documentation only, no permissions, schema, runtime or hotel-device acceptance changes.
+
 ## 2026-11-25 - Local model JSON request contract by Instinct
 
 ## 2026-11-25, Instinct: shared operator leave recording and overlapping-create protection

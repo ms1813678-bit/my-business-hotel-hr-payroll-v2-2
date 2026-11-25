@@ -6,7 +6,9 @@ A local-first HR and payroll application for Windows 10/11, using PostgreSQL on 
 
 ## Current implementation status
 
-Read [the current source/status index](docs/CURRENT_SOURCE_STATUS.md) before using the older setup, architecture or handoff text below. Development is on `ui-overhaul`; daily overtime is still an unpublished draft. Windows installation and hotel-device acceptance are not complete.
+Consult and maintain [the current project decision notebook](docs/PROJECT_DECISIONS_NOTEBOOK_AR.md) before project work or policy questions. It records original-decision references, partial amendments, remaining work and historical limits. Historical task lists do not grant permissions or establish current acceptance.
+
+Read [the current source/status index](docs/CURRENT_SOURCE_STATUS.md) before using the older setup, architecture or handoff text below. Development is on `ui-overhaul`; daily overtime has a bounded published implementation; its remaining limits are recorded in the current index. Windows installation and hotel-device acceptance are not complete.
 
 ## Product commitments
 
@@ -38,7 +40,7 @@ Read [the current source/status index](docs/CURRENT_SOURCE_STATUS.md) before usi
 
 ## Development status
 
-**Project control:** [`docs/MASTER_PROJECT_NOTE_V2_2.md`](docs/MASTER_PROJECT_NOTE_V2_2.md) is the single source of truth for instructions, phases, decisions, completed work, test evidence, blockers, and the next task. Read it before every task and update it after every task. Do not use chat history as the project ledger.
+**Project control:** [`docs/PROJECT_DECISIONS_NOTEBOOK_AR.md`](docs/PROJECT_DECISIONS_NOTEBOOK_AR.md) is the maintained decision and work index. Consult original owner messages for authority and unresolved source gaps. [`docs/MASTER_PROJECT_NOTE_V2_2.md`](docs/MASTER_PROJECT_NOTE_V2_2.md) retains historical detail; it does not override the current notebook or current source evidence.
 
 **Verified CI baseline:** Commit `83d1079d2edbdf4639a0c5bfcd9f42d731e9a752` passed two GitHub Actions runs: [44886369474](https://github.com/ms1813678-bit/my-business-hotel-hr-payroll-v2-2/actions/runs/44886369474) and [44886430837](https://github.com/ms1813678-bit/my-business-hotel-hr-payroll-v2-2/actions/runs/44886430837). Linux + PostgreSQL 16, Windows / Python 3.11, and source ZIP packaging completed successfully. The source artifact (`14700078216`) was downloaded and inspected for archive integrity, checksum, and sensitive/local files.
 

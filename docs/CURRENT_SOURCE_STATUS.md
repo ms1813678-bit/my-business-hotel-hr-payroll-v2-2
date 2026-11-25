@@ -4,6 +4,8 @@ Instinct, 25 November 2026, 16:37 Africa/Cairo. This page corrects the stale ope
 
 ## Source of truth
 
+- Consult and maintain [the project decision notebook](PROJECT_DECISIONS_NOTEBOOK_AR.md). Preserved historical implementation reports are not new user decisions or current technical acceptance. Three notebook corrections were applied at16:59 on25November: recovery codes never in chat, negative manual opening balances rejected, UID1687 thirteen isolated PG model tests with migration/DB immutability still absent.
+
 - Repository: [my-business-hotel-hr-payroll-v2-2](https://github.com/ms1813678-bit/my-business-hotel-hr-payroll-v2-2).
 - Development branch: `ui-overhaul`. `main` is not the development target. The owner controls merging.
 - Published baseline before this monthly-leave checkpoint: `0c16238161e6b022e1b40c5eae21a506618fa93f` (strict local-model JSON request format), after `42d4e982f31599721458ea15abcb695e47721046` (recovery fixture seam). This document is part of the subsequent monthly-leave commit. Check the live `ui-overhaul` HEAD and working diff before further work. A path existing is not proof that it is the intended candidate.
