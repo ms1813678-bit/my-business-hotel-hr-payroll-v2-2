@@ -98,3 +98,55 @@ def test_manual_cash_out_cannot_be_passed_off_as_annual_source_year_and_blocks_a
                available_from=date(2026, 1, 1), available_through=date(2026, 4, 30), reason='Synthetic')
     with pytest.raises(ValueError):
         review_annual_settlement_apply(db, **sel)   # and never pays the entitlement twice
+
+
+@pytest.mark.parametrize('prior_year', [{'hire_date': FULL, 'used_annual': 6}], indirect=True)
+def test_prior_cash_guard_ignores_only_verified_annual_cash_of_another_source_year(prior_year):
+    """Year 2 cannot be built end to end: a 2026 source needs the held year transition (source-year baseline refusal).
+    So the guard predicate is proven on a real 2025 settlement receipt, with 2026 as the other year."""
+    from app.leave_annual_settlement_store import _blocking_prior_cash
+    db, employee, kinds, item, auth = settle(prior_year)
+    e, a = employee.id, kinds['A']
+    assert _blocking_prior_cash(db, e, a, 2025)            # same source year: still blocks double cash
+    assert not _blocking_prior_cash(db, e, a, 2026)        # other source year, only annual receipt: allowed
+    manual = dict(employee_id=e, leave_type_id=a, days=Fraction(1, 2), payroll_item_id=item.id,
+                  evaluated_on=date(2026, 1, 5), **auth)
+    out = review_cash_out(db, **manual)
+    apply_cash_out(db, operation_id='e' * 64, reviewed_digest=out['reviewed_digest'], human_confirmed=True, reason='Synthetic manual', **manual)
+    assert _blocking_prior_cash(db, e, a, 2026)            # manual cash always blocks
+
+
+@pytest.mark.parametrize('prior_year',[{'hire_date':FULL,'used_annual':6}],indirect=True)
+@pytest.mark.parametrize('mode',['audit','annual_digest','cash_digest','wrong_year'])
+def test_other_year_guard_requires_canonical_annual_proof(prior_year,mode):
+    from app.leave_annual_settlement_store import _blocking_prior_cash
+    from app.models import AuditLog
+    db,employee,kinds,item,auth=settle(prior_year)
+    assert not _blocking_prior_cash(db,employee.id,kinds['A'],2026)
+    tables=['leave_annual_settlements','leave_cash_outs','audit_logs']
+    for t in tables:db.execute(text(f'ALTER TABLE {t} DISABLE TRIGGER USER'))
+    if mode=='audit':db.execute(text("DELETE FROM audit_logs WHERE action='leave_annual_settled'"))
+    if mode=='annual_digest':db.execute(text("UPDATE leave_annual_settlements SET result_digest=repeat('0',64)"))
+    if mode=='cash_digest':db.execute(text("UPDATE leave_cash_outs SET source_digest=repeat('0',64)"))
+    if mode=='wrong_year':db.execute(text("UPDATE leave_annual_settlements SET source_year=2024"))
+    if mode=='wrong_employee':db.execute(text("UPDATE leave_annual_settlements SET employee_id=employee_id+100000"))
+    for t in tables:db.execute(text(f'ALTER TABLE {t} ENABLE TRIGGER USER'))
+    db.expire_all()
+    with pytest.raises(ValueError):_blocking_prior_cash(db,employee.id,kinds['A'],2026)
+
+
+@pytest.mark.parametrize('prior_year',[{'hire_date':FULL,'used_annual':6}],indirect=True)
+def test_actual_second_year_is_refused_until_reviewed_transition_exists(prior_year):
+    from app.leave_month_earning import review_month_earning
+    db,employee,kinds,args=prior_year
+    auth={k:args[k] for k in ('actor_id','session_id','session_version','expected_epoch')}
+    with pytest.raises(ValueError,match='Current calendar baseline'):
+        review_month_earning(db,selection_id=args['selection_id'],month_start=date(2026,1,1),
+            evaluated_on=date(2026,2,1),current_insurance_years={},age_evaluation_dates={},**auth)
+
+
+@pytest.mark.parametrize('prior_year',[{'hire_date':FULL,'used_annual':6}],indirect=True)
+def test_later_annual_cash_is_not_treated_as_prior_cash(prior_year):
+    from app.leave_annual_settlement_store import _blocking_prior_cash
+    db,employee,kinds,item,auth=settle(prior_year)
+    assert _blocking_prior_cash(db,employee.id,kinds['A'],2024)

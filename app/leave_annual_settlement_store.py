@@ -21,10 +21,7 @@ def _review(db, *, source_selection, full_annual_entitlement, payroll_item_id,
     annual = review_annual_settlement(db, source_selection=source_selection,
         full_annual_entitlement=full_annual_entitlement, other_half_action='carry')
     plan = annual['plan']
-    # The source year amount ignores later cash debits (they carry the evaluation year), so an earlier manual or
-    # annual cash-out of the same employee and leave type could be paid again. Refuse until reconciled.
-    if db.scalar(select(LeaveCashOut.id).where(LeaveCashOut.employee_id == plan['employee_id'],
-            LeaveCashOut.leave_type_id == plan['leave_type_id'])):
+    if _blocking_prior_cash(db, plan['employee_id'], plan['leave_type_id'], source_selection['source_year']):
         raise ValueError('Prior cash-out for this employee and leave type requires separate reviewed reconciliation.')
     if not isinstance(reason, str) or not 1 <= len(reason.strip()) <= 1000:
         raise ValueError('Explicit bounded annual reason required.')
@@ -139,3 +136,56 @@ def apply_annual_settlement(db, *, operation_id, reviewed_digest, human_confirme
             entity_id=operation_id,old_value=reviewed_digest,new_value=row.result_json,reason=selection['reason'].strip()))
         db.flush()
     return result
+
+
+def verify_annual_cash_allocation(db, annual, cash):
+    """Canonical recorded allocation proof, not live-year re-earning or spending permission."""
+    from app.models import LeaveBalanceTransaction
+    if (annual.cash_out_id != cash.id or annual.id != cash.id
+            or annual.employee_id != cash.employee_id or annual.leave_type_id != cash.leave_type_id
+            or json.loads(cash.source_json).get('source_year') != annual.source_year):
+        raise ValueError('Annual source-year cash allocation identity changed.')
+    row = db.get(LeaveBalanceTransaction,cash.ledger_id,populate_existing=True)
+    if row is None:
+        raise ValueError('Annual cash allocation ledger missing.')
+    source_year = annual.source_year
+    result = _verify_cash_receipt(db, cash)
+    from app.leave_month_earning import digest as receipt_digest
+    from app.models import AuditLog
+    recorded = json.loads(annual.result_json)
+    request = json.loads(annual.request_json)
+    audits = db.scalars(select(AuditLog).where(AuditLog.action == 'leave_annual_settled',
+        AuditLog.entity_type == 'leave_annual_settlement', AuditLog.entity_id == annual.id)).all()
+    if (annual.result_digest != receipt_digest(recorded)
+            or annual.request_digest != receipt_digest(request)
+            or annual.source_digest != receipt_digest(recorded['plan'])
+            or recorded['cash_result'] != result
+            or recorded['plan']['annual']['employee_id'] != annual.employee_id
+            or recorded['plan']['annual']['leave_type_id'] != annual.leave_type_id
+            or recorded['plan']['cash']['employee_id'] != cash.employee_id
+            or recorded['plan']['cash']['leave_type_id'] != cash.leave_type_id
+            or request['source_selection']['employee_id'] != annual.employee_id
+            or request['source_selection']['leave_type_id'] != annual.leave_type_id
+            or request['source_selection']['source_year'] != annual.source_year
+            or recorded['carry_days'] != recorded['plan']['annual']['carried_days']
+            or recorded['cash_payment_committed'] is not False
+            or recorded['carry_duplicate_credit'] != '0/1'
+            or recorded['plan']['annual']['source_year'] != source_year
+            or recorded['plan']['annual']['cash_days'] != cash.days_canonical
+            or recorded['plan']['cash']['source_year'] != source_year
+            or len(audits) != 1 or audits[0].new_value != annual.result_json
+            or audits[0].old_value != annual.source_digest
+            or audits[0].actor != row.created_by or audits[0].reason != row.reason):
+        raise ValueError('Annual source-year cash allocation evidence changed.')
+    _verify_plan_rule(db, recorded['plan']['annual'], annual)
+    return recorded
+
+
+def _blocking_prior_cash(db, employee_id, leave_type_id, source_year):
+    for cash in db.scalars(select(LeaveCashOut).where(LeaveCashOut.employee_id==employee_id,
+            LeaveCashOut.leave_type_id==leave_type_id)).all():
+        annual = db.get(LeaveAnnualSettlement,cash.id,populate_existing=True)
+        if annual is None or annual.source_year >= source_year:
+            return cash.id
+        verify_annual_cash_allocation(db,annual,cash)
+    return None

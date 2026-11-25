@@ -92,26 +92,8 @@ def review_carry_source(db, *, employee_id, leave_type_id, source_year, reviewed
                     or annual.source_year != source_year
                     or json.loads(cash.source_json).get('source_year') != source_year):
                 raise ValueError('Cash debit lacks reviewed annual source-year allocation provenance.')
-            result = _verify_cash_receipt(db, cash)
-            from app.leave_month_earning import digest as receipt_digest
-            from app.models import AuditLog
-            recorded = json.loads(annual.result_json)
-            request = json.loads(annual.request_json)
-            audits = db.scalars(select(AuditLog).where(AuditLog.action == 'leave_annual_settled',
-                AuditLog.entity_type == 'leave_annual_settlement', AuditLog.entity_id == annual.id)).all()
-            if (annual.result_digest != receipt_digest(recorded)
-                    or annual.request_digest != receipt_digest(request)
-                    or annual.source_digest != receipt_digest(recorded['plan'])
-                    or recorded['cash_result'] != result
-                    or recorded['plan']['annual']['source_year'] != source_year
-                    or recorded['plan']['annual']['cash_days'] != cash.days_canonical
-                    or recorded['plan']['cash']['source_year'] != source_year
-                    or len(audits) != 1 or audits[0].new_value != annual.result_json
-                    or audits[0].old_value != annual.source_digest
-                    or audits[0].actor != row.created_by or audits[0].reason != row.reason):
-                raise ValueError('Annual source-year cash allocation evidence changed.')
-            from app.leave_annual_settlement_store import _verify_plan_rule
-            _verify_plan_rule(db, recorded['plan']['annual'], annual)
+            from app.leave_annual_settlement_store import verify_annual_cash_allocation
+            verify_annual_cash_allocation(db, annual, cash)
             proven_ids.add(row.id)
     if any(row.id not in proven_ids for row in selected):
         raise ValueError('Year-tagged ledger lacks verified monthly receipt provenance.')
