@@ -1,0 +1,88 @@
+name: Reviewed ordinary AppContainer1116 measurement
+on:
+  push:
+    branches: [ui-overhaul]
+    paths: [.github/workflows/ordinary-ac1116.yml]
+permissions:
+  contents: read
+jobs:
+  ordinary-ac1116:
+    runs-on: windows-2025
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Verify exact reviewed archive and materialize committed bytes
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $repo=$pwd.Path
+          $env:HONY1116_REPO=$repo
+          $env:HONY1116_OUT=Join-Path $env:RUNNER_TEMP 'HOnYOrdinaryAC1116-input'
+          if(Test-Path -LiteralPath $env:HONY1116_OUT){throw 'Input collision preserved'}
+          $trusted=(& py -3.11 -c 'import sys;print(sys.executable)').Trim()
+          if($LASTEXITCODE -ne 0){throw 'Preinstalled trusted Python3.11 missing'}
+          $env:HONY1116_PYTHON=$trusted
+          @'
+          import hashlib,io,json,os,pathlib,subprocess,tarfile
+          repo=pathlib.Path(os.environ['HONY1116_REPO']);out=pathlib.Path(os.environ['HONY1116_OUT'])
+          archive=subprocess.check_output(['git','cat-file','blob','HEAD:verification/ordinary_ac1116/REVIEWED.tar.gz'])
+          if hashlib.sha256(archive).hexdigest()!='a09df511f1b1fdc1267b87d4c5a017cb0c3408aecbfddd89abc8eef517cd4682':raise SystemExit('original reviewed archive pin')
+          with tarfile.open(fileobj=io.BytesIO(archive),mode='r:gz') as t:
+              members=t.getmembers()
+              if len(members)!=15 or any(not m.isfile() or pathlib.PurePosixPath(m.name).parts[0]!='ordinary-ac1116' or len(pathlib.PurePosixPath(m.name).parts)!=2 or '..' in pathlib.PurePosixPath(m.name).parts for m in members):raise SystemExit('fixed archive layout')
+              if len({m.name.casefold() for m in members})!=15:raise SystemExit('duplicate paths')
+              data={pathlib.PurePosixPath(m.name).name:t.extractfile(m).read() for m in members}
+          pins=json.loads(data['SHA256.json'])
+          if set(data)!=set(pins)|{'SHA256.json'}:raise SystemExit('exact reviewed file set')
+          for name,pin in pins.items():
+              if hashlib.sha256(data[name]).hexdigest()!=pin:raise SystemExit('reviewed source hash')
+          out.mkdir()
+          for name,raw in data.items():(out/name).write_bytes(raw)
+          # Git bytes avoid checkout EOL changes. No source altered from reviewed package.
+          for path,pin in json.loads(data['PRODUCT-SHA256.json']).items():
+              raw=subprocess.check_output(['git','cat-file','blob','90f970b81994252ed3bef51ca9f322bd00fac291:'+path])
+              if hashlib.sha256(raw).hexdigest()!=pin:raise SystemExit('product90f970b pin')
+              (repo/path).write_bytes(raw)
+          print('ORIGINAL_REVIEWED1116_ARCHIVE_15FILES_BYTE_VERIFIED',flush=True)
+          '@ | & $trusted -
+          if($LASTEXITCODE -ne 0){throw 'Source verification failed before fixture'}
+          "HONY1116_REPO=$repo"|Out-File $env:GITHUB_ENV -Append -Encoding utf8
+          "HONY1116_OUT=$env:HONY1116_OUT"|Out-File $env:GITHUB_ENV -Append -Encoding utf8
+          "HONY1116_PYTHON=$trusted"|Out-File $env:GITHUB_ENV -Append -Encoding utf8
+      - name: Isolated trusted runner dependency, pinned upstream wheel
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $venv=Join-Path $env:HONY1116_OUT 'trusted-venv'
+          & $env:HONY1116_PYTHON -I -m venv $venv
+          if($LASTEXITCODE -ne 0){throw 'Fresh trusted fixture venv failed'}
+          $python=Join-Path $venv 'Scripts/python.exe'
+          $wheel=Join-Path $env:HONY1116_OUT 'pywin32-311-cp311-cp311-win_amd64.whl'
+          Invoke-WebRequest -Uri 'https://files.pythonhosted.org/packages/51/8f/9bb81dd5bb77d22243d33c8397f09377056d5c687aa6d4042bea7fbf8364/pywin32-311-cp311-cp311-win_amd64.whl' -OutFile $wheel
+          if((Get-FileHash -LiteralPath $wheel -Algorithm SHA256).Hash.ToLower() -ne '3ce80b34b22b17ccbd937a6e78e7225d80c52f5ab9940fe0506a1a16f3dab503'){throw 'Exact pywin32pin failed'}
+          & $python -I -m pip install --no-index --no-deps --disable-pip-version-check $wheel
+          if($LASTEXITCODE -ne 0){throw 'Trusted pywin32 setup failed before profile'}
+          "HONY1116_FIXTURE_PYTHON=$python"|Out-File $env:GITHUB_ENV -Append -Encoding utf8
+      - name: ONE original reviewed ordinaryAC measurement
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          Write-Output ('ActualOS='+[Environment]::OSVersion.VersionString)
+          $vs=(& "${env:ProgramFiles(x86)}/Microsoft Visual Studio/Installer/vswhere.exe" -latest -property installationPath)
+          if(-not $vs){throw 'Preinstalled MSVC missing'}
+          Import-Module (Join-Path $vs 'Common7/Tools/Microsoft.VisualStudio.DevShell.dll')
+          Enter-VsDevShell -VsInstallPath $vs -SkipAutomaticLocation -DevCmdArguments '-arch=x64 -host_arch=x64'
+          # Reviewed source owns exact cl command /nologo /W4 /O2 /DUNICODE /D_UNICODE,
+          # userenv.lib+advapi32.lib. No debug/loader flags and no policy/limit override.
+          & "$env:HONY1116_OUT/qualify.ps1" -ProductRoot $env:HONY1116_REPO -TrustedPython $env:HONY1116_FIXTURE_PYTHON *>&1 | Tee-Object -FilePath "$env:HONY1116_OUT/attempt.log"
+          if($LASTEXITCODE -ne 0){throw 'One reviewed candidate refused; no retry or forced cleanup'}
+      - name: Retain non-secret finite attempt log only
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: ordinary-ac1116-log
+          path: ${{ runner.temp }}/HOnYOrdinaryAC1116-input/attempt.log
+          if-no-files-found: warn
+          retention-days: 7
