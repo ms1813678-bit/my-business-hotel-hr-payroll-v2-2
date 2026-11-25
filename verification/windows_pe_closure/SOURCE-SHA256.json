@@ -1,0 +1,12 @@
+{
+  "ACQUISITION-LOCK.json": "3e3780d78e436454a2e14cff19866c75daf2c83ac0bc0dca7e10cc3f2036fc53",
+  "EXPECTED-DIRECT-IMPORTS.json": "792c2385bcc4ab6fe18d8866e7dd4d89a3123e064f4a47541295356c9321d7cf",
+  "PEER-FINDINGS.md": "ef0214d2ebd65064eb660424f45bdce3c88f74a2044fb146d19d96c0f62697cd",
+  "README.md": "267608e320ed2247336663d13f4e7377c3701453de03beaef2b280f16f02de06",
+  "capture_static.py": "e312e82ac73d2a4d1c79806c3210ae2e2ca2083ed273ef3c9d52c316d7c20672",
+  "peinspect/__init__.py": "98a251c57fe22c673665a19589f43d14beec62417db97bbd79ce193d6c051812",
+  "peinspect/__main__.py": "4b449de6707723921df6894f6150730e5ff5126fd731f2a1ec474a3deb8d8992",
+  "peinspect/apiset.py": "4be20021582e8765f39acb7fb8b52d954b0103665540b3216d0d551eb64717f2",
+  "peinspect/closure.py": "bf20af9fce46ec6ee6728f1bd71e3402c1767cc8405c89a1647c8aeb510dc572",
+  "peinspect/pe.py": "98b7a3b0ced2b04c9888da90449c33850814310ccc2088fcce8e0deea6395c5a"
+}

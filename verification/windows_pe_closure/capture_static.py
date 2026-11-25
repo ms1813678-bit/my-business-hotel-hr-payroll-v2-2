@@ -1,0 +1,72 @@
+"""Read-only static closure diagnostic, no analyzed-binary execution or loader probes."""
+import hashlib,json,os,pathlib,shutil,sys,urllib.request,urllib.parse,zipfile
+from peinspect.pe import parse_pe,read_capped
+from peinspect.closure import run_closure,is_apiset_name,forwarder_target
+HERE=pathlib.Path(__file__).resolve().parent
+
+def main():
+    if sys.platform!='win32' or os.environ.get('GITHUB_ACTIONS')!='true':raise RuntimeError('disposable Windows CI only')
+    root=pathlib.Path(os.environ['RUNNER_TEMP'])/'hony-pe-closure-static'
+    if root.exists():raise RuntimeError('fresh static fixture root required')
+    root.mkdir();runtime=root/'runtime';runtime.mkdir();snapshot=root/'system-snapshot';snapshot.mkdir()
+    output=pathlib.Path(os.environ['RUNNER_TEMP'])/'hony-pe-closure-evidence';output.mkdir(exist_ok=False)
+    lock=json.loads((HERE/'ACQUISITION-LOCK.json').read_text())['python']
+    class SameSupplier(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self,req,fp,code,msg,headers,newurl):
+            if urllib.parse.urlparse(newurl).scheme!='https' or urllib.parse.urlparse(newurl).hostname!='www.python.org':raise RuntimeError('supplier redirect refused')
+            return super().redirect_request(req,fp,code,msg,headers,newurl)
+    try:
+        with urllib.request.build_opener(SameSupplier).open(lock['url'],timeout=45) as response:data=response.read(30_000_001)
+        if len(data)>30_000_000 or hashlib.sha256(data).hexdigest()!=lock['sha256']:raise RuntimeError('locked runtime archive hash refused')
+        import io
+        with zipfile.ZipFile(io.BytesIO(data)) as z:
+            if len(z.infolist())>300 or sum(x.file_size for x in z.infolist())>150_000_000:raise RuntimeError('archive bounds')
+            for info in z.infolist():
+                p=pathlib.PurePosixPath(info.filename)
+                if p.is_absolute() or '..' in p.parts or len(p.parts)!=1 or ':' in info.filename or '\\' in info.filename:raise RuntimeError('archive path refused')
+                (runtime/p.name).write_bytes(z.read(info))
+        expected=json.loads((HERE/'EXPECTED-DIRECT-IMPORTS.json').read_text())
+        for name,want in expected['members'].items():
+            raw=read_capped(str(runtime/name));image=parse_pe(raw)
+            if hashlib.sha256(raw).hexdigest()!=want['sha256'] or [m.dll_name for m in image.imports]!=want['imports']:raise RuntimeError('actual pinned direct-import regression')
+        # Enumerate names once, then copy ONLY requested static candidates from
+        # exact System32 into an owned snapshot. Never call LoadLibrary, resolve
+        # via PATH, capture registry/token state or claim actual loader choice.
+        system=pathlib.Path(os.environ['SystemRoot'])/'System32';index={}
+        for p in system.iterdir():
+            if p.suffix.lower()=='.dll' and p.is_file() and not p.is_symlink():index.setdefault(p.name.lower(),[]).append(p)
+        queue=sorted([p for p in runtime.iterdir() if p.suffix.lower() in ('.exe','.dll','.pyd')]);seen=set();capture=[];parse_errors=[];total=0
+        while queue:
+            p=queue.pop(0)
+            if str(p).lower() in seen:continue
+            seen.add(str(p).lower())
+            if len(seen)>512:raise RuntimeError('static module-count bound')
+            try:image=parse_pe(read_capped(str(p)))
+            except Exception as exc:
+                parse_errors.append(dict(file=p.name,error_type=type(exc).__name__,reason=str(exc)));continue
+            names=[m.dll_name for m in image.imports+image.delay_imports]
+            names += [n for e in image.exports if e.forwarder for n in [forwarder_target(e.forwarder)] if n]
+            for name in sorted(set(names),key=str.lower):
+                if pathlib.PureWindowsPath(name).name!=name or '/' in name or '\\' in name:raise RuntimeError('dependency name not basename')
+                if is_apiset_name(name) or any(q.name.lower()==name.lower() for q in runtime.iterdir()) or (snapshot/name.lower()).exists():continue
+                candidates=index.get(name.lower(),[])
+                if len(candidates)!=1:
+                    capture.append(dict(requested=name,status='not-present' if not candidates else 'ambiguous'));continue
+                source=candidates[0];raw=read_capped(str(source));total+=len(raw)
+                if total>512*1024*1024:raise RuntimeError('snapshot total byte bound')
+                target=snapshot/name.lower();target.write_bytes(raw)
+                if hashlib.sha256(target.read_bytes()).digest()!=hashlib.sha256(raw).digest():raise RuntimeError('snapshot copy mismatch')
+                capture.append(dict(requested=name,status='candidate-snapshot',source=str(source),sha256=hashlib.sha256(raw).hexdigest(),size=len(raw)))
+                queue.append(target)
+        report=run_closure([str(runtime/'python.exe')],[dict(label='locked-runtime',path=str(runtime)),dict(label='system32-requested-snapshot',path=str(snapshot))])
+        report['capture']=dict(runtime_archive_sha256=lock['sha256'],os_version=sys.getwindowsversion()._asdict() if hasattr(sys.getwindowsversion(),'_asdict') else str(sys.getwindowsversion()),system32_candidates=capture,parse_errors=parse_errors,notice='Static requested-file snapshot only. No API-set mapping captured; no actual loader resolution, restricted access or network claim.')
+        (output/'static-closure.json').write_text(json.dumps(report,indent=2)+'\n')
+        print('ACTUAL_PINNED_PE_DIRECT_IMPORTS_PASS',flush=True)
+        print('STATIC_CLOSURE_SUMMARY',json.dumps(report['summary']),flush=True)
+        print('STATIC_ONLY_C0000022_CAUSE_NETWORK_NOT_ESTABLISHED',flush=True)
+    finally:
+        shutil.rmtree(root)
+        if root.exists():raise RuntimeError('owned static root cleanup unconfirmed')
+        print('OWNED_STATIC_ANALYSIS_ROOT_ABSENT_PASS',flush=True)
+
+if __name__=='__main__':main()

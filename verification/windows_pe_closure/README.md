@@ -1,0 +1,9 @@
+# Read-only PE closure diagnostic
+
+Separate static diagnostic, not a parser-launch or security-boundary variant. Uses reviewed repaired peer inspector source unchanged. Original0627 was rejected; repair verified against Microsoft PE32+ layout and all4actual pinned runtime direct-import lists (8/19/6/5) before this integration. Peer79synthetic tests and13manifest entries independently pass. No analyzed binary loaded/executed.
+
+Windows2022 diagnostic downloads ONLY the previously hash-pinned Python3.14.10 embeddable archive, verifies hash and direct-import regressions, reads dependency candidates only from exact System32 into owned bounded snapshot, and runs static closure. API-set remains unresolved. Forwarder edges are explicitly conservative over-approximation, not actual required load edges. System32 snapshot entries are candidates, never called OS loader selections. Capture records name/path/hash/bytes/parse errors. No machine/registry/token/IFEO/service/trust/network-policy changes; only owned temp files, removed in finally, JSON evidence retained.
+
+Scope limits: no proof of restricted-token readability, successful loading, C0000022cause or network denial. A resolved closure can coexist with failure. Inspector strictness may refuse legitimate alternate images; retain exact parse errors rather than silently relax. Index is nonrecursive; bounded snapshots are controlled fixture data, not mutable or attacker-supplied roots. Public indexing is not hardened for adversarial changing directory trees. Alias exports/multiple names per ordinal are conservatively refused by current peer parser; a refusal is not a missing dependency.
+
+Follow-up depends on actual result: distinguish unresolved API sets and file presence from a confirmed rejected loader object. Do not introduce another launcher/protocol/IFEO variant based on static closure alone.

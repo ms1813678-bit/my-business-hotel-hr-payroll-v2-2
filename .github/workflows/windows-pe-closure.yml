@@ -1,0 +1,39 @@
+name: Read-only Windows PE closure diagnostic
+on:
+  push:
+    branches: [ui-overhaul]
+    paths: ['verification/windows_pe_closure/**', '.github/workflows/windows-pe-closure.yml']
+permissions:
+  contents: read
+jobs:
+  static-closure:
+    runs-on: windows-2022
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Inspect pinned bytes and requested system snapshots without loading them
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          @'
+          import hashlib,json,pathlib,subprocess,sys,runpy
+          root=pathlib.Path('verification/windows_pe_closure')
+          for name,want in json.loads((root/'SOURCE-SHA256.json').read_text()).items():
+              path=root/name
+              blob=subprocess.check_output(['git','cat-file','blob','HEAD:'+path.as_posix()])
+              if hashlib.sha256(blob).hexdigest()!=want:raise SystemExit('Committed static inspector hash mismatch')
+              path.write_bytes(blob)
+          sys.path.insert(0,str(root.resolve()))
+          runpy.run_path(str(root/'capture_static.py'),run_name='__main__')
+          '@ | py -3.11 -I -
+          if($LASTEXITCODE -ne 0){throw 'Static closure diagnostic refused'}
+      - name: Preserve JSON evidence only
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: static-pe-closure-evidence
+          path: ${{ runner.temp }}/hony-pe-closure-evidence/
+          if-no-files-found: error
+          retention-days: 1
