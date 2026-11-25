@@ -54,6 +54,9 @@ _REASONS: dict[str, tuple] = {
     "The employee must have a positive basic salary.": ("يجب أن يكون للموظف راتب أساسي أكبر من صفر.", None, "员工的基本工资必须大于零。"),
     "Invalid advance submission key.": ("مفتاح تقديم السلفة غير صالح.", None, "预支提交标识无效。"),
     "The previous advance submission no longer exists.": ("طلب السلفة السابق لم يعد موجودًا.", None, "之前的预支提交已不存在。"),
+    "This submission key was already used for a different advance request.": (
+        "تم استخدام مفتاح التقديم هذا مسبقًا لطلب سلفة مختلف؛ لم يتم تسجيل طلب جديد.", None,
+        "此提交标识已用于另一笔不同的预支申请；未记录新的申请。"),
     "The previous advance submission record is invalid.": ("سجل طلب السلفة السابق غير صالح.", None, "之前的预支提交记录无效。"),
     "Only a pending advance can be approved.": ("لا يمكن اعتماد إلا سلفة قيد الانتظار.", None, "只有待处理的预支才能批准。"),
     "The monthly advance limit would be exceeded.": ("سيتم تجاوز الحد الشهري للسلف.", None, "将超出每月预支上限。"),
