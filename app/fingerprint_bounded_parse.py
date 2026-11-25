@@ -12,6 +12,18 @@ from app.fingerprint_evidence import FingerprintEvidence
 from app.attendance_import import normalize
 
 OUTPUT_BYTES=4_000_000
+PLATFORM_UNAVAILABLE_MESSAGE = 'قراءة ملف البصمة المعزولة غير متاحة على نظام التشغيل الحالي. لم يتم حفظ مراجعة أو تسجيل حضور. يلزم استكمال دعم ويندوز قبل المتابعة.'
+
+class FingerprintPlatformUnavailable(ValueError):
+    """No qualified isolation adapter exists for this platform."""
+
+def _operational_platform():
+    return os.name
+
+def require_operational_parser_platform():
+    if _operational_platform() != 'posix':
+        raise FingerprintPlatformUnavailable(PLATFORM_UNAVAILABLE_MESSAGE)
+
 
 
 def _decode_worker(raw,verified_aliases=None):
@@ -83,6 +95,7 @@ def parse_operational_fingerprint(payload,*,filename,verified_aliases):
     except UnicodeError as exc:raise ValueError('Valid UTF-8 parser inputs required.') from exc
     encoded=json.dumps(dict(payload=base64.b64encode(payload).decode('ascii'),filename=filename,aliases=verified_aliases),ensure_ascii=False,separators=(',',':')).encode()
     if len(encoded)>16_000_000:raise ValueError('Bounded parser payload required.')
+    require_operational_parser_platform()
     with tempfile.TemporaryFile() as output:
         try:
             result=subprocess.run([sys.executable,'-m','app.fingerprint_parse_worker'],input=encoded,

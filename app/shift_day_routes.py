@@ -18,6 +18,7 @@ from app.dependencies import require_system_admin
 from app.csrf import csrf_protect,get_csrf_token
 from app.shift_day_store import read_saved_shift_days
 from app.shift_evidence_source import preview_configured_shift_evidence
+from app.fingerprint_bounded_parse import FingerprintPlatformUnavailable,PLATFORM_UNAVAILABLE_MESSAGE
 
 
 def shift_day_router(templates):
@@ -91,6 +92,8 @@ def shift_day_router(templates):
                     response=render(request,actor,source,day,config(db,source),review=summary)
                     db.commit();return response
             return await run_in_threadpool(transaction)
+        except FingerprintPlatformUnavailable as exc:
+            raise HTTPException(status_code=503,detail=PLATFORM_UNAVAILABLE_MESSAGE,headers={'Cache-Control':'no-store'}) from exc
         except OperationalError as exc:
             if getattr(exc.orig,'sqlstate',None)=='55P03':
                 raise HTTPException(status_code=503,detail='Source or restore gate busy; retry from current review.',headers={'Cache-Control':'no-store','Retry-After':'3'}) from exc
@@ -111,6 +114,8 @@ def shift_day_router(templates):
                     response=render(request,actor,source,record.work_date,config(db,source),registered=record.id)
                     db.commit();return response
             return await run_in_threadpool(transaction)
+        except FingerprintPlatformUnavailable as exc:
+            raise HTTPException(status_code=503,detail=PLATFORM_UNAVAILABLE_MESSAGE,headers={'Cache-Control':'no-store'}) from exc
         except OperationalError as exc:
             if getattr(exc.orig,'sqlstate',None)=='55P03':
                 raise HTTPException(status_code=503,detail='Source or restore gate busy; retry from current review.',headers={'Cache-Control':'no-store','Retry-After':'3'}) from exc

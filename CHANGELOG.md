@@ -1,3 +1,8 @@
+## 2026-11-25 - Distinguish unqualified parser platform by Instinct
+
+- Valid operational parser requests on non-posix platforms now return a distinct platform-readiness refusal before subprocess launch. Boundary stays closed; no Windows parser adapter or fallback enabled. Review/month-review use existing no-store503 error response with Arabic/English/Chinese message.
+- Add input/platform/localization checks and migrated review zero-effect regression. Shared missing Windows adapter explains the broad48failures, not48independent defects. This improves diagnosis only; parser acceptance and Item1 remain open.
+
 ## 2026-11-25 - Qualify normal native landscape choice by Instinct
 
 - Disposable report fixture selects the exact native Landscape radio once and verifies selection before unchanged normal readiness/scroll captures, then Cancel. No product CSS change, physical print or persistent user-device setting. Previous portrait6employee content case remains qualified; landscape result awaits visual inspection.

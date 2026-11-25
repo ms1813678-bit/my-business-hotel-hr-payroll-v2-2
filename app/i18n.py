@@ -4781,3 +4781,7 @@ EN['مرجع الموافقة السابقة الكامل']='Full previous appro
 ZH['مرجع الموافقة السابقة الكامل']='完整的上次批准标识'
 EN['عرض الهدف والفرق بالقيم الدقيقة دون تقريب']='Show exact target and delta, without rounding'
 ZH['عرض الهدف والفرق بالقيم الدقيقة دون تقريب']='显示未经舍入的精确目标值和差额'
+
+# Operational readiness diagnosis, not malformed-source or budget failure.
+EN['قراءة ملف البصمة المعزولة غير متاحة على نظام التشغيل الحالي. لم يتم حفظ مراجعة أو تسجيل حضور. يلزم استكمال دعم ويندوز قبل المتابعة.']='Isolated fingerprint-file reading is unavailable on this operating system. No review or attendance registration was saved. Windows support must be completed before continuing.'
+ZH['قراءة ملف البصمة المعزولة غير متاحة على نظام التشغيل الحالي. لم يتم حفظ مراجعة أو تسجيل حضور. يلزم استكمال دعم ويندوز قبل المتابعة.']='当前操作系统尚不支持隔离读取考勤指纹文件。未保存复核或考勤记录。必须先完成 Windows 支持才能继续。'

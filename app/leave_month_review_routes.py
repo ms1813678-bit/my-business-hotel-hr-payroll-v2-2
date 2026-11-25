@@ -22,6 +22,7 @@ from app.department_manifest import decode_manifest
 from app.leave_policy_store import policy_read_guard
 from app.department_workbook_guard import bounded_workbook_operation
 from app.leave_synthetic_register import preview_synthetic_register,consume_synthetic_register
+from app.fingerprint_bounded_parse import FingerprintPlatformUnavailable,PLATFORM_UNAVAILABLE_MESSAGE
 
 
 def month_value(value):
@@ -94,6 +95,8 @@ def monthly_review_router(templates):
         policy_read_guard(db,**auth)
         return dict(month=month,rows=rows,truncated=truncated,global_count=global_count,closed=closed,review=None,saved=False)
     def failure(exc):
+        if isinstance(exc,FingerprintPlatformUnavailable):
+            raise HTTPException(status_code=503,detail=PLATFORM_UNAVAILABLE_MESSAGE,headers={'Cache-Control':'no-store'}) from exc
         code=getattr(getattr(exc,'orig',None),'sqlstate',None)
         raise HTTPException(status_code=503 if code=='55P03' else 400,detail='تعذرت مراجعة الشهر. راجع المصدر والفترة والجلسة.',
             headers={'Cache-Control':'no-store',**({'Retry-After':'3'} if code=='55P03' else {})}) from exc

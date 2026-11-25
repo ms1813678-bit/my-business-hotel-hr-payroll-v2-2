@@ -289,3 +289,16 @@ def test_exact_existing_month_batch_ids_or_refuse_changed_snapshot(review_contex
         record=consume_evidence_review(db,receipt_id=row.id,confirmed_request_digest=row.request_digest,**auth)
         assert record.program_import_batch_id==program and record.fingerprint_import_batch_id==fingerprint
         assert json.loads(record.review_notes)['receipt_id']==row.id
+
+
+def test_unsupported_parser_platform_has_zero_persisted_effects(review_context,monkeypatch):
+    from app import fingerprint_bounded_parse as parser
+    db,actor,auth,source,export,receipt,pattern,args=review_context
+    models=(AttendanceEvidenceReviewReceipt,AttendanceEvidenceConsumption,AttendanceDailyRecord,AuditLog,LeaveBalanceTransaction,PayrollItem)
+    before=tuple(count(db,model) for model in models)
+    monkeypatch.setattr(parser,'_operational_platform',lambda:'nt')
+    monkeypatch.setattr(parser.subprocess,'run',lambda *a,**k:pytest.fail('unsupported platform must not launch parser'))
+    with pytest.raises(parser.FingerprintPlatformUnavailable):
+        prepare_evidence_review(db,**args)
+    assert tuple(count(db,model) for model in models)==before
+    assert not db.new and not db.dirty and not db.deleted

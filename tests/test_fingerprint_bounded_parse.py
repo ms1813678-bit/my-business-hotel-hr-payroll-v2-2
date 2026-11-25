@@ -13,6 +13,8 @@ def test_actual_worker_preserves_global_duplicates_unknowns():
 
 
 def test_timeout_controlled_and_no_shell_no_inherited_secrets(monkeypatch):
+    # Isolate timeout/IPC behavior independent of platform-readiness gate.
+    monkeypatch.setattr('app.fingerprint_bounded_parse._operational_platform',lambda:'posix')
     def run(args,**kwargs):
         assert kwargs['timeout']==3 and 'shell' not in kwargs
         assert set(kwargs['env'])=={'PATH','PYTHONPATH','LANG'}
@@ -48,6 +50,7 @@ def test_nonexecutable_bad_worker_schema_refusal(raw):
 
 
 def test_real_wall_budget_kills_waits_and_cleanly_refuses(monkeypatch):
+    monkeypatch.setattr('app.fingerprint_bounded_parse._operational_platform',lambda:'posix')
     import app.fingerprint_bounded_parse as module
     real=subprocess.run
     seen={}
@@ -61,6 +64,7 @@ def test_real_wall_budget_kills_waits_and_cleanly_refuses(monkeypatch):
 
 
 def test_oversize_child_output_clean_refusal(monkeypatch):
+    monkeypatch.setattr('app.fingerprint_bounded_parse._operational_platform',lambda:'posix')
     import app.fingerprint_bounded_parse as module
     def run(args,**kwargs):
         kwargs['stdout'].seek(4_000_001);kwargs['stdout'].write(b'x')
@@ -84,3 +88,32 @@ def test_xlsx_datetime_numeric_blank_equivalence(value):
 @pytest.mark.parametrize('aliases',[{'SYN':True},{'SYN':2147483648},{'\ud800':1},{str(i)+'x'*1000:1 for i in range(600)}])
 def test_bounded_valid_alias_inputs(aliases):
     with pytest.raises(ValueError):parse_operational_fingerprint(b'synthetic',filename='synthetic.csv',verified_aliases=aliases)
+
+
+def test_platform_readiness_distinct_from_input_and_budget(monkeypatch):
+    import app.fingerprint_bounded_parse as module
+    monkeypatch.setattr(module,'_operational_platform',lambda:'nt')
+    monkeypatch.setattr(module.subprocess,'run',lambda *a,**k:pytest.fail('no worker launch on unsupported platform'))
+    with pytest.raises(module.FingerprintPlatformUnavailable):
+        parse_operational_fingerprint(b'synthetic',filename='synthetic.csv',verified_aliases={'SYN':1})
+    with pytest.raises(ValueError,match='Bounded original') as invalid:
+        parse_operational_fingerprint(b'',filename='synthetic.csv',verified_aliases={'SYN':1})
+    assert not isinstance(invalid.value,module.FingerprintPlatformUnavailable)
+
+
+@pytest.mark.parametrize('language',['ar','en','zh'])
+def test_platform_readiness_localized_existing_error_response(language):
+    import asyncio,json
+    from fastapi import HTTPException
+    from starlette.requests import Request
+    from app.main import authentication_exception_handler
+    from app.fingerprint_bounded_parse import PLATFORM_UNAVAILABLE_MESSAGE
+    from app.i18n import translate_text
+    request=Request({'type':'http','method':'POST','path':'/attendance/shift-evidence/synthetic/1/review','headers':[]})
+    request.state.language=language
+    response=asyncio.run(authentication_exception_handler(request,HTTPException(status_code=503,detail=PLATFORM_UNAVAILABLE_MESSAGE,headers={'Cache-Control':'no-store'})))
+    assert response.status_code==503 and response.headers['cache-control']=='no-store'
+    detail=json.loads(response.body)['detail']
+    assert detail==translate_text(PLATFORM_UNAVAILABLE_MESSAGE,language)
+    if language!='ar':assert detail!=PLATFORM_UNAVAILABLE_MESSAGE
+    assert 'Windows' in detail if language!='ar' else 'ويندوز' in detail
