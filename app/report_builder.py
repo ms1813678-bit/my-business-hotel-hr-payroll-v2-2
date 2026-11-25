@@ -895,7 +895,7 @@ def _build_leave_result(db: Session, selection: ReportSelection, start: date, en
         scope_label="", status_label="", employee_count=len({r.employee_id for r in records}),
         columns=columns,
         groups=_group_rows(rows, employee_map),
-        totals={"calendar_days": sum(clipped_days[r.id] for r in records), "charged_days": sum(float(charged_here[r.id] or 0) for r in records)},
+        totals={"calendar_days": sum(clipped_days[r.id] for r in records), "charged_days": (_monthly_leave_charged_total(charged_here[r.id] for r in records) if selection.monthly_leave_clipping else sum(float(charged_here[r.id] or 0) for r in records))},
         summary=summary,
         comparison=None,
         warnings=[],
@@ -1579,6 +1579,20 @@ def _monthly_chart_drawing(series: list[tuple[str, float]], bar_color_hex: str):
     return drawing
 
 
+def _monthly_leave_charged_total(values) -> Decimal:
+    """Exact report-only sum within the existing leave arithmetic resource envelope.
+
+    No float conversion or inherited Decimal context may change stored charge days.
+    Unsupported spans refuse rather than silently round. Custom totals are unchanged.
+    """
+    from app.leave_balance_rules import exact_day_difference
+
+    total = Decimal(0)
+    for value in values:
+        total = exact_day_difference(total, Decimal(value or 0).copy_negate())
+    return total
+
+
 def _monthly_leave_aggregate(db: Session, start: date, end: date, *, all_statuses: bool = False, language: str = "ar") -> list[dict]:
     """Leave totals per type, optionally split by status, without employee identity.
 
@@ -1612,7 +1626,7 @@ def _monthly_leave_aggregate(db: Session, start: date, end: date, *, all_statuse
         overlap_days = (min(record.end_date, end) - max(record.start_date, start)).days + 1
         bucket["days"] += Decimal(overlap_days)
         if record.start_date >= start:
-            bucket["charged"] += Decimal(record.charged_days or 0)
+            bucket["charged"] = (_monthly_leave_charged_total((bucket["charged"], record.charged_days)) if all_statuses else bucket["charged"] + Decimal(record.charged_days or 0))
     return sorted(buckets.values(), key=lambda row: (row["leave_type"], row.get("status", "")))
 
 

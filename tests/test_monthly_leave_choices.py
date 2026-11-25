@@ -123,3 +123,57 @@ def test_two_missing_types_remain_distinguishable(fixture_db):
  rows=_monthly_leave_aggregate(db,date(2026,10,1),date(2026,10,31),all_statuses=True,language='zh')
  labels={row['leave_type'] for row in rows}
  assert labels=={'缺少休假类型翻译 ['+str(typ.id)+']' for typ in (first,second)}
+
+
+def test_start_month_detail_all_statuses_all_workers_exact_total(fixture_db):
+ from decimal import localcontext, Inexact, Rounded
+ db=fixture_db
+ # Valid stored fractions expose the old float-total mismatch.
+ records=db.scalars(select(LeaveRecord).where(LeaveRecord.start_date==date(2026,9,29)).order_by(LeaveRecord.id)).all()
+ for record in records:
+  record.charged_days=Decimal('1.1') if record.employee_id==records[0].employee_id else Decimal('2.2')
+ db.flush()
+ with localcontext() as context:
+  context.prec=2;context.traps[Inexact]=True;context.traps[Rounded]=True
+  for state in ('confirmed','draft','cancelled'):
+   selection=ReportSelection(report_type=REPORT_TYPE_LEAVE,start_date=date(2026,9,1),end_date=date(2026,9,30),period_choice='custom',employee_status='all',monthly_leave_clipping=True,monthly_leave_status=state)
+   result=build_report(db,selection)
+   rows=[row for group in result.groups for row in group['rows']]
+   assert len(rows)==2 and {row['employment_status'] for row in rows}=={'نشط','غادر'}
+   assert all(row['calendar_days']==2 for row in rows)
+   assert {row['charged_days'] for row in rows}=={Decimal('1.1'),Decimal('2.2')}
+   assert isinstance(result.totals['charged_days'],Decimal)
+   assert result.totals['charged_days']==Decimal('3.3')
+  aggregate=_monthly_leave_aggregate(db,date(2026,9,1),date(2026,9,30),all_statuses=True)
+  assert all(row['charged']==Decimal('3.3') for row in aggregate)
+ custom=build_report(db,ReportSelection(report_type=REPORT_TYPE_LEAVE,start_date=date(2026,9,1),end_date=date(2026,9,30),period_choice='custom',employee_status='all'))
+ assert isinstance(custom.totals['charged_days'],float)
+
+
+def test_monthly_sum_ignores_ambient_precision_and_rejects_unsupported_span():
+ from decimal import localcontext, Inexact, Rounded, Overflow, Underflow
+ from app.report_builder import _monthly_leave_charged_total
+ for trapped in (False,True):
+  with localcontext() as context:
+   context.prec=2;context.Emax=9;context.Emin=-9
+   for signal in (Inexact,Rounded,Overflow,Underflow):context.traps[signal]=trapped
+   assert _monthly_leave_charged_total([Decimal('1.000000000000000000000000000001'),Decimal('0.000000000000000000000000000002')])==Decimal('1.000000000000000000000000000003')
+   assert _monthly_leave_charged_total([Decimal('1e10'),Decimal('1')])==Decimal('10000000001')
+   assert _monthly_leave_charged_total([])==Decimal(0)
+   with pytest.raises(ValueError,match='bound'):_monthly_leave_charged_total([Decimal('1e100000')])
+
+
+@pytest.mark.parametrize('lang',['ar','en','zh'])
+def test_aggregate_pdf_paragraphs_never_contain_employee_identity(fixture_db,monkeypatch,lang):
+ import reportlab.platypus
+ original=reportlab.platypus.Paragraph
+ seen=[]
+ def capture(text,*args,**kwargs):
+  seen.append(text)
+  return original(text,*args,**kwargs)
+ monkeypatch.setattr(reportlab.platypus,'Paragraph',capture)
+ assert build_monthly_pdf(fixture_db,date(2026,9,1),{7},language=lang,aggregate_leave=True).startswith(b'%PDF')
+ text=' '.join(seen)
+ for employee in fixture_db.scalars(select(Employee)).all():
+  assert employee.full_name not in text and employee.code not in text
+ assert 'employment_status' not in text

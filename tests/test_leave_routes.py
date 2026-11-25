@@ -588,3 +588,20 @@ def test_custom_leave_type_chinese_name_and_fallback(leave_client):
     client.get("/language/ar", follow_redirects=False)
     page = client.get("/leave")
     assert "دراسة" in page.text and "حج" in page.text
+
+
+def test_negative_opening_writer_refuses_before_ledger_or_audit_mutation(leave_client):
+    from sqlalchemy import func
+    from app.leave_workflow import add_balance_entry
+    with leave_client.test_session_factory() as db:
+        kind = db.get(LeaveType, leave_client.test_annual_id)
+        before = (db.scalar(select(func.count()).select_from(LeaveBalanceTransaction)),
+                  db.scalar(select(func.count()).select_from(AuditLog)))
+        with pytest.raises(ValueError, match="Negative opening"):
+            add_balance_entry(db, employee_id=leave_client.test_employee_id,
+                leave_type=kind, transaction_type="opening", days_delta=Decimal("-2"),
+                reason="Synthetic negative manual opening", actor="leave-admin")
+        db.flush()
+        assert (db.scalar(select(func.count()).select_from(LeaveBalanceTransaction)),
+                db.scalar(select(func.count()).select_from(AuditLog))) == before
+        assert not db.new and not db.dirty and not db.deleted

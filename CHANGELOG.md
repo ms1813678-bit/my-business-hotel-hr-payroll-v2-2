@@ -1,3 +1,9 @@
+## 2026-11-25, Instinct: exact monthly leave charge totals
+
+- Keep monthly detail and all-status aggregate charge totals as exact Decimal values using the existing bounded leave arithmetic, independent of ambient precision/traps. Preserve the custom report and default aggregate legacy behavior. No ledger or payroll effects.
+- Add fractional/start-month/status/all-worker regression, rendered aggregate paragraph identity exclusion in AR/EN/ZH and a direct writer negative-opening no-ledger/no-audit regression. No unknown-status fallback or new role permissions.
+- Record current Claude short-task/new-chat and no-duplicate-team-task owner instructions in the maintained notebook.
+
 ## 2026-11-25, Instinct: current-entry status correction
 
 - Correct stale README daily-overtime status and label old CI results as historical, not current acceptance. Refresh the source publication chain and keep isolated UID preparation separate.
