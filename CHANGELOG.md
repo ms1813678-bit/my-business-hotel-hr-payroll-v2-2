@@ -1,3 +1,8 @@
+## 2026-11-25 - Exact source bytes for desktop qualification by Instinct
+
+- First Windows prep refused source integrity before dependency or compile work. Restore verification sources from committed git blobs and record checkout/committed/expected hashes before strict equality checks.
+- No expected hash normalization, integrity bypass, administrative execution or native acceptance claim.
+
 ## 2026-11-25 - Separate desktop dependency qualification by Instinct
 
 - Add isolated Windows3.11 exact-hash dependency import and recovered PowerShell syntax gates. No administrative source is invoked.

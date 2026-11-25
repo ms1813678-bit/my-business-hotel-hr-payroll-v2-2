@@ -24,11 +24,17 @@ jobs:
         shell: pwsh
         run: |
           @'
-          import hashlib,json,pathlib
+          import hashlib,json,pathlib,subprocess
           root=pathlib.Path('verification/desktop_native_prep')
           for name,want in json.loads((root/'SOURCE-SHA256.json').read_text()).items():
-              actual=hashlib.sha256((root/name).read_bytes()).hexdigest()
-              if actual!=want: raise SystemExit('Source manifest mismatch: '+name)
+              target=root/name
+              before=hashlib.sha256(target.read_bytes()).hexdigest()
+              blob=subprocess.check_output(['git','cat-file','blob','HEAD:'+target.as_posix()])
+              committed=hashlib.sha256(blob).hexdigest()
+              print('SOURCE_BYTES',name,'checkout='+before,'committed='+committed,'expected='+want)
+              if committed!=want: raise SystemExit('Committed source manifest mismatch: '+name)
+              target.write_bytes(blob)
+              if hashlib.sha256(target.read_bytes()).hexdigest()!=want: raise SystemExit('Restored source manifest mismatch: '+name)
           print('SOURCE_MANIFEST_PASS')
           '@ | python -
           if ($LASTEXITCODE -ne 0) { throw 'Source manifest refused.' }
