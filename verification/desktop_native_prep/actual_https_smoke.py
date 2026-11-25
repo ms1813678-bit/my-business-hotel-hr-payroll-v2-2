@@ -121,7 +121,27 @@ def parent(scm_mode=False,visible=False):
                     tp,tt,_,_=win32process.CreateProcess(exe,cmd,None,None,False,win32con.CREATE_SUSPENDED,None,None,win32process.STARTUPINFO())
                     win32job.AssignProcessToJobObject(tj,tp)
                     if win32process.ResumeThread(tt)!=1:raise RuntimeError('trust prior suspend count refused')
-                    if win32event.WaitForSingleObject(tp,20000)!=win32con.WAIT_OBJECT_0:
+                    trust_until=time.monotonic()+20;confirmed=False
+                    while win32event.WaitForSingleObject(tp,200)!=win32con.WAIT_OBJECT_0 and time.monotonic()<trust_until:
+                        if mode!='import' or confirmed:continue
+                        import re,win32gui
+                        members=set(win32job.QueryInformationJobObject(tj,win32job.JobObjectBasicProcessIdList));dialogs=[]
+                        def find_confirmation(hwnd,_):
+                            _,owner=win32process.GetWindowThreadProcessId(hwnd)
+                            if owner in members and win32gui.IsWindowVisible(hwnd) and win32gui.GetClassName(hwnd)=='#32770' and win32gui.GetWindowText(hwnd)=='Security Warning':dialogs.append(hwnd)
+                        win32gui.EnumWindows(find_confirmation,None)
+                        if not dialogs:continue
+                        if len(dialogs)!=1:raise RuntimeError('owned CA confirmation ambiguous')
+                        hwnd=dialogs[0];labels=[]
+                        win32gui.EnumChildWindows(hwnd,lambda child,_:labels.append(win32gui.GetWindowText(child)),None)
+                        text='\n'.join(labels)
+                        match=re.search(r'Thumbprint \(sha1\):\s*([0-9A-Fa-f\s]{40,100})',text)
+                        if not match or ''.join(match.group(1).split()).upper()!=ca_thumb or 'Disposable fixture CA' not in text:raise RuntimeError('owned CA confirmation fingerprint mismatch')
+                        yes=win32gui.GetDlgItem(hwnd,6) # Documented WinUser IDYES.
+                        if not yes or win32gui.GetWindowText(yes).replace('&','')!='Yes':raise RuntimeError('exact CA confirmation button missing')
+                        win32gui.SendMessage(yes,0x00F5,0,0) # BM_CLICK only on exact owned IDYES.
+                        confirmed=True;print('NATIVE_TRUST_EXACT_OWNED_CA_OS_CONFIRMATION_PASS',flush=True)
+                    if win32event.WaitForSingleObject(tp,0)!=win32con.WAIT_OBJECT_0:
                         # Observe only windows whose process is in THIS owned helper Job.
                         import win32gui,win32process as wp
                         from PIL import ImageGrab

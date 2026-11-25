@@ -1,3 +1,7 @@
+## 2026-11-25 - Confirm only exact owned synthetic CA warning by Instinct
+
+- Actual owned-window pixels show Windows certificate confirmation blocking the test import. Confirm only one Security Warning dialog in the owned helper Job, with exact displayed SHA1 equal to the newly generated test CA, expected fixture label and IDYES button. Refuse mismatches. No trust-policy bypass, machine-store change or wider click. Keep original 20-second bound and independent cleanup.
+
 ## 2026-11-25 - Observe only owned timed-out trust windows by Instinct
 
 - Retain bounded window crops only for visible windows whose PIDs are in the exact helper Job at timeout. No full-desktop image, automatic confirmation, deadline relaxation, store-scope change or trust-policy bypass. Existing cleanup remains independent. This observation distinguishes a visible OS prompt from an unlocalized hang.
