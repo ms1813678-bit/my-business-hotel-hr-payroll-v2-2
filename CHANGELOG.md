@@ -1,3 +1,9 @@
+## 2026-11-25, Instinct: literal and bounded local AI employee reports
+
+- Escape literal name substrings, preserve exact code priority and deterministic five-person selection with truthful overflow warnings in all six report families and AR/EN/ZH.
+- Never widen unresolved individual attendance to other people. Keep ordinary general-register questions general and explain failed text matching without claiming a person does not exist. Retain documented limited grammar rather than guessing names.
+- Correct smart-scan labels for leave drafts and pending-or-approved advances without changing predicates, permissions or business state. Targeted migrated-PG and SQLite qualification only, not real-model or hotel-device acceptance.
+
 ## 2026-11-25, Instinct: controlled local AI input and approval boundaries
 
 - Reject malformed action types, missing required executor keys and whitespace-only required values before review. Keep optional executor defaults. Preserve null edit fields as unchanged and omit them from proposed changes.

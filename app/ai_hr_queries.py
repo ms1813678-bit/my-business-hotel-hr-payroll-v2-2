@@ -36,7 +36,7 @@ def _msg(language: str, ar: str, en: str, zh: str) -> str:
 _NOTE = {
     "ar": {
         "note_readonly_employee": "قراءة مباشرة من السجل المحلي. لم يتم تعديل أي بيانات.",
-        "note_employee_not_found": "لم يتم العثور على الموظف المحدد؛ لم يتم عرض بيانات موظفين آخرين.",
+        "note_employee_not_found": "لم يطابق النص أو الرمز المحدد أي موظف. جرّب رمز الموظف أو الاسم وحده؛ لم يتم عرض بيانات موظفين آخرين.",
         "note_readonly_attendance": "تقرير مراجعة فقط. لم يتم اعتماد أو رفض أي سجل حضور.",
         "note_no_leave_types": "لا توجد أنواع إجازات مفعّلة في النظام.",
         "note_specify_employee": "حدد الموظف بالرمز (مثل MY-0001) أو بالاسم لعرض أرصدة الإجازات.",
@@ -46,7 +46,7 @@ _NOTE = {
     },
     "en": {
         "note_readonly_employee": "Direct read from the local register. No data was changed.",
-        "note_employee_not_found": "The specified employee was not found; no other employees' data is shown.",
+        "note_employee_not_found": "No employee matched the specified text or code. Try the employee code or name alone; no other employees' data is shown.",
         "note_readonly_attendance": "Review-only report. No attendance record was approved or rejected.",
         "note_no_leave_types": "No active leave types in the system.",
         "note_specify_employee": "Specify the employee by code (e.g. MY-0001) or name to show leave balances.",
@@ -56,7 +56,7 @@ _NOTE = {
     },
     "zh": {
         "note_readonly_employee": "直接读取本地记录，未修改任何数据。",
-        "note_employee_not_found": "未找到指定员工，未显示其他员工的数据。",
+        "note_employee_not_found": "没有员工匹配指定的文字或编号。请尝试员工编号或仅输入姓名；未显示其他员工的数据。",
         "note_readonly_attendance": "仅供审阅的报告，未批准或拒绝任何考勤记录。",
         "note_no_leave_types": "系统中没有启用的请假类型。",
         "note_specify_employee": "请用编号（如 MY-0001）或姓名指定员工以显示请假余额。",
@@ -104,14 +104,33 @@ def _employee_filter_requested(question: str) -> bool:
     q = " ".join((question or "").casefold().split())
     if _CODE_RE.search(q):
         return True
-    return bool(re.search(
-        r"(?:للموظف|الموظف|موظف|للحارس|الحارس|حارس)\s+\S",
-        q,
-    ))
+    match = re.search(
+        r"(?:للموظف|الموظف|موظف|للحارس|الحارس|حارس)\s+\S", q,
+    )
+    if not match:
+        return False
+    # Quantified singulars describe the register, not a person's name.
+    return not bool(re.search(r"(?:^|\s)(?:كل|أي|اي|جميع)\s+$", q[:match.start()]))
+
+
+
+_NAME_MATCH_LIMIT = 5
+_LIKE_ESCAPE = "\\"
+
+
+def _like_literal(value: str) -> str:
+    """Escape LIKE metacharacters so the text matches literally (escape char first)."""
+    return (value.replace(_LIKE_ESCAPE, _LIKE_ESCAPE * 2)
+            .replace("%", _LIKE_ESCAPE + "%").replace("_", _LIKE_ESCAPE + "_"))
 
 
 def _find_employees(db, question: str) -> list[Employee]:
     """Resolve employees by code or an explicit singular name reference."""
+    return _find_employees_bounded(db, question)[0]
+
+
+def _find_employees_bounded(db, question: str) -> tuple[list[Employee], bool]:
+    """Like _find_employees, plus whether more name matches exist than the bound (never for a code)."""
     code_match = _CODE_RE.search(question or "")
     if code_match:
         raw = re.sub(r"\s+", "", code_match.group(1)).upper()
@@ -119,7 +138,7 @@ def _find_employees(db, question: str) -> list[Employee]:
             raw = "MY-" + raw[2:]
         if raw.startswith("SEC") and not raw.startswith("SEC-"):
             raw = "SEC-" + raw[3:]
-        return list(db.scalars(select(Employee).where(Employee.code == raw)).all())
+        return list(db.scalars(select(Employee).where(Employee.code == raw)).all()), False
 
     q = " ".join((question or "").split())
     match = re.search(
@@ -127,15 +146,20 @@ def _find_employees(db, question: str) -> list[Employee]:
         q,
     )
     if not match:
-        return []
+        return [], False
     tail = match.group(1).strip(" :：-")
     tail = re.split(r"\d{4}-\d{2}", tail)[0].strip(" ؟?.,")
     if not tail or len(tail) < 2:
-        return []
-    rows = db.scalars(
-        select(Employee).where(Employee.full_name.ilike(f"%{tail}%")).limit(5)
-    ).all()
-    return list(rows)
+        return [], False
+    # Same substring rule as before, but the typed text is literal ("%" and "_" are not wildcards) and the
+    # bounded result is deterministic; one extra row tells whether it was truncated.
+    rows = list(db.scalars(
+        select(Employee)
+        .where(Employee.full_name.ilike(f"%{_like_literal(tail)}%", escape=_LIKE_ESCAPE))
+        .order_by(Employee.full_name, Employee.id)
+        .limit(_NAME_MATCH_LIMIT + 1)
+    ).all())
+    return rows[:_NAME_MATCH_LIMIT], len(rows) > _NAME_MATCH_LIMIT
 
 
 def is_attendance_analysis_request(question: str) -> bool:
@@ -259,6 +283,20 @@ _INACTIVE_TERMS = (
 _DEPARTMENT_TERMS = ("قسم", "department", "部门")
 
 
+def _selection(truncated: bool) -> dict[str, Any]:
+    """Metadata every name-selected report carries: more employees matched than the bound."""
+    return {"limit": _NAME_MATCH_LIMIT, "truncated": bool(truncated)}
+
+
+def _selection_warning(report: dict[str, Any], language: str) -> list[str]:
+    if not (report.get("selection") or {}).get("truncated"):
+        return []
+    return [_msg(language,
+        f"النتائج تخص أول {_NAME_MATCH_LIMIT} موظفين مطابقين فقط؛ يوجد موظفون آخرون مطابقون. استخدم كود الموظف أو اسمًا أدق.",
+        f"Results cover only the first {_NAME_MATCH_LIMIT} matching employees; more employees match. Use the employee code or a more specific name.",
+        f"结果仅包含前 {_NAME_MATCH_LIMIT} 名匹配员工；还有更多员工匹配。请使用员工编号或更具体的姓名。")]
+
+
 def build_employee_count_report(question: str = "") -> dict[str, Any]:
     q = " ".join((question or "").casefold().split())
     with SessionLocal() as db:
@@ -378,7 +416,7 @@ def is_payroll_query_request(question: str) -> bool:
 
 def build_employee_report(question: str) -> dict[str, Any]:
     with SessionLocal() as db:
-        employees = _find_employees(db, question)
+        employees, truncated = _find_employees_bounded(db, question)
         items = []
         for employee in employees:
             department = db.get(Department, employee.department_id)
@@ -390,13 +428,14 @@ def build_employee_report(question: str) -> dict[str, Any]:
                 "hire_date": employee.hire_date.isoformat(), "basic_salary": str(employee.basic_salary),
                 "daily_hours": str(employee.daily_hours),
             })
-    return {"items": items, "note": "note_readonly_employee"}
+    return {"items": items, "note": "note_readonly_employee", "selection": _selection(truncated)}
 
 
 def format_employee_report(report: dict[str, Any], language: str = "ar") -> str:
     lines = [
         _msg(language, "نتيجة البحث في سجل الموظفين.", "Employee register search result.", "员工登记查询结果。"),
         _NOTE[language if language in _NOTE else "ar"][report.get("note", "note_readonly_employee")],
+        *_selection_warning(report, language),
     ]
     if not report.get("items"):
         lines.append(_msg(language,
@@ -428,7 +467,7 @@ def build_payroll_report(question: str) -> dict[str, Any]:
         run = db.scalar(select(PayrollRun).where(PayrollRun.period_start == month))
         if run is None:
             return {"month": month.isoformat(), "status": "not_created", "items": []}
-        employees = _find_employees(db, question)
+        employees, truncated = _find_employees_bounded(db, question)
         employee_ids = {employee.id for employee in employees}
         if _employee_filter_requested(question) and not employee_ids:
             return {
@@ -463,7 +502,7 @@ def build_payroll_report(question: str) -> dict[str, Any]:
                 "status": run.status,
             })
         return {"month": month.isoformat(), "status": run.status, "pay_date": run.pay_date.isoformat(),
-                "items": rows}
+                "items": rows, "selection": _selection(truncated)}
 
 
 def format_payroll_report(report: dict[str, Any], language: str = "ar") -> str:
@@ -478,6 +517,7 @@ def format_payroll_report(report: dict[str, Any], language: str = "ar") -> str:
         f"{report['month']} 工资批次摘要 — 状态：{report['status']} — 发放日期：{report['pay_date']}。")]
     if report.get("note"):
         lines.append(_NOTE[language if language in _NOTE else "ar"][report["note"]])
+    lines.extend(_selection_warning(report, language))
     if not report.get("items"):
         lines.append(_msg(language,
             "لا توجد بنود مطابقة للموظف أو الفترة المحددة.",
@@ -590,11 +630,11 @@ def build_attendance_analysis(*, work_date: date | None, month_start: date | Non
             )
             period_label = f"{month_start.isoformat()} → {end.isoformat()}"
 
-        # An explicit employee code is a verifiable target: when it matches
-        # nobody, say so instead of showing another employee's rows. A
-        # name-like phrase only narrows the report when it actually matches.
-        if question and _CODE_RE.search(question):
-            employees = _find_employees(db, question)
+        # Explicit individual requests never fall back to other employees.
+        # General/plural or quantified-register questions remain unfiltered.
+        selection_truncated = False
+        if question and _employee_filter_requested(question):
+            employees, selection_truncated = _find_employees_bounded(db, question)
             if not employees:
                 return {
                     "period": period_label,
@@ -603,31 +643,10 @@ def build_attendance_analysis(*, work_date: date | None, month_start: date | Non
                     "flagged_rows": 0,
                     "items": [],
                     "note": "note_employee_not_found",
+                    "selection": {"limit": _NAME_MATCH_LIMIT, "truncated": False},
                 }
             query = query.where(AttendanceDailyRecord.employee_id.in_(
                 [employee.id for employee in employees]))
-        elif question and re.search(
-            r"(?:للموظف|الموظف|للحارس|الحارس)\s+\S", question.casefold()
-        ):
-            # A definite named target ("الموظف فلان") that matches nobody is
-            # answered with not-found, never the whole register.
-            employees = _find_employees(db, question)
-            if not employees:
-                return {
-                    "period": period_label,
-                    "day_mode": work_date is not None,
-                    "reviewed_rows": 0,
-                    "flagged_rows": 0,
-                    "items": [],
-                    "note": "note_employee_not_found",
-                }
-            query = query.where(AttendanceDailyRecord.employee_id.in_(
-                [employee.id for employee in employees]))
-        elif question and _employee_filter_requested(question):
-            employees = _find_employees(db, question)
-            if employees:
-                query = query.where(AttendanceDailyRecord.employee_id.in_(
-                    [employee.id for employee in employees]))
         rows = db.execute(query.order_by(AttendanceDailyRecord.work_date, Employee.code)).all()
         late_count = 0
         late_covered_rows = 0
@@ -693,6 +712,7 @@ def build_attendance_analysis(*, work_date: date | None, month_start: date | Non
             "late_total_rows": len(rows),
             "late_details": late_details,
             "late_missing": late_missing,
+            "selection": _selection(selection_truncated),
         }
 
 
@@ -708,6 +728,7 @@ def format_attendance_analysis(report: dict[str, Any], language: str = "ar") -> 
         _msg(language, f"تحليل حضور للفترة {report['period']}.",
              f"Attendance analysis for {report['period']}.", f"{report['period']} 考勤分析。"),
         _NOTE[lang][report.get("note", "note_readonly_attendance")],
+        *_selection_warning(report, language),
         _msg(language,
              f"سجلات مفحوصة: {report['reviewed_rows']} — تحتاج انتباه: {report['flagged_rows']}.",
              f"Rows checked: {report['reviewed_rows']} — need attention: {report['flagged_rows']}.",
@@ -814,7 +835,7 @@ def format_attendance_analysis_ar(report: dict[str, Any]) -> str:
 
 def build_leave_balance_report(question: str) -> dict[str, Any]:
     with SessionLocal() as db:
-        employees = _find_employees(db, question)
+        employees, truncated = _find_employees_bounded(db, question)
         types = db.scalars(
             select(LeaveType).where(LeaveType.active.is_(True)).order_by(LeaveType.id)
         ).all()
@@ -843,12 +864,12 @@ def build_leave_balance_report(question: str) -> dict[str, Any]:
                 "name": employee.full_name,
                 "balances": balances,
             })
-        return {"employees": result, "note": "note_readonly_leave"}
+        return {"employees": result, "note": "note_readonly_leave", "selection": _selection(truncated)}
 
 
 def format_leave_balance(report: dict[str, Any], language: str = "ar") -> str:
     lang = language if language in _NOTE else "ar"
-    lines = [_NOTE[lang][report.get("note", "note_readonly_leave")]]
+    lines = [_NOTE[lang][report.get("note", "note_readonly_leave")], *_selection_warning(report, language)]
     if not report.get("employees"):
         return lines[0]
     day_word = _msg(language, "يوم", "days", "天")
@@ -879,7 +900,7 @@ def format_leave_balance_ar(report: dict[str, Any]) -> str:
 
 def build_advance_report(question: str) -> dict[str, Any]:
     with SessionLocal() as db:
-        employees = _find_employees(db, question)
+        employees, truncated = _find_employees_bounded(db, question)
         if _employee_filter_requested(question) and not employees:
             return {
                 "items": [],
@@ -917,12 +938,13 @@ def build_advance_report(question: str) -> dict[str, Any]:
         return {
             "items": items,
             "note": "note_readonly_advances",
+            "selection": _selection(truncated),
         }
 
 
 def format_advance_report(report: dict[str, Any], language: str = "ar") -> str:
     lang = language if language in _NOTE else "ar"
-    lines = [_NOTE[lang][report.get("note", "note_readonly_advances")]]
+    lines = [_NOTE[lang][report.get("note", "note_readonly_advances")], *_selection_warning(report, language)]
     if not report.get("items"):
         lines.append(_msg(language, "لا توجد سلف مطابقة للبحث.", "No advances match the search.", "没有匹配的预支记录。"))
         return "\n".join(lines)
@@ -946,7 +968,7 @@ def build_staff_actions_report(question: str) -> dict[str, Any]:
     month_start = _parse_month(question)
     month_end = _month_end(month_start)
     with SessionLocal() as db:
-        employees = _find_employees(db, question)
+        employees, truncated = _find_employees_bounded(db, question)
         if _employee_filter_requested(question) and not employees:
             return {
                 "month": month_start.isoformat()[:7], "items": [],
@@ -982,6 +1004,7 @@ def build_staff_actions_report(question: str) -> dict[str, Any]:
             "month": month_start.isoformat()[:7],
             "items": items,
             "note": "note_readonly_staff",
+            "selection": _selection(truncated),
         }
 
 
@@ -991,6 +1014,7 @@ def format_staff_actions(report: dict[str, Any], language: str = "ar") -> str:
         _msg(language, f"جزاءات ومكافآت لشهر {report['month']}.",
              f"Sanctions and rewards for {report['month']}.", f"{report['month']} 奖惩汇总。"),
         _NOTE[lang][report.get("note", "note_readonly_staff")],
+        *_selection_warning(report, language),
     ]
     if not report.get("items"):
         lines.append(_msg(language, "لا توجد سجلات مطابقة.", "No matching records.", "没有匹配的记录。"))

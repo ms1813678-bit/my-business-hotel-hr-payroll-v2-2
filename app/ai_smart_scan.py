@@ -45,7 +45,7 @@ _CHECKS: list[dict[str, Any]] = [
     {
         "key": "leave_drafts",
         "url": "/leave",
-        "label": ("طلبات إجازة بانتظار القرار", "Leave requests awaiting a decision", "待审批的请假申请"),
+        "label": ("مسودات إجازة بانتظار المراجعة", "Leave drafts awaiting review", "待审核的请假草稿"),
         "count": lambda: _count(
             select(func.count(LeaveRecord.id)).where(LeaveRecord.status == "draft")
         ),
@@ -53,7 +53,7 @@ _CHECKS: list[dict[str, Any]] = [
     {
         "key": "advance_pending",
         "url": "/advances",
-        "label": ("طلبات سلفة معلّقة", "Pending advance requests", "待处理的预支申请"),
+        "label": ("طلبات سلفة معلّقة أو معتمدة", "Advance requests pending or approved", "待处理或已批准的预支申请"),
         "count": lambda: _count(
             select(func.count(AdvanceRequest.id)).where(
                 AdvanceRequest.status.in_(["pending", "approved"])
