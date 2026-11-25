@@ -50,7 +50,7 @@ jobs:
             & cl.exe /nologo /std:c11 /W4 /WX /MT /GS /guard:cf /LD "$root/probe_tls_ctl.c" "/Fe:$probeTls" /link /DYNAMICBASE /NXCOMPAT
             if($LASTEXITCODE -ne 0){throw 'Loader probe TLS control DLL compile failed'}
             $probeNoCfg=Join-Path $owned 'probe_nocfg_ctl.dll'
-            & cl.exe /nologo /std:c11 /W4 /WX /MT /GS /guard:no /LD "$root/probe_ctl.c" "/Fe:$probeNoCfg" /link /DYNAMICBASE /NXCOMPAT
+            & cl.exe /nologo /std:c11 /W4 /WX /MT /GS /LD "$root/probe_ctl.c" "/Fe:$probeNoCfg" /link /DYNAMICBASE /NXCOMPAT
             if($LASTEXITCODE -ne 0){throw 'Loader probe no-CFG control DLL compile failed'}
             & cl.exe /nologo /std:c11 /W4 /WX /MT /GS /DUNICODE /D_UNICODE "$root/probe_load.c" "/Fe:$probe" /link /DYNAMICBASE /NXCOMPAT
             if($LASTEXITCODE -ne 0){throw 'Loader probe compile failed'}

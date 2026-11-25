@@ -176,11 +176,11 @@ def test_tls_dumpbin_filter_is_anchored_before_prefix_and_reports_count():
     assert "verification/windows_integrated_candidate/probe_tls_ctl.c" in source
 
 
-def test_nocfg_control_reuses_plain_control_source_and_differs_only_in_guard_flag():
+def test_nocfg_control_reuses_plain_control_source_and_omits_only_guard_flag():
     cl = next(l for l in WF.splitlines() if '"/Fe:$probeNoCfg"' in l)
     ref = next(l for l in WF.splitlines() if '"$root/probe_ctl.c"' in l and "$probeCtl" in l)
-    assert "/guard:no" in cl and "/guard:cf" not in cl
-    assert cl.replace("/guard:no", "/guard:cf").replace("$probeNoCfg", "$probeCtl") == ref
+    assert "/guard" not in cl and "/GS" in cl
+    assert cl.replace("$probeNoCfg", "$probeCtl") == ref.replace(" /guard:cf", "")
     labels = re.findall(r'try_(?:system|staged)\("([A-Za-z0-9_-]+)"', PROBE)
     assert labels.index("control_tls_dll") < labels.index("control_nocfg_dll") < labels.index("python314")
     assert "probe_nocfg_ctl.dll" in WF
