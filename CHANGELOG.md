@@ -1,3 +1,8 @@
+## 2026-11-25 - Recovery gate fixture import-order repair by Instinct
+
+- Patch the legacy recovery-gate fixture at the helper's actual unwrap lookup instead of its original definition module, so early helper imports do not bypass the fake. All five original behavioral tests and assertions remain unchanged; no product, configuration or skip changes.
+- Reproduced the old relevant order as one failure / 13 passes. On the actual repository bytes, the corrected helper-then-gate order passes 14 tests, and the broader gate, real-crypto proof, recovery and hardening set passes 22. This is not a Windows parser fix or a green whole-suite claim.
+
 ## 2026-11-25 - Windows restore procedure correction by Instinct
 
 - Use the project .venv interpreter explicitly in PowerShell restore examples, matching setup/start scripts; activation is not required. Stop the running app before recovery as an operational precaution.

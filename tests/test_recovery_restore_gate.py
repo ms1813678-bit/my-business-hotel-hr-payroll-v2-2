@@ -44,12 +44,12 @@ def client(monkeypatch):
     app.dependency_overrides[get_db] = override_get_db
     monkeypatch.setattr("app.main.SessionLocal", factory)
     # Offline passphrase proof: only "correct-pass" unwraps the data key.
-    import app.backup_crypto as backup_crypto
+    import app.recovery_login_proof as login_proof
     def fake_unwrap(db, passphrase):
         if passphrase != "correct-pass":
             raise ValueError("wrong_passphrase")
         return b"data-key"
-    monkeypatch.setattr(backup_crypto, "unwrap_data_key_for_restore", fake_unwrap)
+    monkeypatch.setattr(login_proof, "unwrap_data_key_for_restore", fake_unwrap)
     try:
         with TestClient(app) as test_client:
             test_client.test_session_factory = factory
