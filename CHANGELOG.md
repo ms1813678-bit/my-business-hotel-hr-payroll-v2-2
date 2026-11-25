@@ -1,3 +1,8 @@
+## 2026-11-25 - Native print flow refinement by Instinct
+
+- Six-employee actual preview established full component inclusion but exposed grid fragmentation and excess card spacing. Use print-only block flow with compact unframed cards and readable 11px main / 10px component text. Do not force PDF sheet count or alter native paper settings. Comparison shows actual selected scope rather than a fixed all-employees caption.
+- First six-employee native run passed export byte parity and unchanged financial/session/audit/cleanup checks. Follow-up visual qualification still required for this refinement.
+
 ## 2026-11-25 - Selected paper option 1 and shared content by Instinct
 
 - Paper payroll output includes all 16 components beneath each employee in paired lists, independent of collapsed screen controls. Custom PDF uses the same arrangement instead of a wide appendix. Shared scoped component/comparison/optional membership/signature policy; ordinary comparison added to PDF; preparation/reviewer signatures only.

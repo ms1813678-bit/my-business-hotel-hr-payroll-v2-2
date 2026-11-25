@@ -770,7 +770,7 @@
     },
     {
       "path": "app/static/app.css",
-      "sha256": "372b7c0b43d0e11923d4e0997ccec3ead7084e392744b20d565c1572a12abb29"
+      "sha256": "c2f1d389f595f25b0afcb5f3d6ff8027b75edf4019d09c114229be3a80fb76fa"
     },
     {
       "path": "app/static/date-picker.js",
@@ -986,7 +986,7 @@
     },
     {
       "path": "app/templates/report_view.html",
-      "sha256": "01bbabf28bd32c6e11b7c07fb7680e36fd4f0ae703c696665554d1be19034ddc"
+      "sha256": "c4fc4a4ec09d27f17f2c4fecec5ad8837238ba696b70524ef1e207b7d30aeba4"
     },
     {
       "path": "app/templates/reports.html",

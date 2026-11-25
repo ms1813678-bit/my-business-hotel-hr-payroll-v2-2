@@ -370,6 +370,8 @@ def test_report_view_renders_grouped_table_with_comparison(monkeypatch):
         assert "مثل بمثل" in response.text
         assert "إزاي اتجمع؟" in response.text
         assert "6,700" in response.text
+        assert response.text.count('class="breakdown-table paper-breakdown"') == 3
+        assert response.text.count('class="employee-main-row"') == 3
     finally:
         app.dependency_overrides.clear()
         Base.metadata.drop_all(engine)

@@ -105,7 +105,7 @@
     {% if paper.comparison_items %}
     <div class="card" style="margin-bottom:0;">
       <h2>مقارنة بالفترة السابقة</h2>
-      <p class="muted" style="font-size:12px; margin-top:0;"><span>{{ result.comparison.period_label }}</span> · <span>كل الموظفين</span></p>
+      <p class="muted" style="font-size:12px; margin-top:0;"><span>{{ paper.comparison_period }}</span> · <span>{{ result.scope_label }}</span></p>
       <ul class="cmp">
         {% for label, current, previous, pct in paper.comparison_items %}
         <li><span>{{ label }}</span><span>{{ current|fmtnum }}</span> <span>مقابل</span> <span>{{ previous|fmtnum }}

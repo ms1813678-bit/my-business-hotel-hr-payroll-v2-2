@@ -719,7 +719,7 @@ html[dir="ltr"] textarea {
   body.report-print { page: report-landscape; }
   body.report-print .split { grid-template-columns: minmax(0, 1fr); }
   body.report-print .report-details-card { break-inside: auto; }
-  /* Compact print layout: the whole report should fit one or two sheets. */
+  /* Flow grows with employee count; never promise a fixed sheet count. */
   body.report-print .strip { padding: 10px 16px; margin-bottom: 10px; }
   body.report-print .strip h1 { font-size: 16px; margin: 0 0 2px; }
   body.report-print .strip .meta { font-size: 11px; }
@@ -1249,4 +1249,18 @@ a.rep-run:not(.btn-primary) { border: 1.5px solid var(--border-strong); color: v
   body.report-print .paper-breakdown { display: table !important; }
   body.report-print .paper-breakdown td:nth-child(odd) { width: 32%; }
   body.report-print .paper-breakdown td:nth-child(even) { width: 18%; font-weight: 700; }
+}
+
+/* Normal block flow avoids grid-fragmentation whitespace on native print. */
+@media print {
+  body.report-print .split { display: block; }
+  body.report-print .card { border: 0; border-radius: 0; padding: 5px 0; margin: 0 0 8px; }
+  body.report-print .strip { border: 0; border-radius: 0; padding: 0; }
+  body.report-print .report-table { font-size: 11px; }
+  body.report-print .report-table thead th,
+  body.report-print .report-table tbody td { padding: 3px 4px; }
+  body.report-print .paper-breakdown { margin: 0; font-size: 10px; }
+  body.report-print .report-table .breakdown-row > td { padding: 0 0 5px; }
+  body.report-print .paper-breakdown td { padding: 2px 4px; }
+  body.report-print .print-meta { break-inside: avoid; }
 }

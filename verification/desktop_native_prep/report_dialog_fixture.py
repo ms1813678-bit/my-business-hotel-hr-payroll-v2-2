@@ -104,10 +104,10 @@ def cancel_print(hwnd,shot):
                     except Exception:pass
                     candidate=TreeWalker.ControlViewWalker.GetParent(candidate)
             if len(scrolls)==1:
-                for index in range(1,5):
-                    scrolls[0].Scroll(ScrollAmount.NoAmount,ScrollAmount.LargeIncrement);time.sleep(.4)
+                for index in range(1,11):
+                    scrolls[0].SetScrollPercent(ScrollPattern.NoScroll,index*10.0);time.sleep(.25)
                     ImageGrab.grab(bbox=win32gui.GetWindowRect(hwnd),all_screens=True).save(pathlib.Path(shot).with_name('authenticated-print-scroll-'+str(index)+'.png'))
-                print('NATIVE_PRINT_SCROLL_CAPTURED',4,flush=True)
+                print('NATIVE_PRINT_SCROLL_CAPTURED',index,flush=True)
             else:print('NATIVE_PRINT_SCROLL_UNRESOLVED',len(scrolls),flush=True)
             cancel=current_cancel
             cancel[0].GetCurrentPattern(InvokePattern.Pattern).Invoke()
