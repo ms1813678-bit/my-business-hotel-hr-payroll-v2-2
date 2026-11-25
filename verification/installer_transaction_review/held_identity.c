@@ -31,7 +31,7 @@ int wmain(int argc,wchar_t **argv){
   if(end!=3&&end!=n&&path[end]!=L'\\')continue;
   if(count>=128)goto done;
   saved=path[end];path[end]=0;
-  held[count]=CreateFileW(path,FILE_READ_ATTRIBUTES,FILE_SHARE_READ,NULL,OPEN_EXISTING,FILE_FLAG_BACKUP_SEMANTICS|FILE_FLAG_OPEN_REPARSE_POINT,NULL);
+  held[count]=CreateFileW(path,GENERIC_READ,FILE_SHARE_READ,NULL,OPEN_EXISTING,FILE_FLAG_BACKUP_SEMANTICS|FILE_FLAG_OPEN_REPARSE_POINT,NULL);
   path[end]=saved;
   if(held[count]==INVALID_HANDLE_VALUE){printf("{\"refused\":\"open\",\"error\":%lu}\n",GetLastError());goto done;}
   count++;

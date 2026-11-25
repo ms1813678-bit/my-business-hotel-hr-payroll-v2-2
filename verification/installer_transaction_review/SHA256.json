@@ -1,6 +1,6 @@
 {
   "readonly_inventory.ps1": "601f0cc95375009cd2bbf87577c69f5f6b4b2315a159ce9203844571e384ccd2",
-  "held_identity.c": "dfafc850baea195db32a8da8481c85d43f4866ea94bab9ea406b6e40fbcafed1",
+  "held_identity.c": "64f88a04a8952e10c4305760c6d80f44040744edf534a08c334961873801b7f4",
   "transaction_model.py": "a3244cb9b2d0aa8fc61bd24cd2a5d1543b456786de9dd25a0959e8d56424d81c",
   "test_transaction_model.py": "4b056b7cbe4a184c43bcc294acdf311211c7896c23d357071eb4a4c5e3007d67"
 }
