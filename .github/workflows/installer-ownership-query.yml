@@ -1,0 +1,59 @@
+name: Read-only installer ownership primitive
+on:
+  push:
+    branches: [ui-overhaul]
+    paths: ['.github/workflows/installer-ownership-query.yml']
+permissions:
+  contents: read
+jobs:
+  query-only:
+    runs-on: windows-2022
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Compile and inspect synthetic owned paths only
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $root=Join-Path $pwd 'verification/installer_transaction_review'
+          $owned=Join-Path $env:RUNNER_TEMP ('hony-ownership-query-'+$env:GITHUB_RUN_ID)
+          if(Test-Path $owned){throw 'fresh root required'}
+          New-Item -ItemType Directory $owned | Out-Null
+          try {
+            $pins=Get-Content "$root/SHA256.json" -Raw|ConvertFrom-Json -AsHashtable
+            foreach($name in $pins.Keys){
+              $psi=[Diagnostics.ProcessStartInfo]::new();$psi.FileName='git';$psi.UseShellExecute=$false;$psi.RedirectStandardOutput=$true
+              $psi.ArgumentList.Add('cat-file');$psi.ArgumentList.Add('blob');$psi.ArgumentList.Add('HEAD:verification/installer_transaction_review/'+$name)
+              $p=[Diagnostics.Process]::Start($psi);$stream=[IO.File]::Open((Join-Path $root $name),[IO.FileMode]::Create,[IO.FileAccess]::Write)
+              try{$p.StandardOutput.BaseStream.CopyTo($stream)}finally{$stream.Dispose()}
+              $p.WaitForExit();if($p.ExitCode -ne 0){throw 'blob failed'}
+              if((Get-FileHash (Join-Path $root $name) -Algorithm SHA256).Hash.ToLower() -ne $pins[$name]){throw 'pin failed'}
+            }
+            $vs=(& "${env:ProgramFiles(x86)}/Microsoft Visual Studio/Installer/vswhere.exe" -latest -property installationPath)
+            Import-Module (Join-Path $vs 'Common7/Tools/Microsoft.VisualStudio.DevShell.dll')
+            Enter-VsDevShell -VsInstallPath $vs -SkipAutomaticLocation -DevCmdArguments '-arch=x64 -host_arch=x64'
+            $exe=Join-Path $owned 'held-query.exe'
+            & cl.exe /nologo /std:c11 /W4 /WX /guard:cf /GS "$root/held_identity.c" "/Fe:$exe" "/Fo:$owned/" /link /DYNAMICBASE /NXCOMPAT
+            if($LASTEXITCODE -ne 0){throw 'compile failed'}
+            New-Item -ItemType Directory "$owned/nested" | Out-Null
+            [IO.File]::WriteAllText("$owned/nested/owned.txt",'synthetic-only')
+            & $exe "$owned/nested/owned.txt"
+            if($LASTEXITCODE -ne 0){throw 'ordinary exact held path refused'}
+            foreach($path in @('relative.txt',"$owned/nested/../nested/owned.txt","$owned/nested/owned.txt:stream")){
+              & $exe $path
+              if($LASTEXITCODE -eq 0){throw 'ambiguous path accepted'}
+            }
+            New-Item -ItemType Junction -Path "$owned/junction" -Target "$owned/nested" | Out-Null
+            & $exe "$owned/junction/owned.txt"
+            if($LASTEXITCODE -eq 0){throw 'junction accepted'}
+            Remove-Item -LiteralPath "$owned/junction" -Force
+            Push-Location $root
+            try {& py -3.11 -m unittest -v; if($LASTEXITCODE -ne 0){throw 'model tests failed'}}finally{Pop-Location}
+            Write-Output 'READONLY_OWNERSHIP_QUERY_ONLY_NOT_ROLLBACK_ACCEPTANCE'
+          } finally {
+            if(Test-Path "$owned/junction"){Remove-Item -LiteralPath "$owned/junction" -Force}
+            Remove-Item -LiteralPath $owned -Recurse -Force
+            if(Test-Path $owned){throw 'owned test root cleanup failed'}
+          }
