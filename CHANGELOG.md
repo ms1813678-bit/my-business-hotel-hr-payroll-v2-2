@@ -1,3 +1,9 @@
+## 2026-11-25 - Hidden native root-hook qualification by Instinct
+
+- Add bounded disposable-runner initialization of an actual hidden WebView2 control and exact recovered root guard hooks without remote start/navigation.
+- Synthetic origin and separate profile, exact child suspended until owned kill-on-close Job assignment. Verify root control disposal, message loop return and owned process-tree cleanup.
+- Headless fatal-report seam is test-only. No visible UI/PDF/print/service/network-security or runtime-release approval is established.
+
 ## 2026-11-25 - Remove informational compiler-help exit gate by Instinct
 
 - The compiler printed help but returned nonzero, stopping the harness before compilation. Remove that unnecessary help invocation; retain compiler SHA256 and strict actual compile exit checking. SourcePath repair remains unproven until the next compile result.

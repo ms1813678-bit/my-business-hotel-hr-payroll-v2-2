@@ -43,3 +43,7 @@ if ($LASTEXITCODE -ne 0) { throw 'Native dependency imports failed.' }
 Write-Output 'DEPENDENCY_IMPORTS_PASS APP_SERVICE_UI_ACCEPTANCE_NOT_ESTABLISHED'
 # ISCC compile stays a separate preparation gate. Do not silently download a new
 # compiler, fabricate stage inputs, or invoke the compiled installer here.
+
+# Actual hidden native root hooks only, no remote start or app configuration.
+& $VenvPython -I (Join-Path $Here 'native_root_hooks.py') (Join-Path $Here 'desktop_webview_guard.RECOVERED-EXACT.py') (Join-Path $env:RUNNER_TEMP 'hony-hidden-root-hook-smoke')
+if ($LASTEXITCODE -ne 0) { throw 'Hidden native root-hook smoke failed; no interactive acceptance.' }
