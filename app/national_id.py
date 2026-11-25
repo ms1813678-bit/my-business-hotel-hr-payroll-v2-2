@@ -26,7 +26,7 @@ ERROR_MESSAGE = (
 
 
 def is_valid_egyptian_national_id(value: str) -> bool:
-    if len(value) != 14 or not value.isdigit():
+    if len(value) != 14 or not (value.isascii() and value.isdigit()):
         return False
     century = value[0]
     if century not in ("2", "3"):

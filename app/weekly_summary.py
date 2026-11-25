@@ -139,9 +139,9 @@ def format_weekly_summary(report: dict[str, Any], language: str = "ar") -> str:
         ),
         f"{link}: /attendance/review",
         m(
-            f"الإجازات: {leaves.get('draft', 0)} مسودة، {leaves.get('approved', 0)} معتمدة، {leaves.get('cancelled', 0)} ملغاة خلال الفترة.",
-            f"Leave: {leaves.get('draft', 0)} draft, {leaves.get('approved', 0)} approved, {leaves.get('cancelled', 0)} cancelled in the window.",
-            f"请假：窗口内 {leaves.get('draft', 0)} 条草稿，{leaves.get('approved', 0)} 条已批准，{leaves.get('cancelled', 0)} 条已取消。",
+            f"الإجازات: {leaves.get('draft', 0)} مسودة، {leaves.get('confirmed', 0)} معتمدة، {leaves.get('cancelled', 0)} ملغاة خلال الفترة.",
+            f"Leave: {leaves.get('draft', 0)} draft, {leaves.get('confirmed', 0)} approved, {leaves.get('cancelled', 0)} cancelled in the window.",
+            f"请假：窗口内 {leaves.get('draft', 0)} 条草稿，{leaves.get('confirmed', 0)} 条已批准，{leaves.get('cancelled', 0)} 条已取消。",
         ),
         f"{link}: /leave",
         m(

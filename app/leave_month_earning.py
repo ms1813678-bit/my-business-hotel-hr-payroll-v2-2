@@ -131,9 +131,18 @@ def _derive(db,*,selection_id,month_start,evaluated_on,current_insurance_years,a
             raise ValueError('Prior earned source changed; separate correction required before release.')
     release_audits=db.scalars(select(AuditLog).where(AuditLog.action=='leave_annual_released',AuditLog.entity_type=='leave_annual_release')).all()
     for audit in release_audits:
-        body=json.loads(audit.new_value)
-        if body.get('employee_id')==employee_id:
-            for item in body['ledger']:
+        try:
+            body=json.loads(audit.new_value)
+            if not isinstance(body,dict) or type(body.get('employee_id')) is not int:raise ValueError
+            owned=body['employee_id']==employee_id
+            items=body["ledger"] if owned else []
+            if not isinstance(items,list) or any(not isinstance(i,dict) or type(i.get('id')) is not int
+                    or not isinstance(i.get('key'),str) or not isinstance(i.get('amount'),str)
+                    or type(i.get('leave_type_id')) is not int for i in items):raise ValueError
+        except (TypeError,KeyError,ValueError) as exc:
+            raise ValueError('Malformed annual release audit evidence (audit id %s); refusing, not ignored.'%audit.id) from exc
+        if owned:
+            for item in items:
                 released_row=db.get(LeaveBalanceTransaction,item['id'],populate_existing=True)
                 if (released_row is None or released_row.source_operation_key!=item['key']
                         or canonical_amount(ledger_amount(released_row))!=item['amount']
