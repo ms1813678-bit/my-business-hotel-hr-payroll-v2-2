@@ -1,3 +1,8 @@
+## 2026-11-25, Instinct with Muse-origin candidate: typed snapshot codec
+
+- Adopt the isolated Muse-origin standard-library canonical typed codec and its78 portable regression nodes. Instinct independently reviewed and repaired huge-number controlled failures and Python3.11 subsecond-offset datetime roundtrip, adding17 regression nodes.
+- Preserve source provenance and bounded independent review. Final shared codec/UID/snapshot selection123pass. No codec callers, journal, authorization, device channel or live sync activation.
+
 ## 2026-11-25, Instinct: explicit internal UID snapshots
 
 - Add a SELECT-only explicit-field internal snapshot for the four existing UID entities, joining parent UIDs without ORM row loading or default-all export. No role policy, network, route, revision journal, apply or business-data change.
