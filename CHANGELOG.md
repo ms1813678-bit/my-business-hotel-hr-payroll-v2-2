@@ -1,3 +1,8 @@
+## 2026-11-25, Instinct: explicit internal UID snapshots
+
+- Add a SELECT-only explicit-field internal snapshot for the four existing UID entities, joining parent UIDs without ORM row loading or default-all export. No role policy, network, route, revision journal, apply or business-data change.
+- Add sixteen actual migrated-PG cases and qualified caller authority/transaction limitations; final focused selection28pass with independent exact-source static review.
+
 ## 2026-11-25, Instinct: preserve typed text in XLSX exports
 
 - Integrate the independently reviewed minimal formula-safety candidate in HR/custom workbook final saves. Formula-typed values become literal strings; numbers, dates, booleans and calculated values retain their types. No database, role or report-policy change.
