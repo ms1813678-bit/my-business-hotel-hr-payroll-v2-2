@@ -23,12 +23,18 @@ def run(root):
                     from System.Reflection import BindingFlags
                     from System.Runtime.InteropServices import Marshal
                     obj=frame.f_locals['self'];target=frame.f_locals['core'];readback=obj.args.NewWindow
-                    for tag,value in [('target',target),('readback',readback)]:
-                        print('NATIVE_POPUP_WRAPPER',tag,'null',value is None,flush=True)
-                        if value is not None:
-                            for field in value.GetType().GetFields(BindingFlags.Instance|BindingFlags.NonPublic|BindingFlags.Public):
-                                raw=field.GetValue(value)
-                                print('NATIVE_POPUP_FIELD',tag,str(field.Name),str(field.FieldType.FullName),'com',bool(raw is not None and Marshal.IsComObject(raw)),flush=True)
+                    pointers=[]
+                    try:
+                        for tag,value in [('target',target),('readback',readback)]:
+                            field=value.GetType().GetField('_rawNative',BindingFlags.Instance|BindingFlags.NonPublic)
+                            if field is None:raise RuntimeError('pinned SDK raw COM field absent')
+                            raw=field.GetValue(value)
+                            if raw is None or not Marshal.IsComObject(raw):raise RuntimeError('pinned SDK raw value not COM')
+                            pointers.append(Marshal.GetIUnknownForObject(raw))
+                        print('NATIVE_POPUP_CANONICAL_IUNKNOWN_EQUAL',bool(pointers[0]==pointers[1]),flush=True)
+                    finally:
+                        for pointer in reversed(pointers):Marshal.Release(pointer)
+                        print('NATIVE_POPUP_CANONICAL_REFS_RELEASED',len(pointers),flush=True)
 
             return trace
         sys.settrace(trace)
