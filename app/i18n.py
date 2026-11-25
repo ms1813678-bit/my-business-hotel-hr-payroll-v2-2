@@ -4953,3 +4953,62 @@ for _ar,_en,_zh in [
 ('استحقاق مفرج عنه','Released earning','已释放应计额')]:
     EN[_ar]=_en
     ZH[_ar]=_zh
+
+for _ar,_en,_zh in [
+('صرف نقدي يدوي للإجازة','Manual leave cash-out','休假手动现金折算'),
+('هذا الصرف يسجّل التزامًا مُراجَعًا وخصمًا دقيقًا من رصيد الإجازة، وهو ليس مدفوعًا. لا يوجد تحويل أموال ولا اعتماد رواتب ولا إقفال.','This cash-out records a reviewed liability and an exact debit from the leave balance; it is not paid. There is no money transfer, payroll approval or close.','此折算记录一项已审核负债，并从休假余额中精确扣减；它未付款。没有资金转移、工资批准或关闭。'),
+('الرصيد المحتجز/غير المُفرج عنه مستبعد دائمًا، والرصيد السالب (دين) غير قابل للصرف.','Held/unreleased balance is always excluded, and a negative (debt) balance is never cashable.','被冻结/未释放的余额始终排除，负余额（欠额）不可折算。'),
+('الأساس النقدي: الراتب الأساسي + مكافأة الأداء فقط من بند رواتب مُختار صراحة، مقسومًا على 30 دائمًا.','Cash basis: basic salary plus performance bonus only, from an explicitly selected payroll item, always divided by 30.','现金基础：仅基本工资加绩效奖金，来自明确选择的工资条目，始终除以 30。'),
+('تم حفظ الصرف والخصم','Cash-out and debit saved','折算与扣减已保存'),
+('إيصال ثابت: التزام مسجل غير مدفوع.','Immutable receipt: recorded liability, not paid.','不可变收据：已记录负债，未付款。'),
+('الأيام الدقيقة','Exact days','精确天数'),
+('المبلغ المُراجَع (جنيه)','Reviewed amount (EGP)','已审核金额（埃镑）'),
+('حركة الخصم','Debit entry','扣减记录'),
+('راجع قبل التأكيد','Review before confirming','确认前请审核'),
+('الرصيد المتحقق المُفرج عنه','Verified released balance','已核实已释放余额'),
+('المستبعد المحتجز','Held excluded','排除的冻结额'),
+('الأيام الدقيقة المطلوبة','Exact days requested','要求的精确天数'),
+('المعدل اليومي الدقيق','Exact daily rate','精确日费率'),
+('الأداء','Performance','绩效'),
+('تاريخ الأساس/المصدر','Basis/source date','基础/来源日期'),
+('حالة دورة الرواتب','Payroll run status','工资周期状态'),
+('أؤكد المصدر والرصيد والأساس والمبلغ المعروض','I confirm the source, balance, basis and amount shown','我确认所示来源、余额、基础和金额'),
+('حفظ الخصم والإيصال بعد المراجعة','Save the debit and receipt after review','审核后保存扣减和收据'),
+('نوع الإجازة المتعقَّب الرصيد','Balance-tracked leave type','计余额休假类型'),
+('بند الرواتب المصدر (اختيار صريح)','Source payroll item (explicit selection)','来源工资条目（明确选择）'),
+('الأيام الدقيقة (عشري أو كسر مثل 7/3)','Exact days (decimal or fraction, e.g. 7/3)','精确天数（小数或分数，如 7/3）'),
+('تاريخ التقييم','Evaluation date','评估日期'),
+('عرض ملخص الصرف','Review cash-out summary','审核折算摘要'),
+('تعذرت مراجعة صرف الإجازة. راجع المصدر والرصيد والجلسة.','Cash-out review failed. Check the source, balance and session.','折算审核失败。请检查来源、余额和会话。'),
+]:
+    EN[_ar]=_en
+    ZH[_ar]=_zh
+
+
+for _ar,_en,_zh in [
+('التسوية السنوية','Annual settlement','年度结算'),
+('نقد عن نصف الاستحقاق السنوي الكامل أو الرصيد المتبقي، أيهما أقل، ثم ترحيل الباقي. السنوي الخاص بمعيني نوفمبر وديسمبر محفوظ وفق الاستثناء.','Cash for half the full annual entitlement or the unused balance, whichever is lower, then carry the remainder. The November/December new-hire exception remains.','按全年年假额度的一半或未用余额中的较低者折算，剩余结转。保留十一月和十二月新入职员工的例外。'),
+('التأكيد يسجل خصم أيام النقد والتزامًا ماليًا غير مدفوع، ويحفظ باقي الترحيل دون إضافة رصيد ثانية. لا تحويل أموال ولا اعتماد راتب.','Confirmation records a cash-day debit and an unpaid liability, preserving the carry remainder without a second credit. No money transfer or payroll approval.','确认将记录折算天数扣减和未付款负债，保留结转余款，不重复增加余额。不转账或批准工资。'),
+('الاستحقاق الكامل','Full entitlement','全年额度'),
+('المتبقي','Remaining','剩余'),
+('أيام النقد','Cash days','折算天数'),
+('أيام الترحيل','Carry days','结转天数'),
+('أؤكد مصدر السنة وأيام النقد والترحيل والالتزام المعروض','I confirm the year source, cash days, carry days and liability shown','我确认年度来源、折算天数、结转天数和所示负债'),
+('حفظ التسوية بعد المراجعة','Save settlement after review','审核后保存结算'),
+('تم حفظ التسوية السنوية','Annual settlement saved','年度结算已保存'),
+('التزام مسجل غير مدفوع، دون إضافة رصيد ثانية.','Recorded unpaid liability, without a second balance credit.','记录的未付款负债，不重复增加余额。'),
+('تاريخ المراجعة','Review date','审核日期'),
+('بند الرواتب المصدر','Source payroll item','来源工资项目'),
+('لا توجد أيام نقدية','No cash days','无折算天数'),
+('الترحيل متاح من','Carry available from','结转可用起始日'),
+('الترحيل متاح حتى','Carry available through','结转可用截止日'),
+('حدد المدة فقط عند وجود باقي موجب للترحيل. لا نهاية مدة مفترضة ولا تصفير تلقائي.','Set dates only for a positive carry remainder. No assumed end date or automatic erasure.','仅在有正结转余额时设置日期。不假定截止日或自动清零。'),
+('مراجعة التسوية السنوية','Review annual settlement','审核年度结算'),
+('تحتاج التسوية السنوية إلى مصدر ديسمبر مكتمل ومراجع.','Annual settlement needs a complete reviewed December source.','年度结算需要完整并经审核的十二月来源。'),
+('تعذرت التسوية السنوية. راجع مصدر السنة والرصيد والجلسة؛ لا توجد تسوية جديدة محفوظة.','Annual settlement refused. Check the year source, balance and session. No new settlement was saved.','年度结算被拒绝。请检查年度来源、余额和会话。未保存新结算。'),
+]:
+    EN[_ar]=_en
+    ZH[_ar]=_zh
+
+EN['المبلغ بالجنيه']='Amount (EGP)'
+ZH['المبلغ بالجنيه']='金额（埃及镑）'

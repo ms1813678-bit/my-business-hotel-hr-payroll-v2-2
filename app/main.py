@@ -5153,6 +5153,9 @@ app.include_router(monthly_review_router(templates))
 from app.leave_month_earning_routes import monthly_earning_router
 app.include_router(monthly_earning_router(templates))
 
+from app.leave_cash_out_routes import cash_out_router
+app.include_router(cash_out_router(templates))
+
 from app.leave_reconciliation_editor_routes import reconciliation_editor_router
 app.include_router(reconciliation_editor_router(templates))
 
@@ -5161,3 +5164,6 @@ app.include_router(payroll_day_handoff_router(templates))
 
 from app.overtime_day_routes import overtime_day_router
 app.include_router(overtime_day_router(templates))
+
+from app.leave_annual_settlement_routes import annual_settlement_router
+app.include_router(annual_settlement_router(templates))

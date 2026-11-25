@@ -3,7 +3,7 @@
 from datetime import date
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
-from sqlalchemy import select
+from sqlalchemy import select, extract
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.csrf import get_csrf_token
@@ -17,7 +17,7 @@ from app.leave_register_receipts import (
     issue_register_receipt,
 )
 from app.leave_register_review import RegisterEdit
-from app.models import AdminAccount, Employee, LeaveRegisterEntry, LeaveType
+from app.models import AdminAccount, Employee, LeaveRegisterEntry, LeaveType, LeaveOpeningSelection, LeaveMonthEarning
 
 
 def leave_workbench_router(templates):
@@ -32,6 +32,7 @@ def leave_workbench_router(templates):
                 .order_by(Employee.code).limit(500)).all()
             employee = None
             rows, balances = [], []
+            annual_selections = []
             valid_period = (period_start is not None and period_end is not None
                             and period_start <= period_end
                             and (period_end - period_start).days <= 365)
@@ -39,6 +40,12 @@ def leave_workbench_router(templates):
                 employee = db.execute(select(Employee.id, Employee.code, Employee.full_name)
                     .where(Employee.id == employee_id)).first()
                 if employee is not None:
+                    if admin.role == 'system_admin':
+                        annual_selections = db.execute(select(LeaveOpeningSelection.id, LeaveMonthEarning.month_start)
+                            .join(LeaveMonthEarning, LeaveMonthEarning.selection_id == LeaveOpeningSelection.id)
+                            .where(LeaveOpeningSelection.employee_id == employee.id,
+                                extract('month', LeaveMonthEarning.month_start) == 12)
+                            .order_by(LeaveMonthEarning.month_start.desc()).limit(10)).all()
                     if admin.role in {'system_admin', 'finance'}:
                         for kind in db.scalars(select(LeaveType).where(LeaveType.tracks_balance.is_(True)
                                 ).order_by(LeaveType.id)).all():
@@ -55,7 +62,7 @@ def leave_workbench_router(templates):
             return templates.TemplateResponse(request=request, name='leave_workbench.html', context={
                 'admin': admin.display_name or admin.username, 'role': admin.role,
                 'employees': employees, 'employee': employee, 'rows': rows,
-                'balances': balances, 'period_start': period_start, 'period_end': period_end,
+                'balances': balances, 'annual_selections': annual_selections, 'period_start': period_start, 'period_end': period_end,
                 'valid_period': valid_period, 'csrf_token': get_csrf_token(request)})
 
     def identity(request, admin):

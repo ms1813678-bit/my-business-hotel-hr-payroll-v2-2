@@ -1311,3 +1311,54 @@ class LeaveYearAttribution(Base):
     request_json: Mapped[str] = mapped_column(Text, nullable=False)
     result_json: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+
+
+
+class LeaveCashOut(Base):
+    """Immutable explicit manual cash-out receipt: reviewed liability/record
+    plus exactly one exact ledger debit. Never a payment; no paid state."""
+    __tablename__ = 'leave_cash_outs'
+    __table_args__ = (
+        UniqueConstraint('ledger_id', name='uq_leave_cash_out_ledger'),
+        CheckConstraint('cash_egp > 0', name='ck_leave_cash_out_amount_positive'),
+        CheckConstraint('basic_salary >= 0 AND performance_bonus >= 0', name='ck_leave_cash_out_basis_nonnegative'),
+    )
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    employee_id: Mapped[int] = mapped_column(ForeignKey('employees.id', ondelete='RESTRICT'), nullable=False)
+    leave_type_id: Mapped[int] = mapped_column(ForeignKey('leave_types.id', ondelete='RESTRICT'), nullable=False)
+    payroll_item_id: Mapped[int] = mapped_column(ForeignKey('payroll_items.id', ondelete='RESTRICT'), nullable=False)
+    payroll_run_id: Mapped[int] = mapped_column(ForeignKey('payroll_runs.id', ondelete='RESTRICT'), nullable=False)
+    evaluated_on: Mapped[date] = mapped_column(Date, nullable=False)
+    days_canonical: Mapped[str] = mapped_column(Text, nullable=False)
+    daily_rate_canonical: Mapped[str] = mapped_column(Text, nullable=False)
+    cash_exact_canonical: Mapped[str] = mapped_column(Text, nullable=False)
+    cash_egp: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
+    basic_salary: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
+    performance_bonus: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
+    ledger_id: Mapped[int] = mapped_column(ForeignKey('leave_balance_transactions.id', ondelete='RESTRICT'), nullable=False)
+    actor_id: Mapped[int] = mapped_column(ForeignKey('admin_accounts.id', ondelete='RESTRICT'), nullable=False)
+    session_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    session_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    restore_epoch: Mapped[str | None] = mapped_column(String(128))
+    source_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    request_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    source_json: Mapped[str] = mapped_column(Text, nullable=False)
+    result_json: Mapped[str] = mapped_column(Text, nullable=False)
+    result_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+
+
+class LeaveAnnualSettlement(Base):
+    __tablename__ = 'leave_annual_settlements'
+    __table_args__ = (UniqueConstraint('employee_id', 'leave_type_id', 'source_year', name='uq_annual_settlement_year'),)
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    employee_id: Mapped[int] = mapped_column(ForeignKey('employees.id', ondelete='RESTRICT'), nullable=False)
+    leave_type_id: Mapped[int] = mapped_column(ForeignKey('leave_types.id', ondelete='RESTRICT'), nullable=False)
+    source_year: Mapped[int] = mapped_column(Integer, nullable=False)
+    cash_out_id: Mapped[str | None] = mapped_column(ForeignKey('leave_cash_outs.id', ondelete='RESTRICT'))
+    source_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    request_json: Mapped[str] = mapped_column(Text, nullable=False)
+    request_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    result_json: Mapped[str] = mapped_column(Text, nullable=False)
+    result_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)

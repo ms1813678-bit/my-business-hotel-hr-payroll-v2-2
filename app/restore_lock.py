@@ -163,6 +163,9 @@ GATE_EXEMPT_EXACT = {
     ("POST", "/settings/backup/restore"),
 }
 GATE_EXEMPT_POST_PATTERNS = (
+    re.compile(r'/leave/annual-settlement/[0-9a-f]{64}/(?:review|confirm)'),
+    # These POST handlers acquire their own bounded exclusive gate before all source work.
+    re.compile(r'/leave/cash-out/[1-9][0-9]*/(?:review|confirm)'),
     re.compile(r'/payroll/items/[1-9][0-9]*/overtime-days/(?:review|confirm|monthly)'),
     re.compile(r'/leave/month-review/register-(?:review|confirm)'),
     # Exact monthly routes acquire their own bounded exclusive gate through

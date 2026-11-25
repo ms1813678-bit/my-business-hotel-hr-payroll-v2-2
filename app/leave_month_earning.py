@@ -149,6 +149,13 @@ def _derive(db,*,selection_id,month_start,evaluated_on,current_insurance_years,a
                         or released_row.employee_id!=employee_id or released_row.leave_type_id!=item['leave_type_id']):
                     raise ValueError('Prior annual release result changed.')
                 known_ledger.add(item['id'])
+    # A verified manual/annual cash-out debit is a known, receipt-proven reduction of a released balance,
+    # not an unrelated legacy debit that could represent the same register days.
+    from app.leave_cash_out import _verify_cash_receipt
+    from app.models import LeaveCashOut
+    for cash_receipt in db.scalars(select(LeaveCashOut).where(LeaveCashOut.employee_id==employee_id)).all():
+        _verify_cash_receipt(db,cash_receipt)
+        known_ledger.add(cash_receipt.ledger_id)
     for row in ledger:
         if row.id not in known_ledger:
             raise ValueError('Existing unrelated ledger requires separate reviewed reconciliation.')

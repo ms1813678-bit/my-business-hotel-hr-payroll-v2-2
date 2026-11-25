@@ -108,7 +108,7 @@ def test_exemption_table_has_no_unknown_entries():
     # state, and a mid-window read of that state is exactly what the gate
     # exists to block (peer finding on bc74a88).
     assert not restore_gate_exempt("GET", "/settings/password")
-    assert len(GATE_EXEMPT_POST_PATTERNS) == 7
+    assert len(GATE_EXEMPT_POST_PATTERNS) == 9
     assert restore_gate_exempt("POST", "/leave/month-review/reconciliation-snapshot")
     assert restore_gate_exempt("POST", "/leave/month-review/reconciliation-draft")
     assert not restore_gate_exempt("POST", "/leave/month-review/reconciliation-draft/x")
@@ -177,3 +177,12 @@ def test_daily_overtime_gate_exemption_exact_and_monthly_shared_gate():
         assert restore_gate_exempt('POST','/payroll/items/1/overtime-days/'+action)
         assert not restore_gate_exempt('POST','/payroll/items/1/overtime-days/'+action+'/other')
     assert not restore_gate_exempt('POST','/payroll/runs/1/approve')
+
+
+
+def test_cash_out_exemption_is_only_canonical_self_guarded_post():
+    assert restore_gate_exempt('POST', '/leave/cash-out/1/review')
+    assert restore_gate_exempt('POST', '/leave/cash-out/1/confirm')
+    for method, path in [('GET', '/leave/cash-out/1'), ('POST', '/leave/cash-out/01/review'),
+        ('POST', '/leave/cash-out/1/review/other'), ('POST', '/leave/cash-out/x/confirm')]:
+        assert not restore_gate_exempt(method, path)
