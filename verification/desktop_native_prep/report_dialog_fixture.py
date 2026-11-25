@@ -53,6 +53,7 @@ def save_pdf(hwnd,destination,shot):
             if stable>=3 and raw.startswith(b'%PDF-') and b'%%EOF' in raw[-1024:]:return dict(bytes=len(raw),sha256=hashlib.sha256(raw).hexdigest())
             last=raw
         time.sleep(.2)
+    print('NATIVE_REPORT_DOWNLOAD_BOUNDARY',json.dumps(dict(exists=destination.exists(),bytes=destination.stat().st_size if destination.exists() else None,siblings=[dict(name=p.name,bytes=p.stat().st_size) for p in destination.parent.glob('authenticated-report*') if p.is_file()])),flush=True)
     raise RuntimeError('native downloaded PDF incomplete')
 
 def cancel_print(hwnd,shot):

@@ -224,7 +224,7 @@ def parent(scm_mode=False,visible=False,authenticated=False):
                 # Retain only known synthetic result/pixels, never DB/config/keys.
                 failed=pathlib.Path(os.environ['RUNNER_TEMP'])/'hony-visible-failure-proof'
                 failed.mkdir(exist_ok=False)
-                for name in ['visible-window-result.json','visible-login.png','visible-popup.png','authenticated-window-result.json','authenticated-dirty-confirm.png','authenticated-save-dialog.png','authenticated-print-preview.png']:
+                for name in ['visible-window-result.json','visible-login.png','visible-popup.png','authenticated-window-result.json','authenticated-dirty-confirm.png','authenticated-save-dialog.png','authenticated-print-preview.png','authenticated-output-failure.png']:
                     if (root/name).is_file():shutil.copy2(root/name,failed/name)
                 raise RuntimeError('visible actual window child failed')
             result_name='authenticated-window-result.json' if authenticated else 'visible-window-result.json'

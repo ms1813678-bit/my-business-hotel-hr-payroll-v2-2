@@ -85,14 +85,17 @@ def run(root):
                 def fire():
                     guard._control.CoreWebView2.ExecuteScriptAsync('setTimeout(function(){document.querySelector('+json.dumps(selector)+').click();},0);true')
                 guard._marshal_to_ui(guard._control,fire)
+            evidence['output_stage']='save-dialog'
             click('a[href^="/reports/export.pdf?"]')
             evidence['native_pdf']=helper.save_pdf(owned[0],root/'authenticated-report.pdf',root/'authenticated-save-dialog.png')
             evidence['pdf_download_tested']=True
+            evidence['output_stage']='print-preview'
             wait_for('location.pathname==="/reports/view"')
             click('button[onclick="window.print()"]')
             helper.cancel_print(owned[0],root/'authenticated-print-preview.png')
             wait_for('location.pathname==="/reports/view"')
             evidence['print_preview_cancel_tested']=True
+            evidence['output_stage']='complete'
         def loaded():
             if started.is_set():return
             started.set()
@@ -117,6 +120,15 @@ def run(root):
                 evidence.update(status='authenticated-pages-rendered',normal_TLS=True,real_login_submission=True,pdf_download_tested=evidence.get('pdf_download_tested',False),print_tested=False,print_preview_cancel_tested=evidence.get('print_preview_cancel_tested',False),dirty_cancel_tested=evidence.get('dirty_cancel_tested',False),seeded_approvals_not_exercised=True)
             except BaseException as exc:
                 evidence.update(status='failed',error_type=type(exc).__name__)
+                if evidence.get('output_stage'):
+                    evidence['output_failure']=str(exc)
+                    import win32gui,win32process
+                    from PIL import ImageGrab
+                    windows=[]
+                    win32gui.EnumWindows(lambda h,_:windows.append(h) if win32process.GetWindowThreadProcessId(h)[1]==os.getpid() and win32gui.IsWindowVisible(h) else None,None)
+                    evidence['output_windows']=[dict(title=win32gui.GetWindowText(h),class_name=win32gui.GetClassName(h)) for h in windows]
+                    if windows:ImageGrab.grab(bbox=win32gui.GetWindowRect(windows[0]),all_screens=True).save(root/'authenticated-output-failure.png')
+                    print('NATIVE_OUTPUT_FAILURE',json.dumps(dict(stage=evidence.get('output_stage'),reason=str(exc),windows=evidence['output_windows'])),flush=True)
                 print('NATIVE_AUTH_FIXTURE_FAILED',type(exc).__name__,'dirty_cancel',evidence.get('dirty_cancel_tested',False),flush=True)
             finally:window.destroy()
         window.events.loaded+=loaded
