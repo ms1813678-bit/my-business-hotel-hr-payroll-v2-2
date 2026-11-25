@@ -1,3 +1,7 @@
+## 2026-11-25 - Observe normal print preview readiness by Instinct
+
+- Disposable authenticated fixture waits and captures actual preview at2,8,20 seconds, then invokes only Cancel. No physical print, settings change, alternate renderer or product UI change. Export/chosen-filename and state/cleanup gates stay distinct.
+
 ## 2026-11-25 - Inspect native popup managed-wrapper identity boundary by Instinct
 
 - Trace locates refusal at NewWindow wrapper inequality, followed by documented invalid post-assignment reset during cleanup. Inspect only wrapper null state and fixed field names/types/COM flags before choosing a native identity comparison. No pointer values, raw exception text, changed guard or fallback.

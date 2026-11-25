@@ -79,7 +79,18 @@ def cancel_print(hwnd,shot):
         cancel=[e for e in es if e.Current.ControlType==ControlType.Button and str(e.Current.Name) in ('Cancel','إلغاء')]
         diagnostic=dict(print_text=any(n in ('Print','طباعة','Print preview') for n in names),cancel_buttons=len(cancel),buttons=[str(e.Current.Name) for e in es if e.Current.ControlType==ControlType.Button])
         if diagnostic['print_text'] and len(cancel)==1:
+            # Bounded normal readiness observation only. No print invocation,
+            # settings change, DOM replacement or alternate renderer.
+            observed=time.monotonic()
+            for seconds in (2,8,20):
+                while time.monotonic()-observed<seconds:time.sleep(.1)
+                current=list(root.FindAll(TreeScope.Descendants,Condition.TrueCondition))
+                current_cancel=[e for e in current if e.Current.ControlType==ControlType.Button and str(e.Current.Name) in ('Cancel','إلغاء')]
+                if len(current_cancel)!=1:raise RuntimeError('owned preview Cancel changed while waiting')
+                ImageGrab.grab(bbox=win32gui.GetWindowRect(hwnd),all_screens=True).save(pathlib.Path(shot).with_name('authenticated-print-ready-'+str(seconds)+'.png'))
+                print('NATIVE_PRINT_READINESS_OBSERVATION',json.dumps(dict(seconds=seconds,cancel_buttons=len(current_cancel),names=[str(e.Current.Name)[:120] for e in current][:100])),flush=True)
             ImageGrab.grab(bbox=win32gui.GetWindowRect(hwnd),all_screens=True).save(shot)
+            cancel=current_cancel
             cancel[0].GetCurrentPattern(InvokePattern.Pattern).Invoke()
             until_closed=time.monotonic()+6
             while time.monotonic()<until_closed:
