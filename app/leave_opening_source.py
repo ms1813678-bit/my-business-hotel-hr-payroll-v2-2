@@ -82,13 +82,23 @@ def review_opening_source(db, *, group_id, policy_id, **identity):
 @bounded_workbook_operation
 def read_confirmed_opening_source(db, *, selection_id, **identity):
     policy_read_guard(db,**identity)
+    return _read_verified_opening_source(db,selection_id=selection_id,expected_epoch=identity['expected_epoch'])
+
+
+def _read_verified_opening_source(db, *, selection_id, expected_epoch):
     row=db.get(LeaveOpeningSelection,selection_id,populate_existing=True)
-    if row is None or row.restore_epoch!=identity['expected_epoch']:
+    if row is None or row.restore_epoch!=expected_epoch:
         raise ValueError('Confirmed current-epoch source required.')
-    current=_current(db,row.employee_id,identity['expected_epoch'])
+    current=_current(db,row.employee_id,expected_epoch)
     if current.id!=row.id:
         raise ValueError('Source replaced; explicitly review the current selection.')
-    reviews,policy,digest=_source(db,group_id=row.group_id,policy_id=row.policy_id,**identity)
+    from app.leave_manual_opening_groups import _read_verified_manual_group
+    from app.leave_policy_store import _read_verified_policy
+    reviews=_read_verified_manual_group(db,group_id=row.group_id,expected_epoch=expected_epoch)
+    policy=_read_verified_policy(db,policy_id=row.policy_id,expected_epoch=expected_epoch)
+    digest=sha256(json.dumps({'group_id':row.group_id,'policy_id':row.policy_id,
+        'policy':canonical_policy(policy),'proposals':[(r['proposal_id'],r['proposal_sha256']) for r in reviews]},
+        sort_keys=True,separators=(',',':')).encode()).hexdigest()
     if digest!=row.source_sha256 or reviews[0]['employee_id']!=row.employee_id:
         raise ValueError('Confirmed source integrity mismatch.')
     return reviews,policy,digest

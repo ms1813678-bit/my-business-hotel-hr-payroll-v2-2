@@ -10,17 +10,39 @@ import json
 import re
 from sqlalchemy import select,text
 from app.department_workbook_guard import bounded_workbook_operation
-from app.leave_month_earning import _locks,_verify_receipt,_earning_binding,canonical,digest,CATEGORIES
+from app.leave_month_earning import _lock_source_tables,_verify_receipt,_earning_binding,canonical,digest,CATEGORIES
 from app.leave_exact_amount import as_fraction,canonical_amount,ledger_amount
 from app.models import (AuditLog,Employee,LeaveType,LeaveMonthEarning,LeaveRegisterEntry,
     LeaveBalanceTransaction,LeaveCarryConsumption,LeaveAnnualSettlement,LeaveCashOut)
 
 
+def consumption_guard(db, *, actor_id,session_id,session_version,expected_epoch,writing=True):
+    from app.models import AdminAccount,AdminSession
+    from app.restore_lock import acquire_credential_write_lock,acquire_authenticated_read_lock,read_restore_epoch
+    if writing:acquire_credential_write_lock(db,expected_epoch=expected_epoch)
+    else:acquire_authenticated_read_lock(db)
+    if read_restore_epoch(db)!=expected_epoch:raise ValueError('Restore epoch changed.')
+    actor=db.get(AdminAccount,actor_id,populate_existing=True)
+    login=db.get(AdminSession,session_id,populate_existing=True)
+    if (actor is None or login is None or login.admin_account_id!=actor.id or not actor.active
+            or actor.must_change_password or actor.pending_credential_reset
+            or actor.role not in {'system_admin','assistant_manager'} or actor.session_version!=session_version):
+        raise ValueError('Current authorized leave editor required.')
+    return actor
+
+
+def _locks(db,identity):
+    if db.get_bind().dialect.name!='postgresql':raise ValueError('Migrated PostgreSQL required.')
+    actor=consumption_guard(db,**identity)
+    _lock_source_tables(db)
+    return actor
+
+
 def _grant(db, *, grant_kind, grant_id, employee_id, leave_type_id, work_date, identity):
     if grant_kind=='carry':
-        from app.leave_carry_availability import read_carry_availability
-        result=read_carry_availability(db,allocation_id=grant_id,employee_id=employee_id,
-            leave_type_id=leave_type_id,work_date=work_date,**identity)
+        from app.leave_carry_availability import _read_verified_carry_availability
+        result=_read_verified_carry_availability(db,allocation_id=grant_id,employee_id=employee_id,
+            leave_type_id=leave_type_id,work_date=work_date,reader_actor_id=identity['actor_id'])
         if not result['eligible']:raise ValueError('Carry grant is not positive and available on this work date.')
         return dict(kind=grant_kind,id=grant_id,employee_id=employee_id,leave_type_id=leave_type_id,
             ceiling=result['source_amount'],source_digest=result['source_digest'],
@@ -76,8 +98,8 @@ def _usage(db, *, monthly_receipt_id, usage_ledger_id, employee_id, leave_type_i
             or ledger_amount(ledger)>=0 or entry is None or entry.code!=code):
         raise ValueError('Existing monthly debit and exact register-day code must agree.')
     from app.department_workbook_source import read_workbook_source
-    from app.leave_opening_source import read_confirmed_opening_source
-    _reviews,_policy,policy_digest=read_confirmed_opening_source(db,selection_id=month.selection_id,**identity)
+    from app.leave_opening_source import _read_verified_opening_source
+    _reviews,_policy,policy_digest=_read_verified_opening_source(db,selection_id=month.selection_id,expected_epoch=identity['expected_epoch'])
     employee=db.get(Employee,employee_id,populate_existing=True)
     facts=read_workbook_source(db,department_id=employee.department_id,employee_ids=(employee_id,),
         window_start=date(work_date.year,1,1),month_start=month.month_start,policy_digest=policy_digest,

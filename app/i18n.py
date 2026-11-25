@@ -5012,3 +5012,35 @@ for _ar,_en,_zh in [
 
 EN['المبلغ بالجنيه']='Amount (EGP)'
 ZH['المبلغ بالجنيه']='金额（埃及镑）'
+
+
+for _ar,_en,_zh in [
+('تخصيص استعمال الترحيل','Allocate carry usage','分配结转使用'),
+('اربط يوم إجازة مسجلًا بمنحة ترحيل محددة. لا خصم ثانٍ ولا صرف نقدي ولا إنشاء إجازة جديدة.','Link a recorded leave day to a chosen carry grant. No second debit, cash payment or new leave entry.','将已记录的休假日关联到选定的结转额度。不重复扣减、不支付现金或新增休假。'),
+('المبلغ الأصلي للمنحة ليس رصيدًا متبقيًا؛ المراجعة تتحقق من الاستعمالات السابقة والمصدر قبل الحفظ.','The original grant is not a remaining balance. Review checks earlier allocations and source evidence before saving.','原始额度并非剩余额度。保存前将检查先前分配及来源证据。'),
+('تم حفظ تخصيص الاستعمال','Usage allocation saved','使用分配已保存'),
+('اليوم المسجل','Recorded day','记录日期'),
+('الأيام المخصصة','Allocated days','分配天数'),
+('المخصص من المنحة بعد الحفظ','Grant allocation after saving','保存后已分配额度'),
+('المتبقي من سقف المنحة بعد الحفظ','Unallocated grant ceiling after saving','保存后未分配额度上限'),
+('شهر خصم الاستعمال','Usage debit month','使用扣减月份'),
+('تغير الرصيد الناتج عن هذا الحفظ: صفر. لا مبلغ نقدي.','Balance change from this save: zero. No cash amount.','本次保存引起的余额变化为零。无现金金额。'),
+('أؤكد المنحة ويوم الاستعمال والكمية المعروضة','I confirm the grant, usage day and quantity shown','我确认所示额度、使用日期和数量'),
+('حفظ التخصيص بعد المراجعة','Save allocation after review','审核后保存分配'),
+('منحة الترحيل','Carry grant','结转额度'),
+('اختر المنحة','Choose a grant','选择额度'),
+('اختر خصم الشهر','Choose a monthly debit','选择月度扣减'),
+('الأيام المخصصة، كسر أو عدد عشري','Allocated days, fraction or decimal','分配天数，可用分数或小数'),
+('مراجعة تخصيص الاستعمال','Review usage allocation','审核使用分配'),
+('تحتاج منحة ترحيل مثبتة وخصم استعمال شهري مسجل من النوع نفسه.','A verified carry grant and recorded monthly usage debit of the same type are required.','需要已验证的结转额度和同类型已记录的月度使用扣减。'),
+('تعذر تخصيص الاستعمال. راجع المنحة واليوم والمصدر والجلسة؛ لم يحفظ تخصيص جديد.','Usage allocation refused. Check the grant, day, source and session. No new allocation was saved.','使用分配被拒绝。请检查额度、日期、来源和会话。未保存新分配。'),
+]:
+    EN[_ar]=_en
+    ZH[_ar]=_zh
+
+EN['راحة أسبوعية']='Weekly rest'
+ZH['راحة أسبوعية']='每周休息'
+EN['عطلة رسمية']='Official holiday'
+ZH['عطلة رسمية']='法定假日'
+EN['سنوي']='Annual leave'
+ZH['سنوي']='年假'

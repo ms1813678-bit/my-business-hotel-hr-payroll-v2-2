@@ -15,12 +15,12 @@ from tests.test_leave_cash_out import payroll
 FULL = date(2025, 1, 1)
 
 
-def settle(prior_year, carry_days=True):
+def settle(prior_year, carry_days=True, carry_end=date(2026,4,30)):
     db, employee, kinds, args = prior_year
     run, item = payroll(db, employee, start=date(2025, 12, 1), end=date(2025, 12, 31), status='draft')
     sel = dict(source_selection={**args, 'leave_type_id': kinds['A']}, full_annual_entitlement=15, payroll_item_id=item.id,
                available_from=date(2026, 1, 1) if carry_days else None,
-               available_through=date(2026, 4, 30) if carry_days else None, reason='Synthetic annual close')
+               available_through=carry_end if carry_days else None, reason='Synthetic annual close')
     reviewed = review_annual_settlement_apply(db, **sel)
     apply_annual_settlement(db, operation_id='f' * 64, reviewed_digest=reviewed['reviewed_digest'], human_confirmed=True, **sel)
     auth = {k: args[k] for k in ('actor_id', 'session_id', 'session_version', 'expected_epoch')}
@@ -102,10 +102,11 @@ def test_manual_cash_out_cannot_be_passed_off_as_annual_source_year_and_blocks_a
 
 @pytest.mark.parametrize('prior_year', [{'hire_date': FULL, 'used_annual': 6}], indirect=True)
 def test_prior_cash_guard_ignores_only_verified_annual_cash_of_another_source_year(prior_year):
-    """Year 2 cannot be built end to end: a 2026 source needs the held year transition (source-year baseline refusal).
+    """This predicate test is separate from next-year admission: the 2026 source needs a reviewed transition.
     So the guard predicate is proven on a real 2025 settlement receipt, with 2026 as the other year."""
     from app.leave_annual_settlement_store import _blocking_prior_cash
-    db, employee, kinds, item, auth = settle(prior_year)
+    # Keep this predicate-only fixture within its explicitly selected window at the actual wall clock.
+    db, employee, kinds, item, auth = settle(prior_year,carry_end=date(datetime.now(CAIRO_TZ).year+1,12,31))
     e, a = employee.id, kinds['A']
     assert _blocking_prior_cash(db, e, a, 2025)            # same source year: still blocks double cash
     assert not _blocking_prior_cash(db, e, a, 2026)        # other source year, only annual receipt: allowed
@@ -140,7 +141,7 @@ def test_actual_second_year_is_refused_until_reviewed_transition_exists(prior_ye
     from app.leave_month_earning import review_month_earning
     db,employee,kinds,args=prior_year
     auth={k:args[k] for k in ('actor_id','session_id','session_version','expected_epoch')}
-    with pytest.raises(ValueError,match='Current calendar baseline'):
+    with pytest.raises(ValueError,match='Reviewed year-transition checkpoint required before next-year earning'):
         review_month_earning(db,selection_id=args['selection_id'],month_start=date(2026,1,1),
             evaluated_on=date(2026,2,1),current_insurance_years={},age_evaluation_dates={},**auth)
 

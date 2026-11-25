@@ -108,7 +108,7 @@ def test_exemption_table_has_no_unknown_entries():
     # state, and a mid-window read of that state is exactly what the gate
     # exists to block (peer finding on bc74a88).
     assert not restore_gate_exempt("GET", "/settings/password")
-    assert len(GATE_EXEMPT_POST_PATTERNS) == 9
+    assert len(GATE_EXEMPT_POST_PATTERNS) == 10
     assert restore_gate_exempt("POST", "/leave/month-review/reconciliation-snapshot")
     assert restore_gate_exempt("POST", "/leave/month-review/reconciliation-draft")
     assert not restore_gate_exempt("POST", "/leave/month-review/reconciliation-draft/x")
@@ -186,3 +186,13 @@ def test_cash_out_exemption_is_only_canonical_self_guarded_post():
     for method, path in [('GET', '/leave/cash-out/1'), ('POST', '/leave/cash-out/01/review'),
         ('POST', '/leave/cash-out/1/review/other'), ('POST', '/leave/cash-out/x/confirm')]:
         assert not restore_gate_exempt(method, path)
+
+
+def test_carry_consumption_exemptions_are_exact_posts_only():
+    for action in ('review','confirm'):
+        path='/leave/carry-consumption/1/'+action
+        assert restore_gate_exempt('POST',path)
+        assert not restore_gate_exempt('GET',path)
+        assert not restore_gate_exempt('POST',path+'/extra')
+        assert not restore_gate_exempt('POST',path.replace('/1/','/01/'))
+        assert not restore_gate_exempt('POST',path.replace('/1/','/0/'))

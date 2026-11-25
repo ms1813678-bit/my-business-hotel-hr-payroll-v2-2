@@ -42,9 +42,13 @@ def policy_read_guard(db, *, actor_id, session_id, session_version, expected_epo
 @bounded_workbook_operation
 def read_policy_version(db, *, policy_id, **identity):
     policy_read_guard(db, **identity)
+    return _read_verified_policy(db,policy_id=policy_id,expected_epoch=identity['expected_epoch'])
+
+
+def _read_verified_policy(db, *, policy_id, expected_epoch):
     row = db.scalar(select(LeavePolicyVersion).where(LeavePolicyVersion.id == policy_id)
         .execution_options(populate_existing=True))
-    if row is None or row.restore_epoch != identity['expected_epoch']:
+    if row is None or row.restore_epoch != expected_epoch:
         raise ValueError('Explicit current-epoch policy version required.')
     if sha256(row.policy_json.encode()).hexdigest() != row.policy_sha256:
         raise ValueError('Stored policy integrity mismatch.')

@@ -5167,3 +5167,6 @@ app.include_router(overtime_day_router(templates))
 
 from app.leave_annual_settlement_routes import annual_settlement_router
 app.include_router(annual_settlement_router(templates))
+
+from app.leave_carry_consumption_routes import carry_consumption_router
+app.include_router(carry_consumption_router(templates))

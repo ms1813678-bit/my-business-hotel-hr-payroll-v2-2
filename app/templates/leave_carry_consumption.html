@@ -1,0 +1,21 @@
+{% extends 'base.html' %}{% set active_nav='leave' %}
+{% block title %}تخصيص استعمال الترحيل{% endblock %}
+{% block content %}
+<header class="topbar"><div><h1>تخصيص استعمال الترحيل</h1><p>{{ employee.code }} · {{ employee.full_name }}</p></div></header>
+<section class="notice"><p>اربط يوم إجازة مسجلًا بمنحة ترحيل محددة. لا خصم ثانٍ ولا صرف نقدي ولا إنشاء إجازة جديدة.</p><p>المبلغ الأصلي للمنحة ليس رصيدًا متبقيًا؛ المراجعة تتحقق من الاستعمالات السابقة والمصدر قبل الحفظ.</p></section>
+{% macro type_name(kind) %}{% set names={'annual':{'ar':'سنوي','en':'Annual leave','zh':'年假'},'weekly_rest':{'ar':'راحة أسبوعية','en':'Weekly rest','zh':'每周休息'},'official_holiday':{'ar':'عطلة رسمية','en':'Official holiday','zh':'法定假日'}} %}{{ names[kind.code][request.state.language] }}{% endmacro %}
+{% if review or saved %}{% set plan=(review or saved).plan %}
+<section class="notice" id="{{ 'carry-saved' if saved else 'carry-review' }}"><h2>{{ 'تم حفظ تخصيص الاستعمال' if saved else 'راجع قبل التأكيد' }}</h2>
+<dl class="form-grid"><div><dt>اليوم المسجل</dt><dd><bdi>{{ plan.work_date }}</bdi></dd></div><div><dt>الأيام المخصصة</dt><dd><bdi>{{ plan.quantity }}</bdi></dd></div><div><dt>المخصص من المنحة بعد الحفظ</dt><dd><bdi>{{ plan.grant_attributed_after }}</bdi></dd></div><div><dt>المتبقي من سقف المنحة بعد الحفظ</dt><dd><bdi>{{ plan.grant_unattributed_ceiling_after }}</bdi></dd></div></dl>
+{% for g in grants if g.value==grant %}<p>{{ type_name(g.leave_type) }} · {{ g.year }} · <bdi>{{ g.start }}</bdi> / <bdi>{{ g.end }}</bdi></p>{% endfor %}
+{% for u in usages if u.value==usage %}<p><span>شهر خصم الاستعمال</span> · <bdi>{{ u.month }}</bdi> · {{ type_name(u.leave_type) }}</p>{% endfor %}
+<p>{{ plan.reason }}</p><p>تغير الرصيد الناتج عن هذا الحفظ: صفر. لا مبلغ نقدي.</p>
+{% if review %}<form method="post" action="/leave/carry-consumption/{{ employee.id }}/confirm"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="proof" value="{{ proof }}"><label><input type="checkbox" style="width:auto" name="human_confirmed" value="yes" required> أؤكد المنحة ويوم الاستعمال والكمية المعروضة</label><button class="primary">حفظ التخصيص بعد المراجعة</button></form>{% endif %}
+</section>{% endif %}
+{% if not saved %}<section class="notice"><form method="post" action="/leave/carry-consumption/{{ employee.id }}/review"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><div class="form-grid">
+<label>منحة الترحيل<select name="grant" required><option value="">اختر المنحة</option>{% for g in grants %}<option value="{{ g.value }}" {% if g.value==grant %}selected{% endif %}>{{ type_name(g.leave_type) }} · {{ g.year }} · {{ days(g.amount) }} · {{ g.start }} / {{ g.end }}</option>{% endfor %}</select></label>
+<label>شهر خصم الاستعمال<select name="usage" required><option value="">اختر خصم الشهر</option>{% for u in usages %}<option value="{{ u.value }}" {% if u.value==usage %}selected{% endif %}>{{ u.month }} · {{ type_name(u.leave_type) }}</option>{% endfor %}</select></label>
+<label>اليوم المسجل<input type="date" name="work_date" value="{{ work_date }}" required></label><label>الأيام المخصصة، كسر أو عدد عشري<input type="text" name="quantity" value="{{ quantity }}" maxlength="100" required inputmode="text" placeholder="1/2"></label></div>
+<label>سبب المراجعة<textarea name="reason" maxlength="1000" required>{{ reason }}</textarea></label><button class="primary">مراجعة تخصيص الاستعمال</button></form>
+{% if not grants or not usages %}<p>تحتاج منحة ترحيل مثبتة وخصم استعمال شهري مسجل من النوع نفسه.</p>{% endif %}</section>{% endif %}
+{% endblock %}

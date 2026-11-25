@@ -333,6 +333,10 @@ def read_carry_availability(db, *, allocation_id, employee_id, leave_type_id, wo
             or type(work_date) is not date):
         raise ValueError('Explicit allocation, employee, type and work date required.')
     actor = _locks(db, identity)
+    return _read_verified_carry_availability(db,allocation_id=allocation_id,employee_id=employee_id,leave_type_id=leave_type_id,work_date=work_date,reader_actor_id=actor.id)
+
+
+def _read_verified_carry_availability(db, *, allocation_id,employee_id,leave_type_id,work_date,reader_actor_id):
     db.execute(text('LOCK TABLE leave_carry_allocations,leave_year_attributions,leave_types IN SHARE MODE'))
     row = db.get(LeaveCarryAllocation, allocation_id, populate_existing=True)
     if row is None:
@@ -387,4 +391,4 @@ def read_carry_availability(db, *, allocation_id, employee_id, leave_type_id, wo
         original_grant=dict(actor_id=request['actor_id'], actor_username=request['actor_username'],
             session_id=request['session_id'], session_version=request['session_version'],
             restore_epoch=request['restore_epoch']),
-        read_by_actor_id=actor.id)
+        read_by_actor_id=reader_actor_id)

@@ -59,6 +59,10 @@ def read_manual_opening_group(db, *, group_id, actor_id, session_id, session_ver
             or actor.must_change_password or actor.pending_credential_reset or actor.role!='system_admin'
             or actor.session_version!=session_version):
         raise ValueError('Current HR session required.')
+    return _read_verified_manual_group(db,group_id=group_id,expected_epoch=expected_epoch)
+
+
+def _read_verified_manual_group(db, *, group_id, expected_epoch):
     group = db.scalar(select(LeaveManualOpeningGroup).where(LeaveManualOpeningGroup.id==group_id).execution_options(populate_existing=True))
     if group is None or group.restore_epoch!=expected_epoch:
         raise ValueError('Manual group unavailable.')

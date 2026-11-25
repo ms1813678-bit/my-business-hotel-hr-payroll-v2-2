@@ -49,9 +49,13 @@ def _locks(db,identity):
     if db.get_bind().dialect.name != 'postgresql':
         raise ValueError('Exact monthly posting requires migrated PostgreSQL.')
     actor=_guard(db,**identity)
+    _lock_source_tables(db)
+    return actor
+
+
+def _lock_source_tables(db):
     db.execute(text('LOCK TABLE audit_logs,employees,leave_balance_transactions,leave_month_earnings,leave_month_close,payroll_runs IN SHARE ROW EXCLUSIVE MODE'))
     db.execute(text('LOCK TABLE leave_opening_selections,leave_manual_opening_groups,leave_historical_evidence_preparations,leave_policy_versions,leave_records IN SHARE MODE'))
-    return actor
 
 
 def _validate(month_start,evaluated_on,selection_id):
