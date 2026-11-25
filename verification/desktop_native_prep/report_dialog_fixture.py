@@ -70,28 +70,34 @@ def save_pdf(hwnd,destination,shot):
 def cancel_print(hwnd,shot):
     setup(hwnd)
     from System import IntPtr
-    from System.Windows.Automation import AutomationElement,TreeScope,Condition,ControlType,InvokePattern,ScrollPattern,ScrollAmount
+    from System.Windows.Automation import AutomationElement,TreeScope,Condition,ControlType,InvokePattern,ScrollPattern,ScrollAmount,ElementNotAvailableException
     import win32gui
     from PIL import ImageGrab
     root=AutomationElement.FromHandle(IntPtr(hwnd));until=time.monotonic()+12;diagnostic={}
+    def entries():
+        result=[]
+        for element in root.FindAll(TreeScope.Descendants,Condition.TrueCondition):
+            try:result.append((element,element.Current.ControlType,str(element.Current.Name)))
+            except ElementNotAvailableException:continue
+        return result
     while time.monotonic()<until:
-        es=list(root.FindAll(TreeScope.Descendants,Condition.TrueCondition));names=[str(e.Current.Name) for e in es]
-        cancel=[e for e in es if e.Current.ControlType==ControlType.Button and str(e.Current.Name) in ('Cancel','إلغاء')]
-        diagnostic=dict(print_text=any(n in ('Print','طباعة','Print preview') for n in names),cancel_buttons=len(cancel),buttons=[str(e.Current.Name) for e in es if e.Current.ControlType==ControlType.Button])
+        es=entries();names=[name for _,_,name in es]
+        cancel=[e for e,kind,name in es if kind==ControlType.Button and name in ('Cancel','إلغاء')]
+        diagnostic=dict(print_text=any(n in ('Print','طباعة','Print preview') for n in names),cancel_buttons=len(cancel),buttons=[name for _,kind,name in es if kind==ControlType.Button])
         if diagnostic['print_text'] and len(cancel)==1:
             # Bounded normal readiness observation only. No print invocation,
             # settings change, DOM replacement or alternate renderer.
             observed=time.monotonic()
             for seconds in (2,8,20):
                 while time.monotonic()-observed<seconds:time.sleep(.1)
-                current=list(root.FindAll(TreeScope.Descendants,Condition.TrueCondition))
-                current_cancel=[e for e in current if e.Current.ControlType==ControlType.Button and str(e.Current.Name) in ('Cancel','إلغاء')]
+                current=entries()
+                current_cancel=[e for e,kind,name in current if kind==ControlType.Button and name in ('Cancel','إلغاء')]
                 if len(current_cancel)!=1:raise RuntimeError('owned preview Cancel changed while waiting')
                 ImageGrab.grab(bbox=win32gui.GetWindowRect(hwnd),all_screens=True).save(pathlib.Path(shot).with_name('authenticated-print-ready-'+str(seconds)+'.png'))
-                print('NATIVE_PRINT_READINESS_OBSERVATION',json.dumps(dict(seconds=seconds,cancel_buttons=len(current_cancel),names=[str(e.Current.Name)[:120] for e in current][:100])),flush=True)
+                print('NATIVE_PRINT_READINESS_OBSERVATION',json.dumps(dict(seconds=seconds,cancel_buttons=len(current_cancel),names=[name[:120] for _,_,name in current][:100])),flush=True)
             ImageGrab.grab(bbox=win32gui.GetWindowRect(hwnd),all_screens=True).save(shot)
             # Retain middle/end actual pixels via native UIA scroll only.
-            documents=[e for e in current if e.Current.ControlType==ControlType.Document and str(e.Current.Name)=='PDF Document']
+            documents=[e for e,kind,name in current if kind==ControlType.Document and name=='PDF Document']
             scrolls=[]
             for document in documents:
                 candidate=document
@@ -113,8 +119,8 @@ def cancel_print(hwnd,shot):
             cancel[0].GetCurrentPattern(InvokePattern.Pattern).Invoke()
             until_closed=time.monotonic()+6
             while time.monotonic()<until_closed:
-                current=list(root.FindAll(TreeScope.Descendants,Condition.TrueCondition))
-                if not any(e.Current.ControlType==ControlType.Button and str(e.Current.Name) in ('Cancel','إلغاء') for e in current):return
+                current=entries()
+                if not any(kind==ControlType.Button and name in ('Cancel','إلغاء') for _,kind,name in current):return
                 time.sleep(.1)
             raise RuntimeError('print preview close unconfirmed')
         time.sleep(.1)

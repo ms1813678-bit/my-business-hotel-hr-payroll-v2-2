@@ -1,3 +1,7 @@
+## 2026-11-25 - Bounded native preview observer repair by Instinct
+
+- Native UIA tree may replace elements while preview opens. Snapshot each entry type/name once and skip only ElementNotAvailableException, keeping original deadlines, normal readiness waits, exact Cancel identity and no-print behavior. No product or print CSS change. Follow-up visual qualification pending.
+
 ## 2026-11-25 - Native print flow refinement by Instinct
 
 - Six-employee actual preview established full component inclusion but exposed grid fragmentation and excess card spacing. Use print-only block flow with compact unframed cards and readable 11px main / 10px component text. Do not force PDF sheet count or alter native paper settings. Comparison shows actual selected scope rather than a fixed all-employees caption.
