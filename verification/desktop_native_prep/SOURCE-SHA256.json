@@ -22,7 +22,7 @@
   "scripts/windows/start-desktop.ps1": "0e9ec1a26e9c73adb3d6bd6656aa2d4899d59c0ed04b3bdb3b61a2107dc429df",
   "stage-source-manifest.json": "3cf609f303dfa84b412ef39e5db6423e1b7ef8634c3ed52d8e2637791d32eb8f",
   "stage_fixture_smoke.py": "5e516d2a7debde18d83d97f4fb2c415bdc8a768134b6677ccfb42fc62edd578d",
-  "stager_candidate/HOnY-Desktop-Staged.iss": "8084e3ba69eee585df4dd1fbe50c67c7691619cbe5adda920844376bac4d0077",
+  "stager_candidate/HOnY-Desktop-Staged.iss": "31c417680d834992f44e8358cfab0232f92cd1a32c3f6120d6147f1f1625bb36",
   "stager_candidate/staging/hony_journal.py": "e1873f30648fed81cd647d20eda7002307d223719a976cca021334ee690eb0a2",
   "stager_candidate/staging/hony_stage.py": "ab460bbad0304236b832443ba6819972cfed1b75bf7e652d09daa331c64d5e02",
   "stager_candidate/staging/hony_stagetree.py": "47c40e1b02319a092ec72d6189f5f254c836ae913891d027a0eaff07778b9a5f",

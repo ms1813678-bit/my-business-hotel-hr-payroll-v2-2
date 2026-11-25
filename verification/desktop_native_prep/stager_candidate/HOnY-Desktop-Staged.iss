@@ -1,3 +1,4 @@
+; NEW compile-contract repair: Inno Pascal uses DirExists. Prior exact candidate remains in private source checkpoint.
 ; Staged installer recipe. Consumes the tree written by installer\staging\hony_stage.py.
 ; NOT COMPILED, NOT PARSED, NOT RUN, NOT PROVEN ON WINDOWS. Written in a Linux sandbox with no Inno Setup.
 ; The Pascal below is checked by tests for real section structure (section headers in order,
@@ -265,7 +266,7 @@ begin
   Result := '';
   Venv := ExpandConstant('{app}\.venv');
   PyExe := ExpandConstant('{autopf}\HOnY\python\python.exe');
-  if DirectoryExists(Venv) or FileExists(Venv) then
+  if DirExists(Venv) or FileExists(Venv) then
   begin
     Result := 'A .venv already exists at ' + Venv + '. This installer never reuses or replaces one. Stopped before any file was extracted.';
     Exit;

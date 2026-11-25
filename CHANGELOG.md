@@ -1,3 +1,7 @@
+## 2026-11-25 - Use actual Inno Pascal directory check by Instinct
+
+- Native stager verified all 285 committed source files. The first actual staged-consumer compile refused an unknown DirectoryExists identifier. Correct only the NEW verification recipe to documented DirExists; retain all existing preflight refusal semantics. No installer executed.
+
 ## 2026-11-25 - Qualify inert stager with native source fixture by Instinct
 
 - Preserve NEW refusal-qualified stager under verification only. Stage all 285 committed public source files with explicit synthetic wheel/vendor bytes, verify exact output and compile its actual ISS consumer. Never install or upload fixture outputs. No operational overlay or rollback claim.
