@@ -973,6 +973,19 @@ def build_report(db: Session, selection: ReportSelection, today: date | None = N
     return result
 
 
+def report_paper_content(result: ReportResult) -> dict:
+    """One scoped content policy for normal print and custom PDF, no DB effects."""
+    comparison = result.comparison
+    return {
+        "comparison_items": comparison["items"] if comparison else [],
+        "comparison_period": comparison["period_label"] if comparison else "",
+        "like_for_like": (comparison.get("like_for_like")
+                          if comparison and (comparison.get("like_for_like") or {}).get("enabled") else None),
+        "components_by_employee": {row["employee_id"]: row["breakdown"] for group in result.groups for row in group["rows"] if row.get("breakdown")},
+        "signatures": ("إعداد", "مراجعة"),
+    }
+
+
 def build_custom_workbook(db: Session, selection: ReportSelection, language: str = "ar") -> bytes:
     """Render the selected report as an Excel workbook mirroring the on-screen preview."""
     result = build_report(db, selection)
@@ -1163,6 +1176,7 @@ def build_custom_pdf(db: Session, selection: ReportSelection, language: str = "a
     from app.reports import _pdf_cell, _pdf_font_name
 
     result = build_report(db, selection)
+    paper = report_paper_content(result)
 
     def L(text):
         return _L(text, language)
@@ -1185,7 +1199,7 @@ def build_custom_pdf(db: Session, selection: ReportSelection, language: str = "a
         cell_ = _pdf_cell
     base_styles = getSampleStyleSheet()
     title_style = ParagraphStyle("RPTitle", parent=base_styles["Title"], fontName=font_name, fontSize=15, leading=19, alignment=TA_RIGHT, spaceAfter=3 * mm)
-    meta_style = ParagraphStyle("RPMeta", parent=base_styles["BodyText"], fontName=font_name, fontSize=9, leading=12, alignment=TA_RIGHT)
+    meta_style = ParagraphStyle("RPMeta", parent=base_styles["BodyText"], fontName=font_name, fontSize=9, leading=12, alignment=TA_RIGHT, keepWithNext=True)
     cell_style = ParagraphStyle("RPCell", parent=base_styles["BodyText"], fontName=font_name, fontSize=7.5, leading=9.5, alignment=TA_RIGHT, wordWrap="CJK")
     header_style = ParagraphStyle("RPHeader", parent=cell_style, fontSize=8, leading=10, alignment=TA_CENTER, textColor=colors.white)
 
@@ -1208,6 +1222,7 @@ def build_custom_pdf(db: Session, selection: ReportSelection, language: str = "a
         Spacer(1, 3 * mm),
     ]
 
+    breakdown_spans = []
     table_rows = [[Paragraph(cell_(L(label)), header_style) for _, label, _ in result.columns]]
     for group in result.groups:
         dept_row = [Paragraph(cell_(group["department"]), cell_style)] + [Paragraph("", cell_style)] * (column_count - 1)
@@ -1217,6 +1232,28 @@ def build_custom_pdf(db: Session, selection: ReportSelection, language: str = "a
                 Paragraph(cell_(_fmt_number(row.get(key)) if numeric else L(row.get(key, ""))), cell_style)
                 for key, _, numeric in result.columns
             ])
+            if row.get("breakdown"):
+                components = paper["components_by_employee"][row["employee_id"]]
+                half = (len(components) + 1) // 2
+                component_rows = []
+                for index in range(half):
+                    cells = []
+                    for offset in (0, half):
+                        if index + offset < len(components):
+                            label, value, _ = components[index + offset]
+                            cells.extend([Paragraph(cell_(L(label)), cell_style), Paragraph(cell_(_fmt_number(value)), cell_style)])
+                        else:
+                            cells.extend([Paragraph("", cell_style), Paragraph("", cell_style)])
+                    component_rows.append(cells)
+                width = page_size[0] - document.leftMargin - document.rightMargin - 8
+                component_table = LongTable(component_rows, colWidths=[width*.32,width*.18,width*.32,width*.18])
+                component_table.setStyle(TableStyle([
+                    ("GRID", (0,0), (-1,-1), .2, colors.HexColor("#AAB4BE")),
+                    ("VALIGN", (0,0), (-1,-1), "MIDDLE"),
+                    ("TOPPADDING", (0,0), (-1,-1), 3), ("BOTTOMPADDING", (0,0), (-1,-1), 3),
+                ]))
+                breakdown_spans.append(len(table_rows))
+                table_rows.append([component_table] + [""] * (column_count - 1))
     if result.totals:
         totals_cells = []
         first = True
@@ -1230,7 +1267,7 @@ def build_custom_pdf(db: Session, selection: ReportSelection, language: str = "a
                 totals_cells.append(Paragraph("", cell_style))
         table_rows.append(totals_cells)
 
-    available_width = page_size[0] - document.leftMargin - document.rightMargin
+    available_width = page_size[0] - document.leftMargin - document.rightMargin - 8
     table = LongTable(table_rows, colWidths=[available_width / column_count] * column_count, repeatRows=1, hAlign="RIGHT")
     style = TableStyle([
         ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#24415E")),
@@ -1241,6 +1278,9 @@ def build_custom_pdf(db: Session, selection: ReportSelection, language: str = "a
         ("TOPPADDING", (0, 0), (-1, -1), 2),
         ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
     ])
+    for index in breakdown_spans:
+        style.add("SPAN", (0,index), (-1,index))
+        style.add("NOSPLIT", (0,index-1), (-1,index))
     table.setStyle(style)
     story.append(table)
 
@@ -1255,10 +1295,25 @@ def build_custom_pdf(db: Session, selection: ReportSelection, language: str = "a
         ]))
         story.append(summary_table)
 
-    if result.comparison and (result.comparison.get("like_for_like") or {}).get("enabled"):
-        lfl = result.comparison["like_for_like"]
+    story.append(Spacer(1, 4 * mm))
+    story.append(Paragraph(cell_(L("مقارنة بالفترة السابقة")), meta_style))
+    if paper["comparison_items"]:
+        story.append(Paragraph(cell_(paper["comparison_period"]), meta_style))
+        comparison_rows = [[Paragraph(cell_(L(label)), header_style) for label in ("البند", "الفترة الحالية", "الفترة السابقة", "التغير")]]
+        comparison_rows += [[Paragraph(cell_(L(label)), cell_style),
+                            Paragraph(cell_(_fmt_number(current)), cell_style),
+                            Paragraph(cell_(_fmt_number(previous)), cell_style),
+                            Paragraph(cell_(pct or "—"), cell_style)]
+                           for label, current, previous, pct in paper["comparison_items"]]
+        comparison_table = LongTable(comparison_rows, colWidths=[available_width*.28, available_width*.24, available_width*.24, available_width*.24], repeatRows=1)
+        comparison_table.setStyle(TableStyle([("GRID", (0,0), (-1,-1), .25, colors.HexColor("#AAB4BE")), ("BACKGROUND", (0,0), (-1,0), colors.HexColor("#24415E"))]))
+        story.append(comparison_table)
+    else:
+        story.append(Paragraph(cell_(L("لا توجد بيانات كافية للمقارنة في الفترة السابقة.")), meta_style))
+    if paper["like_for_like"]:
+        lfl = paper["like_for_like"]
         story.append(Spacer(1, 4 * mm))
-        story.append(Paragraph(cell_(f"{L('مقارنة مثل بمثل مع الفترة السابقة')} ({result.comparison['period_label']})"), meta_style))
+        story.append(Paragraph(cell_(f"{L('مقارنة مثل بمثل مع الفترة السابقة')} ({paper['comparison_period']})"), meta_style))
         lfl_rows = [
             [Paragraph(cell_(L("المستمرون في الفترتين")), cell_style), Paragraph(cell_(str(lfl["continuing_count"])), cell_style)],
             [Paragraph(cell_(L("صافي المستمرين — الفترة الحالية")), cell_style), Paragraph(cell_(_fmt_number(lfl["continuing_current_net"])), cell_style)],
@@ -1276,52 +1331,14 @@ def build_custom_pdf(db: Session, selection: ReportSelection, language: str = "a
         if lfl["still_active_leavers"]:
             story.append(Paragraph(cell_(f"{L('تنبيه:')} {lfl['still_active_leavers']} {L('ممن لا يظهرون في الفترة الحالية ما زالوا نشطين؛ قد يعني ذلك عدم إصدار مسير الفترة بعد وليس مغادرتهم.')}"), meta_style))
 
-    breakdown_rows = [
-        (group["department"], row)
-        for group in result.groups
-        for row in group["rows"]
-        if row.get("breakdown")
-    ]
-    if breakdown_rows:
-        story.append(Spacer(1, 4 * mm))
-        story.append(Paragraph(cell_(L("تفصيل حساب كل موظف — كيف تكوّن الصافي")), meta_style))
-        breakdown_header = [L("الموظف")] + [L(label) for _, label, _ in PAYROLL_BREAKDOWN_DEFS]
-        breakdown_table_rows = [[Paragraph(cell_(label), header_style) for label in breakdown_header]]
-        for _, row in breakdown_rows:
-            breakdown_table_rows.append(
-                [Paragraph(cell_(f"{row.get('emp_name', '')} ({row.get('emp_code', '')})"), cell_style)]
-                + [Paragraph(cell_(_fmt_number(value)), cell_style) for _, value, _ in row["breakdown"]]
-            )
-        column_count_b = len(breakdown_header)
-        breakdown_table = LongTable(
-            breakdown_table_rows,
-            colWidths=[available_width * 0.16] + [(available_width * 0.84) / (column_count_b - 1)] * (column_count_b - 1),
-            repeatRows=1,
-            hAlign="RIGHT",
-        )
-        breakdown_table.setStyle(TableStyle([
-            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#24415E")),
-            ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#AAB4BE")),
-            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-            ("LEFTPADDING", (0, 0), (-1, -1), 1.5),
-            ("RIGHTPADDING", (0, 0), (-1, -1), 1.5),
-            ("TOPPADDING", (0, 0), (-1, -1), 1.5),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 1.5),
-        ]))
-        story.append(breakdown_table)
-
     if result.warnings:
         story.append(Spacer(1, 3 * mm))
         for warning in result.warnings:
             story.append(Paragraph(cell_(f"{L('تنبيه:')} {_warning_text_ar(warning, language)}"), meta_style))
 
     story.append(Spacer(1, 10 * mm))
-    signature_rows = [[
-        Paragraph(cell_(L("إعداد: ..............................")), meta_style),
-        Paragraph(cell_(L("مراجعة: ..............................")), meta_style),
-        Paragraph(cell_(L("اعتماد: ..............................")), meta_style),
-    ]]
-    signature_table = LongTable(signature_rows, colWidths=[available_width / 3] * 3, hAlign="RIGHT")
+    signature_rows = [[Paragraph(cell_(L(label + ": ..............................")), meta_style) for label in paper["signatures"]]]
+    signature_table = LongTable(signature_rows, colWidths=[available_width / len(paper["signatures"])] * len(paper["signatures"]), hAlign="RIGHT")
     signature_table.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "BOTTOM")]))
     story.append(signature_table)
 

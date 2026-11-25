@@ -1232,3 +1232,21 @@ a.rep-run:not(.btn-primary) { border: 1.5px solid var(--border-strong); color: v
   .language-picker { top: 18px; inset-inline-end: 18px; }
 }
 @media print { .language-picker { display: none !important; } }
+
+/* Selected paper option1: collapsed screen state never omits payroll evidence. */
+@media print {
+  body.report-print .breakdown-row { display: table-row !important; }
+  body.report-print .breakdown-table { font-size: 10px; }
+  body.report-print .report-table thead { display: table-header-group; }
+  body.report-print .report-table tr { break-inside: avoid; }
+  body.report-print .employee-main-row { break-after: avoid; }
+  body.report-print .breakdown-row { break-before: avoid; }
+}
+
+.paper-breakdown { display: none; }
+@media print {
+  body.report-print .screen-breakdown { display: none !important; }
+  body.report-print .paper-breakdown { display: table !important; }
+  body.report-print .paper-breakdown td:nth-child(odd) { width: 32%; }
+  body.report-print .paper-breakdown td:nth-child(even) { width: 18%; font-weight: 700; }
+}

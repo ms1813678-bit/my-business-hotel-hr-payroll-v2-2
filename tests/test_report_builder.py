@@ -487,3 +487,26 @@ def test_custom_exports_respect_optional_like_for_like(monkeypatch, enabled):
     finally:
         Base.metadata.drop_all(engine)
         engine.dispose()
+
+
+def test_paper_content_scoped_components_and_signatures():
+    from app.report_builder import report_paper_content, PAYROLL_BREAKDOWN_DEFS
+    engine = _db()
+    try:
+        with Session(engine) as db:
+            _seed(db)
+            result = build_report(db, _november_selection(compare_like_for_like=False))
+            paper = report_paper_content(result)
+            assert paper["signatures"] == ("إعداد", "مراجعة")
+            assert paper["like_for_like"] is None
+            assert len(paper["comparison_items"]) == 4
+            assert len(paper["components_by_employee"]) == 3
+            for components in paper["components_by_employee"].values():
+                assert [label for label, _, _ in components] == [label for _, label, _ in PAYROLL_BREAKDOWN_DEFS]
+                assert len(components) == 16
+            selected = next(iter(paper["components_by_employee"]))
+            scoped = report_paper_content(build_report(db, _november_selection(employee_id=selected)))
+            assert set(scoped["components_by_employee"]) == {selected}
+    finally:
+        Base.metadata.drop_all(engine)
+        engine.dispose()

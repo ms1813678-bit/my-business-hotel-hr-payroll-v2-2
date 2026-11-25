@@ -33,9 +33,9 @@ must be present; a fresh migrated DB is still required (no admin/employee/
 payroll/attendance/audit rows).
 
 DB effects (all in the disposable DB you point it at, one transaction):
-  departments +1, employees +1, employee_service_periods +1, admin_accounts +1,
+  departments +1, employees +6, employee_service_periods +6, admin_accounts +1,
   attendance_import_batches +2, attendance_months +1, leave_records +1,
-  payroll_runs +1 (via create_payroll_run), payroll_items +1 (via
+  payroll_runs +1 (via create_payroll_run), payroll_items +6 (via
   create_payroll_run), audit_logs +2 (payroll_run_created, payroll_item_updated).
   leave_types +0 and employee_code_counters +0 (migration-seeded, reused).
 File effects: none. Network: none (psycopg to loopback only, enforced).
@@ -212,11 +212,20 @@ def main(argv=None):
                               confirmed_by=actor, confirmed_at=m.utcnow())
         db.add(leave); db.flush()
 
+        # Extra synthetic employees exercise multi-page paper layout only.
+        for index in range(2, 7):
+            extra = m.Employee(code=f"SYN-{index:04d}", full_name=f"Synthetic Fixture Employee {index}",
+                               nationality="egyptian", department_id=dept.id, position="Synthetic Tester",
+                               hire_date=hire, status="active", basic_salary=Decimal("6000.00"), daily_hours=Decimal("8.00"))
+            db.add(extra);db.flush()
+            db.add(m.EmployeeServicePeriod(employee_id=extra.id,start_date=hire,end_date=None,start_reason="Synthetic fixture employment"))
+        db.flush()
+
         # --- REAL business path: no direct PayrollRun/PayrollItem insertion ---
         run = create_payroll_run(db, year=start.year, month=start.month, actor=actor)
-        item = db.scalar(select(m.PayrollItem).where(m.PayrollItem.payroll_run_id == run.id))
+        item = db.scalar(select(m.PayrollItem).where(m.PayrollItem.payroll_run_id == run.id, m.PayrollItem.employee_id == emp.id))
         if item is None or item.employee_id != emp.id:
-            _fail("create_payroll_run did not produce exactly the fixture employee item")
+            _fail("create_payroll_run did not produce the primary fixture employee item")
         # Same full manual-field set the UI's update form submits (tests
         # test_payroll_guards.py:set_absence), with absence_days = 1 so the
         # absence/confirmed-paid-leave conflict (and its review form) exists.
@@ -235,17 +244,18 @@ def main(argv=None):
                "leave_record_id": leave.id, "leave_type_code": leave_type.code,
                "payroll_run_id": run.id, "payroll_item_id": item.id,
                "period_start": run_start.isoformat(), "period_end": run_end.isoformat(),
+               "report_employee_count": 6,
                "report_start_date": start.isoformat(), "report_end_date": end.isoformat(),
                "alembic_head": expected_head,
                "payroll_creation_path": "app.payroll_workflow.create_payroll_run + update_payroll_item (real business path; no direct PayrollRun/PayrollItem insert)",
                "attendance_approval": "seeded prerequisite, NOT exercised",
                "leave_confirmation": "seeded prerequisite, NOT exercised",
                "expected_row_counts_added": {
-                   "departments": 1, "employees": 1, "employee_service_periods": 1,
+                   "departments": 1, "employees": 6, "employee_service_periods": 6,
                    "admin_accounts": 1, "attendance_import_batches": 2,
                    "attendance_months": 1, "leave_types": 0, "leave_records": 1,
                    "employee_code_counters": 0,
-                   "payroll_runs": 1, "payroll_items": 1, "audit_logs": 2},
+                   "payroll_runs": 1, "payroll_items": 6, "audit_logs": 2},
                "expected_after_seed": {
                    "payroll_runs.status": "draft",
                    "payroll_items.absence_days": "1.00",

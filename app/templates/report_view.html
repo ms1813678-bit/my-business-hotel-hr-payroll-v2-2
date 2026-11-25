@@ -40,7 +40,7 @@
           {% for group in result.groups %}
           <tr class="dept-row"><td colspan="{{ result.columns|length + (1 if result.report_type == 'payroll' else 0) }}">{{ group.department }}</td></tr>
           {% for row in group.rows %}
-          <tr>
+          <tr class="employee-main-row">
             {% for key, label, numeric in result.columns %}
             <td>{% if numeric %}<strong>{{ row[key]|fmtnum }}</strong>{% else %}{{ row[key] }}{% endif %}</td>
             {% endfor %}
@@ -49,7 +49,7 @@
           {% if result.report_type == 'payroll' and row.breakdown %}
           <tr class="breakdown-row" id="bd-{{ row.employee_id }}" style="display:none;">
             <td colspan="{{ result.columns|length + 1 }}">
-              <table class="breakdown-table">
+              <table class="breakdown-table screen-breakdown">
                 <thead><tr><th>البند</th><th>المبلغ</th></tr></thead>
                 <tbody>
                   {% for label, value, is_deduction in row.breakdown %}
@@ -59,6 +59,20 @@
                     <td>{% if is_deduction %}− {{ value|fmtnum }}{% else %}{{ value|fmtnum }}{% endif %}</td>
                   </tr>
                   {% endif %}
+                  {% endfor %}
+                </tbody>
+              </table>
+              <table class="breakdown-table paper-breakdown">
+                <tbody>
+                  {% set components = paper.components_by_employee[row.employee_id] %}
+                  {% set half = (components|length + 1) // 2 %}
+                  {% for index in range(half) %}
+                  <tr>{% for offset in [0, half] %}
+                    {% if index + offset < components|length %}
+                    {% set label, value, deduction = components[index + offset] %}
+                    <td>{{ label }}</td><td>{{ value|fmtnum }}</td>
+                    {% else %}<td></td><td></td>{% endif %}
+                  {% endfor %}</tr>
                   {% endfor %}
                 </tbody>
               </table>
@@ -88,19 +102,19 @@
       <div class="sum-item"><span>{{ label }}</span><strong>{% if value is string and value.endswith(' ج.م') %}{{ value[:-4] }} <span>ج.م</span>{% else %}{{ value if value is string else value|fmtnum }}{% endif %}</strong></div>
       {% endfor %}
     </div>
-    {% if result.comparison %}
+    {% if paper.comparison_items %}
     <div class="card" style="margin-bottom:0;">
       <h2>مقارنة بالفترة السابقة</h2>
       <p class="muted" style="font-size:12px; margin-top:0;"><span>{{ result.comparison.period_label }}</span> · <span>كل الموظفين</span></p>
       <ul class="cmp">
-        {% for label, current, previous, pct in result.comparison['items'] %}
+        {% for label, current, previous, pct in paper.comparison_items %}
         <li><span>{{ label }}</span><span>{{ current|fmtnum }}</span> <span>مقابل</span> <span>{{ previous|fmtnum }}
           {% if pct %}<b class="{% if pct.startswith('+') %}up{% elif pct.startswith('-') %}down{% else %}flat{% endif %}">{% if pct.startswith('+') %}▲{% elif pct.startswith('-') %}▼{% endif %} {{ pct }}</b>{% else %}<b class="flat">—</b>{% endif %}
         </span></li>
         {% endfor %}
       </ul>
-      {% if result.comparison['like_for_like'] and result.comparison['like_for_like']['enabled'] %}
-      {% set lfl = result.comparison['like_for_like'] %}
+      {% if paper.like_for_like %}
+      {% set lfl = paper.like_for_like %}
       <p class="cmp-head"><span>مثل بمثل — المستمرون في الفترتين فقط (</span><span>{{ lfl.continuing_count }}</span><span>)</span></p>
       <ul class="cmp">
         <li><span>صافي المستمرين</span><span>{{ lfl.continuing_current_net|fmtnum }}</span> <span>مقابل</span> <span>{{ lfl.continuing_previous_net|fmtnum }}
@@ -126,8 +140,7 @@
 
 <div class="print-meta">
   <span>وقت الاستخراج: {{ result.generated_at.strftime('%d/%m/%Y %H:%M') if result.generated_at else '' }}</span>
-  <span>إعداد: ........................</span>
-  <span>مراجعة: ........................</span>
+  {% for label in paper.signatures %}<span>{{ label }}: ........................</span>{% endfor %}
 </div>
 
 <script>

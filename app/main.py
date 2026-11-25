@@ -112,6 +112,7 @@ from app.report_builder import (
     MONTHLY_ALL_OPTIONS,
     apply_config,
     build_custom_pdf,
+    report_paper_content,
     build_custom_workbook,
     build_monthly_pdf,
     build_report,
@@ -3264,6 +3265,7 @@ def view_hr_report(
             "result": result,
             "query_string": request.url.query,
             "breakdown_defs": PAYROLL_BREAKDOWN_DEFS,
+            "paper": report_paper_content(result),
             "period_month": (
                 (month_label(result.start_date).rsplit(" ", 1)[0], str(result.start_date.year))
                 if result.start_date.month == result.end_date.month

@@ -9,6 +9,7 @@ from app.db import SessionLocal
 from app.models import PayrollItem,PayrollRun,PayrollPayment,AuditLog,AdminSession
 with SessionLocal() as db:
     run=db.get(PayrollRun,seed['payroll_run_id']);item=db.get(PayrollItem,seed['payroll_item_id'])
+    assert db.scalar(select(func.count()).select_from(PayrollItem))==6
     assert run.status=='draft' and run.approved_by is None
     assert item.other_bonus==Decimal('0') and item.absence_days==Decimal('1') and item.net_pay==Decimal('5806.45')
     assert not item.absence_leave_reviewed and item.absence_leave_review_fingerprint is None

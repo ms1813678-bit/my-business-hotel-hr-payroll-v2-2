@@ -70,7 +70,7 @@ def save_pdf(hwnd,destination,shot):
 def cancel_print(hwnd,shot):
     setup(hwnd)
     from System import IntPtr
-    from System.Windows.Automation import AutomationElement,TreeScope,Condition,ControlType,InvokePattern
+    from System.Windows.Automation import AutomationElement,TreeScope,Condition,ControlType,InvokePattern,ScrollPattern,ScrollAmount
     import win32gui
     from PIL import ImageGrab
     root=AutomationElement.FromHandle(IntPtr(hwnd));until=time.monotonic()+12;diagnostic={}
@@ -90,6 +90,25 @@ def cancel_print(hwnd,shot):
                 ImageGrab.grab(bbox=win32gui.GetWindowRect(hwnd),all_screens=True).save(pathlib.Path(shot).with_name('authenticated-print-ready-'+str(seconds)+'.png'))
                 print('NATIVE_PRINT_READINESS_OBSERVATION',json.dumps(dict(seconds=seconds,cancel_buttons=len(current_cancel),names=[str(e.Current.Name)[:120] for e in current][:100])),flush=True)
             ImageGrab.grab(bbox=win32gui.GetWindowRect(hwnd),all_screens=True).save(shot)
+            # Retain middle/end actual pixels via native UIA scroll only.
+            documents=[e for e in current if e.Current.ControlType==ControlType.Document and str(e.Current.Name)=='PDF Document']
+            scrolls=[]
+            for document in documents:
+                candidate=document
+                from System.Windows.Automation import TreeWalker
+                for _ in range(8):
+                    if candidate is None:break
+                    try:
+                        pattern=candidate.GetCurrentPattern(ScrollPattern.Pattern)
+                        if pattern.Current.VerticallyScrollable:scrolls.append(pattern);break
+                    except Exception:pass
+                    candidate=TreeWalker.ControlViewWalker.GetParent(candidate)
+            if len(scrolls)==1:
+                for index in range(1,5):
+                    scrolls[0].Scroll(ScrollAmount.NoAmount,ScrollAmount.LargeIncrement);time.sleep(.4)
+                    ImageGrab.grab(bbox=win32gui.GetWindowRect(hwnd),all_screens=True).save(pathlib.Path(shot).with_name('authenticated-print-scroll-'+str(index)+'.png'))
+                print('NATIVE_PRINT_SCROLL_CAPTURED',4,flush=True)
+            else:print('NATIVE_PRINT_SCROLL_UNRESOLVED',len(scrolls),flush=True)
             cancel=current_cancel
             cancel[0].GetCurrentPattern(InvokePattern.Pattern).Invoke()
             until_closed=time.monotonic()+6

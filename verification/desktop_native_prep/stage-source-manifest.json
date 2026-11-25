@@ -1,6 +1,4 @@
 {
-  "schema": "hony-source-manifest",
-  "version": 1,
   "files": [
     {
       "path": ".env.example",
@@ -656,7 +654,7 @@
     },
     {
       "path": "app/main.py",
-      "sha256": "f6a487eb0e0d833310e93e89921d64eea4ad7e1a3b13c2d66d7e77f11b01d357"
+      "sha256": "32f5774af2e4a101ce25296930a861cdca1882218ca6d6dad1069c3a52c4d0d8"
     },
     {
       "path": "app/models.py",
@@ -712,7 +710,7 @@
     },
     {
       "path": "app/report_builder.py",
-      "sha256": "6e9a3e266ffa6931a3529d4009247185a5f13b81084e52cd369ddbf0ad2e8e5d"
+      "sha256": "d7358af983edeea6272a95ef8ed42afed850f6837ffdf47bc1341ff348e2e6b8"
     },
     {
       "path": "app/reports.py",
@@ -772,7 +770,7 @@
     },
     {
       "path": "app/static/app.css",
-      "sha256": "8c49909aa211166e751d716961c07323e2b5e703989c8c21c4aeef97e044f417"
+      "sha256": "372b7c0b43d0e11923d4e0997ccec3ead7084e392744b20d565c1572a12abb29"
     },
     {
       "path": "app/static/date-picker.js",
@@ -988,7 +986,7 @@
     },
     {
       "path": "app/templates/report_view.html",
-      "sha256": "1cc64ba51dd72bc5308a8e25fb5738d6df50dab2917ba9c7ccb23a2966a22878"
+      "sha256": "01bbabf28bd32c6e11b7c07fb7680e36fd4f0ae703c696665554d1be19034ddc"
     },
     {
       "path": "app/templates/reports.html",
@@ -1142,5 +1140,7 @@
       "path": "scripts/windows/start.ps1",
       "sha256": "1799e71243137c80335121953b5fd231fdfaeeee08deb20e598765570b92bad1"
     }
-  ]
+  ],
+  "schema": "hony-source-manifest",
+  "version": 1
 }

@@ -239,6 +239,8 @@ def parent(scm_mode=False,visible=False,authenticated=False):
                 subprocess.run([sys.executable,'-I',str(HERE/'authenticated_state_check.py'),str(root)],cwd=source,env=env,check=True,timeout=20)
             evidence.mkdir();shutil.copy2(root/result_name,evidence/result_name)
             for name in image_names:shutil.copy2(root/name,evidence/name)
+            if authenticated:
+                for path in root.glob("authenticated-print-*.png"):shutil.copy2(path,evidence/path.name)
             print('NATIVE_ACTUAL_VISIBLE_CLOSE_SERVICE_HEALTH_PASS',flush=True)
         print('NATIVE_ACTUAL_HTTPS_BACKEND_DB_TLS_PASS',json.dumps({'production_settings':True,'real_app_health_database':'connected','strict_CA_hostname':True,'untrusted_CA_refused':True,'foreign_host_origin_refused':True,'no_store':True,'SCM_combined':scm_mode,'visible_window':visible}),flush=True)
     finally:

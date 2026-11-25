@@ -1,3 +1,8 @@
+## 2026-11-25 - Selected paper option 1 and shared content by Instinct
+
+- Paper payroll output includes all 16 components beneath each employee in paired lists, independent of collapsed screen controls. Custom PDF uses the same arrangement instead of a wide appendix. Shared scoped component/comparison/optional membership/signature policy; ordinary comparison added to PDF; preparation/reviewer signatures only.
+- Synthetic native fixture expanded explicitly to six employees via real payroll creation, retaining primary financial/session/audit/cleanup assertions. Capture normal print preview and bounded native UIA scroll evidence; no physical print. Native qualification and hotel acceptance remain separate from local renderer checks.
+
 ## 2026-11-25 - Honor optional membership comparison in custom exports by Instinct
 
 - Custom PDF and Excel now check the existing like-for-like enabled flag before showing continuing/joiner/leaver separation. Add off/on output regressions; ordinary model comparison and values remain. No paper layout, signature, scope or financial-write change. Full print-content parity remains open.

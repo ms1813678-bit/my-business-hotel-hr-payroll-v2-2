@@ -123,14 +123,16 @@ def run(root):
                 evidence['authenticated_dashboard_pixels']=capture('authenticated-dashboard.png')
                 page='/payroll/runs/'+str(seed['payroll_run_id'])
                 js('location.href='+json.dumps(origin+page)+';true')
-                wait_for('location.pathname==='+json.dumps(page)+' && document.querySelectorAll("form.payroll-item-edit").length===1 && typeof payrollReviewSubmit==="function"')
+                wait_for('location.pathname==='+json.dumps(page)+' && document.querySelectorAll("form.payroll-item-edit").length===6 && typeof payrollReviewSubmit==="function"')
                 if not js('!!document.querySelector('+json.dumps('form[action="/payroll/items/'+str(seed['payroll_item_id'])+'/absence-leave-review"]')+')'):raise RuntimeError('real seeded conflict form absent')
                 evidence['authenticated_payroll_pixels']=capture('authenticated-payroll.png')
                 cancel_dirty_review()
                 from urllib.parse import urlencode
-                query=urlencode(dict(report_type='payroll',start_date=seed['report_start_date'],end_date=seed['report_end_date'],employee_id=seed['employee_id']))
+                query=urlencode(dict(report_type='payroll',start_date=seed['report_start_date'],end_date=seed['report_end_date']))
                 js('location.href='+json.dumps(origin+'/reports/view?'+query)+';true')
                 wait_for('location.pathname==="/reports/view" && !!document.querySelector("a[href^=\'/reports/export.pdf?\']") && !!document.querySelector("button[onclick=\'window.print()\']")')
+                if not js('document.querySelectorAll(".employee-main-row").length===6 && document.querySelectorAll(".paper-breakdown").length===6 && Array.from(document.querySelectorAll(".paper-breakdown")).every(t=>t.rows.length===8)'):raise RuntimeError('six-employee full component report missing')
+                evidence['report_employee_count']=6
                 evidence['authenticated_report_pixels']=capture('authenticated-report.png')
                 report_output_gate()
                 evidence.update(status='authenticated-pages-rendered',normal_TLS=True,real_login_submission=True,pdf_download_tested=evidence.get('pdf_download_tested',False),print_tested=False,print_preview_cancel_tested=evidence.get('print_preview_cancel_tested',False),dirty_cancel_tested=evidence.get('dirty_cancel_tested',False),seeded_approvals_not_exercised=True)
