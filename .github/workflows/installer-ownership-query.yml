@@ -49,19 +49,27 @@ jobs:
             & $exe ([IO.Path]::GetFullPath((Join-Path $owned "junction/owned.txt")))
             if($LASTEXITCODE -eq 0){throw 'junction accepted'}
             Remove-Item -LiteralPath "$owned/junction" -Force
+            $tokens=$null;$parseErrors=$null
+            [void][Management.Automation.Language.Parser]::ParseFile((Join-Path $root 'readonly_inventory.ps1'),[ref]$tokens,[ref]$parseErrors)
+            if($parseErrors.Count){throw 'inventory source parse failed'}
+            $inventory=(& (Join-Path $root 'readonly_inventory.ps1'))|ConvertFrom-Json
+            if(-not $inventory.read_only -or $inventory.machine_identity_collected -ne $false -or $inventory.os.caption -notlike '*Windows*'){throw 'inventory readback failed'}
+            Write-Output 'READONLY_INVENTORY_PARSE_RUN_KNOWN_FIELDS_PASS_NO_IDENTIFIERS_LOGGED'
             $file=[IO.Path]::GetFullPath((Join-Path $owned 'nested/owned.txt'))
             $psi=[Diagnostics.ProcessStartInfo]::new();$psi.FileName=$exe;$psi.UseShellExecute=$false;$psi.RedirectStandardOutput=$true
-            $psi.ArgumentList.Add($file);$psi.ArgumentList.Add('--hold-fixture-2s')
+            $psi.ArgumentList.Add($file);$psi.ArgumentList.Add('--hold-fixture-10s')
             $holder=[Diagnostics.Process]::Start($psi)
             try {
               $ready=$holder.StandardOutput.ReadLine()
               if(-not ($ready|ConvertFrom-Json).held){throw 'held readiness absent'}
               $denied=0
-              try {$h=[IO.File]::Open($file,[IO.FileMode]::Open,[IO.FileAccess]::Write,[IO.FileShare]::ReadWrite);$h.Dispose()}catch [IO.IOException]{$denied++}
-              try {[IO.File]::Move($file,$file+'.moved')}catch [IO.IOException]{$denied++}
-              try {[IO.Directory]::Move((Join-Path $owned 'nested'),(Join-Path $owned 'renamed'))}catch [IO.IOException]{$denied++}
+              Write-Output ('HOLDER_READY exited='+$holder.HasExited)
+              try {$h=[IO.File]::Open($file,[IO.FileMode]::Open,[IO.FileAccess]::Write,[IO.FileShare]::ReadWrite);$h.Dispose();Write-Output 'HOLD_WRITE_ALLOWED'}catch [IO.IOException]{$denied++;Write-Output 'HOLD_WRITE_DENIED'}
+              try {[IO.File]::Move($file,$file+'.moved');Write-Output 'HOLD_FILE_RENAME_ALLOWED'}catch [IO.IOException]{$denied++;Write-Output 'HOLD_FILE_RENAME_DENIED'}
+              try {[IO.Directory]::Move((Join-Path $owned 'nested'),(Join-Path $owned 'renamed'));Write-Output 'HOLD_DIRECTORY_RENAME_ALLOWED'}catch [IO.IOException]{$denied++;Write-Output 'HOLD_DIRECTORY_RENAME_DENIED'}
+              Write-Output ('HOLDER_AFTER_OPERATIONS exited='+$holder.HasExited+' denied='+$denied)
               if($denied -ne 3){throw 'write/rename hold not enforced'}
-              if(-not $holder.WaitForExit(5000) -or $holder.ExitCode -ne 0){throw 'held fixture exit failed'}
+              if(-not $holder.WaitForExit(15000) -or $holder.ExitCode -ne 0){throw 'held fixture exit failed'}
               Write-Output 'READONLY_HELD_ANCESTOR_WRITE_FILE_RENAME_DIRECTORY_RENAME_REFUSED'
             } finally {if(-not $holder.HasExited){$holder.Kill();$holder.WaitForExit()};$holder.Dispose()}
             $link=Join-Path $owned 'hardlink.txt'
@@ -69,12 +77,6 @@ jobs:
             & $exe $file
             if($LASTEXITCODE -eq 0){throw 'multiple hardlinks accepted'}
             Remove-Item -LiteralPath $link -Force
-            $tokens=$null;$parseErrors=$null
-            [void][Management.Automation.Language.Parser]::ParseFile((Join-Path $root 'readonly_inventory.ps1'),[ref]$tokens,[ref]$parseErrors)
-            if($parseErrors.Count){throw 'inventory source parse failed'}
-            $inventory=(& (Join-Path $root 'readonly_inventory.ps1'))|ConvertFrom-Json
-            if(-not $inventory.read_only -or $inventory.machine_identity_collected -ne $false -or $inventory.os.caption -notlike '*Windows*'){throw 'inventory readback failed'}
-            Write-Output 'READONLY_INVENTORY_PARSE_RUN_KNOWN_FIELDS_PASS_NO_IDENTIFIERS_LOGGED'
             Push-Location $root
             try {& py -3.11 -m unittest -v; if($LASTEXITCODE -ne 0){throw 'model tests failed'}}finally{Pop-Location}
             Write-Output 'READONLY_OWNERSHIP_QUERY_ONLY_NOT_ROLLBACK_ACCEPTANCE'
