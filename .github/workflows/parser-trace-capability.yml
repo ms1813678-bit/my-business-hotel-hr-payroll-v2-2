@@ -1,0 +1,42 @@
+name: Read-only parser trace capability check
+on:
+  push:
+    branches: [ui-overhaul]
+    paths: ['.github/workflows/parser-trace-capability.yml']
+permissions:
+  contents: read
+jobs:
+  capability-only:
+    runs-on: windows-2022
+    timeout-minutes: 3
+    steps:
+      - name: Inspect installed trace commands only, no recording or child launch
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          foreach($name in @('wpr.exe','tracerpt.exe','logman.exe')) {
+            $command=Get-Command $name -ErrorAction SilentlyContinue
+            if($command){
+              $file=Get-Item -LiteralPath $command.Source
+              Write-Output ('INSTALLED_TRACE_COMMAND '+$name+' '+$file.FullName+' '+$file.VersionInfo.FileVersion)
+            } else {Write-Output ('TRACE_COMMAND_ABSENT '+$name)}
+          }
+          $wpr=Get-Command wpr.exe -ErrorAction SilentlyContinue
+          if($wpr){
+            & $wpr.Source -help start
+            Write-Output ('WPR_HELP_EXIT '+$LASTEXITCODE)
+            & $wpr.Source -status
+            Write-Output ('WPR_STATUS_EXIT '+$LASTEXITCODE)
+            & $wpr.Source -profiles
+            Write-Output ('WPR_PROFILES_EXIT '+$LASTEXITCODE)
+          }
+          foreach($name in @('Microsoft-Windows-Kernel-File','Microsoft-Windows-Kernel-Process')) {
+            try {
+              $provider=Get-WinEvent -ListProvider $name
+              Write-Output ('TRACE_PROVIDER '+$provider.Name+' '+$provider.Id)
+              $provider.Events | Where-Object {$_.Id -in @(1,2,10,11,12,14,15,16,20,30)} | Select-Object Id,Version,Level,Task,Opcode | Format-Table
+              $provider.Keywords | Select-Object Name,Value | Format-Table
+            } catch {Write-Output ('TRACE_PROVIDER_UNAVAILABLE '+$name+' '+$_.Exception.GetType().Name)}
+          }
+          Write-Output 'CAPABILITY_ONLY_NO_RECORDING_LAUNCH_SECURITY_MUTATION'
+          exit 0
