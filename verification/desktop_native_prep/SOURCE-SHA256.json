@@ -17,7 +17,7 @@
   "desktop_security.RECOVERED-EXACT.py": "48dbc62950b908a09a06421c49983a1ece051e826dbe110cc2d6a227045d69c6",
   "desktop_server.RECOVERED-EXACT.py": "8641fe0e6821feb7fb2a0cfa2f18cd3c2332db86207a81deba1ee04706a028bc",
   "desktop_service.RECOVERED-EXACT.py": "51485828d2704fe95c8044e58fd673b18508cfc8f2323a496d1615e993ddbf4e",
-  "desktop_webview_guard.CANDIDATE.py": "3d389317129a8de528f60c1764c539a94c4f2d1a6d5a20de4c212e463843db18",
+  "desktop_webview_guard.CANDIDATE.py": "74ff11c73044afedf839608f2b8e036de7f528a31021915f9fcc5a5cb72a2893",
   "desktop_webview_guard.RECOVERED-EXACT.py": "9ab40677931f0942a8523f24ee9df68419b07d61cf2fc91f1284cee049fe625e",
   "desktop_window.RECOVERED-EXACT.py": "5adacf0a5264b3ff3de773fd7232eec67ae9813470f4e42a1e5a20c5573fef15",
   "identity_source_test.py": "7a419134470f9c61e687459fdeb36740841d5f1031a5954ab4bd72b04d120d8e",

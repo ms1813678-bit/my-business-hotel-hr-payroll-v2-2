@@ -247,6 +247,8 @@ class WebView2OriginGuard:
                     return
                 self._control.NavigationStarting += self.on_navigation_starting
                 core.NewWindowRequested += self.on_new_window_requested
+                core.DownloadStarting -= self._backend.on_download_starting
+                core.DownloadStarting += self.on_download_starting
             except Exception:  # noqa: BLE001 - native failures must close the affected view
                 # Keep any installed guard in place until host disposal.
                 # Removing guards as rollback would reopen the boundary.
@@ -256,6 +258,35 @@ class WebView2OriginGuard:
             self._ready.set()
             self._settled.set()
             logger.info("WebView2 origin guard active for %s", self.origin.url)
+
+    def on_download_starting(self, sender, args) -> None:
+        # The pinned backend shows a modal SaveFileDialog synchronously. Hold
+        # WebView2 completion and post it out of the callback's nested loop.
+        # Reuse that exact picker, never fetch data or choose a destination.
+        try:
+            deferral = args.GetDeferral()
+            args.Handled = True
+        except Exception:
+            try:args.Cancel = True
+            finally:self._fatal("download-deferral-failed")
+            return
+        def choose():
+            try:
+                self._backend.on_download_starting(sender, args)
+            except Exception:
+                args.Cancel = True
+                self._fatal("download-picker-failed")
+            finally:
+                try:deferral.Complete()
+                except Exception:self._fatal("download-deferral-completion-failed")
+        try:
+            from System import Action
+            self._control.BeginInvoke(Action(choose))
+        except Exception:
+            try:args.Cancel = True
+            finally:
+                try:deferral.Complete()
+                finally:self._fatal("download-picker-post-failed")
 
     def _fatal(self, reason: str) -> None:
         with self._lock:
@@ -541,7 +572,7 @@ class _NativeGuardedPopup:
             core.NewWindowRequested += self.guard.on_new_window_requested
             # Reuse the application's exact 5.4 download callback, not a new
             # file fetcher. It reads ALLOW_DOWNLOADS and uses its Save dialog.
-            core.DownloadStarting += self.parent._backend.on_download_starting
+            core.DownloadStarting += self.parent.on_download_starting
             core.WindowCloseRequested += self._on_close_requested
             core.ProcessFailed += self._on_process_failed
             self.guard._attached = True
