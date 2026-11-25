@@ -119,7 +119,8 @@ def test_receipt_bound_opening_rows_treated_as_included_do_not_double_count(appl
         # Delta only moves the ledger up to the scenario, never re-adds the opening that is already posted.
         with localcontext() as ctx:
             ctx.prec = 100
-            assert item.adjustment_delta == row(after, code).released_scenario_balance - row(after, code).ledger_total_separate
+            from fractions import Fraction
+            assert Fraction(item.adjustment_delta) == Fraction(row(after, code).released_scenario_balance) - Fraction(row(after, code).ledger_total_separate)
 
 
 @pytest.mark.parametrize('treatment', ['external_to_scenario', 'unresolved'])

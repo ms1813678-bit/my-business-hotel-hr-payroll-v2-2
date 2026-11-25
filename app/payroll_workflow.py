@@ -194,20 +194,42 @@ def absence_leave_conflicts(db: Session, item: PayrollItem, run: PayrollRun) -> 
     ).all()
 
 
+def _register_digest(db: Session, item: PayrollItem, run: PayrollRun) -> str:
+    """Exact day-register facts for the item's month, bound into the review.
+
+    Display/invalidations only: no mapping of register codes to absence days.
+    """
+    import hashlib
+    from app.models import LeaveRegisterEntry
+    rows = db.scalars(
+        select(LeaveRegisterEntry).where(
+            LeaveRegisterEntry.employee_id == item.employee_id,
+            LeaveRegisterEntry.work_date >= run.period_start,
+            LeaveRegisterEntry.work_date <= run.period_end,
+        ).order_by(LeaveRegisterEntry.work_date)
+    ).all()
+    raw = ";".join(f"{r.id}:{r.work_date}:{r.code}:{r.revision}" for r in rows)
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+
 def _absence_leave_fingerprint(
-    item: PayrollItem, run: PayrollRun, conflicts: list[LeaveRecord]
+    item: PayrollItem, run: PayrollRun, conflicts: list[LeaveRecord], db: Session | None = None
 ) -> str:
     """Bind a review confirmation to the exact inputs it covered.
 
     Any later change to the conflicting leave set (added, cancelled, edited) or
     to the absence days invalidates the fingerprint, so approval requires a
-    fresh human review instead of silently reusing a stale confirmation.
+    fresh human review instead of silently reusing a stale confirmation. When a
+    session is supplied, the month's day-register facts are bound too, so a
+    register edit after review also requires a fresh review.
     """
     import hashlib
     leave_parts = ",".join(
         f"{leave.id}:{leave.start_date}:{leave.end_date}" for leave in conflicts
     )
     raw = f"{item.employee_id}|{run.period_start}|{Decimal(item.absence_days)}|{leave_parts}"
+    if db is not None:
+        raw += f"|reg:{_register_digest(db, item, run)}"
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
@@ -219,7 +241,7 @@ def review_absence_leave_conflict(db: Session, item: PayrollItem, actor: str) ->
     if not conflicts:
         raise ValueError("لا يوجد تعارض غياب مع إجازة مدفوعة قائم لهذا البند.")
     item.absence_leave_reviewed = True
-    item.absence_leave_review_fingerprint = _absence_leave_fingerprint(item, run, conflicts)
+    item.absence_leave_review_fingerprint = _absence_leave_fingerprint(item, run, conflicts, db)
     _audit(
         db, actor=actor, action="absence_leave_conflict_reviewed",
         entity_type="payroll_item", entity_id=str(item.id),
@@ -521,7 +543,7 @@ def approve_payroll_run(db: Session, run: PayrollRun, actor: str) -> None:
         if not item.absence_leave_reviewed:
             conflicted.append(item.employee_code_snapshot)
             continue
-        if item.absence_leave_review_fingerprint != _absence_leave_fingerprint(item, run, conflicts):
+        if item.absence_leave_review_fingerprint != _absence_leave_fingerprint(item, run, conflicts, db):
             conflicted.append(item.employee_code_snapshot)
     if conflicted:
         raise AbsenceLeaveConflictError(sorted(conflicted))

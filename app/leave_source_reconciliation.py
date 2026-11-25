@@ -25,6 +25,26 @@ MAX_LEDGER_ROWS=100000
 MAX_SERVICE_ROWS=20000
 
 
+
+# Exact earned reconstruction. The projection accumulates, in 50-digit Decimal, only terms
+# whose exact denominators are fixed by the accrual contract: weekly (employed-U-S)/7,
+# annual tier*(employed-deductible)/(12*days_in_month) with days_in_month in 28..31, and whole
+# holiday days. Every possible exact sum therefore has a denominator dividing D below. Two distinct
+# such fractions differ by at least 1/D**2 (about 5e-14 for annual), while the Decimal error over at
+# most a few hundred monthly terms is below 1e-45, so the nearest fraction with denominator <= D is
+# the one exact value. Nothing is allowed outside that structure: no dust tolerance.
+_EXACT_DENOMINATOR={'A':4530960,'W':7,'H':1}  # A = 12*lcm(28,29,30,31), asserted in test
+_RECONSTRUCTION_ERROR_LIMIT=Fraction(1,10**45)
+
+
+def _exact_from_projection_decimal(value,code):
+    if not isinstance(value,Decimal) or not value.is_finite() or value<0 or code not in _EXACT_DENOMINATOR:
+        raise ValueError('Projection earned value is not an exact-reconstructible accrual.')
+    exact=Fraction(value).limit_denominator(_EXACT_DENOMINATOR[code])
+    if abs(Fraction(value)-exact)>_RECONSTRUCTION_ERROR_LIMIT or _EXACT_DENOMINATOR[code]%exact.denominator:
+        raise ValueError('Projection earned value does not match its fixed accrual denominator structure.')
+    return exact
+
 @dataclass(frozen=True)
 class CategoryReconciliation:
     employee_id: int
@@ -135,6 +155,14 @@ def reconcile_selected_opening(db, *, selection_ids, department_id, month_start,
                 earned_balance=snapshot.carry+earned-used
                 released_balance=snapshot.carry+released_earned-used
                 held=earned-released_earned
+            ex=_exact_from_projection_decimal(earned,code)
+            if Fraction(earned)!=ex:
+                # Legacy 50-digit Decimal was inexact: use the uniquely determined exact rational.
+                carry_f=Fraction(snapshot.carry);used_f=Fraction(used)
+                rel_f=ex if code!='A' or released.released else Fraction(0)
+                earned,released_earned,held=ex,rel_f,ex-rel_f
+                earned_balance=carry_f+ex-used_f
+                released_balance=carry_f+rel_f-used_f
             if code=='A' and not released.released:
                 issues.append(released.reason)
             rows.append(CategoryReconciliation(employee.id,code,snapshot.carry,earned,released_earned,held,used,

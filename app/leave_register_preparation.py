@@ -5,12 +5,13 @@ The explicit source period is not a chosen monthly cycle. Closed source windows
 and legacy linked leave always refuse, not reopen or reconcile by assumption.
 """
 import json
+from datetime import date
 
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from app.leave_register_review import RegisterEdit, prepare_register_edit
-from app.models import AdminAccount, AdminSession, AuditLog, LeaveRegisterEntry, utcnow
+from app.models import AdminAccount, AdminSession, AuditLog, LeaveRegisterEntry, PayrollRun, utcnow
 
 
 def save_reviewed_register_preparation(engine, *, edit: RegisterEdit,
@@ -48,6 +49,23 @@ def save_reviewed_register_preparation(engine, *, edit: RegisterEdit,
             raise PermissionError('Current authorized register preparer session is required.')
         if _review_check is not None:
             _review_check(db)
+        # Approved/closed payroll protects its month's day evidence (parity with
+        # leave_return_register). Deliberately a ROW lock on the overlapping runs,
+        # not a payroll_runs TABLE lock. Preparation has no common consume gate;
+        # adding a table lock here would introduce an ordering dependency with
+        # approval's existing leave_month_close lock. The row lock serializes
+        # with approve/close (which lock the run row FOR UPDATE after lock_scope).
+        # Check status after waiting: approval is seen here or waits and then
+        # re-reads the register. This does not authorize new live entry points.
+        if isinstance(edit.work_date, date):
+            from calendar import monthrange
+            first = edit.work_date.replace(day=1)
+            last = date(first.year, first.month, monthrange(first.year, first.month)[1])
+            runs = db.scalars(select(PayrollRun).where(
+                PayrollRun.period_start <= last, PayrollRun.period_end >= first
+            ).order_by(PayrollRun.id).with_for_update(read=True).execution_options(populate_existing=True)).all()
+            if any(run.status in ('approved', 'closed') for run in runs):
+                raise ValueError('Approved/closed payroll blocks register preparation.')
         current = prepare_register_edit(db, edit)
         if current.issues:
             raise ValueError('Register preparation blocked: ' + ','.join(current.issues))

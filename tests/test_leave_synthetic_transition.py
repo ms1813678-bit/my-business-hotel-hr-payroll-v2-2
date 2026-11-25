@@ -17,10 +17,13 @@ from tests.test_leave_historical_evidence import history_context  # noqa
 from tests.test_leave_source_reconciliation import setup_source
 
 
-def prepare(history_context, monkeypatch, ledger=False):
+def prepare(history_context, monkeypatch, ledger=False, hire=date(2026,2,1)):
+    # Default fixture is a full 28-day February: every earned amount is a finite decimal, so the
+    # held synthetic harness is exercised on its supported (finite) path. Rational amounts are
+    # covered by test_recurring_rational_target_refuses_fail_closed.
     monkeypatch.setattr(settings, 'leave_synthetic_transition_enabled', True)
     monkeypatch.setattr(settings, 'app_env', 'test')
-    db,e,args=setup_source(history_context)
+    db,e,args=setup_source(history_context,hire=hire)
     # Explicit synthetic fixture assumption, never alter actual host settings.
     for kind in db.scalars(select(LeaveType).where(LeaveType.code.in_(('annual','weekly_rest','official_holiday')))):
         kind.tracks_balance=True
@@ -253,3 +256,13 @@ def test_inactive_category_changes_source_and_blocks_even_refreshed_draft(histor
     fresh=reconcile_selected_opening(db,**args)
     current=draft_transition(db,**{**review,'reviewed_reconciliation_digest':fresh.reconciliation_digest},**args)
     assert 'category_inactive' in next(r for r in current.rows if r.code=='A').unresolved
+
+
+def test_recurring_rational_target_refuses_fail_closed(history_context,monkeypatch):
+    """Held harness stays held: a recurring-rational reviewed target is never rounded into the ledger."""
+    db,e,source,draft,review,args,call=prepare(history_context,monkeypatch,False,hire=date(2026,2,25))
+    from fractions import Fraction
+    assert any(isinstance(r.reviewed_target,Fraction) for r in draft.rows)
+    before=counts(db)
+    with pytest.raises(ValueError,match='recurring rational'):apply_synthetic_transition(db,**call)
+    assert counts(db)==before
