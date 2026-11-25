@@ -617,3 +617,11 @@ Added one current source/status index and marked older operational checkpoint re
 - Preserve safe actionable refusals in AR/EN/ZH through finite authored/domain catalogs and bounded parameters; unknown internal text is generic, localized marker alone not trusted.
 - Control local-model protocol/body failures; pin verified loopback numeric destinations per status/POST while preserving strict HTTPS original-host verification and proxy/redirect refusal.
 - Actual authenticated migrated-PG review/approve/CSRF/role/replay tests plus temporary-TLS/rebinding/IPv6/cleanup cases. Composed526pass4SQLite-onlyskip, not actual-model/native/hotel/global-egress acceptance.
+
+
+## Instinct,2026-11-25,monthly date preflight1706
+
+- Verified: validate exact selected monthly calendar arithmetic before database/render/save and return the existing localized invalid-month reason instead of implementation year errors. No arbitrary year cutoff, custom-report or role change.
+- 180 focused tests passed, zero skipped, two warnings; 44 new cases including actual HTTP translated refusals and boundary-neighbor PDFs/save ranges. Original probes already returned400, not a reproduced500. Independent source review accepted; reviewer did not rerun tests. See docs/MONTHLY_DATE_BOUNDS_1706.md.
+
+Final shared-tree qualification: 180 passed, zero skipped, two warnings, 32.42 seconds; 44 new boundary tests including nine preserved modifier-only rejection cases. Independent acceptance was static source review, not test execution. No visual/layout acceptance claim.

@@ -117,6 +117,7 @@ from app.report_builder import (
     report_paper_content,
     build_custom_workbook,
     build_monthly_pdf,
+    monthly_date_bounds,
     build_report,
     monthly_options_for_types,
     list_presets,
@@ -3521,6 +3522,10 @@ def reports_monthly_pdf(
     if not data_options:
         raise HTTPException(status_code=403, detail="هذا الجزء غير متاح لصلاحية حسابك.")
     try:
+        month_start, month_end = monthly_date_bounds(month_start, options)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    try:
         with SessionLocal() as db:
             content = build_monthly_pdf(
                 db, month_start, options,
@@ -3531,7 +3536,6 @@ def reports_monthly_pdf(
         raise HTTPException(status_code=400, detail=str(exc))
     except SQLAlchemyError:
         raise HTTPException(status_code=503, detail="تعذر إنشاء التقرير بسبب خطأ في قاعدة البيانات.")
-    month_end = date(month_start.year + (month_start.month == 12), month_start.month % 12 + 1, 1) - timedelta(days=1)
     _save_report_copy(content, "pdf", month_start, month_end, kind="monthly")
     filename = f"MY_HR_Monthly_{month_start.strftime('%Y-%m')}.pdf"
     from urllib.parse import quote

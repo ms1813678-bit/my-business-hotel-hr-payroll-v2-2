@@ -1742,6 +1742,24 @@ def _flatten_groups(groups: list[dict]) -> list[dict]:
     return [{"department": "الكل", "rows": merged_rows}] if merged_rows else []
 
 
+def monthly_date_bounds(month_start: date, options: set[int]) -> tuple[date, date]:
+    """Validate only the calendar arithmetic used by the selected monthly paths.
+
+    No arbitrary business-date cutoff. A selected comparison/trend must have
+    representable predecessor months and every report needs an exclusive end.
+    """
+    start = month_start.replace(day=1)
+    try:
+        end = _add_months(start, 1) - timedelta(days=1)
+        if set(options) & {8, 9}:
+            _add_months(start, -5)
+        elif set(options) & {1, 2, 3, 4}:
+            _add_months(start, -1)
+    except (ValueError, OverflowError):
+        raise ValueError("اختر شهرًا صالحًا للتقرير الشهري.") from None
+    return start, end
+
+
 def build_monthly_pdf(db: Session, month_start: date, options: set[int], language: str = "ar", aggregate_leave: bool = False) -> bytes:
     """Render the approved monthly report: one PDF with the chosen sections.
 
@@ -1760,8 +1778,7 @@ def build_monthly_pdf(db: Session, month_start: date, options: set[int], languag
     unknown = set(options) - MONTHLY_ALL_OPTIONS
     if unknown or not options:
         raise ValueError("خيارات التقرير الشهري غير صالحة.")
-    month_start = month_start.replace(day=1)
-    month_end = _add_months(month_start, 1) - timedelta(days=1)
+    month_start, month_end = monthly_date_bounds(month_start, options)
 
     def L(text):
         return _L(text, language)

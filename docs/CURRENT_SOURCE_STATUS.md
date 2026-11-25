@@ -195,3 +195,10 @@ Add explicit-field, one-UID SELECT-only internal snapshot over four existing0067
 ## Canonical typed snapshot codec1702,25November19:12
 
 Integrate Muse-origin isolated stdlib codec with credited Instinct controlled-number/subsecond-datetime repairs and17regressions. No callers/store/network/auth/journal activation. Version1 canonical typed JSON preserves explicit scalar types/Decimalscale/offsets/Unicode and rejects malformed/noncanonical/oversized values under documented resource bounds. Original78passonoursupportedPython3.11;adversarialoldsource8fail9pass;refined95pass;finalsharedcodec+actualPGsnapshot/UID123pass0skip27warnings13.32s. Independentexacthashstatic+3.10probes accepted, notindependentpytest. SHA256notpermission;decodeisnotfieldauthority. Encodeallocation/customtzinforesiduals documented in SNAPSHOT_CODEC_1702.md. Historicalbroadreviewpartialsourcecoveragekeptseparate. Departmentjournal1703experimentnotadopted;sameDBroleactorcontextspoofacceptedcounterexamplepreservedinternally,notsecurityguarantee.
+
+
+## Monthly date preflight1706,25November19:29
+
+Investigated retained1697extreme-date lead: exercised old monthly paths alreadyreturned400,not500, but Python year0/year10000 detail was untranslated and validation happened inside report DB context. Shared option-specific arithmetic preflight now refuses before DB/render/save with existing AR/EN/ZH invalid-month reason. No arbitrary businessyear cutoff: earlyyearleave remainsallowed; payrollFeb0001/chartJune0001/latestNov9999 produce actualHTTPPDF with correct saved bounds. Candidate180passed0skipped2warningsfinalsharedrun,44newboundarycases; existingfixtureSQLite qualifications retained, notallPGbehavior. No customreport/role/datebasis/layout/device claim. Independent static review accepted against b613; reviewer did not run tests. Final shared result below. See MONTHLY_DATE_BOUNDS_1706.md.
+
+Final shared-tree qualification: 180 passed, zero skipped, two warnings, 32.42 seconds; 44 new boundary tests including nine preserved modifier-only rejection cases. Independent acceptance was static source review, not test execution. No visual/layout acceptance claim.
