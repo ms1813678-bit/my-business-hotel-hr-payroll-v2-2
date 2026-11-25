@@ -197,6 +197,7 @@ def _json_plan(question: str, context: dict[str, Any], language: str = "ar") -> 
         {
             "model": status["model"],
             "stream": False,
+            "format": "json",
             "messages": [
                 {
                     "role": "system",

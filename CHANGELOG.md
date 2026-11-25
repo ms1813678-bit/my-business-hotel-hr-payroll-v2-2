@@ -1,3 +1,8 @@
+## 2026-11-25 - Local model JSON request contract by Instinct
+
+- Ask the local command-planning endpoint for JSON format, matching the existing local query path. Keep strict JSON parsing, action/value validation and the human approval gateway unchanged. No prose-wrapper extractor.
+- Add scripted loopback HTTP request-contract and malformed-output tests. The exact candidate plus the existing AI suite passes 151 tests with 4 skips under the configured migrated PostgreSQL guard. This is fixture and application regression evidence, not a real-model behavior, model installation or whole-AI acceptance claim.
+
 ## 2026-11-25 - Recovery gate fixture import-order repair by Instinct
 
 - Patch the legacy recovery-gate fixture at the helper's actual unwrap lookup instead of its original definition module, so early helper imports do not bypass the fake. All five original behavioral tests and assertions remain unchanged; no product, configuration or skip changes.
