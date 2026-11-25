@@ -1,12 +1,12 @@
 {
   "HOnY-Desktop-Candidate.RECOVERED-EXACT.iss": "57db2b7c5edeb34bf3cad457e8e92f4bfa457f4b981ed1630f494df37b119451",
   "HOnY-Desktop-Candidate.iss": "e502ceca4b3d542694d34d9d8e159ae763f879ab8b9561bdb282114e3a519137",
-  "actual_https_smoke.py": "f76ca376f3baae47bbf3ad01a4a30220743b7789e3b0dfcc435d1440f436a2cd",
+  "actual_https_smoke.py": "b3e848484b2016aab8eca41753cc526877c61b28f62632d1987262f70f571325",
   "actual_scm_controller.py": "8bd169036e2127c14d40dbd6791884c5a4411c68df30a2931f3788c91ecc42b9",
   "auth_fixture/README.md": "70d068c60d17541af155c5b147106426dfe51b752e6dc906038419bbb8c0895e",
   "auth_fixture/seed_fixture.py": "3a5634e581eac323f96d72068797efce11418e91037a89c4950df19ae440d3cd",
-  "authenticated_state_check.py": "f3f039b3ff311e6a206e4c4eee2aa39ac5d090b11ecbe17e2364a934d6b6154e",
-  "authenticated_window_smoke.py": "9bd7c939592244fe8f0010e7b449a97ddd4052b86a3342b595029cc16223aead",
+  "authenticated_state_check.py": "77e3fbeb5f41c8a201a29775078127a3c74744c8f59695bad3130b4d61160c31",
+  "authenticated_window_smoke.py": "67b8cfcca209899b5571fe2f770d42e0daf63d010638b55758d03eb13b3f026d",
   "build-tools-HASHED.txt": "1bfa26246e73222c53c6bc9dd038eaae18b150d6132bc8d2ce2ea6496fddb850",
   "build-tools-provenance.json": "c99eb30e476bf1dd33d6962dd2434eec9383d54fa5edd04ad2eb2e05cb99a6ce",
   "confirm_ui_fixture.py": "9de1c1c7a1a56ed8fc04ca94d37e48c25b32036704bb38a137ce239500ee02d3",
@@ -48,5 +48,6 @@
   "stager_candidate/staging/verify_install.py": "fe4d007316b15c1713dd0bff4657353b841963a6e9d8e20ec22d69076e9cb8dd",
   "stager_candidate/staging/verify_wheel_projection.py": "42731e360f9ce73818f9f6730828fc868a6304e9ff832aa7816a898b82d1feab",
   "trust_fixture.ps1": "be7e04129ed402c61ee37a07cf577d36780897e1769a4f4df153c66857bf809a",
-  "visible_window_smoke.py": "0406a1e60a6c44f7202940d75c7e371c2b5a87c480434bcca30cbe24bbd3ed14"
+  "visible_window_smoke.py": "0406a1e60a6c44f7202940d75c7e371c2b5a87c480434bcca30cbe24bbd3ed14",
+  "report_dialog_fixture.py": "403cff77d04b22d4654a8ea5822f0ebd148d67faf939f4fc5d8b59df78250dc2"
 }

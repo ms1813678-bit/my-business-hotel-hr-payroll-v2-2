@@ -219,18 +219,18 @@ def parent(scm_mode=False,visible=False,authenticated=False):
             process,thread,pid,tid=win32process.CreateProcess(sys.executable,command,None,None,False,win32con.CREATE_SUSPENDED,localenv,str(source),win32process.STARTUPINFO())
             win32job.AssignProcessToJobObject(job,process)
             if win32process.ResumeThread(thread)!=1:raise RuntimeError('visible prior suspend count refused')
-            if win32event.WaitForSingleObject(process,75000)!=win32con.WAIT_OBJECT_0:raise RuntimeError('visible window deadline')
+            if win32event.WaitForSingleObject(process,115000)!=win32con.WAIT_OBJECT_0:raise RuntimeError('visible window deadline')
             if win32process.GetExitCodeProcess(process)!=0:
                 # Retain only known synthetic result/pixels, never DB/config/keys.
                 failed=pathlib.Path(os.environ['RUNNER_TEMP'])/'hony-visible-failure-proof'
                 failed.mkdir(exist_ok=False)
-                for name in ['visible-window-result.json','visible-login.png','visible-popup.png','authenticated-window-result.json','authenticated-dirty-confirm.png']:
+                for name in ['visible-window-result.json','visible-login.png','visible-popup.png','authenticated-window-result.json','authenticated-dirty-confirm.png','authenticated-save-dialog.png','authenticated-print-preview.png']:
                     if (root/name).is_file():shutil.copy2(root/name,failed/name)
                 raise RuntimeError('visible actual window child failed')
             result_name='authenticated-window-result.json' if authenticated else 'visible-window-result.json'
             result=json.loads((root/result_name).read_text())
             expected='authenticated-pages-rendered' if authenticated else 'visible-login-rendered'
-            image_names=['authenticated-dashboard.png','authenticated-payroll.png','authenticated-report.png','authenticated-dirty-confirm.png'] if authenticated else ['visible-login.png','visible-popup.png']
+            image_names=['authenticated-dashboard.png','authenticated-payroll.png','authenticated-report.png','authenticated-dirty-confirm.png','authenticated-save-dialog.png','authenticated-print-preview.png','authenticated-report.pdf'] if authenticated else ['visible-login.png','visible-popup.png']
             if result.get('status')!=expected or any(not (root/name).is_file() for name in image_names):raise RuntimeError('visible pixels/result missing')
             assert owned_service.running() and request()[0]==200
             evidence=pathlib.Path(os.environ['RUNNER_TEMP'])/('hony-authenticated-proof' if authenticated else 'hony-visible-proof')

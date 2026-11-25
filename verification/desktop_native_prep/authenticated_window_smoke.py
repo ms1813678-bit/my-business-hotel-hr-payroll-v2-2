@@ -71,6 +71,28 @@ def run(root):
             wait_for('window.__fixtureReviewAttemptDone===true && window.__fixtureReviewPrevented===true')
             if not js('document.querySelector('+json.dumps(selector)+').value==="7" && document.querySelector("form.payroll-item-edit").dataset.dirty==="1"'):raise RuntimeError('dirty cancel lost unsaved value')
             evidence['dirty_cancel_tested']=True
+        def report_output_gate():
+            import win32gui,win32process,importlib.util
+            guard=next(g for g in guards if g._window is window)
+            owned=[]
+            win32gui.EnumWindows(lambda h,_:owned.append(h) if win32process.GetWindowThreadProcessId(h)[1]==os.getpid() and win32gui.GetWindowText(h)=='HOnY' else None,None)
+            if len(owned)!=1:raise RuntimeError('exact report parent identity ambiguous')
+            spec=importlib.util.spec_from_file_location('owned_report_dialog',pathlib.Path(__file__).with_name('report_dialog_fixture.py'))
+            helper=importlib.util.module_from_spec(spec);spec.loader.exec_module(helper)
+            # Actual page link, existing backend DownloadStarting + SaveFileDialog.
+            # Do not replace callbacks, cookies, PDF endpoint, print function or UI.
+            def click(selector):
+                def fire():
+                    guard._control.CoreWebView2.ExecuteScriptAsync('setTimeout(function(){document.querySelector('+json.dumps(selector)+').click();},0);true')
+                guard._marshal_to_ui(guard._control,fire)
+            click('a[href^="/reports/export.pdf?"]')
+            evidence['native_pdf']=helper.save_pdf(owned[0],root/'authenticated-report.pdf',root/'authenticated-save-dialog.png')
+            evidence['pdf_download_tested']=True
+            wait_for('location.pathname==="/reports/view"')
+            click('button[onclick="window.print()"]')
+            helper.cancel_print(owned[0],root/'authenticated-print-preview.png')
+            wait_for('location.pathname==="/reports/view"')
+            evidence['print_preview_cancel_tested']=True
         def loaded():
             if started.is_set():return
             started.set()
@@ -91,7 +113,8 @@ def run(root):
                 js('location.href='+json.dumps(origin+'/reports/view?'+query)+';true')
                 wait_for('location.pathname==="/reports/view" && !!document.querySelector("a[href^=\'/reports/export.pdf?\']") && !!document.querySelector("button[onclick=\'window.print()\']")')
                 evidence['authenticated_report_pixels']=capture('authenticated-report.png')
-                evidence.update(status='authenticated-pages-rendered',normal_TLS=True,real_login_submission=True,pdf_download_tested=False,print_tested=False,dirty_cancel_tested=evidence.get('dirty_cancel_tested',False),seeded_approvals_not_exercised=True)
+                report_output_gate()
+                evidence.update(status='authenticated-pages-rendered',normal_TLS=True,real_login_submission=True,pdf_download_tested=evidence.get('pdf_download_tested',False),print_tested=False,print_preview_cancel_tested=evidence.get('print_preview_cancel_tested',False),dirty_cancel_tested=evidence.get('dirty_cancel_tested',False),seeded_approvals_not_exercised=True)
             except BaseException as exc:
                 evidence.update(status='failed',error_type=type(exc).__name__)
                 print('NATIVE_AUTH_FIXTURE_FAILED',type(exc).__name__,'dirty_cancel',evidence.get('dirty_cancel_tested',False),flush=True)
@@ -99,7 +122,7 @@ def run(root):
         window.events.loaded+=loaded
         return window
     webview.create_window=observed_create
-    threading.Timer(70,lambda:os._exit(97)).start()
+    threading.Timer(110,lambda:os._exit(97)).start()
     try:run_window(origin)
     finally:(root/'authenticated-window-result.json').write_text(json.dumps(evidence))
     if evidence.get('status')!='authenticated-pages-rendered':raise RuntimeError('authenticated actual pages failed')

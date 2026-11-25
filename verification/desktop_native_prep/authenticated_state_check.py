@@ -15,5 +15,9 @@ with SessionLocal() as db:
     assert db.scalar(select(func.count()).select_from(PayrollPayment))==0
     assert db.scalar(select(func.count()).select_from(AdminSession))==1
     assert sorted(db.scalars(select(AuditLog.action)).all())==['payroll_item_updated','payroll_run_created']
-    assert not list((root/'source/var/reports').glob('*'))
+    reports=list((root/'source/var/reports').glob('*'))
+    assert len(reports)==1 and reports[0].suffix=='.pdf'
+    downloaded=(root/'authenticated-report.pdf').read_bytes()
+    assert reports[0].read_bytes()==downloaded and downloaded.startswith(b'%PDF-')
+    print('NATIVE_ACTUAL_PDF_DOWNLOAD_EQUALS_BACKEND_REPORT_PASS',len(downloaded),flush=True)
 print('NATIVE_AUTH_PAGES_READONLY_FINANCIAL_STATE_SESSION_PASS',flush=True)
