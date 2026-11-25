@@ -127,7 +127,7 @@ class _Region(NamedTuple):
 def read_capped(path: str, cap: Optional[int] = None) -> bytes:
     """Read a regular file, refusing over-cap files BEFORE reading content."""
     limit = MAX_IMAGE_BYTES if cap is None else cap
-    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+    flags = os.O_RDONLY | getattr(os, "O_BINARY", 0) | getattr(os, "O_NOFOLLOW", 0)
     fd = os.open(path, flags)
     try:
         st = os.fstat(fd)

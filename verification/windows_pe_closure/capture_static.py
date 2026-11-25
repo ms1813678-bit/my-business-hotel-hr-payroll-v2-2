@@ -27,7 +27,9 @@ def main():
                 (runtime/p.name).write_bytes(z.read(info))
         expected=json.loads((HERE/'EXPECTED-DIRECT-IMPORTS.json').read_text())
         for name,want in expected['members'].items():
-            raw=read_capped(str(runtime/name));image=parse_pe(raw)
+            raw=read_capped(str(runtime/name))
+            if hashlib.sha256(raw).hexdigest()!=want['sha256']:raise RuntimeError('binary read hash regression: '+name)
+            image=parse_pe(raw)
             if hashlib.sha256(raw).hexdigest()!=want['sha256'] or [m.dll_name for m in image.imports]!=want['imports']:raise RuntimeError('actual pinned direct-import regression')
         # Enumerate names once, then copy ONLY requested static candidates from
         # exact System32 into an owned snapshot. Never call LoadLibrary, resolve
@@ -64,6 +66,9 @@ def main():
         print('ACTUAL_PINNED_PE_DIRECT_IMPORTS_PASS',flush=True)
         print('STATIC_CLOSURE_SUMMARY',json.dumps(report['summary']),flush=True)
         print('STATIC_ONLY_C0000022_CAUSE_NETWORK_NOT_ESTABLISHED',flush=True)
+    except BaseException as exc:
+        (output/'static-failure.json').write_text(json.dumps(dict(status='failed',error_type=type(exc).__name__,reason=str(exc),static_only=True),indent=2)+'\n')
+        raise
     finally:
         shutil.rmtree(root)
         if root.exists():raise RuntimeError('owned static root cleanup unconfirmed')

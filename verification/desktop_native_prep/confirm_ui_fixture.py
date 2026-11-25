@@ -1,9 +1,14 @@
 """Owned synthetic-window UI Automation confirm cancellation, no custom-dialog override."""
-import os,time,json
+import os,time,json,pathlib,sys
 
 def cancel_confirm(hwnd,expected_message,output):
     import clr
-    clr.AddReference('UIAutomationClient');clr.AddReference('UIAutomationTypes')
+    framework='Framework64' if sys.maxsize>2**32 else 'Framework'
+    wpf=pathlib.Path(os.environ['SystemRoot'])/'Microsoft.NET'/framework/'v4.0.30319'/'WPF'
+    for name in ('UIAutomationClient','UIAutomationTypes'):
+        assembly=wpf/(name+'.dll')
+        if not assembly.is_file():raise RuntimeError('Framework UIAutomation assembly absent: '+name)
+        clr.AddReference(str(assembly))
     from System import IntPtr
     from System.Windows.Automation import AutomationElement,TreeScope,Condition,ControlType,InvokePattern
     import win32gui,win32process
