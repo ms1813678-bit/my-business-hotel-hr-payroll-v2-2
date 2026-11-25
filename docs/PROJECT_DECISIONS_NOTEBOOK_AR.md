@@ -424,3 +424,8 @@
 ## Instinct 1751: hosted Ubuntu runner pin
 
 563329e hosted Linux log proved Ubuntu26.04 could not locate postgresql-client-16 before migrations/tests. Pin ubuntu-24.04, whose official inventory and Noble package source carry PG16. Keep strict absolute/effective client validation, unchanged PG16 service/full suite/Windows. Details and source URLs: docs/HOSTED_PG_CLIENT_1751.md. Hosted success remains unverified until next run.
+
+
+## Instinct1756: reviewed return registration
+
+Normal POSIX PostgreSQL HR source-review->pendingattendance->P+A/W/H/S/U factual register path, separate immutable0069receipt and verified exact retry, no leave approval/debit/accrual/payroll/month-close. Existing synthetic harness and restore gates unchanged. Windows isolated parser still unavailable and refuses without mutation.25targetedpass0skip onPython3.11.18/PG16.2; independent focused static review accepted after corrections, actual AR390/EN/ZH pixels inspected. Full boundary, source locks, replay and original owner authority: docs/REVIEWED_RETURN_REGISTER_1756.md. This completes a supported register prerequisite, not monthly accrual or Windows/device acceptance.

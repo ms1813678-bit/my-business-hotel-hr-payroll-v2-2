@@ -230,3 +230,11 @@ Installed.env and process settings now resolve model/baseURL consistently, with 
 ## 1751 qualification checkpoint
 
 Exact shared runner-pin contract:21passed,0skips,1warning, Python3.11.18, actual0068migratedPG16.2 configured (some contract functions are pure/mocked). No broad suite rerun for runner-only change. Local setup retries before this result failed configuration validation and are not counted as test passes. Hosted success is not yet established. See HOSTED_PG_CLIENT_1751.md for exact runner/package failure and source proof.
+
+
+## Instinct1756: reviewed return registration
+
+Normal POSIX PostgreSQL HR source-review->pendingattendance->P+A/W/H/S/U factual register path, separate immutable0069receipt and verified exact retry, no leave approval/debit/accrual/payroll/month-close. Existing synthetic harness and restore gates unchanged. Windows isolated parser still unavailable and refuses without mutation.25targetedpass0skip onPython3.11.18/PG16.2; independent focused static review accepted after corrections, actual AR390/EN/ZH pixels inspected. Full boundary, source locks, replay and original owner authority: docs/REVIEWED_RETURN_REGISTER_1756.md. This completes a supported register prerequisite, not monthly accrual or Windows/device acceptance.
+
+
+Exact integrated shared source, based on8526380 runner pin:166passed,0skipped,1warning,67.34seconds. This is the focused register/source/opening/restore/parser/CI-contract suite, not whole-suite, Windows or hotel acceptance.

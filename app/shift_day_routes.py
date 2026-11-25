@@ -21,6 +21,16 @@ from app.shift_evidence_source import preview_configured_shift_evidence
 from app.fingerprint_bounded_parse import FingerprintPlatformUnavailable,PLATFORM_UNAVAILABLE_MESSAGE
 
 
+def production_attendance_available():
+    from app.db import engine
+    from app.fingerprint_bounded_parse import require_operational_parser_platform
+    try:
+        require_operational_parser_platform()
+    except FingerprintPlatformUnavailable:
+        return False
+    return engine.dialect.name == 'postgresql'
+
+
 def shift_day_router(templates):
     router=APIRouter()
     def identity(request,admin):return dict(actor_id=admin.id,session_id=request.session.get('admin_session_id'),session_version=request.session.get('admin_session_version'),expected_epoch=request.state.restore_epoch)
@@ -31,7 +41,7 @@ def shift_day_router(templates):
     def enabled():
         return settings.attendance_synthetic_review_enabled and (make_url(settings.database_url).database or '').startswith(('synthetic_attendance_','synthetic_cycle_')) and settings.app_env.strip().lower() in {'test','synthetic'}
     def render(request,admin,source,day,patterns,result=None,selected=(),review=None,registered=None):
-        response=templates.TemplateResponse(request=request,name='shift_day_review.html',context=dict(admin=admin.username,csrf_token=get_csrf_token(request),source=source,day=day,patterns=patterns,result=result,selected=selected,operational=enabled(),operation_id=secrets.token_hex(32),review=review,registered=registered))
+        response=templates.TemplateResponse(request=request,name='shift_day_review.html',context=dict(admin=admin.username,csrf_token=get_csrf_token(request),source=source,day=day,patterns=patterns,result=result,selected=selected,operational=enabled() or production_attendance_available(),synthetic_registration=enabled(),operation_id=secrets.token_hex(32),review=review,registered=registered))
         response.headers['Cache-Control']='no-store';return response
     def config(db,source):
         employee=db.get(Employee,source.employee_id,populate_existing=True)
@@ -71,7 +81,7 @@ def shift_day_router(templates):
         except (ValueError,TypeError,KeyError,SQLAlchemyError) as exc:raise HTTPException(status_code=400,detail='Preview unavailable. Recheck selected source, day and current configuration.',headers={'Cache-Control':'no-store'}) from exc
     @router.post('/attendance/shift-evidence/{comparison_id}/{employee_id}/review',dependencies=[Depends(csrf_protect)])
     async def prepare(request:Request,comparison_id:str,employee_id:int,admin:AdminAccount=Depends(require_system_admin)):
-        if not enabled():raise HTTPException(status_code=404,detail='Not enabled.')
+        if not enabled() and not production_attendance_available():raise HTTPException(status_code=503,detail=PLATFORM_UNAVAILABLE_MESSAGE,headers={'Cache-Control':'no-store'})
         canonical_operational_path(request,comparison_id,employee_id,'review')
         try:
             form=await request.form()
@@ -101,7 +111,7 @@ def shift_day_router(templates):
         except (ValueError,TypeError,KeyError,SQLAlchemyError) as exc:raise HTTPException(status_code=400,detail='Review unavailable. Recheck current month, service, source and selections.',headers={'Cache-Control':'no-store'}) from exc
     @router.post('/attendance/shift-evidence/{comparison_id}/{employee_id}/confirm',dependencies=[Depends(csrf_protect)])
     async def confirm(request:Request,comparison_id:str,employee_id:int,admin:AdminAccount=Depends(require_system_admin)):
-        if not enabled():raise HTTPException(status_code=404,detail='Not enabled.')
+        if not enabled() and not production_attendance_available():raise HTTPException(status_code=503,detail=PLATFORM_UNAVAILABLE_MESSAGE,headers={'Cache-Control':'no-store'})
         canonical_operational_path(request,comparison_id,employee_id,'confirm')
         try:
             form=await request.form()

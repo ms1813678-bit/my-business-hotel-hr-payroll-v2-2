@@ -4907,3 +4907,12 @@ for _ar, _en, _zh in [
 ]:
     EN[_ar]=_en
     ZH[_ar]=_zh
+
+EN.update({
+'تسجيل أيام الملف بعد المراجعة لا يعتمد إجازة أو يخصم رصيدًا أو يعدل مرتبًا.':'Recording reviewed file days does not approve leave, debit balances or change pay.',
+'مقارنة البصمات لا تحدد الاتجاه تلقائيًا. التسجيل المعلق يتطلب اختيارًا صريحًا وتأكيد الملخص، بلا اعتماد نهائي أو إضافي.':'Punch comparison does not infer direction. Pending registration requires explicit selection and summary confirmation, without final approval or overtime award.',
+'يعاد فحص الجلسة والمصدر والفترة قبل حفظ التسجيل المعلق.':'Session, source and period are checked again before saving pending registration.'})
+ZH.update({
+'تسجيل أيام الملف بعد المراجعة لا يعتمد إجازة أو يخصم رصيدًا أو يعدل مرتبًا.':'登记复核后的文件日期不会批准休假、扣减余额或更改工资。',
+'مقارنة البصمات لا تحدد الاتجاه تلقائيًا. التسجيل المعلق يتطلب اختيارًا صريحًا وتأكيد الملخص، بلا اعتماد نهائي أو إضافي.':'记录比较不会自动推断方向。待复核登记需要明确选择并确认摘要，不会最终批准或授予加班。',
+'يعاد فحص الجلسة والمصدر والفترة قبل حفظ التسجيل المعلق.':'保存待复核登记前会重新检查会话、来源和期间。'})

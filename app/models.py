@@ -1141,6 +1141,20 @@ class LeaveSyntheticRegisterConsumption(Base):
     __table_args__=(UniqueConstraint('comparison_id','employee_id',name='uq_synthetic_register_comparison_employee'),)
 
 
+class LeaveRegisterConsumption(Base):
+    __tablename__='leave_register_consumptions'
+    id: Mapped[str]=mapped_column(String(64),primary_key=True)
+    comparison_id: Mapped[str]=mapped_column(ForeignKey('department_fingerprint_preparations.id'),nullable=False)
+    employee_id: Mapped[int]=mapped_column(ForeignKey('employees.id'),nullable=False)
+    actor_id: Mapped[int]=mapped_column(ForeignKey('admin_accounts.id'),nullable=False)
+    session_id: Mapped[str]=mapped_column(String(128),nullable=False)
+    session_version: Mapped[int]=mapped_column(Integer,nullable=False)
+    restore_epoch: Mapped[str | None]=mapped_column(Text)
+    source_digest: Mapped[str]=mapped_column(String(64),nullable=False)
+    result_json: Mapped[str]=mapped_column(Text,nullable=False)
+    __table_args__=(UniqueConstraint('comparison_id','employee_id',name='uq_register_comparison_employee'),)
+
+
 class LeaveReconciliationReviewReceipt(Base):
     """Recorded operator assertions only; never verified facts or approval."""
     __tablename__='leave_reconciliation_review_receipts'

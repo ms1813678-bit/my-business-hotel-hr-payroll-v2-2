@@ -1,7 +1,7 @@
 """Owner-selected dedicated monthly review, no balance release/month-close UI.
 
-Read overview is HR-only. Register review/confirm remains default-off synthetic
-cycle only. Whole DB/parser/render transactions run outside the async loop.
+Read overview and reviewed factual registration are HR-only. Synthetic
+cycle remains a separate harness; factual registration has no balance effects. Whole DB/parser/render transactions run outside the async loop.
 """
 from datetime import date
 from types import SimpleNamespace
@@ -17,11 +17,13 @@ from app.db import SessionLocal
 from app.dependencies import require_system_admin
 from app.models import (AdminAccount,DepartmentFingerprintPreparation,DepartmentWorkbookPreparation,
     DepartmentWorkbookExport,DepartmentPreparationContract,LeaveSyntheticRegisterConsumption,
-    EmployeeServicePeriod,Employee,LeaveMonthClose,LeaveReconciliationReviewReceipt)
+    EmployeeServicePeriod,Employee,LeaveMonthClose,LeaveReconciliationReviewReceipt,LeaveRegisterConsumption)
 from app.department_manifest import decode_manifest
 from app.leave_policy_store import policy_read_guard
 from app.department_workbook_guard import bounded_workbook_operation
 from app.leave_synthetic_register import preview_synthetic_register,consume_synthetic_register
+from app.leave_return_register import preview_return_register,consume_return_register
+from app.fingerprint_bounded_parse import require_operational_parser_platform
 from app.fingerprint_bounded_parse import FingerprintPlatformUnavailable,PLATFORM_UNAVAILABLE_MESSAGE
 
 
@@ -37,6 +39,16 @@ def enabled():
         and (make_url(settings.database_url).database or '').startswith('synthetic_cycle_'))
 
 
+def production_register_available():
+    from app.db import engine
+    from app.fingerprint_bounded_parse import FingerprintPlatformUnavailable
+    try:
+        require_operational_parser_platform()
+    except FingerprintPlatformUnavailable:
+        return False
+    return engine.dialect.name == 'postgresql'
+
+
 def monthly_review_router(templates):
     router=APIRouter()
     signer=URLSafeTimedSerializer(settings.session_secret,salt='monthly-register-review-v1')
@@ -47,7 +59,7 @@ def monthly_review_router(templates):
         values['close_preview']=values.pop('_close_preview',None)
         values['close_stage']=values.pop('_close_stage','readiness')
         response=templates.TemplateResponse(request=request,name='leave_month_review.html',context=dict(
-            admin=actor.username,csrf_token=get_csrf_token(request),operational=enabled(),
+            admin=actor.username,csrf_token=get_csrf_token(request),operational=enabled() or production_register_available(),synthetic_registration=enabled(),
             month_names=('يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'),**values))
         response.headers['Cache-Control']='no-store';return response
     @bounded_workbook_operation
@@ -88,6 +100,7 @@ def monthly_review_router(templates):
                 for e in manifest.employees:
                     previous=db.scalar(select(LeaveSyntheticRegisterConsumption.id).where(
                         LeaveSyntheticRegisterConsumption.comparison_id==compared.id,LeaveSyntheticRegisterConsumption.employee_id==e.employee_id))
+                    previous=previous or db.scalar(select(LeaveRegisterConsumption.id).where(LeaveRegisterConsumption.comparison_id==compared.id,LeaveRegisterConsumption.employee_id==e.employee_id))
                     assertion_receipts=db.scalars(select(LeaveReconciliationReviewReceipt).where(LeaveReconciliationReviewReceipt.comparison_id==compared.id,LeaveReconciliationReviewReceipt.employee_id==e.employee_id,LeaveReconciliationReviewReceipt.restore_epoch.is_(None) if auth['expected_epoch'] is None else LeaveReconciliationReviewReceipt.restore_epoch==auth['expected_epoch']).order_by(LeaveReconciliationReviewReceipt.created_at.desc()).limit(4)).all()
                     rows.append(dict(assertion_receipts=[dict(id=r.id,created_at=r.created_at) for r in assertion_receipts],comparison_id=compared.id,employee_id=e.employee_id,code=e.code,name=e.name,
                         department=manifest.department,previous=bool(previous),selection_id=selected.get(e.employee_id)))
@@ -120,7 +133,8 @@ def monthly_review_router(templates):
         except (ValueError,TypeError,KeyError,SQLAlchemyError) as exc:failure(exc)
     @router.post('/leave/month-review/register-review',dependencies=[Depends(csrf_protect)])
     async def prepare(request:Request,admin:AdminAccount=Depends(require_system_admin)):
-        if not enabled():raise HTTPException(status_code=404,detail='Not enabled.')
+        if not enabled() and not production_register_available():
+            raise HTTPException(status_code=503,detail=PLATFORM_UNAVAILABLE_MESSAGE,headers={'Cache-Control':'no-store'})
         if request.scope.get('path')!='/leave/month-review/register-review':
             raise HTTPException(status_code=400,detail='Canonical operation path required.')
         try:
@@ -133,12 +147,12 @@ def monthly_review_router(templates):
             employee_id=int(raw);auth=identity(request,admin);actor=SimpleNamespace(username=admin.username)
             def transaction():
                 with SessionLocal() as db:
-                    proposals,digest=preview_synthetic_register(db,comparison_id=comparison_id,employee_id=employee_id,**auth)
+                    proposals,digest=(preview_synthetic_register if enabled() else preview_return_register)(db,comparison_id=comparison_id,employee_id=employee_id,**auth)
                     if not proposals or any(date.fromisoformat(p['date']).replace(day=1)!=target for p in proposals):
                         raise ValueError('Month/source mismatch.')
                     employee=db.get(Employee,employee_id,populate_existing=True)
                     proof=signer.dumps(dict(operation_id=secrets.token_hex(32),comparison_id=comparison_id,employee_id=employee_id,
-                        month=month,digest=digest,reason=reason,identity=auth))
+                        month=month,digest=digest,reason=reason,identity=auth,mode="synthetic" if enabled() else "reviewed"))
                     values=overview(db,month,auth)
                     values['review']=dict(proposals=proposals,proof=proof,reason=reason,name=employee.full_name,code=employee.code,comparison_id=comparison_id,employee_id=employee_id)
                     return render(request,actor,**values)
@@ -146,7 +160,8 @@ def monthly_review_router(templates):
         except (ValueError,TypeError,KeyError,SQLAlchemyError) as exc:failure(exc)
     @router.post('/leave/month-review/register-confirm',dependencies=[Depends(csrf_protect)])
     async def confirm(request:Request,admin:AdminAccount=Depends(require_system_admin)):
-        if not enabled():raise HTTPException(status_code=404,detail='Not enabled.')
+        if not enabled() and not production_register_available():
+            raise HTTPException(status_code=503,detail=PLATFORM_UNAVAILABLE_MESSAGE,headers={'Cache-Control':'no-store'})
         if request.scope.get('path')!='/leave/month-review/register-confirm':
             raise HTTPException(status_code=400,detail='Canonical operation path required.')
         try:
@@ -154,14 +169,14 @@ def monthly_review_router(templates):
             if set(form)!={'csrf_token','proof','human_confirmed'} or any(len(form.getlist(k))!=1 for k in form) or form['human_confirmed']!='yes' or len(str(form['proof']))>10000:
                 raise ValueError('Exact explicit confirmation required.')
             proof=signer.loads(str(form['proof']),max_age=1800);auth=identity(request,admin)
-            if type(proof) is not dict or set(proof)!={'operation_id','comparison_id','employee_id','month','digest','reason','identity'} or proof['identity']!=auth:
+            if type(proof) is not dict or set(proof)!={'operation_id','comparison_id','employee_id','month','digest','reason','identity','mode'} or proof['identity']!=auth or proof['mode']!=('synthetic' if enabled() else 'reviewed'):
                 raise ValueError('Review identity changed.')
             target=month_value(proof['month']);actor=SimpleNamespace(username=admin.username)
             def transaction():
                 with SessionLocal() as db:
                     # The signed month was checked against every reviewed day;
                     # consume rechecks that exact current source under bounded locks.
-                    consume_synthetic_register(db,operation_id=proof['operation_id'],comparison_id=proof['comparison_id'],employee_id=proof['employee_id'],
+                    (consume_synthetic_register if enabled() else consume_return_register)(db,operation_id=proof['operation_id'],comparison_id=proof['comparison_id'],employee_id=proof['employee_id'],
                         reviewed_digest=proof['digest'],human_confirmed=True,reason=proof['reason'],**auth)
                     values=overview(db,proof['month'],auth);values['saved']=True
                     response=render(request,actor,**values)
