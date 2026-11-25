@@ -22,6 +22,13 @@ def run(root):
                 time.sleep(.1)
             raise RuntimeError('authenticated DOM deadline')
         def capture(name):
+            # At this runner's 1024px client viewport CSS intentionally stacks
+            # navigation before main. Scroll real content into view, never hide
+            # or restyle it for proof; preserve geometry as a layout caveat.
+            geometry=js('JSON.stringify((function(){var m=document.querySelector("main.content");if(!m)throw new Error("main absent");m.scrollIntoView({block:"start",behavior:"instant"});return {viewport:innerWidth,mainTop:m.getBoundingClientRect().top,scrollY:scrollY,sidebarHeight:document.querySelector("aside.sidebar").getBoundingClientRect().height};})())')
+            evidence[name+'_geometry']=json.loads(geometry) if isinstance(geometry,str) else geometry
+            time.sleep(.3)
+            if not js('document.querySelector("main.content h1").getBoundingClientRect().top>=0 && document.querySelector("main.content h1").getBoundingClientRect().bottom<innerHeight'):raise RuntimeError('actual main heading not visible')
             import win32gui,win32process
             from PIL import ImageGrab
             matches=[]
