@@ -1,4 +1,4 @@
-param([Parameter(Mandatory=$true)][string]$Launcher,[Parameter(Mandatory=$true)][string]$Stage,[Parameter(Mandatory=$true)][string]$ManifestPin,[Parameter(Mandatory=$true)][string]$Request,[Parameter(Mandatory=$true)][string]$TrustedPython,[Parameter(Mandatory=$true)][string]$Owner,[Parameter(Mandatory=$true)][string]$ProductRoot)
+param([Parameter(Mandatory=$true)][string]$Launcher,[Parameter(Mandatory=$true)][string]$Stage,[Parameter(Mandatory=$true)][string]$ManifestPin,[Parameter(Mandatory=$true)][string]$Request,[Parameter(Mandatory=$true)][string]$TrustedPython,[Parameter(Mandatory=$true)][string]$Owner,[Parameter(Mandatory=$true)][string]$ProductRoot,[switch]$Probe)
 # Disposable CI qualification only. Not installation, network acceptance or hotel execution.
 $ErrorActionPreference='Stop'
 if($env:GITHUB_ACTIONS -ne 'true'){throw 'Disposable CI only'}
@@ -51,8 +51,14 @@ try {
  }
  Write-Output 'Disposable package RX ACL readback matched, no write grant'
  $launcherHash=(Get-FileHash -LiteralPath $Launcher -Algorithm SHA256).Hash.ToLower()
+ if($Probe){
+  # Diagnostic only: same ACLs, profile, job and token; the child is the kernel32-only loader probe.
+  & $TrustedPython -I "$PSScriptRoot/run_probe.py" --launcher $Launcher --profile $profile --stage $Stage --manifest-pin $ManifestPin --launcher-pin $launcherHash
+  if($LASTEXITCODE -ne 0){throw 'Loader isolation probe driver refused'}
+ } else {
  & $TrustedPython -I "$PSScriptRoot/run_request.py" --product-root $ProductRoot --launcher $Launcher --profile $profile --stage $Stage --manifest-pin $ManifestPin --launcher-pin $launcherHash --request $Request
  if($LASTEXITCODE -ne 0){throw 'Contained real parser qualification refused'}
+ }
 } catch {
  $primaryError=$_.Exception.ToString()
 } finally {
