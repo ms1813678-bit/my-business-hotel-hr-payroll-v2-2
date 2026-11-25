@@ -145,3 +145,32 @@ def test_probe_lists_every_dumpbin_import_without_changing_the_launcher():
     assert 'char line[128]' in PROBE
     assert 'HONY_ORDINARY_AC_DIAGNOSTIC' not in (D/'launcher.c').read_text()
     assert 'ORDINARY_AC_DIAGNOSTIC' not in WF
+
+
+
+def _norm_cl(src):
+    line = next(l for l in WF.splitlines() if '"$root/%s"' % src in l)
+    return re.sub(r'probe_(tls_)?ctl\.c|\$probe(Tls|Ctl)', 'X', line)
+
+
+def test_tls_control_differs_from_plain_control_only_by_tls_and_names():
+    tls = (D / "probe_tls_ctl.c").read_text()
+    assert "__declspec(thread)" in tls and "return TRUE" in tls
+    assert "__declspec(thread)" not in (D / "probe_ctl.c").read_text()
+    for banned in ("LoadLibrary", "CreateFile", "socket", "Reg", "GetProcAddress", "CreateProcess"):
+        assert banned not in tls, banned
+    assert _norm_cl("probe_ctl.c") == _norm_cl("probe_tls_ctl.c")
+    labels = re.findall(r'try_(?:system|staged)\("([A-Za-z0-9_-]+)"', PROBE)
+    assert labels.index("control_dll") < labels.index("control_tls_dll") < labels.index("python314")
+    assert "probe_tls_ctl.dll" in WF
+
+
+def test_tls_dumpbin_filter_is_anchored_before_prefix_and_reports_count():
+    line = next(l for l in WF.splitlines() if "/tls" in l)
+    assert "^[0-9A-Fa-f]+ (Start of raw data|End of raw data|Address of index|Address of callbacks|Size of zero fill|Characteristics)$" in line
+    assert "dumpbin_tls_fields" in WF and "$f.Count" in WF
+    for d in ("python314.dll", "probe_ctl.dll", "probe_tls_ctl.dll"):
+        assert d in WF
+    import json
+    source = json.loads((D / "SOURCE-SHA256.json").read_text())
+    assert "verification/windows_integrated_candidate/probe_tls_ctl.c" in source

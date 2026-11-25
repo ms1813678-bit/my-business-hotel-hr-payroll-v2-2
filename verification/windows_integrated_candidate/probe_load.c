@@ -104,6 +104,8 @@ int wmain(void) {
   try_staged("vcruntime140_1", self, L"vcruntime140_1.dll", LOAD_WITH_ALTERED_SEARCH_PATH, 1);
   /* Control: a trivial unsigned staged DLL under identical hardening flags. */
   try_staged("control_dll", self, L"probe_ctl.dll", LOAD_WITH_ALTERED_SEARCH_PATH, 0);
+  /* Control: same trivial DLL plus one implicit static TLS variable; relevance to python314 is decided by the dumpbin /tls readout. */
+  try_staged("control_tls_dll", self, L"probe_tls_ctl.dll", LOAD_WITH_ALTERED_SEARCH_PATH, 0);
   try_staged("python314", self, L"python314.dll", LOAD_WITH_ALTERED_SEARCH_PATH, 0);
   /* Same file, split by stage: map without DllMain/import resolution, then map as image resource. */
   try_staged("python314_noresolve", self, L"python314.dll", DONT_RESOLVE_DLL_REFERENCES, 0);
