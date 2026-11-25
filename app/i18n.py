@@ -4867,3 +4867,28 @@ ZH['ترجمة نوع الإجازة غير متاحة'] = '缺少休假类型�
 
 EN['حالة موظف غير معروفة'] = 'Employment status unknown'
 ZH['حالة موظف غير معروفة'] = '在职状态未知'
+
+
+# Monthly report evidence and selected-comparison disclosure.
+for _ar, _en, _zh in [
+ ("مقارنة الشهر السابق غير متاحة لهذا القسم أو لا توجد بيانات سابقة قابلة للمقارنة.", "Previous-month comparison is unavailable for this section or there is no comparable prior data.", "本节不提供上月比较，或没有可比较的上期数据。"),
+ ("هذا القسم يعرض اتجاه ستة أشهر؛ لا توجد مقارنة منفصلة بالشهر السابق.", "This section shows a six-month trend; there is no separate previous-month comparison.", "本节显示六个月趋势，不另行提供上月比较。"),
+ ("لا توجد مسيرة رواتب معتمدة أو مغلقة لهذا الشهر؛ القيم غير متاحة وليست صفرًا.", "No approved or closed payroll run exists for this month; values are unavailable, not zero.", "本月没有已批准或已关闭的工资批次；数值不可用，并非零。"),
+ ("توجد مسيرة معتمدة أو مغلقة بلا بنود موظفين لهذا الشهر.", "An approved or closed payroll run exists without employee items for this month.", "本月存在已批准或已关闭的工资批次，但没有员工明细。"),
+ ("هذا القسم يعرض المعتمد فقط ولا يقيس السجلات غير المحسومة.", "This section shows approved data only and does not measure unresolved records.", "本节仅显示已批准数据，不统计尚未处理的记录。"),
+]:
+ EN[_ar] = _en
+ ZH[_ar] = _zh
+
+EN["لا توجد بنود رواتب معتمدة أو مغلقة لهذا الشهر؛ لا تُفترض قيم صفرية للمقارنة."] = "No approved or closed payroll items exist for this month; zero values are not assumed for comparison."
+ZH["لا توجد بنود رواتب معتمدة أو مغلقة لهذا الشهر؛ لا تُفترض قيم صفرية للمقارنة."] = "本月没有已批准或已关闭的工资明细；比较时不假定其数值为零。"
+
+EN["يعرض المعتمد فقط"] = "Approved data only"
+ZH["يعرض المعتمد فقط"] = "仅显示已批准数据"
+
+EN["عدد الحضور هو عدد سجلات الموظف/اليوم المعتمدة ذات مدة عمل موجبة، وليس إثبات اكتمال سجل الشهر."] = "Attendance counts approved employee-day records with positive worked time, not proof that the month's register is complete."
+ZH["عدد الحضور هو عدد سجلات الموظف/اليوم المعتمدة ذات مدة عمل موجبة، وليس إثبات اكتمال سجل الشهر."] = "出勤数统计工作时长为正的已批准员工日记录，并不证明本月记录完整。"
+EN["شهر بلا مسيرة رواتب معتمدة لا يظهر له عمود غياب (فجوة وليست صفرًا)."] = "A month with no approved run has no absence bar, a gap rather than zero."
+ZH["شهر بلا مسيرة رواتب معتمدة لا يظهر له عمود غياب (فجوة وليست صفرًا)."] = "没有已批准工资批次的月份不显示缺勤柱，表示数据空缺而非零。"
+EN["شهر بلا مسيرة رواتب معتمدة لا يظهر له عمود (فجوة وليست صفرًا)."] = "A month with no approved run has no bar, a gap rather than zero."
+ZH["شهر بلا مسيرة رواتب معتمدة لا يظهر له عمود (فجوة وليست صفرًا)."] = "没有已批准工资批次的月份不显示柱形，表示数据空缺而非零。"

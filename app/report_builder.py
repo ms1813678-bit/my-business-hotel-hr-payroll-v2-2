@@ -1690,6 +1690,10 @@ def _payroll_month_summary(db: Session, start: date, end: date) -> dict:
     return {
         "current": totals(current_items),
         "previous": totals(previous_items),
+        "current_approved_runs": db.scalar(select(func.count(PayrollRun.id)).where(
+            PayrollRun.status.in_(("approved", "closed")),
+            PayrollRun.period_start <= end, PayrollRun.period_end >= start)) or 0,
+        "current_items": len(current_items),
         "period_label": f"{prev_start.strftime('%d/%m/%Y')} – {prev_end.strftime('%d/%m/%Y')}",
         "by_department": by_department(current_items),
     }
@@ -1747,7 +1751,7 @@ def build_monthly_pdf(db: Session, month_start: date, options: set[int], languag
     from reportlab.lib.pagesizes import A4, landscape
     from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
     from reportlab.lib.units import mm
-    from reportlab.platypus import LongTable, PageBreak, Paragraph, SimpleDocTemplate, Spacer, TableStyle
+    from reportlab.platypus import KeepTogether, LongTable, PageBreak, Paragraph, SimpleDocTemplate, Spacer, TableStyle
 
     from app.reports import _pdf_cell, _pdf_font_name
 
@@ -1869,10 +1873,30 @@ def build_monthly_pdf(db: Session, month_start: date, options: set[int], languag
                 ("BACKGROUND", (0, 0), (0, -1), colors.HexColor("#FAF3E3")),
             ]))
             story.append(summary_table)
+        if compare:
+            if result.comparison and result.comparison.get("items"):
+                story.append(Spacer(1, 3 * mm))
+                story.append(Paragraph(cell_(f"{L('مقارنة بالشهر السابق')} ({result.comparison['period_label']})"), meta_style))
+                comparison_rows = [[Paragraph(cell_(L(label)), header_style) for label in
+                                    ("البند", "الشهر الحالي", "الشهر السابق", "التغير")]]
+                for label, current, previous, change in result.comparison["items"]:
+                    comparison_rows.append([Paragraph(cell_(L(label)), cell_style),
+                                            Paragraph(cell_(_fmt_number(current)), cell_style),
+                                            Paragraph(cell_(_fmt_number(previous)), cell_style),
+                                            Paragraph(cell_(change or "—"), cell_style)])
+                comparison_table = LongTable(comparison_rows, colWidths=[available_width * 0.25] * 4, hAlign="RIGHT")
+                comparison_table.setStyle(TableStyle([
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#24415E")),
+                    ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#AAB4BE")),
+                    ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ]))
+                story.append(comparison_table)
+            else:
+                story.append(Paragraph(cell_(L("مقارنة الشهر السابق غير متاحة لهذا القسم أو لا توجد بيانات سابقة قابلة للمقارنة.")), meta_style))
         if compare and result.comparison and result.comparison.get("like_for_like"):
             lfl = result.comparison["like_for_like"]
             story.append(Spacer(1, 3 * mm))
-            story.append(Paragraph(cell_(f"{L('مقارنة مثل بمثل مع الفترة السابقة')} ({result.comparison['period_label']})"), meta_style))
+            lfl_heading = Paragraph(cell_(f"{L('مقارنة مثل بمثل مع الفترة السابقة')} ({result.comparison['period_label']})"), meta_style)
             lfl_rows = [
                 [Paragraph(cell_(L("المستمرون في الفترتين")), cell_style), Paragraph(cell_(str(lfl["continuing_count"])), cell_style)],
                 [Paragraph(cell_(L("صافي المستمرين — الفترة الحالية")), cell_style), Paragraph(cell_(_fmt_number(lfl["continuing_current_net"])), cell_style)],
@@ -1884,7 +1908,7 @@ def build_monthly_pdf(db: Session, month_start: date, options: set[int], languag
                 ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#AAB4BE")),
                 ("BACKGROUND", (0, 0), (0, -1), colors.HexColor("#FAF3E3")),
             ]))
-            story.append(lfl_table)
+            story.append(KeepTogether([lfl_heading, lfl_table]))
         if result.warnings:
             story.append(Spacer(1, 2 * mm))
             for warning in result.warnings:
@@ -1905,6 +1929,8 @@ def build_monthly_pdf(db: Session, month_start: date, options: set[int], languag
                 # the signed document self-explanatory.
                 story.append(Paragraph(cell_(L("يعرض المعتمد فقط")), meta_style))
             series = _monthly_six_month_series(db, month_start, report_type)
+            if compare:
+                story.append(Paragraph(cell_(L("هذا القسم يعرض اتجاه ستة أشهر؛ لا توجد مقارنة منفصلة بالشهر السابق.")), meta_style))
             if report_type == REPORT_TYPE_ATTENDANCE:
                 absence_series = _monthly_six_month_series(db, month_start, "absence")
                 story.append(_monthly_chart_drawing_grouped(
@@ -1912,14 +1938,13 @@ def build_monthly_pdf(db: Session, month_start: date, options: set[int], languag
                     L("الحضور"), L("الغياب"),
                 ))
                 story.append(Paragraph(cell_(L("الحضور (الشريط الأزرق): أيام بسجلات حضور معتمدة · الغياب (الشريط الأحمر): أيام غياب محتسبة في مسيرات رواتب معتمدة.")), meta_style))
-                if all(not v for _, v in series) and all(not v for _, v in absence_series):
-                    story.append(Paragraph(cell_(L("لا توجد بيانات معتمدة في هذه الفترة بعد.")), meta_style))
-                elif any(v is None for _, v in absence_series):
+                story.append(Paragraph(cell_(L("عدد الحضور هو عدد سجلات الموظف/اليوم المعتمدة ذات مدة عمل موجبة، وليس إثبات اكتمال سجل الشهر.")), meta_style))
+                if any(v is None for _, v in absence_series):
                     story.append(Paragraph(cell_(L("شهر بلا مسيرة رواتب معتمدة لا يظهر له عمود غياب (فجوة وليست صفرًا).")), meta_style))
             else:
                 color = "#8a6d1a"
                 story.append(_monthly_chart_drawing(series, color))
-                if all(not value for _, value in series):
+                if all(value is None for _, value in series):
                     story.append(Paragraph(cell_(L("لا توجد بيانات معتمدة في هذه الفترة بعد.")), meta_style))
                 elif any(value is None for _, value in series):
                     story.append(Paragraph(cell_(L("شهر بلا مسيرة رواتب معتمدة لا يظهر له عمود (فجوة وليست صفرًا).")), meta_style))
@@ -1953,6 +1978,8 @@ def build_monthly_pdf(db: Session, month_start: date, options: set[int], languag
             ]))
             story.append(table)
             story.append(Paragraph(cell_(L("المسودة والملغاة معروضتان منفصلتين؛ أيام الخصم المسجلة ليست خصمًا منفذًا من الرصيد.")), meta_style))
+            if compare:
+                story.append(Paragraph(cell_(L("مقارنة الشهر السابق غير متاحة لهذا القسم أو لا توجد بيانات سابقة قابلة للمقارنة.")), meta_style))
             continue
         if option == 1:
             if not first_section:
@@ -1963,6 +1990,10 @@ def build_monthly_pdf(db: Session, month_start: date, options: set[int], languag
             story.append(Paragraph(cell_(L("يعرض المعتمد فقط")), meta_style))
             story.append(Paragraph(cell_(f"{L('ملخص إجمالي للشهر — بدون تفاصيل الموظفين')}"), meta_style))
             story.append(Spacer(1, 2 * mm))
+            if not summary["current_approved_runs"]:
+                story.append(Paragraph(cell_(L("لا توجد مسيرة رواتب معتمدة أو مغلقة لهذا الشهر؛ القيم غير متاحة وليست صفرًا.")), meta_style))
+            elif not summary["current_items"]:
+                story.append(Paragraph(cell_(L("توجد مسيرة معتمدة أو مغلقة بلا بنود موظفين لهذا الشهر.")), meta_style))
             show_compare = compare and summary["previous"]["employees"] > 0
             header = [L("البند"), L("الشهر الحالي")] + ([L("الشهر السابق"), L("التغير")] if show_compare else [])
             table_rows = [[Paragraph(cell_(h), header_style) for h in header]]
@@ -1974,16 +2005,16 @@ def build_monthly_pdf(db: Session, month_start: date, options: set[int], languag
                 ("صافي المرتبات", "net"),
             ):
                 row = [Paragraph(cell_(L(label)), cell_style),
-                       Paragraph(cell_(f"{_fmt_number(summary['current'][key])} {L('ج.م')}"), cell_style)]
+                       Paragraph(cell_(f"{_fmt_number(summary['current'][key])} {L('ج.م')}" if summary["current_approved_runs"] else "—"), cell_style)]
                 if show_compare:
                     row.append(Paragraph(cell_(f"{_fmt_number(summary['previous'][key])} {L('ج.م')}"), cell_style))
-                    row.append(Paragraph(cell_(str(_pct_change(summary['current'][key], summary['previous'][key]) or "—")), cell_style))
+                    row.append(Paragraph(cell_(str(_pct_change(summary['current'][key], summary['previous'][key]) or "—") if summary["current_approved_runs"] else "—"), cell_style))
                 table_rows.append(row)
             row = [Paragraph(cell_(L("عدد الموظفين")), cell_style),
-                   Paragraph(cell_(str(summary["current"]["employees"])), cell_style)]
+                   Paragraph(cell_(str(summary["current"]["employees"]) if summary["current_approved_runs"] else "—"), cell_style)]
             if show_compare:
                 row.append(Paragraph(cell_(str(summary["previous"]["employees"])), cell_style))
-                row.append(Paragraph(cell_(str(_pct_change(Decimal(summary["current"]["employees"]), Decimal(summary["previous"]["employees"])) or "—")), cell_style))
+                row.append(Paragraph(cell_(str(_pct_change(Decimal(summary["current"]["employees"]), Decimal(summary["previous"]["employees"])) or "—") if summary["current_approved_runs"] else "—"), cell_style))
             table_rows.append(row)
             col_count = len(header)
             table = LongTable(table_rows, colWidths=[available_width * 0.3] + [available_width * 0.18] * (col_count - 1), hAlign="RIGHT")
@@ -2022,6 +2053,7 @@ def build_monthly_pdf(db: Session, month_start: date, options: set[int], languag
             start_date=month_start,
             end_date=month_end,
             period_choice="custom",
+            employee_status="all",  # monthly history is evidence-scoped, not today's active roster
             compare_like_for_like=compare,
             approved_only=MONTHLY_OPTION_TYPE[option] in (REPORT_TYPE_PAYROLL, REPORT_TYPE_ATTENDANCE),
         )
@@ -2045,7 +2077,29 @@ def build_monthly_pdf(db: Session, month_start: date, options: set[int], languag
                 result.status_label = "كل من له إجازة خلال الفترة مع حالته الحالية"
                 render_result(result, extra_note="أيام كل شهر تُعرض في شهرها، وأيام الخصم تُحسب مرة واحدة في شهر بداية الإجازة" + "\n" + "المسودة والملغاة معروضتان منفصلتين؛ أيام الخصم المسجلة ليست خصمًا منفذًا من الرصيد.")
         else:
-            render_result(build_report(db, selection), approved_note=approved_note, extra_note=extra_note)
+            result = build_report(db, selection)
+            if selection.report_type == REPORT_TYPE_PAYROLL and not any(group["rows"] for group in result.groups):
+                # No current approved item evidence cannot support a zero-cost comparison.
+                result.comparison = None
+                extra_note = "لا توجد بنود رواتب معتمدة أو مغلقة لهذا الشهر؛ لا تُفترض قيم صفرية للمقارنة."
+            if selection.approved_only:
+                # This selection deliberately cannot establish unresolved counts.
+                result.summary = [(label, value) for label, value in result.summary if label != "أيام غير محسومة"]
+                extra_note = "\n".join(filter(None, (extra_note, "هذا القسم يعرض المعتمد فقط ولا يقيس السجلات غير المحسومة.")))
+            # Rows are already scoped by each section's actual period evidence.
+            # Show current employment status without changing custom columns,
+            # approved-only filters, record state, or historical employee data.
+            result.columns.insert(
+                next((i for i, (key, _, _) in enumerate(result.columns)
+                      if not key.startswith("emp_")), len(result.columns)),
+                ("employment_status", "حالة الموظف الحالية", False),
+            )
+            status_by_id = {employee.id: employee.status for employee in _scoped_employees(db, selection)}
+            for group in result.groups:
+                for row in group["rows"]:
+                    row["employment_status"] = {"active": "نشط", "archived": "غادر"}.get(
+                        status_by_id.get(row["employee_id"]), "حالة موظف غير معروفة")
+            render_result(result, approved_note=approved_note, extra_note=extra_note)
 
     story.append(Spacer(1, 10 * mm))
     signature_rows = [[

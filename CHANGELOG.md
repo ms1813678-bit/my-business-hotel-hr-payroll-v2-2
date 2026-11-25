@@ -1,3 +1,9 @@
+## 2026-11-25, Instinct: monthly period history and evidence truth
+
+- Include former employees with monthly record evidence and show current service status without changing custom defaults, state/date filters or roles.
+- Render existing comparisons or disclose their unavailability; distinguish absent approved payroll evidence from zero and remove unsupported unresolved-day zeros from approved-only monthly sections.
+- Clarify chart employee-day counts and missing-payroll gaps, add matching locale notes and keep like-for-like tables together. Preserve unresolved audit leads with explicit dispositions. Targeted mixed SQLite/migratedPG qualification only.
+
 ## 2026-11-25, Instinct: literal and bounded local AI employee reports
 
 - Escape literal name substrings, preserve exact code priority and deterministic five-person selection with truthful overflow warnings in all six report families and AR/EN/ZH.
