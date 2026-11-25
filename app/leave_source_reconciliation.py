@@ -7,6 +7,8 @@ from calendar import monthrange
 from dataclasses import dataclass
 from datetime import date, UTC
 from decimal import Decimal, localcontext
+from fractions import Fraction
+from app.leave_exact_amount import exact_text, ledger_amount
 from hashlib import sha256
 import json
 
@@ -123,16 +125,8 @@ def reconcile_selected_opening(db, *, selection_ids, department_id, month_start,
             if len(kind_ids)!=1:
                 total=None;issues.append('exact_ledger_category_unresolved')
             else:
-                # Exact finite source addition, never quantize to display precision.
-                from app.leave_balance_rules import _bounded_amount, MAX_ARITHMETIC_DIGITS
-                amounts=[r.days_delta for r in records]
-                for amount in amounts: _bounded_amount(amount)
-                precision=max(50,max((a.adjusted() for a in amounts),default=0)-min((a.as_tuple().exponent for a in amounts),default=0)+len(str(len(amounts)+1))+2)
-                if precision>MAX_ARITHMETIC_DIGITS:
-                    raise ValueError('Ledger arithmetic resource envelope exceeded.')
-                with localcontext() as context:
-                    context.prec=precision
-                    total=sum(amounts,Decimal(0))
+                from app.leave_exact_amount import exact_sum, ledger_amount
+                total = exact_sum(ledger_amount(r) for r in records)
             with localcontext() as context:
                 context.prec=max(50,len(snapshot.carry.as_tuple().digits)+abs(snapshot.carry.as_tuple().exponent)+60)
                 earned=snapshot.entitled_through_month_end
@@ -152,10 +146,10 @@ def reconcile_selected_opening(db, *, selection_ids, department_id, month_start,
         'rows':[asdict(r) for r in rows],
         'service_periods':sorted((p.id,p.employee_id,p.start_date.isoformat(),p.end_date.isoformat() if p.end_date else None) for p in periods),
         'ledger_categories':sorted((k.id,k.code,k.tracks_balance,k.active) for k in kinds),
-        'ledger_rows':[(r.id,r.employee_id,r.leave_type_id,format(r.days_delta,'f'),r.transaction_type,r.leave_record_id,
+        'ledger_rows':[(r.id,r.employee_id,r.leave_type_id,exact_text(ledger_amount(r)),r.transaction_type,r.leave_record_id,
             r.source_operation_key,r.source_digest,r.earning_year,r.released_on.isoformat() if r.released_on else None,r.reason,r.created_by,r.created_at.astimezone(UTC).isoformat() if r.created_at else None) for r in ledger]}
     def encode(value):
-        if isinstance(value,Decimal): return format(value,'f')
+        if isinstance(value,(Decimal,Fraction)): return exact_text(value)
         raise TypeError('Unexpected reconciliation source value.')
     digest=sha256(json.dumps(payload,sort_keys=True,separators=(',',':'),default=encode).encode()).hexdigest()
     return SourceReconciliation(tuple(rows),end,release_evaluated_on,basis,projection.source_digest,digest,overlap)

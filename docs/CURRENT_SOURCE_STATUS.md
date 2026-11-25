@@ -2,6 +2,10 @@
 
 Instinct, 25 November 2026, 17:07 Africa/Cairo. This page corrects the stale operational index. Historical documents remain available, but their old commit, test and readiness claims are not current acceptance.
 
+## Exact monthly leave integration, 25 November 2026, 22:05 Africa/Cairo
+
+Current development schema is 0071_leave_month_earning, after 0070 exact amount and published 0069 register receipt. Held attendance0066, journal and native experiments remain unadopted. Exact rational ledger readers, monthly earned/held/released/usage and normal signed HR HTTP review are integrated as a bounded slice. 648 broad leave/workbook tests passed with 2 existing skips; separate named register harness13pass1optionalskip. Independent consumer qualification and source-only financial review accepted their stated scope; actual AR390/EN/ZH images inspected. No full hosted green, Windows parser or hotel-device acceptance. Cross-year carry/correction remains incomplete and fails closed. See [bounded evidence and limits](EXACT_MONTH_LEDGER_1764_CANDIDATE.md). Earlier sections are historical checkpoints, not current schema.
+
 ## Source of truth
 
 - Consult and maintain [the project decision notebook](PROJECT_DECISIONS_NOTEBOOK_AR.md). Preserved historical implementation reports are not new user decisions or current technical acceptance. Three notebook corrections were applied at16:59 on25November: recovery codes never in chat, negative manual opening balances rejected, UID1687 thirteen isolated PG model tests with migration/DB immutability still absent.

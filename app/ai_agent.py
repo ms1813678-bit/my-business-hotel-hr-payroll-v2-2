@@ -577,8 +577,12 @@ def execute_plan(plan: dict[str, Any], actor: str, *, db=None, human_coverage_co
                 if isinstance(expected_snapshot, dict) else None
             )
             if expected_balance is not None:
-                actual_balance = str(leave_balance(db, employee.id, leave_type.id))
-                if actual_balance != str(expected_balance):
+                from app.leave_exact_amount import canonical_amount
+                actual = leave_balance(db, employee.id, leave_type.id)
+                exact_expected = expected_snapshot.get("current", {}).get("current_balance_exact")
+                stale = (canonical_amount(actual) != exact_expected if exact_expected is not None
+                         else str(actual) != str(expected_balance))
+                if stale:
                     raise ValueError("تغير رصيد الإجازة بعد عرض المعاينة. أعد تجهيز الأمر وراجع القيم الجديدة.")
             add_balance_entry(db, employee_id=employee.id, leave_type=leave_type,
                               transaction_type=str(plan.get("transaction_type") or "adjustment"),

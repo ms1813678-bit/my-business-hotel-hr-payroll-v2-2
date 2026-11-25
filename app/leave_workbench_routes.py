@@ -10,6 +10,7 @@ from app.csrf import get_csrf_token
 from app.db import SessionLocal, engine
 from app.dependencies import require_attendance_write, require_leave_read
 from app.leave_exact_read import exact_ledger_balance
+from app.leave_exact_amount import display_days
 from app.leave_register_receipts import (
     confirm_register_receipt,
     inspect_register_receipt,
@@ -42,7 +43,7 @@ def leave_workbench_router(templates):
                         for kind in db.scalars(select(LeaveType).where(LeaveType.tracks_balance.is_(True)
                                 ).order_by(LeaveType.id)).all():
                             balances.append((kind.name_ar, kind.name_en, kind.name_zh,
-                                exact_ledger_balance(db, employee.id, kind.id)))
+                                display_days(exact_ledger_balance(db, employee.id, kind.id))))
                     # Finance reads balances, not the assistant's day-entry workspace.
                     if admin.role in {'system_admin', 'assistant_manager'} and valid_period:
                         rows = db.execute(select(LeaveRegisterEntry.work_date, LeaveRegisterEntry.code,

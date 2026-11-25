@@ -4,8 +4,11 @@ Only explicit record IDs establish a candidate. Coincident dates/amounts/names
 are not linkage. Whole register days cannot allocate a fractional charged day.
 """
 from dataclasses import dataclass
-from datetime import date,timedelta
+from datetime import date, timedelta
 from decimal import Decimal
+from fractions import Fraction
+
+from app.leave_exact_amount import exact_text
 
 
 @dataclass(frozen=True)
@@ -87,6 +90,7 @@ def classify_record_overlap(*,record,ledger,register,basis,through,type_codes,tr
     from hashlib import sha256
     def encode(value):
         if isinstance(value,Decimal):return format(value,'f')
+        if isinstance(value,Fraction):return exact_text(value)
         if type(value) is date:return value.isoformat()
         raise TypeError('Unexpected overlap source value.')
     evidence=dict(record=record,ledger=sorted(linked_ledger,key=lambda r:r['id']),register=sorted(linked_register,key=lambda r:r['id']),
@@ -102,8 +106,9 @@ def read_overlap_candidates(db,*,employee_ids,basis,through):
     Include all rows linked to each selected record, even conflicting foreign
     employees. Do not omit those rows and accidentally certify a partial view.
     """
-    from sqlalchemy import select,func,or_,and_,text
-    from app.models import LeaveRecord,LeaveRegisterEntry,LeaveBalanceTransaction,LeaveType
+    from sqlalchemy import and_, func, or_, select, text
+
+    from app.models import LeaveBalanceTransaction, LeaveRecord, LeaveRegisterEntry, LeaveType
     if type(employee_ids) is not tuple or not 1<=len(employee_ids)<=300 or any(type(i) is not int or i<1 for i in employee_ids):
         raise ValueError('Bounded explicit employee scope required.')
     if type(basis) is not date or type(through) is not date or basis>through:
@@ -125,7 +130,8 @@ def read_overlap_candidates(db,*,employee_ids,basis,through):
     types=db.execute(select(LeaveType.id,LeaveType.code,LeaveType.tracks_balance)).all()
     codes={r.id:{'annual':'A','weekly_rest':'W','official_holiday':'H'}.get(r.code) for r in types}
     def values(row,keys):return {k:getattr(row,k) for k in keys}
-    ledger_values=[values(r,('id','leave_record_id','employee_id','leave_type_id','transaction_type','days_delta')) for r in ledger]
+    from app.leave_exact_amount import ledger_amount
+    ledger_values=[dict(values(r,('id','leave_record_id','employee_id','leave_type_id','transaction_type')),days_delta=ledger_amount(r)) for r in ledger]
     register_values=[values(r,('id','leave_record_id','employee_id','work_date','code')) for r in register]
     return tuple(classify_record_overlap(record=values(r,('id','employee_id','leave_type_id','start_date','end_date','calendar_days','charged_days','status')),
         ledger=ledger_values,register=register_values,basis=basis,through=through,type_codes=codes,tracked_types={t.id:t.tracks_balance for t in types}) for r in records)

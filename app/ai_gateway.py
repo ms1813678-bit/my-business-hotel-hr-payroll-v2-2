@@ -5,6 +5,7 @@ this gateway. Approval tokens are single-use, hashed at rest, time-limited, and
 bound to the administrator who requested the plan.
 """
 from __future__ import annotations
+from app.leave_exact_amount import canonical_amount, display_days
 
 import hashlib
 import json
@@ -162,6 +163,7 @@ def build_confirmation_preview(plan: dict[str, Any], *, session=None) -> dict[st
                 "employee_name": employee.full_name,
                 "leave_type": leave_type.name_ar,
                 "current_balance": str(current_balance),
+                "current_balance_exact": canonical_amount(current_balance),
                 "opening_balance_exists": opening_exists,
             }
             new_values = {

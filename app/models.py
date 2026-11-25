@@ -600,6 +600,16 @@ class LeaveBalanceTransaction(Base):
             name="ck_leave_balance_transaction_type",
         ),
         CheckConstraint("days_delta <> 0", name="ck_leave_balance_transaction_nonzero"),
+        CheckConstraint(
+            "(days_delta IS NOT NULL AND exact_numerator IS NULL AND exact_denominator IS NULL) OR "
+            "(days_delta IS NULL AND exact_numerator IS NOT NULL AND exact_denominator IS NOT NULL "
+            "AND exact_numerator <> 0 AND exact_denominator > 1 "
+            "AND exact_numerator = trunc(exact_numerator) AND exact_denominator = trunc(exact_denominator) "
+            "AND length(exact_numerator::text) <= 32 AND length(exact_denominator::text) <= 32 "
+            "AND exact_numerator::text NOT IN ('NaN','Infinity','-Infinity') "
+            "AND exact_denominator::text NOT IN ('NaN','Infinity','-Infinity') "
+            "AND gcd(exact_numerator, exact_denominator) = 1)",
+            name="ck_leave_ledger_exact_amount").ddl_if(dialect="postgresql"),
         UniqueConstraint(
             "leave_record_id", "transaction_type",
             name="uq_leave_balance_transaction_record_type",
@@ -616,7 +626,20 @@ class LeaveBalanceTransaction(Base):
         ForeignKey("leave_records.id", ondelete="RESTRICT"), index=True
     )
     transaction_type: Mapped[str] = mapped_column(String(24), nullable=False)
-    days_delta: Mapped[Decimal] = mapped_column(Numeric(), nullable=False)
+    days_delta: Mapped[Decimal | None] = mapped_column(Numeric(), nullable=True)
+    exact_numerator: Mapped[Decimal | None] = mapped_column(Numeric(), nullable=True)
+    exact_denominator: Mapped[Decimal | None] = mapped_column(Numeric(), nullable=True)
+
+    @property
+    def exact_days(self):
+        from app.leave_exact_amount import ledger_amount
+        return ledger_amount(self)
+
+    @property
+    def display_days(self):
+        from app.leave_exact_amount import display_days
+        return display_days(self.exact_days)
+
     source_operation_key: Mapped[str | None] = mapped_column(String(160))
     source_digest: Mapped[str | None] = mapped_column(String(64))
     earning_year: Mapped[int | None] = mapped_column(Integer)
@@ -1232,3 +1255,26 @@ class OvertimeDayAward(Base):
     amount_unrounded: Mapped[str] = mapped_column(Text, nullable=False)
     confirmed_by: Mapped[int] = mapped_column(ForeignKey('admin_accounts.id'), nullable=False)
     confirmed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class LeaveMonthEarning(Base):
+    __tablename__ = 'leave_month_earnings'
+    __table_args__ = (
+        UniqueConstraint('employee_id','month_start',name='uq_leave_month_earning_scope'),
+        CheckConstraint("strftime('%d',month_start) = '01'",name='ck_leave_month_earning_first').ddl_if(dialect='sqlite'),
+        CheckConstraint('EXTRACT(DAY FROM month_start) = 1',name='ck_leave_month_earning_first').ddl_if(dialect='postgresql'),
+    )
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    employee_id: Mapped[int] = mapped_column(ForeignKey('employees.id',ondelete='RESTRICT'),nullable=False)
+    selection_id: Mapped[str] = mapped_column(ForeignKey('leave_opening_selections.id',ondelete='RESTRICT'),nullable=False)
+    month_start: Mapped[date] = mapped_column(Date,nullable=False)
+    actor_id: Mapped[int] = mapped_column(ForeignKey('admin_accounts.id',ondelete='RESTRICT'),nullable=False)
+    session_id: Mapped[str] = mapped_column(String(128),nullable=False)
+    session_version: Mapped[int] = mapped_column(Integer,nullable=False)
+    restore_epoch: Mapped[str | None] = mapped_column(String(128))
+    source_digest: Mapped[str] = mapped_column(String(64),nullable=False)
+    request_digest: Mapped[str] = mapped_column(String(64),nullable=False)
+    source_json: Mapped[str] = mapped_column(Text,nullable=False)
+    result_json: Mapped[str] = mapped_column(Text,nullable=False)
+    result_digest: Mapped[str] = mapped_column(String(64),nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True),default=utcnow,nullable=False)

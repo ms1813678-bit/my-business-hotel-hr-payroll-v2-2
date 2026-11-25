@@ -154,6 +154,8 @@ def test_source_history_is_immutable_but_legacy_rows_unchanged(adjustment_store)
         discard_sync_uid_for_older_downgrade(connection)
     with engine.begin() as connection, pytest.raises(RuntimeError, match='immutability'):
         migrate(connection, '0045_leave_source_identity', down=True)
+    with engine.begin() as connection:
+        migrate(connection, 'head')
     assert apply_reviewed_exact_adjustment(engine, proposal=proposal, **kwargs) == entry_id
 
 

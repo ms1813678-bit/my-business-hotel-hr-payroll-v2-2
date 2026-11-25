@@ -5,6 +5,8 @@ review inputs, not evidence that the supplied assertion is factually correct.
 """
 from dataclasses import dataclass
 from decimal import Decimal, localcontext
+from fractions import Fraction
+from app.leave_exact_amount import exact_text, exact_sum, ledger_amount, exact_negate
 from datetime import date
 from hashlib import sha256
 import json
@@ -51,8 +53,8 @@ class TransitionDraft:
 
 def canonical(value):
     def encode(v):
-        if isinstance(v, Decimal):
-            return format(v, 'f')
+        if isinstance(v, (Decimal, Fraction)):
+            return exact_text(v)
         if type(v) is date:
             return v.isoformat()
         raise TypeError('Unsupported decision value.')
@@ -66,17 +68,7 @@ def _reference(value):
 
 
 def _exact_sum(values):
-    values = tuple(values)
-    for v in values:
-        _bounded_amount(v)
-    precision = max(50, max((v.adjusted() for v in values), default=0)
-                    - min((v.as_tuple().exponent for v in values), default=0)
-                    + len(str(len(values) + 1)) + 2)
-    if precision > MAX_ARITHMETIC_DIGITS:
-        raise ValueError('Exact reconciliation arithmetic resource bound exceeded.')
-    with localcontext() as context:
-        context.prec = precision
-        return sum(values, Decimal(0))
+    return exact_sum(values)
 
 
 @bounded_workbook_operation
@@ -154,9 +146,9 @@ def draft_transition(db, *, reviewed_reconciliation_digest, ledger_decisions,
             unresolved.append('source_identity_conflict')
         target = delta = None
         if not unresolved:
-            external = [ledger[i].days_delta for i in r.ledger_row_ids if decisions[i].treatment == 'external_to_scenario']
+            external = [ledger_amount(ledger[i]) for i in r.ledger_row_ids if decisions[i].treatment == 'external_to_scenario']
             target = _exact_sum((r.released_scenario_balance, *external))
-            delta = _exact_sum((target, r.ledger_total_separate.copy_negate()))
+            delta = _exact_sum((target, exact_negate(r.ledger_total_separate)))
         rows.append(TransitionDraftRow(r.employee_id, r.code, r.ledger_row_ids,
                                       tuple(dict.fromkeys(unresolved)), target, delta))
     from dataclasses import asdict

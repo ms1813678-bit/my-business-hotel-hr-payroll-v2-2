@@ -165,6 +165,9 @@ GATE_EXEMPT_EXACT = {
 GATE_EXEMPT_POST_PATTERNS = (
     re.compile(r'/payroll/items/[1-9][0-9]*/overtime-days/(?:review|confirm|monthly)'),
     re.compile(r'/leave/month-review/register-(?:review|confirm)'),
+    # Exact monthly routes acquire their own bounded exclusive gate through
+    # _locks/_guard before source reads and retain it through commit/render.
+    re.compile(r'/leave/month-review/earning/[0-9a-f]{64}/[1-9][0-9]*/(?:review|confirm)'),
     re.compile(r'/leave/month-review/reconciliation-(?:snapshot|draft|record|approve)'),
     re.compile(r'/attendance/shift-evidence/[0-9a-f]{64}/[1-9][0-9]*/(?:review|confirm)'),
     re.compile(r"^/settings/accounts/[^/]+/(deactivate|activate|reset-password)$"),

@@ -2145,20 +2145,10 @@ def leave_page(request: Request, page: int = 1, admin: AdminAccount = Depends(re
                 LeaveBalanceTransaction.id.desc(),
             ).limit(100)
         ).all()
-        balance_rows = db.execute(
-            select(
-                LeaveBalanceTransaction.employee_id,
-                LeaveBalanceTransaction.leave_type_id,
-                func.sum(LeaveBalanceTransaction.days_delta),
-            ).group_by(
-                LeaveBalanceTransaction.employee_id,
-                LeaveBalanceTransaction.leave_type_id,
-            )
-        ).all()
-        balances = {
-            f"{employee_id}:{leave_type_id}": Decimal(str(total or 0))
-            for employee_id, leave_type_id, total in balance_rows
-        }
+        from app.leave_ledger_read import grouped_ledger_balances
+        from app.leave_exact_amount import display_days
+        balances = {f"{employee_id}:{leave_type_id}": display_days(total)
+                    for (employee_id, leave_type_id), total in grouped_ledger_balances(db).items()}
         return templates.TemplateResponse(
             request=request,
             name="leave.html",
@@ -4648,12 +4638,11 @@ def employees_page(
         leave_totals: dict[int, Decimal] = {}
         leave_types = db.scalars(select(LeaveType).order_by(LeaveType.id)).all()
         if leave_types:
-            balance_sums = db.execute(
-                select(LeaveBalanceTransaction.employee_id, func.sum(LeaveBalanceTransaction.days_delta))
-                .where(LeaveBalanceTransaction.employee_id.in_(page_employee_ids))
-                .group_by(LeaveBalanceTransaction.employee_id)
-            ).all()
-            leave_totals = {emp_id: (total or Decimal("0")) for emp_id, total in balance_sums}
+            from app.leave_ledger_read import grouped_ledger_balances
+            from app.leave_exact_amount import exact_sum, display_days
+            grouped = grouped_ledger_balances(db, employee_ids=page_employee_ids)
+            leave_totals = {emp_id: display_days(exact_sum(value for (owner, _kind), value in grouped.items() if owner == emp_id))
+                            for emp_id in {owner for owner, _kind in grouped}}
         can_payroll = admin.role in (ROLE_SYSTEM_ADMIN, ROLE_FINANCE)
         latest_payroll: dict[int, tuple[PayrollItem, PayrollRun]] = {}
         if can_payroll:
@@ -5160,6 +5149,8 @@ app.include_router(shift_day_router(templates))
 
 from app.leave_month_review_routes import monthly_review_router
 app.include_router(monthly_review_router(templates))
+from app.leave_month_earning_routes import monthly_earning_router
+app.include_router(monthly_earning_router(templates))
 
 from app.leave_reconciliation_editor_routes import reconciliation_editor_router
 app.include_router(reconciliation_editor_router(templates))

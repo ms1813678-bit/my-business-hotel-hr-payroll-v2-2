@@ -4,6 +4,7 @@ These helpers never write to the database. They answer structured questions abou
 attendance review, leave balances, advances/installments, and staff actions.
 """
 from __future__ import annotations
+from app.leave_exact_amount import canonical_amount, display_days
 
 import re
 from datetime import date, datetime, timedelta
@@ -864,7 +865,7 @@ def build_leave_balance_report(question: str) -> dict[str, Any]:
                     "leave_type_ar": leave_type.name_ar or leave_type.code,
                     "leave_type_en": leave_type.name_en or "",
                     "leave_type_zh": getattr(leave_type, "name_zh", None) or "",
-                    "days": str(bal),
+                    "days": display_days(bal),
                 })
             result.append({
                 "code": employee.code,

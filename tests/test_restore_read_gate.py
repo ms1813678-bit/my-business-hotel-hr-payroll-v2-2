@@ -108,7 +108,7 @@ def test_exemption_table_has_no_unknown_entries():
     # state, and a mid-window read of that state is exactly what the gate
     # exists to block (peer finding on bc74a88).
     assert not restore_gate_exempt("GET", "/settings/password")
-    assert len(GATE_EXEMPT_POST_PATTERNS) == 6
+    assert len(GATE_EXEMPT_POST_PATTERNS) == 7
     assert restore_gate_exempt("POST", "/leave/month-review/reconciliation-snapshot")
     assert restore_gate_exempt("POST", "/leave/month-review/reconciliation-draft")
     assert not restore_gate_exempt("POST", "/leave/month-review/reconciliation-draft/x")
@@ -116,6 +116,12 @@ def test_exemption_table_has_no_unknown_entries():
     assert restore_gate_exempt("POST", "/leave/month-review/register-confirm")
     assert not restore_gate_exempt("GET", "/leave/month-review")
     assert not restore_gate_exempt("POST", "/leave/month-review/register-confirm/other")
+    earning='/leave/month-review/earning/'+('a'*64)+'/1'
+    assert restore_gate_exempt('POST',earning+'/review')
+    assert restore_gate_exempt('POST',earning+'/confirm')
+    assert not restore_gate_exempt('GET',earning)
+    assert not restore_gate_exempt('POST',earning+'/confirm/other')
+    assert not restore_gate_exempt('POST','/leave/month-review/earning/bad/1/review')
     # Reads of ordinary pages must NOT be exempt - that is the whole point.
     assert restore_gate_exempt('POST','/attendance/shift-evidence/'+('a'*64)+'/1/review')
     assert restore_gate_exempt('POST','/attendance/shift-evidence/'+('a'*64)+'/1/confirm')

@@ -73,17 +73,9 @@ def create_leave_draft(
     return record
 
 
-def leave_balance(db: Session, employee_id: int, leave_type_id: int) -> Decimal:
-    value = db.scalar(
-        select(func.coalesce(func.sum(LeaveBalanceTransaction.days_delta), 0)).where(
-            LeaveBalanceTransaction.employee_id == employee_id,
-            LeaveBalanceTransaction.leave_type_id == leave_type_id,
-        )
-    )
-    result = Decimal(str(value if value is not None else 0))
-    if not result.is_finite():
-        raise ValueError("Leave balance evidence must be finite.")
-    return result
+def leave_balance(db: Session, employee_id: int, leave_type_id: int):
+    from app.leave_ledger_read import ledger_balance
+    return ledger_balance(db, employee_id, leave_type_id)
 
 
 def add_balance_entry(

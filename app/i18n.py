@@ -4916,3 +4916,40 @@ ZH.update({
 'تسجيل أيام الملف بعد المراجعة لا يعتمد إجازة أو يخصم رصيدًا أو يعدل مرتبًا.':'登记复核后的文件日期不会批准休假、扣减余额或更改工资。',
 'مقارنة البصمات لا تحدد الاتجاه تلقائيًا. التسجيل المعلق يتطلب اختيارًا صريحًا وتأكيد الملخص، بلا اعتماد نهائي أو إضافي.':'记录比较不会自动推断方向。待复核登记需要明确选择并确认摘要，不会最终批准或授予加班。',
 'يعاد فحص الجلسة والمصدر والفترة قبل حفظ التسجيل المعلق.':'保存待复核登记前会重新检查会话、来源和期间。'})
+
+for _ar,_en,_zh in [
+('الاستحقاق الشهري والإفراج','Monthly earning and release','每月应计与释放'),
+('الاستحقاق المحتجز لا يدخل الرصيد حتى الإفراج. تسجيل الشهر يضيف الاستحقاق المفرج عنه ويخصم أيام الإجازات المسجلة صراحة مرة واحدة. لا يعتمد راتبًا ولا يقفل الشهر.','Held earning does not enter the balance until release. Posting the month adds released earning and debits explicitly recorded leave days once. It does not approve pay or close the month.','留存的应计假期在释放前不计入余额。每月过账会增加已释放应计额，并一次性扣减明确记录的休假天数，不批准工资或关闭月份。'),
+('تم حفظ الاستحقاق والحركات','Earning and ledger entries saved','应计与台账记录已保存'),
+('إيصال ثابت، دون قفل الشهر أو تعديل الرواتب.','Immutable receipt, without closing the month or changing payroll.','不可变更的凭证，不关闭月份或更改工资。'),
+('مرجع الحركة','Ledger entry reference','台账记录编号'),
+('لا توجد حركة غير صفرية','No nonzero ledger entry','没有非零台账记录'),
+('راجع قبل الترحيل','Review before posting','过账前审核'),
+('تاريخ تقييم الإفراج','Release evaluation date','释放评估日期'),
+('الاستحقاق','Earning','应计额'),
+('أيام الاستخدام','Used days','已用天数'),
+('القيمة الدقيقة','Exact value','精确值'),
+('السنوي مستوفٍ لشرط الإفراج','Annual earning meets the release condition','年度应计额符合释放条件'),
+('السنوي محتجز، لا يمنح رصيدًا متاحًا','Annual earning is held, not available credit','年度应计额被留存，不是可用余额'),
+('الإفراج فقط، لا تكرار لاستحقاق الشهر أو خصم استخدامه.','Release only, without repeating monthly earning or usage debits.','仅释放，不重复每月应计或使用扣减。'),
+('أؤكد المصدر والاستحقاق والاستخدام المعروض','I confirm the source, earning and usage shown','我确认所示来源、应计额和使用情况'),
+('حفظ الحركات بعد المراجعة','Save ledger entries after review','审核后保存台账记录'),
+('العملية','Operation','操作'),
+('استحقاق الشهر واستخدامه','Monthly earning and usage','每月应计与使用'),
+('الإفراج عن السنوي المحتجز فقط','Release held annual earning only','仅释放留存年度应计额'),
+('عرض ملخص الاستحقاق','Review earning summary','审核应计摘要'),
+('تعذرت مراجعة الاستحقاق. راجع المصدر والفترة والجلسة.','Earning review failed. Check the source, period and session.','应计审核失败。请检查来源、期间和会话。'),
+]:
+    EN[_ar]=_en
+    ZH[_ar]=_zh
+
+EN['الاستخدام المسجل قد يجعل السنوي سالبًا مؤقتًا بينما الاستحقاق محتجز. لا يثبت ذلك وحده تجاوزًا أو موافقة على إجازة.']='Recorded usage can make the annual balance temporarily negative while earning is held. This alone does not establish an overdraft violation or leave approval.'
+ZH['الاستخدام المسجل قد يجعل السنوي سالبًا مؤقتًا بينما الاستحقاق محتجز. لا يثبت ذلك وحده تجاوزًا أو موافقة على إجازة.']='应计额留存期间，记录的使用可能使年假余额暂时为负。这本身不代表透支违规或休假批准。'
+
+for _ar,_en,_zh in [
+('الاستحقاق المعروض تقريبًا','Earning, approximate display','应计额，近似显示'),
+('الحركة','Ledger entry','台账记录'),
+('استخدام مسجل','Recorded usage','已记录使用'),
+('استحقاق مفرج عنه','Released earning','已释放应计额')]:
+    EN[_ar]=_en
+    ZH[_ar]=_zh

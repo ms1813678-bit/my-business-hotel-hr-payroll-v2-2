@@ -29,6 +29,10 @@ def validate_manual_balance_change(transaction_type, days_delta):
 
 def preview_manual_balance(current, transaction_type, days_delta):
     validate_manual_balance_change(transaction_type, days_delta)
+    from fractions import Fraction
+    if type(current) is Fraction:
+        from app.leave_exact_amount import exact_sum
+        return exact_sum((current, days_delta))
     _bounded_amount(current)
     precision = max(50, max(current.adjusted(), days_delta.adjusted())
                     - min(current.as_tuple().exponent, days_delta.as_tuple().exponent) + 2)

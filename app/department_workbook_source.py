@@ -88,10 +88,25 @@ def read_workbook_source(db, *, department_id, employee_ids, window_start,
         ledger = rows(select(LeaveBalanceTransaction.id, LeaveBalanceTransaction.employee_id,
             LeaveBalanceTransaction.leave_type_id, LeaveBalanceTransaction.transaction_type,
             cast(LeaveBalanceTransaction.days_delta, String).label('days_delta'),
+            cast(LeaveBalanceTransaction.exact_numerator, String).label('exact_numerator'),
+            cast(LeaveBalanceTransaction.exact_denominator, String).label('exact_denominator'),
             LeaveBalanceTransaction.leave_record_id, LeaveBalanceTransaction.source_operation_key,
             LeaveBalanceTransaction.source_digest, LeaveBalanceTransaction.earning_year,
             LeaveBalanceTransaction.released_on).where(LeaveBalanceTransaction.employee_id.in_(ids))
             .order_by(LeaveBalanceTransaction.id))
+        for row in ledger:
+            if row['exact_numerator'] is None and row['exact_denominator'] is None:
+                # Preserve legacy source canonical bytes, including PG finite scale.
+                del row['exact_numerator']
+                del row['exact_denominator']
+            else:
+                from types import SimpleNamespace
+                from decimal import Decimal
+                from app.leave_exact_amount import ledger_amount, exact_text
+                amount = ledger_amount(SimpleNamespace(days_delta=None if row['days_delta'] is None else Decimal(row['days_delta']),
+                    exact_numerator=Decimal(row['exact_numerator']) if row['exact_numerator'] is not None else None,
+                    exact_denominator=Decimal(row['exact_denominator']) if row['exact_denominator'] is not None else None))
+                row['days_delta'] = exact_text(amount)
         kinds = rows(select(LeaveType.id, LeaveType.code, LeaveType.active, LeaveType.tracks_balance).order_by(LeaveType.id))
         holidays = rows(select(LeaveHoliday.id, LeaveHoliday.holiday_date).where(
             LeaveHoliday.holiday_date >= window_start, LeaveHoliday.holiday_date <= end).order_by(LeaveHoliday.id))

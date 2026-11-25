@@ -8,6 +8,7 @@ from openpyxl.utils import get_column_letter
 from sqlalchemy import and_, func, select
 from sqlalchemy.orm import Session
 
+from app.leave_exact_amount import exact_text, ledger_amount
 from app.models import CAIRO_TZ
 from app.xlsx_safety import neutralize_formula_cells
 from app.models import (
@@ -170,7 +171,7 @@ def build_hr_workbook(
                 employee_map[item.employee_id].full_name if item.employee_id in employee_map else "",
                 item.leave_type_id,
                 item.transaction_type,
-                float(item.days_delta),
+                exact_text(ledger_amount(item)),
                 item.reason,
                 item.created_by,
             )

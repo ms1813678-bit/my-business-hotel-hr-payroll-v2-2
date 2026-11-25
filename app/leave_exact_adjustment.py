@@ -13,6 +13,8 @@ from decimal import Decimal
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
+from app.leave_exact_amount import ledger_amount, exact_text
+
 from app.models import (
     AdminAccount,
     AdminSession,
@@ -78,7 +80,8 @@ def adjustment_evidence_digest(db: Session, proposal: ExactAdjustment) -> str:
             raise ValueError('Current employee and active balance-tracking type required.')
         rows = db.execute(select(
             LeaveBalanceTransaction.id, LeaveBalanceTransaction.transaction_type,
-            LeaveBalanceTransaction.days_delta, LeaveBalanceTransaction.leave_record_id,
+            LeaveBalanceTransaction.days_delta, LeaveBalanceTransaction.exact_numerator,
+            LeaveBalanceTransaction.exact_denominator, LeaveBalanceTransaction.leave_record_id,
             LeaveBalanceTransaction.source_operation_key, LeaveBalanceTransaction.source_digest,
             LeaveBalanceTransaction.earning_year, LeaveBalanceTransaction.released_on,
             LeaveBalanceTransaction.reason, LeaveBalanceTransaction.created_by).where(
@@ -87,9 +90,9 @@ def adjustment_evidence_digest(db: Session, proposal: ExactAdjustment) -> str:
         ).order_by(LeaveBalanceTransaction.id)).all()
         payload = []
         for row in rows:
-            if not row.days_delta.is_finite():
-                raise ValueError('Nonfinite legacy ledger evidence.')
-            payload.append([row.id, row.transaction_type, _amount(row.days_delta),
+            amount = ledger_amount(row)
+            encoded = _amount(amount) if isinstance(amount, Decimal) else exact_text(amount)
+            payload.append([row.id, row.transaction_type, encoded,
                             row.leave_record_id, row.source_operation_key, row.source_digest,
                             row.earning_year, row.released_on.isoformat() if row.released_on else None,
                             row.reason, row.created_by])

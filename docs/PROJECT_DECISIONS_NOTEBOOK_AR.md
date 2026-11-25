@@ -434,3 +434,8 @@ Normal POSIX PostgreSQL HR source-review->pendingattendance->P+A/W/H/S/U factual
 ## Instinct1759: preserve application warnings through in-process migration
 
 fileConfig now keeps existing application loggers enabled; original warning tests unchanged. Real migrated-PG regression fails old behavior and passes fixed behavior. Two existing source checks explicitly readUTF8. Isolated44pass13warnings, independent focused source review accepted. Actual852Linux firstshard3AIwarningfailures identified, no full hosted green or Windows parser claim. Details:docs/MIGRATION_LOGGING_1759.md.
+
+
+## Instinct1803: bounded exact monthly integration
+
+Monthly leave slice integrated on feb849c base now has exact earned/held/released/usage receipts and normal HR signed review/confirmation, with migrations0070/0071. Current196pass3existingSQLite-onlyskip plus9newpayroll/rollback/replayguardpass; independent focused financial source review accepted, static only. Actual forced two-session HTTP overlap proves truthful503 while first holds exclusive transaction, then200 and exact retry without duplication. AR390/EN/ZH shown pixels inspected. No payroll/attendance/closure effect, no presumed register debit, no rounded ledger shadow. Cross-year carry/correction remains incomplete and fails closed. Independent consumer qualification found and repaired Fraction overlap-digest encoding. Final broad leave/workbook648pass2existing skips, separate required-name register cycle13pass1optional manualskip. Full hosted result remains unverified. Details: docs/EXACT_MONTH_LEDGER_1764_CANDIDATE.md. No Windows or hotel-device acceptance. Fixed94-point pre-device denominator:22.5/94=24%rounded, not publication or overall completion.

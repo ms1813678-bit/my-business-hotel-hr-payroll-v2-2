@@ -4,6 +4,7 @@ Not an actual-data release mechanism. Explicit fixture assertions required.
 Caller owns commit/rollback; nested savepoint protects partial local failure.
 One scope may transition once, regardless of request or policy-version changes.
 """
+from app.leave_exact_amount import canonical_amount, ledger_amount
 from dataclasses import asdict
 from datetime import datetime, UTC
 from hashlib import sha256
@@ -90,6 +91,9 @@ def apply_synthetic_transition(db, *, operation_id, reviewed_decision_digest,
             if len(kind)!=1 or not kind[0].tracks_balance or not kind[0].active:
                 raise ValueError('Exact balance-tracked category required.')
             row = None
+            from decimal import Decimal
+            if not isinstance(r.adjustment_delta, Decimal) or not isinstance(r.reviewed_target, Decimal):
+                raise ValueError('Synthetic transition does not post recurring rational amounts.')
             if r.adjustment_delta:
                 row = LeaveBalanceTransaction(employee_id=r.employee_id,leave_type_id=kind[0].id,
                     transaction_type='adjustment',days_delta=r.adjustment_delta,reason=reason.strip(),created_by=actor.username,
@@ -121,7 +125,7 @@ def apply_synthetic_transition(db, *, operation_id, reviewed_decision_digest,
 
 def _ledger_digest(row):
     return _hash((row.id,row.employee_id,row.leave_type_id,row.leave_record_id,row.transaction_type,
-                  row.days_delta,row.reason,row.created_by,row.source_operation_key,row.source_digest,row.earning_year,row.released_on))
+                  canonical_amount(ledger_amount(row)),row.reason,row.created_by,row.source_operation_key,row.source_digest,row.earning_year,row.released_on))
 
 
 def _verify_entries(db, operation):

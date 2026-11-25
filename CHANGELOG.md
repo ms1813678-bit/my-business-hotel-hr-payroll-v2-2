@@ -1,3 +1,8 @@
+## 2026-11-25, exact monthly leave and source-bound release
+
+- Exact one-ledger rational amounts, immutable monthly earning and held/release/usage, HR signed review and confirmation with exclusive-first transaction guards.
+- Bounded evidence and incomplete cross-year/correction scope: docs/EXACT_MONTH_LEDGER_1764_CANDIDATE.md.
+
 ## 2026-11-25, Instinct with Muse-origin candidate: typed snapshot codec
 
 - Adopt the isolated Muse-origin standard-library canonical typed codec and its78 portable regression nodes. Instinct independently reviewed and repaired huge-number controlled failures and Python3.11 subsecond-offset datetime roundtrip, adding17 regression nodes.
