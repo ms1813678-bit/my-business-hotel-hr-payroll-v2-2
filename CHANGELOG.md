@@ -1,3 +1,7 @@
+## 2026-11-25 - Own trust-operation process trees by Instinct
+
+- Start each test-store shell suspended, assign a fresh kill-on-close Job, then resume exactly once. Bound descendants as well as shell; verify signaled process and Job active zero before the next store inspection. Prevent a timed-out import helper from racing cleanup.
+
 ## 2026-11-25 - Bound current-user test certificate import by Instinct
 
 - Explicit store Add timed out, with no import confirmation. Use documented certutil current-user Root import with unchanged exact public-certificate validation. Cleanup independently verifies absence even when an armed partial import left no matching certificate. Prior failed gate remains failed. No machine-store or policy fallback.

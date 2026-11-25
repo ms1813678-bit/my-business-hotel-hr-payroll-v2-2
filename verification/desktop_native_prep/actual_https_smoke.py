@@ -46,7 +46,7 @@ def parent(scm_mode=False,visible=False):
     (root/'ca.pem').write_bytes(ca.public_bytes(serialization.Encoding.PEM))
     (root/'leaf.pem').write_bytes(leaf.public_bytes(serialization.Encoding.PEM))
     (root/'leaf.key').write_bytes(key.private_bytes(serialization.Encoding.PEM,serialization.PrivateFormat.PKCS8,serialization.NoEncryption()))
-    # CA private key is never written. No trust-store/hosts/DNS/firewall changes.
+    # CA private key is never written. Only visible mode uses owned user-store/hosts fixture; never firewall.
     (root/'desktop.json').write_text(json.dumps(dict(origin=origin,bind_ipv4=bind,certificate=str(root/'leaf.pem'),private_key=str(root/'leaf.key'),project_root=str(source))))
     installations=sorted((pathlib.Path(os.environ['ProgramFiles'])/'PostgreSQL').glob('[0-9]*/bin'),key=lambda p:int(p.parent.name),reverse=True)
     if not installations:raise RuntimeError('preinstalled PostgreSQL required')
@@ -108,7 +108,36 @@ def parent(scm_mode=False,visible=False):
         if visible:
             ca_thumb=ca.fingerprint(hashes.SHA1()).hex().upper()
             def trust(mode):
-                subprocess.run(['powershell.exe','-NoProfile','-File',str(HERE/'trust_fixture.ps1'),'-Mode',mode,'-Thumbprint',ca_thumb,'-CertificatePath',str(root/'ca.pem')],check=True,timeout=20)
+                # Bound shell AND certutil descendants, including partial-import timeouts.
+                tj=tp=tt=None
+                try:
+                    win32api.SetLastError(0);tj=win32job.CreateJobObject(None,'Local\\HOnY-trust-'+uuid.uuid4().hex)
+                    if win32api.GetLastError()==183:raise RuntimeError('fresh trust Job required')
+                    limits=win32job.QueryInformationJobObject(tj,win32job.JobObjectExtendedLimitInformation)
+                    limits['BasicLimitInformation']['LimitFlags']|=win32job.JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+                    win32job.SetInformationJobObject(tj,win32job.JobObjectExtendedLimitInformation,limits)
+                    exe=str(pathlib.Path(os.environ['SystemRoot'])/'System32/WindowsPowerShell/v1.0/powershell.exe')
+                    cmd=subprocess.list2cmdline([exe,'-NoProfile','-NonInteractive','-File',str(HERE/'trust_fixture.ps1'),'-Mode',mode,'-Thumbprint',ca_thumb,'-CertificatePath',str(root/'ca.pem')])
+                    tp,tt,_,_=win32process.CreateProcess(exe,cmd,None,None,False,win32con.CREATE_SUSPENDED,None,None,win32process.STARTUPINFO())
+                    win32job.AssignProcessToJobObject(tj,tp)
+                    if win32process.ResumeThread(tt)!=1:raise RuntimeError('trust prior suspend count refused')
+                    if win32event.WaitForSingleObject(tp,20000)!=win32con.WAIT_OBJECT_0:raise RuntimeError('trust operation deadline')
+                    if win32process.GetExitCodeProcess(tp)!=0:raise RuntimeError('trust operation refused')
+                finally:
+                    try:
+                        if tj is not None:win32job.TerminateJobObject(tj,99)
+                        if tp is not None and win32event.WaitForSingleObject(tp,5000)!=win32con.WAIT_OBJECT_0:
+                            win32process.TerminateProcess(tp,99)
+                            if win32event.WaitForSingleObject(tp,5000)!=win32con.WAIT_OBJECT_0:raise RuntimeError('trust child cleanup unconfirmed')
+                        if tj is not None:
+                            deadline=time.monotonic()+5
+                            while win32job.QueryInformationJobObject(tj,win32job.JobObjectBasicAccountingInformation)['ActiveProcesses']:
+                                if time.monotonic()>deadline:raise RuntimeError('trust Job cleanup unconfirmed')
+                                time.sleep(.1)
+                            print('NATIVE_TRUST_OPERATION_OWNED_JOB_CLEANUP_PASS',mode,flush=True)
+                    finally:
+                        for handle in [tt,tp,tj]:
+                            if handle is not None:handle.Close()
             hosts_path=pathlib.Path(os.environ['SystemRoot'])/'System32/drivers/etc/hosts'
             hosts_before=hosts_path.read_bytes()
             if hostname.encode('ascii') in hosts_before:raise RuntimeError('unexpected hosts name already present')
