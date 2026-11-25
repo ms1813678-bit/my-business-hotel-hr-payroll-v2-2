@@ -1,3 +1,8 @@
+## 2026-11-25, Instinct: preserve typed text in XLSX exports
+
+- Integrate the independently reviewed minimal formula-safety candidate in HR/custom workbook final saves. Formula-typed values become literal strings; numbers, dates, booleans and calculated values retain their types. No database, role or report-policy change.
+- Add nine regression cases and qualified historical review dispositions, with exact shared-tree155pass and separate migrated-PG/LibreOffice evidence limits.
+
 ## 2026-11-25, Instinct: existing login-gate regression and protection limits
 
 - Add actual migrated-PostgreSQL HTTP/CSRF concurrency tests for the existing login advisory gate, persisted two-attempt/two-hour lock and single audit event. No product authentication/policy change.

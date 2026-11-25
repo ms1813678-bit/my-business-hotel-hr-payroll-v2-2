@@ -21,6 +21,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models import CAIRO_TZ
+from app.xlsx_safety import neutralize_formula_cells
 from app.models import (
     AdvanceRequest,
     AttendanceDailyRecord,
@@ -1135,6 +1136,7 @@ def build_custom_workbook(db: Session, selection: ReportSelection, language: str
     meta_sheet.column_dimensions["A"].width = 28
     meta_sheet.column_dimensions["B"].width = 30
 
+    neutralize_formula_cells(workbook)  # typed names/departments/reasons are text, never formulas
     output = BytesIO()
     workbook.save(output)
     return output.getvalue()

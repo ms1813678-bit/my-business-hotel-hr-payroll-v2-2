@@ -9,6 +9,7 @@ from sqlalchemy import and_, func, select
 from sqlalchemy.orm import Session
 
 from app.models import CAIRO_TZ
+from app.xlsx_safety import neutralize_formula_cells
 from app.models import (
     AdvanceRequest,
     AttendanceDailyRecord,
@@ -312,6 +313,7 @@ def build_hr_workbook(
                 if isinstance(data_cell.value, str):
                     data_cell.value = _legacy_enum(data_cell.value, language)
 
+    neutralize_formula_cells(workbook)  # after every value rewrite above: typed text never runs as a formula
     output = BytesIO()
     workbook.save(output)
     return output.getvalue()
