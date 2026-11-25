@@ -247,3 +247,25 @@ def test_ci_has_no_hosted_artifact_or_dependency_cache_storage():
     assert 'cache: pip' not in source
     assert 'git archive --format=zip' in source
     assert 'Source archive hygiene check passed.' in source
+
+
+def test_linux_dump_restore_tools_match_service_major_and_fail_closed():
+    linux=WORKFLOW.read_text().split('  test:',1)[1].split('  windows:',1)[0]
+    assert 'postgres:16' in linux
+    assert 'pg_bin=/usr/lib/postgresql/16/bin' in linux
+    assert 'postgresql-client-16' in linux
+    assert 'set -euo pipefail' in linux
+    assert '"$pg_bin/pg_dump" --version' in linux
+    assert '"$pg_bin/pg_restore" --version' in linux
+    assert 'echo "$pg_bin" >> "$GITHUB_PATH"' in linux
+    assert linux.index('Select PostgreSQL 16 client tools') < linux.index('python -m scripts.initialize_database')
+    assert '--exit-on-error' in (WORKFLOW.parents[2]/'tests/test_sync_uid_roundtrip.py').read_text()
+
+
+def test_linux_next_step_verifies_effective_path_not_only_candidate_binary():
+    linux=WORKFLOW.read_text().split('  test:',1)[1].split('  windows:',1)[0]
+    assert 'runs-on: ubuntu-latest' in linux
+    assert 'command -v pg_dump' in linux and 'command -v pg_restore' in linux
+    assert 'test "$(command -v pg_dump)" = /usr/lib/postgresql/16/bin/pg_dump' in linux
+    assert 'test "$(command -v pg_restore)" = /usr/lib/postgresql/16/bin/pg_restore' in linux
+    assert linux.index('Select PostgreSQL 16 client tools') < linux.index('Verify effective PostgreSQL client selection') < linux.index('python -m scripts.initialize_database')

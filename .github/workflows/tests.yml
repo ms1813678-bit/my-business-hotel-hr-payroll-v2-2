@@ -43,6 +43,28 @@ jobs:
           python-version: "3.11"
       - name: Install project and development dependencies
         run: python -m pip install -e ".[dev]"
+      - name: Select PostgreSQL 16 client tools for PostgreSQL 16 service
+        shell: bash
+        run: |
+          set -euo pipefail
+          pg_bin=/usr/lib/postgresql/16/bin
+          if [ ! -x "$pg_bin/pg_dump" ] || [ ! -x "$pg_bin/pg_restore" ]; then
+            sudo apt-get update
+            sudo apt-get install --yes postgresql-client-16
+          fi
+          "$pg_bin/pg_dump" --version | grep -E 'PostgreSQL\) 16\.'
+          "$pg_bin/pg_restore" --version | grep -E 'PostgreSQL\) 16\.'
+          echo "$pg_bin" >> "$GITHUB_PATH"
+      - name: Verify effective PostgreSQL client selection
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v pg_dump
+          command -v pg_restore
+          test "$(command -v pg_dump)" = /usr/lib/postgresql/16/bin/pg_dump
+          test "$(command -v pg_restore)" = /usr/lib/postgresql/16/bin/pg_restore
+          pg_dump --version | grep -E 'PostgreSQL\) 16\.'
+          pg_restore --version | grep -E 'PostgreSQL\) 16\.'
       - name: Apply full PostgreSQL migration chain
         run: python -m scripts.initialize_database
       - name: Run complete test suite

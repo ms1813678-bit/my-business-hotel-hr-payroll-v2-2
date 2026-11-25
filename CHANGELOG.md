@@ -640,3 +640,8 @@ Final supported Python3.11.18 shared verification after neutral AR/EN/ZH message
 - Add the owner-selected inline review/application on the existing page with separate reason/confirmation, exact immutable ledger/audit receipt and safe retry. Source confirmation is not ledger application.
 - Add strict0068 manual baseline identity, canonical W/H tracking and read-only receipt verification. Preserve historical register facts, existing posted/closed evidence guards, permissions and admission. No monthly accrual/cash/year-close activation.
 - Complete default inventory in13 disjoint runs:2558pass47existing-skips. Separate enabled synthetic concurrency case passes after test-only alignment to intentional1709 busy503, not a product gate change. ActualHTTPPG/CSRF/locales/races and inspected UI evidence have bounded scope. See MANUAL_OPENING_APPLICATION_1708.md.
+
+## 2026-11-25, Instinct: match hosted PostgreSQL client tools to service
+
+- Select and verify major16 dump/restore tools for the Linux postgres:16 service instead of relying on runner PATH. Preserve complete migration/suite and fail-closed restore checks.
+- Record the exact hosted3fdd UID restore failure and local real roundtrip evidence. Not hosted-green or Windows acceptance. Product PATH-first backup compatibility remains a separate lead. See HOSTED_PG_CLIENT_1744.md.
