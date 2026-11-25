@@ -7,3 +7,5 @@ Windows2022 diagnostic downloads ONLY the previously hash-pinned Python3.14.10 e
 Scope limits: no proof of restricted-token readability, successful loading, C0000022cause or network denial. A resolved closure can coexist with failure. Inspector strictness may refuse legitimate alternate images; retain exact parse errors rather than silently relax. Index is nonrecursive; bounded snapshots are controlled fixture data, not mutable or attacker-supplied roots. Public indexing is not hardened for adversarial changing directory trees. Alias exports/multiple names per ordinal are conservatively refused by current peer parser; a refusal is not a missing dependency.
 
 Follow-up depends on actual result: distinguish unresolved API sets and file presence from a confirmed rejected loader object. Do not introduce another launcher/protocol/IFEO variant based on static closure alone.
+
+Native Windows binary-read sentinel covers every byte including CR/LF/Ctrl-Z. Candidate index includes all regular basenames, not only DLL suffixes, so DRV imports are eligible. Not-present means no regular candidate in this exact directory index, never OS-wide absence.

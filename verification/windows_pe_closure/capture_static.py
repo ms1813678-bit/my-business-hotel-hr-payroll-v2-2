@@ -25,6 +25,11 @@ def main():
                 p=pathlib.PurePosixPath(info.filename)
                 if p.is_absolute() or '..' in p.parts or len(p.parts)!=1 or ':' in info.filename or '\\' in info.filename:raise RuntimeError('archive path refused')
                 (runtime/p.name).write_bytes(z.read(info))
+        sentinel=root/'binary-sentinel'
+        sentinel_bytes=bytes(range(256))*500
+        sentinel.write_bytes(sentinel_bytes)
+        if read_capped(str(sentinel))!=sentinel_bytes:raise RuntimeError('native binary all-byte read regression')
+        print('NATIVE_BINARY_ALL_BYTES_CRLF_CTRLZ_PASS',flush=True)
         expected=json.loads((HERE/'EXPECTED-DIRECT-IMPORTS.json').read_text())
         for name,want in expected['members'].items():
             raw=read_capped(str(runtime/name))
@@ -35,8 +40,9 @@ def main():
         # exact System32 into an owned snapshot. Never call LoadLibrary, resolve
         # via PATH, capture registry/token state or claim actual loader choice.
         system=pathlib.Path(os.environ['SystemRoot'])/'System32';index={}
-        for p in system.iterdir():
-            if p.suffix.lower()=='.dll' and p.is_file() and not p.is_symlink():index.setdefault(p.name.lower(),[]).append(p)
+        for count,p in enumerate(system.iterdir(),1):
+            if count>30000:raise RuntimeError('system candidate name-count bound')
+            if p.is_file() and not p.is_symlink():index.setdefault(p.name.lower(),[]).append(p)
         queue=sorted([p for p in runtime.iterdir() if p.suffix.lower() in ('.exe','.dll','.pyd')]);seen=set();capture=[];parse_errors=[];total=0
         while queue:
             p=queue.pop(0)
@@ -61,7 +67,7 @@ def main():
                 capture.append(dict(requested=name,status='candidate-snapshot',source=str(source),sha256=hashlib.sha256(raw).hexdigest(),size=len(raw)))
                 queue.append(target)
         report=run_closure([str(runtime/'python.exe')],[dict(label='locked-runtime',path=str(runtime)),dict(label='system32-requested-snapshot',path=str(snapshot))])
-        report['capture']=dict(runtime_archive_sha256=lock['sha256'],os_version=sys.getwindowsversion()._asdict() if hasattr(sys.getwindowsversion(),'_asdict') else str(sys.getwindowsversion()),system32_candidates=capture,parse_errors=parse_errors,notice='Static requested-file snapshot only. No API-set mapping captured; no actual loader resolution, restricted access or network claim.')
+        report['capture']=dict(runtime_archive_sha256=lock['sha256'],os_version=sys.getwindowsversion()._asdict() if hasattr(sys.getwindowsversion(),'_asdict') else str(sys.getwindowsversion()),system32_candidates=capture,system32_index='all regular nonsymlink basenames including DLL/DRV, bounded30000; absence means only not indexed here',parse_errors=parse_errors,notice='Static requested-file snapshot only. No API-set mapping captured; no actual loader resolution, restricted access or network claim.')
         (output/'static-closure.json').write_text(json.dumps(report,indent=2)+'\n')
         print('ACTUAL_PINNED_PE_DIRECT_IMPORTS_PASS',flush=True)
         print('STATIC_CLOSURE_SUMMARY',json.dumps(report['summary']),flush=True)
