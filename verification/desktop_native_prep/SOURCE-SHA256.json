@@ -6,7 +6,7 @@
   "auth_fixture/README.md": "70d068c60d17541af155c5b147106426dfe51b752e6dc906038419bbb8c0895e",
   "auth_fixture/seed_fixture.py": "3a5634e581eac323f96d72068797efce11418e91037a89c4950df19ae440d3cd",
   "authenticated_state_check.py": "77e3fbeb5f41c8a201a29775078127a3c74744c8f59695bad3130b4d61160c31",
-  "authenticated_window_smoke.py": "382338d8c7e0d7a5f44f5d6fbbcd8d42e740518e61008bccc6a43125dd2d3f8d",
+  "authenticated_window_smoke.py": "e15fccf503334fd186437043fc936218fcb757cd116a6240abe93f2565b7eb4f",
   "build-tools-HASHED.txt": "1bfa26246e73222c53c6bc9dd038eaae18b150d6132bc8d2ce2ea6496fddb850",
   "build-tools-provenance.json": "c99eb30e476bf1dd33d6962dd2434eec9383d54fa5edd04ad2eb2e05cb99a6ce",
   "confirm_ui_fixture.py": "9de1c1c7a1a56ed8fc04ca94d37e48c25b32036704bb38a137ce239500ee02d3",

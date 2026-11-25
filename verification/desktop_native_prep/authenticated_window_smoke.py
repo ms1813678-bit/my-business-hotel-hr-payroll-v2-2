@@ -85,6 +85,12 @@ def run(root):
                 def fire():
                     guard._control.CoreWebView2.ExecuteScriptAsync('setTimeout(function(){document.querySelector('+json.dumps(selector)+').click();},0);true')
                 guard._marshal_to_ui(guard._control,fire)
+            original_picker=guard._backend.on_download_starting
+            def observed_picker(sender,args):
+                before=str(args.ResultFilePath)
+                original_picker(sender,args)
+                print('NATIVE_PICKER_RESULT',json.dumps(dict(before=before,after=str(args.ResultFilePath),cancel=bool(args.Cancel),handled=bool(args.Handled))),flush=True)
+            guard._backend.on_download_starting=observed_picker
             downloads=[]
             def observed_download(sender,args):
                 downloads.append(args.DownloadOperation)
