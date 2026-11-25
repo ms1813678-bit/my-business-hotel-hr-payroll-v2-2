@@ -24,20 +24,31 @@ def load(path):
             text=(tail+block).replace(b'\0',b'').upper()
             if b'<!DOCTYPE' in text or b'<!ENTITY' in text:raise Refusal('XML declarations forbidden')
             tail=block[-128:]
-    rows=[];count=0;root=None
+    rows=[];count=0;root=None;depth=0;elements=0
     for event,el in ET.iterparse(path,events=('start','end')):
-        if root is None:root=el
-        if event!='end':continue
+        if event=='start':
+            depth+=1;elements+=1
+            if depth>12 or elements>4000000:raise Refusal('XML structure cap')
+            if root is None:
+                root=el
+                if el.tag.rsplit('}',1)[-1]!='Events':raise Refusal('unsupported XML root')
+            elif depth==2 and el.tag.rsplit('}',1)[-1]!='Event':raise Refusal('non-event root child')
+            elif el.tag.rsplit('}',1)[-1]=='Event' and depth!=2:raise Refusal('nested event')
+            if len(el.attrib)>32 or any(len(k)+len(v)>65536 for k,v in el.attrib.items()):raise Refusal('XML attribute cap')
+            continue
+        depth-=1
+        if len(el.text or '')>65536 or len(el.tail or '')>65536:raise Refusal('XML text cap')
         if el.tag.rsplit('}',1)[-1]!='Event':continue
         count+=1
         if count>200000:raise Refusal('event count cap')
         prefix=el.tag[:-5]
         if prefix not in ('{http://schemas.microsoft.com/win/2004/08/events/event}','{https://schemas.microsoft.com/win/2004/08/events/event}'):raise Refusal('unsupported event namespace')
         def node(name):
-            e=el.find('/'.join(prefix+n for n in name.split('/')))
-            if e is None:raise Refusal('missing XML field '+name)
-            return e
+            es=el.findall('/'.join(prefix+n for n in name.split('/')))
+            if len(es)!=1:raise Refusal('missing or duplicate XML field '+name)
+            return es[0]
         provider=node('System/Provider').get('Guid','').strip('{}').lower()
+        if not re.fullmatch(r'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}',provider):raise Refusal('provider GUID absent or invalid')
         if provider not in (FILE,PROCESS):el.clear();root.clear();continue
         id=number(node('System/EventID').text or '')
         if (provider==FILE and id not in (12,24)) or (provider==PROCESS and id not in (1,2,3,4)):el.clear();root.clear();continue

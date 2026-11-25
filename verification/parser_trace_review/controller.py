@@ -4,7 +4,8 @@ contents never leave owned root. Do not invoke before parent review.
 """
 import subprocess,pathlib,json,os,time,sys,uuid
 from xml_adapter import load
-from correlate import Refusal
+from correlate import Refusal,correlate
+from identity_output import bind,sanitized
 NAMES=('HOnYParserFile','HOnYParserProcess')
 PROVIDERS=('edd08927-9cc4-4e65-b970-c2560fb5c289','22fb2cd6-0e7b-422b-a0c7-2fad1fd0e716')
 
@@ -20,6 +21,7 @@ def record_once(probe,parent_root,workload):
     """workload runs unchanged owned startup+control once and returns owner metadata.
     No retries. Caller only gets normalized records after raw absence confirmed.
     """
+    raise Refusal('REVIEW ONLY: recording disabled pending completeness, baseline/control and crash qualification')
     if os.name!='nt' or os.environ.get('GITHUB_ACTIONS')!='true':raise Refusal('disposable Windows CI only')
     probe=pathlib.Path(probe).resolve(strict=True);parent_root=pathlib.Path(parent_root).resolve(strict=True)
     runner_temp=pathlib.Path(os.environ['RUNNER_TEMP']).resolve(strict=True)
@@ -35,7 +37,7 @@ def record_once(probe,parent_root,workload):
             if query(probe,name)!={'absent':True}:raise Refusal('existing session, refuse without disturbance')
         arm() # prearm both exact ETL names before start, closes owner-crash startup gap
         with (root/'watchdog-output').open('wb') as out:
-            wd=subprocess.Popen([sys.executable,str(pathlib.Path(__file__).with_name('watchdog.py')),str(probe),str(journal),str(root)],stdout=out,stderr=out)
+            wd=subprocess.Popen([sys.executable,str(pathlib.Path(__file__).with_name('watchdog.py')),str(probe),str(root),str(os.getpid())],stdout=out,stderr=out)
         until=time.monotonic()+2
         while not (root/'watchdog-ready').is_file():
             if wd.poll() is not None or time.monotonic()>until:raise Refusal('watchdog readiness missing')
@@ -63,8 +65,11 @@ def record_once(probe,parent_root,workload):
         (root/'stop-now').touch()
         if wd:
             try:
-                wd.wait(timeout=7)
-                result=json.loads((root/'watchdog-result.json').read_text())
+                deadline=time.monotonic()+14
+                while not (root/'watchdog-stopped.json').is_file():
+                    if wd.poll() is not None or time.monotonic()>deadline:raise Refusal('watchdog stop confirmation timeout')
+                    time.sleep(.05)
+                result=json.loads((root/'watchdog-stopped.json').read_text())
                 if not result.get('complete') or set(result.get('sessions',{}))!=set(NAMES):raise Refusal('independent watchdog absence unconfirmed')
             except BaseException as e:error=e
         if not error:
@@ -82,6 +87,13 @@ def record_once(probe,parent_root,workload):
                         if p.poll() is None:p.kill();p.wait(timeout=3)
                 rows=load(raw[2])
             except BaseException as e:error=e
+        (root/'conversion-done').touch()
+        if wd:
+            try:
+                wd.wait(timeout=7)
+                independent=json.loads((root/'watchdog-result.json').read_text())
+                if not independent.get('complete') or not independent.get('raw_absent'):raise Refusal('watchdog raw cleanup unconfirmed')
+            except BaseException as e:error=e
         # Only explicitly created direct children in this fresh private root.
         for path in list(root.iterdir()):
             if path.is_dir() or path.is_symlink():error=Refusal('unexpected trace root entry');continue
@@ -89,6 +101,14 @@ def record_once(probe,parent_root,workload):
             except BaseException as e:error=e
         if any(root.iterdir()):error=Refusal('raw trace absence unconfirmed')
         else:root.rmdir()
-    if error:raise Refusal('bounded trace inconclusive; no retry; raw cleanup attempted') from error
+    if error:raise Refusal('bounded trace inconclusive; no retry; cleanup must be checked') from None
     if stopped!=list(NAMES) or len(losses)!=2 or any(x!=0 for x in losses):raise Refusal('loss statistics missing or nonzero')
-    return rows,metadata,0
+    # The caller supplies explicit synthetic control identity, expected path and status.
+    # Never return raw foreign records or intermediate arbitrary paths.
+    if not isinstance(metadata,dict) or set(metadata)!={'child','control','control_path','control_status','allowed_basenames'}:raise Refusal('trusted scoped identity and control metadata required')
+    child=correlate(rows,bind(rows,**metadata['child']),0)
+    control=correlate(rows,bind(rows,**metadata['control']),0)
+    if not any(o['path']==metadata['control_path'] and o['status']==metadata['control_status'] for o in control['operations']):raise Refusal('known control observation missing')
+    # A synthetic control does not prove every operation was captured. Circular
+    # wrap/completeness qualification remains a hard execution blocker.
+    return sanitized(child,os.urandom(32),metadata['allowed_basenames'])

@@ -1,3 +1,11 @@
+# Repair1 source-only, 08:00
+
+Recording entry is explicitly disabled. This revision is not an execution proposal.
+
+Reproduced original0754 missing-GUID, duplicate-System-field and junk-memory findings. Added fail-closed GUID/system uniqueness/XML structure/depth/text/attribute caps, strict integer loss type, independent per-session stop/query even on first timeout, owner-synchronize handle before readiness, fixed-path known-raw deletion after normal completion or parent death, separate stop and conversion-complete handshakes, child/control correlation and sanitized return.17synthetic test methods pass, including first stop timeout, bad first query, independent raw cleanup and 300k junk XML early refusal under2MB peak.
+
+Still unqualified: actual owner-crash native cleanup/races and provider control/ETL reality; exact baseline caller is not implemented; circular overwrite detection and capture completeness are not established; a known control is necessary but cannot prove completeness. No source repair is treated as native acceptance. Original0754 archive remains the reviewed immutable source; this is a new revision.
+
 # Review-only trace implementation, 07:54
 
 No recording, provider enablement or parser launch has occurred. None of this directory is wired into a workflow. This is not a ready-to-execute preview.

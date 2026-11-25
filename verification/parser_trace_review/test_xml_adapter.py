@@ -18,3 +18,17 @@ class AdapterTests(unittest.TestCase):
   for s in ('-1',' 5','0x','18446744073709551616','1.2'):
    with self.assertRaises(Refusal):number(s)
 if __name__=='__main__':unittest.main()
+
+class ReviewRegressionTests(AdapterTests):
+ def test_review_findings_refuse(self):
+  for s in (self.fixture().replace('Guid=', 'NoGuid='),self.fixture().replace('<EventID>12</EventID>','<EventID>12</EventID><EventID>99</EventID>'),'<Events><X/></Events>',self.fixture().replace('<EventData>','<EventData>'+('<X>'*20)).replace('</EventData>',('</X>'*20)+'</EventData>')):
+   with self.assertRaises(Refusal):self.parse(s)
+ def test_large_junk_refuses_early(self):
+  import tracemalloc
+  with tempfile.TemporaryDirectory() as t:
+   p=pathlib.Path(t)/'junk.xml';p.write_text('<Events>'+'<X/>'*300000+'</Events>')
+   tracemalloc.start()
+   try:
+    with self.assertRaises(Refusal):load(p)
+    _,peak=tracemalloc.get_traced_memory();self.assertLess(peak,2000000)
+   finally:tracemalloc.stop()

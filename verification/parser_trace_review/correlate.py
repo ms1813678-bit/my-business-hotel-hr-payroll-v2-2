@@ -7,7 +7,7 @@ PROCESS='22fb2cd6-0e7b-422b-a0c7-2fad1fd0e716'
 class Refusal(ValueError):pass
 
 def correlate(records,identity,events_lost):
-    if events_lost!=0:raise Refusal('event loss or unknown loss count')
+    if type(events_lost)is not int or events_lost!=0:raise Refusal('event loss or unknown loss count')
     if len(records)>200000:raise Refusal('record count cap')
     required={'pid','ppid','created','image','launcher_started','launcher_ended'}
     if set(identity)!=required:raise Refusal('explicit full child identity required')
