@@ -1,5 +1,5 @@
 name: Integrated synthetic Windows parser candidate
-# Revision: bounded trusted-native refusal diagnostics
+# Revision: restore explicit known-good LOCALAPPDATA and SYSTEMROOT launcher block
 on:
   push:
     branches: [ui-overhaul]

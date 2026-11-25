@@ -294,3 +294,5 @@ Added a synthetic BIFF8/XLSX parser compatibility-only workflow. It uses a dispo
 Added a separate synthetic real-parser LPAC qualification candidate with bounded stdin/stdout, owned Job lifetime, canonical runtime holds and pinned source/runtime acquisition. Official Python3.14.10 replaces the old3.11.9 disposable baseline for this candidate. This does not enable the production Windows parser, change network policy or claim final security acceptance.
 
 Instinct: preserve bounded trusted-native refusal diagnostics for candidate qualification; worker stderr remains discarded, security and limits unchanged.
+
+Instinct: restore original explicit LOCALAPPDATA+SYSTEMROOT environment in real-parser candidate after measured CreateProcess error203; no capabilities or security limits changed.

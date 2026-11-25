@@ -73,7 +73,7 @@ def parse_candidate(launcher, profile, staged_root, pinned_manifest_sha256, pinn
                 from app.fingerprint_bounded_parse import _decode_worker
                 command = [str(launcher), profile, str(runtime / 'python.exe'), str(runtime),
                            str(runtime / 'candidate_worker.py')]
-                return _run_checked(command, source_request, {'SYSTEMROOT': os.environ['SYSTEMROOT']},
+                return _run_checked(command, source_request, {'LOCALAPPDATA': os.environ['LOCALAPPDATA'], 'SYSTEMROOT': os.environ['SYSTEMROOT']},
                                     _decode_worker, verified_aliases)
             finally:
                 if not kernel.CloseHandle(guard):

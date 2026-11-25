@@ -37,7 +37,7 @@ int wmain(int argc,wchar_t **argv){
  JOBOBJECT_EXTENDED_LIMIT_INFORMATION limits={0};SECURITY_CAPABILITIES caps={0};PSID sid=NULL;
  SIZE_T attr_size=0;LPPROC_THREAD_ATTRIBUTE_LIST attrs=NULL;int attrs_ready=0,clean=1,result=1,created=0;
  BYTE *request=NULL,*response=NULL;DWORD request_size=0,response_size=0,code=99;struct feed feed={0};struct drain drain={0};
- wchar_t command[32768],environment[32768],systemroot[32000],actual_image[32768];DWORD optout=PROCESS_CREATION_ALL_APPLICATION_PACKAGES_OPT_OUT;
+ wchar_t command[32768],environment[65536],systemroot[32000],localappdata[32000],actual_image[32768];DWORD optout=PROCESS_CREATION_ALL_APPLICATION_PACKAGES_OPT_OUT;
  const char *stage="arguments";
  /* profile, canonical python.exe, runtime cwd, candidate worker. Request on stdin. */
  if(argc!=5)return 2;
@@ -73,8 +73,10 @@ int wmain(int argc,wchar_t **argv){
  !UpdateProcThreadAttribute(attrs,0,PROC_THREAD_ATTRIBUTE_JOB_LIST,&job,sizeof(job),NULL,NULL)||
  !UpdateProcThreadAttribute(attrs,0,PROC_THREAD_ATTRIBUTE_SECURITY_CAPABILITIES,&caps,sizeof(caps),NULL,NULL)||
  !UpdateProcThreadAttribute(attrs,0,PROC_THREAD_ATTRIBUTE_ALL_APPLICATION_PACKAGES_POLICY,&optout,sizeof(optout),NULL,NULL))goto done;
- stage="environment";{DWORD n=GetEnvironmentVariableW(L"SYSTEMROOT",systemroot,32000);if(!n||n>=32000)goto done;}
- if(_snwprintf_s(environment,32767,_TRUNCATE,L"SYSTEMROOT=%ls",systemroot)<0)goto done;environment[wcslen(environment)+1]=0;
+ stage="environment";{DWORD n=GetEnvironmentVariableW(L"SYSTEMROOT",systemroot,32000);if(!n||n>=32000)goto done;
+ n=GetEnvironmentVariableW(L"LOCALAPPDATA",localappdata,32000);if(!n||n>=32000)goto done;}
+ if(_snwprintf_s(environment,65534,_TRUNCATE,L"LOCALAPPDATA=%ls",localappdata)<0)goto done;
+ {size_t offset=wcslen(environment)+1;if(_snwprintf_s(environment+offset,65534-offset,_TRUNCATE,L"SYSTEMROOT=%ls",systemroot)<0)goto done;environment[offset+wcslen(environment+offset)+1]=0;}
  if(_snwprintf_s(command,32768,_TRUNCATE,L"\"%ls\" -I -B -X utf8 \"%ls\"",argv[2],argv[4])<0)goto done;
  si.StartupInfo.cb=sizeof(si);si.StartupInfo.dwFlags=STARTF_USESTDHANDLES;si.StartupInfo.hStdInput=in_read;si.StartupInfo.hStdOutput=out_write;si.StartupInfo.hStdError=nul;si.lpAttributeList=attrs;
  stage="create_suspended";if(!CreateProcessW(argv[2],command,NULL,NULL,TRUE,CREATE_SUSPENDED|CREATE_NO_WINDOW|CREATE_UNICODE_ENVIRONMENT|EXTENDED_STARTUPINFO_PRESENT,environment,argv[3],&si.StartupInfo,&pi))goto done;created=1;
