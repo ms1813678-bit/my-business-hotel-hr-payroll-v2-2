@@ -1,0 +1,42 @@
+name: Reviewed inert first-install1057 experiment
+on:
+  push:
+    branches: [ui-overhaul]
+    paths: [.github/workflows/first-install-inert1057.yml]
+permissions:
+  contents: read
+jobs:
+  inert1057:
+    runs-on: windows-2025
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Prepare isolated test dependency
+        shell: pwsh
+        run: |
+          python -m pip install pywin32==311
+          if($LASTEXITCODE -ne 0){throw 'dependency setup failed before fixture'}
+      - name: Exact reviewed source verification and one inert attempt
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          Set-Location verification/first_install_inert1057
+          @'
+          import hashlib,json,pathlib,subprocess
+          root=pathlib.Path('.')
+          manifest=json.loads(subprocess.check_output(['git','show','HEAD:verification/first_install_inert1057/SHA256.json']))
+          for name,pin in manifest.items():
+              if pathlib.Path(name).name!=name:raise SystemExit('flat fixed source required')
+              data=subprocess.check_output(['git','show','HEAD:verification/first_install_inert1057/'+name])
+              if hashlib.sha256(data).hexdigest()!=pin:raise SystemExit('reviewed source pin mismatch')
+              (root/name).write_bytes(data)
+          print('REVIEWED1057_SOURCE_PINS_VERIFIED',flush=True)
+          '@ | python -
+          if($LASTEXITCODE -ne 0){throw 'source verification failed before fixture'}
+          python launcher.py
+          if($LASTEXITCODE -ne 0){throw 'inert fixture refused or failed; no retry or forced cleanup'}

@@ -1,3 +1,7 @@
+## 2026-11-25 - Reviewed inert installer experiment by Instinct
+
+- Add exact independently reviewed1057 source and single disposable Windows CI attempt. No product install/start, database/TLS/network settings or generalized installer readiness. Fixed stopped/disabled inert fixture, restricted-token approximation, retained-ownership rollback and absence checks.
+
 ## 2026-11-25 - Distinguish unqualified parser platform by Instinct
 
 - Valid operational parser requests on non-posix platforms now return a distinct platform-readiness refusal before subprocess launch. Boundary stays closed; no Windows parser adapter or fallback enabled. Review/month-review use existing no-store503 error response with Arabic/English/Chinese message.
