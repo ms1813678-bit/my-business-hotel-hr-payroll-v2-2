@@ -661,3 +661,8 @@ Final supported Python3.11.18 shared verification after neutral AR/EN/ZH message
 ## Instinct1756: reviewed return registration
 
 Normal POSIX PostgreSQL HR source-review->pendingattendance->P+A/W/H/S/U factual register path, separate immutable0069receipt and verified exact retry, no leave approval/debit/accrual/payroll/month-close. Existing synthetic harness and restore gates unchanged. Windows isolated parser still unavailable and refuses without mutation.25targetedpass0skip onPython3.11.18/PG16.2; independent focused static review accepted after corrections, actual AR390/EN/ZH pixels inspected. Full boundary, source locks, replay and original owner authority: docs/REVIEWED_RETURN_REGISTER_1756.md. This completes a supported register prerequisite, not monthly accrual or Windows/device acceptance.
+
+
+## Instinct1759: preserve application warnings through in-process migration
+
+fileConfig now keeps existing application loggers enabled; original warning tests unchanged. Real migrated-PG regression fails old behavior and passes fixed behavior. Two existing source checks explicitly readUTF8. Isolated44pass13warnings, independent focused source review accepted. Actual852Linux firstshard3AIwarningfailures identified, no full hosted green or Windows parser claim. Details:docs/MIGRATION_LOGGING_1759.md.

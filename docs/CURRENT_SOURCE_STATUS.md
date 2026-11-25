@@ -238,3 +238,8 @@ Normal POSIX PostgreSQL HR source-review->pendingattendance->P+A/W/H/S/U factual
 
 
 Exact integrated shared source, based on8526380 runner pin:166passed,0skipped,1warning,67.34seconds. This is the focused register/source/opening/restore/parser/CI-contract suite, not whole-suite, Windows or hotel acceptance.
+
+
+## Instinct1759: preserve application warnings through in-process migration
+
+fileConfig now keeps existing application loggers enabled; original warning tests unchanged. Real migrated-PG regression fails old behavior and passes fixed behavior. Two existing source checks explicitly readUTF8. Isolated44pass13warnings, independent focused source review accepted. Actual852Linux firstshard3AIwarningfailures identified, no full hosted green or Windows parser claim. Details:docs/MIGRATION_LOGGING_1759.md.

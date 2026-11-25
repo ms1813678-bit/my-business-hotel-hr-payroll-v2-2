@@ -90,5 +90,5 @@ def test_inactive_employee_or_type_refused(draft_db,which):
 def test_request_only_notice_copy_is_absent():
     from pathlib import Path
     root=Path(__file__).resolve().parents[1]
-    assert 'error == "notice"' not in (root/'app/templates/leave.html').read_text()
-    assert 'Planned leave is normally requested 72' not in (root/'docs/PROJECT_SPEC.md').read_text()
+    assert 'error == "notice"' not in (root/'app/templates/leave.html').read_text(encoding='utf-8')
+    assert 'Planned leave is normally requested 72' not in (root/'docs/PROJECT_SPEC.md').read_text(encoding='utf-8')
