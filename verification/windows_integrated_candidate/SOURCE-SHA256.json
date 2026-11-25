@@ -4,7 +4,7 @@
   "verification/windows_integrated_candidate/acquire_locked.py": "4e998f4bc4f62921d0b9f92e9ae956e857d18cadb75dcd083ddd9a4f17847546",
   "verification/windows_integrated_candidate/candidate_parent.py": "ba3687dc22ab808b7dcf642dc9e9f42f592cea33314d8cb964e7940e386a687f",
   "verification/windows_integrated_candidate/candidate_worker.py": "d99eac2c3dafd854fd3a3e2fca7b91049cf3ef7fb19ce0656de6e5b311d0e4fa",
-  "verification/windows_integrated_candidate/launcher.c": "b5b47bd91a777045384dc2e47eb4d2e88fc6d80f44934958215f33c6d3b9bf71",
+  "verification/windows_integrated_candidate/launcher.c": "48943a44b1d5ae58bd323805ceef934bb1c844c4e3c6b05ec4ac9d27979d8d7e",
   "verification/windows_integrated_candidate/qualify_runtime.ps1": "39afe1c192f31b740ed079e23c0f53f1d9392224f6de114ace67bd44e6bd72c0",
   "verification/windows_integrated_candidate/request-xls.json": "5fa6c91986ebcc975ca084c269928ad00a5b606a8a2afe55b1cf46ccd72b9e57",
   "verification/windows_integrated_candidate/request-xlsx.json": "0e410113b04e111b4dac796efcde3f802ea30a56634c2ba77e58ecaf02e802ca",

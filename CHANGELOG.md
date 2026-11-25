@@ -309,3 +309,7 @@ Separate parser candidate only: attach debugger to the actual suspended child, r
 ## Instinct: debug-at-creation diagnostic baseline, 25 November 2026
 
 The attach-based attempt refused at the resume gate with actual prior count unrecorded, not a new C0000022 finding. A separate diagnostic baseline now adds DEBUG_ONLY_THIS_PROCESS at creation alongside CREATE_SUSPENDED, holds the first creation event before user code, verifies identity/token/Job, records and requires exactly one prior suspension before continuing. No count normalization. Held file ownership is consumed before close; cleanup kills before releasing any failed gate and never detaches an unconfirmed live child. Effective inherited mitigation parity remains unverified. No production parser enablement or workload budget change.
+
+## Instinct: corrected debug-created event sequence, 25 November 2026
+
+The preceding distinct debug-created candidate timed out waiting for its first creation event before Resume, not a child parser failure. Move the single recorded exact-1 Resume after original suspended identity/token/Job checks and before waiting for the first creation event. The event is documented before user-mode execution; its exact identity/token/Job checks still precede Continue. No repeated resumes, zero-count acceptance, workload budget change, normal-execution acceptance or production enablement. If this supported diagnostic protocol refuses again, consolidate the tooling blocker rather than serial unqualified variants.

@@ -89,6 +89,10 @@ int wmain(int argc,wchar_t **argv){
  fprintf(stderr,"CANDIDATE_CREATED pid=%lu suspended=1\n",(unsigned long)GetProcessId(pi.hProcess));
  stage="verify_before_resume";if(!verify_created_child(pi.hProcess,job,sid,1))goto done;
  /* Debug relation already established atomically at creation. */
+ stage="resume_before_first_creation_event";
+ {SetLastError(0);DWORD prior=ResumeThread(pi.hThread);DWORD error=prior==(DWORD)-1?GetLastError():0;
+ fprintf(stderr,"loader_debug_resume prior_suspend_count=%lu api_failed=%d api_error=%lu pre_resume_token_job_verified=1 distinct_creation_baseline=1\n",(unsigned long)prior,prior==(DWORD)-1,(unsigned long)error);
+ if(prior!=1)goto done;}
  stage="hold_initial_debug_event";
  if(!WaitForDebugEventEx(&held,2000))goto done;event_held=1;
  if(held.dwDebugEventCode!=CREATE_PROCESS_DEBUG_EVENT || held.dwProcessId!=pi.dwProcessId || held.dwThreadId!=pi.dwThreadId)goto done;
@@ -104,10 +108,6 @@ int wmain(int argc,wchar_t **argv){
  stage="start_feeder";feeder=CreateThread(NULL,0,feed_input,&feed,0,NULL);if(!feeder)goto done;
  drain.pipe=out_read;drain.bytes=response;
  stage="start_reader";reader=CreateThread(NULL,0,drain_output,&drain,0,NULL);if(!reader)goto done;
- stage="resume_under_held_debug_event";
- {SetLastError(0);DWORD prior=ResumeThread(pi.hThread);DWORD error=prior==(DWORD)-1?GetLastError():0;
- fprintf(stderr,"loader_debug_resume prior_suspend_count=%lu api_failed=%d api_error=%lu held_create_event=1 distinct_creation_baseline=1\n",(unsigned long)prior,prior==(DWORD)-1,(unsigned long)error);
- if(prior!=1)goto done;}
  if(held.u.CreateProcessInfo.hFile){HANDLE owned_file=held.u.CreateProcessInfo.hFile;held.u.CreateProcessInfo.hFile=NULL;if(!CloseHandle(owned_file))goto done;}
  stage="continue_initial_debug_event";if(!ContinueDebugEvent(held.dwProcessId,held.dwThreadId,DBG_CONTINUE))goto done;event_held=0;
  fputs("CANDIDATE_RESUMED containment_verified=1\n",stderr);

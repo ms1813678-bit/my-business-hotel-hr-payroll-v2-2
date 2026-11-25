@@ -1,5 +1,5 @@
 name: Integrated synthetic Windows parser candidate
-# Revision: debug-at-creation distinct diagnostic baseline, exact1 resume gate
+# Revision: explicit suspended verification then exact1 resume before first debug event
 on:
   push:
     branches: [ui-overhaul]
