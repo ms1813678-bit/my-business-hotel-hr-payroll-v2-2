@@ -2858,6 +2858,8 @@ def approve_payroll_run_route(
 ):
     try:
         with SessionLocal.begin() as db:
+            from app.overtime_day_award import monthly_lock_scope
+            monthly_lock_scope(db)
             run = db.scalar(
                 select(PayrollRun).where(PayrollRun.id == run_id).with_for_update()
             )
@@ -2885,6 +2887,8 @@ def absence_leave_review_route(
         run_id = item.payroll_run_id
     try:
         with SessionLocal.begin() as db:
+            from app.overtime_day_award import monthly_lock_scope
+            monthly_lock_scope(db)
             review_absence_leave_conflict(db, db.get(PayrollItem, item_id), admin.username)
     except (ValueError, SQLAlchemyError):
         return RedirectResponse(f"/payroll/runs/{run_id}?error=item", status_code=303)
@@ -2898,6 +2902,8 @@ def close_payroll_run_route(
 ):
     try:
         with SessionLocal.begin() as db:
+            from app.overtime_day_award import monthly_lock_scope
+            monthly_lock_scope(db)
             run = db.scalar(
                 select(PayrollRun).where(PayrollRun.id == run_id).with_for_update()
             )
@@ -2917,6 +2923,8 @@ def reopen_payroll_run_route(
 ):
     try:
         with SessionLocal.begin() as db:
+            from app.overtime_day_award import monthly_lock_scope
+            monthly_lock_scope(db)
             run = db.scalar(
                 select(PayrollRun).where(PayrollRun.id == run_id).with_for_update()
             )
@@ -2934,7 +2942,7 @@ def update_payroll_item_route(
     attendance_bonus: Decimal = Form(Decimal("0")),
     performance_bonus: Decimal = Form(Decimal("0")),
     occupancy_bonus: Decimal = Form(Decimal("0")),
-    overtime_hours: Decimal = Form(Decimal("0")),
+    overtime_hours: Decimal | None = Form(None),
     other_bonus: Decimal = Form(Decimal("0")),
     absence_days: Decimal = Form(Decimal("0")),
     lateness_deduction: Decimal = Form(Decimal("0")),
@@ -2947,6 +2955,8 @@ def update_payroll_item_route(
     run_id = None
     try:
         with SessionLocal.begin() as db:
+            from app.overtime_day_award import monthly_lock_scope
+            monthly_lock_scope(db)
             item = db.scalar(
                 select(PayrollItem).where(PayrollItem.id == item_id).with_for_update()
             )
@@ -2960,7 +2970,7 @@ def update_payroll_item_route(
                     "attendance_bonus": attendance_bonus,
                     "performance_bonus": performance_bonus,
                     "occupancy_bonus": occupancy_bonus,
-                    "overtime_hours": overtime_hours,
+                    **({"overtime_hours": overtime_hours} if overtime_hours is not None else {}),
                     "other_bonus": other_bonus,
                     "absence_days": absence_days,
                     "lateness_deduction": lateness_deduction,
@@ -2984,6 +2994,8 @@ def approve_overtime_route(
     run_id = None
     try:
         with SessionLocal.begin() as db:
+            from app.overtime_day_award import monthly_lock_scope
+            monthly_lock_scope(db)
             item = db.scalar(
                 select(PayrollItem).where(PayrollItem.id == item_id).with_for_update()
             )
@@ -3008,6 +3020,8 @@ def add_payroll_payment_route(
     run_id = None
     try:
         with SessionLocal.begin() as db:
+            from app.overtime_day_award import monthly_lock_scope
+            monthly_lock_scope(db)
             item = db.scalar(
                 select(PayrollItem).where(PayrollItem.id == item_id).with_for_update()
             )
@@ -3038,6 +3052,8 @@ def correct_payroll_payment_route(
     run_id = None
     try:
         with SessionLocal.begin() as db:
+            from app.overtime_day_award import monthly_lock_scope
+            monthly_lock_scope(db)
             payment = db.scalar(
                 select(PayrollPayment).where(PayrollPayment.id == payment_id).with_for_update()
             )
@@ -5122,3 +5138,6 @@ app.include_router(reconciliation_editor_router(templates))
 
 from app.leave_payroll_day_routes import payroll_day_handoff_router
 app.include_router(payroll_day_handoff_router(templates))
+
+from app.overtime_day_routes import overtime_day_router
+app.include_router(overtime_day_router(templates))

@@ -232,11 +232,13 @@ def recompute_payroll_item(item: PayrollItem, run: PayrollRun) -> None:
     overtime_rate = overtime_hourly_rate(
         Decimal(item.salary_basis), Decimal(item.performance_bonus), Decimal(item.daily_hours)
     )
-    item.overtime_amount = (
-        money(overtime_rate * Decimal(item.overtime_hours))
-        if item.overtime_approved
-        else Decimal("0.00")
-    )
+    if item.overtime_daily_digest is None:
+        item.overtime_amount = (
+            money(overtime_rate * Decimal(item.overtime_hours))
+            if item.overtime_approved else Decimal('0.00')
+        )
+    # Daily-ledger amount already carries its explicit monthly rounding contract.
+    # This pure calculator must not overwrite it using a single monthly divisor.
     item.absence_deduction = absence_deduction(
         Decimal(item.salary_basis),
         run.period_start.year,
@@ -301,6 +303,7 @@ def create_payroll_run(db: Session, *, year: int, month: int, actor: str) -> Pay
         periods_by_employee.setdefault(period.employee_id, []).append(period)
 
     run = PayrollRun(
+        overtime_daily_required=True,
         period_start=start,
         period_end=end,
         pay_date=pay_date,
@@ -428,6 +431,7 @@ def approve_overtime(db: Session, item: PayrollItem, actor: str) -> None:
     run = db.get(PayrollRun, item.payroll_run_id)
     if run is None or run.status not in {"draft", "reopened"}:
         raise ValueError("Overtime can be approved only while payroll is draft or reopened.")
+    if run.overtime_daily_required or item.overtime_daily_digest is not None:raise ValueError('Daily overtime requires daily source review, not monthly approval.')
     hours = Decimal(item.overtime_hours or 0)
     if hours <= 0:
         raise ValueError("Positive overtime hours are required before approval.")
@@ -455,6 +459,7 @@ def update_payroll_item(
     )
     if Decimal(str(paid_total or 0)) > 0:
         raise ValueError("A payroll item with recorded payments cannot be edited; record an adjustment separately.")
+    if (run.overtime_daily_required or item.overtime_daily_digest is not None) and 'overtime_hours' in values and Decimal(str(values['overtime_hours'] or 0))!=item.overtime_hours:raise ValueError('Daily overtime hours require an explicit day replacement.')
     old = {}
     new = {}
     for key, value in values.items():
@@ -479,6 +484,7 @@ def update_payroll_item(
         item.overtime_approved = False
         item.overtime_approved_by = None
         item.overtime_approved_at = None
+        if item.overtime_daily_digest is not None:item.overtime_amount=Decimal('0.00')
     if item.overtime_hours <= 0:
         item.overtime_approved = False
         item.overtime_approved_by = None
@@ -520,6 +526,11 @@ def approve_payroll_run(db: Session, run: PayrollRun, actor: str) -> None:
     if conflicted:
         raise AbsenceLeaveConflictError(sorted(conflicted))
     for item in items:
+        from app.overtime_day_award import item_has_payment
+        if item_has_payment(db,item.id):continue # Existing paid snapshot remains frozen.
+        if run.overtime_daily_required or item.overtime_daily_digest is not None:
+            from app.overtime_day_award import verify_monthly_snapshot
+            verify_monthly_snapshot(db,item)
         recompute_payroll_item(item, run)
     old = run.status
     run.status = "approved"
@@ -538,6 +549,12 @@ def close_payroll_run(db: Session, run: PayrollRun, actor: str) -> None:
     items = db.scalars(
         select(PayrollItem).where(PayrollItem.payroll_run_id == run.id)
     ).all()
+    for item in items:
+        from app.overtime_day_award import item_has_payment
+        if item_has_payment(db,item.id):continue # Existing paid snapshot remains frozen.
+        if run.overtime_daily_required or item.overtime_daily_digest is not None:
+            from app.overtime_day_award import verify_monthly_snapshot
+            verify_monthly_snapshot(db,item)
     employee_ids = {item.employee_id for item in items}
     now = utcnow()
     run_installments = db.scalars(
@@ -646,6 +663,7 @@ def reopen_payroll_run(db: Session, run: PayrollRun, actor: str, reason: str) ->
         raise ValueError("A reason is required to reopen payroll.")
     _reverse_advance_installments_for_run(db, run, actor)
     run.status = "reopened"
+    run.overtime_daily_required=True
     run.reopened_by = actor
     run.reopened_at = utcnow()
     run.reopen_reason = reason.strip()
@@ -687,6 +705,9 @@ def add_payroll_payment(
     run = db.get(PayrollRun, item.payroll_run_id)
     if run is None or run.status != "closed":
         raise ValueError("Payments can be recorded only after payroll is closed.")
+    if run.overtime_daily_required or item.overtime_daily_digest is not None:
+        from app.overtime_day_award import verify_frozen_monthly_snapshot
+        verify_frozen_monthly_snapshot(db,item)
     if method not in {"cash", "bank_transfer"}:
         raise ValueError("Invalid payment method.")
     if amount <= 0:

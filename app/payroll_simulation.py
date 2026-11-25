@@ -69,6 +69,8 @@ _ITEM_FIELDS = [
     "overtime_hours",
     "overtime_approved",
     "overtime_amount",
+    "overtime_daily_digest",
+    "overtime_daily_hours",
     "absence_days",
     "absence_deduction",
     "late_minutes",
@@ -152,6 +154,8 @@ def simulate_run_adjustment(
             baseline = _transient_copy(item)
             recompute_payroll_item(baseline, run)
             hypothetical = _transient_copy(item)
+            if item.overtime_daily_digest is not None and field in {'performance_bonus','overtime_hours'}:
+                raise ValueError('daily_overtime_requires_day_review_simulation')
             current = Decimal(hypothetical.__getattribute__(field))
             hypothetical.__setattr__(
                 field, money(current + amount) if mode == "add" else money(amount)

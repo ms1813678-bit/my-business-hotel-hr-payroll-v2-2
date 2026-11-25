@@ -552,6 +552,8 @@ def execute_plan(plan: dict[str, Any], actor: str, *, db=None, human_coverage_co
             return ExecutionResult(action, {"month_id": plan["month_id"]})
 
         if action in {"approve_payroll_run", "close_payroll_run", "reopen_payroll_run"}:
+            from app.overtime_day_award import monthly_lock_scope
+            monthly_lock_scope(db)
             run = db.scalar(select(PayrollRun).where(PayrollRun.id == int(plan["payroll_run_id"])).with_for_update())
             if run is None: raise ValueError("مسير الرواتب غير موجود.")
             if action == "approve_payroll_run": approve_payroll_run(db, run, actor); return ExecutionResult(action, {"run_id": run.id})

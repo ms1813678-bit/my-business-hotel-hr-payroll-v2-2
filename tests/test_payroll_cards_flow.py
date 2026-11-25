@@ -50,7 +50,9 @@ def test_draft_run_cards_render_with_working_edit_form(guard_client):
         page, re.S)
     assert form, "edit form missing"
     names = set(re.findall(r'name="([^"]+)"', form.group(1)))
-    assert EDIT_FIELDS - names == set(), EDIT_FIELDS - names
+    assert EDIT_FIELDS - {"overtime_hours"} - names == set(), EDIT_FIELDS - names
+    assert "overtime_hours" not in names
+    assert f'href="/payroll/items/{item_id}/overtime-days"' in page
     assert "csrf_token" in names
 
 
@@ -141,3 +143,11 @@ def test_closed_run_card_payments_history_correction_and_new_payment(guard_clien
     with client.test_session_factory() as db:
         refs = [p.reference for p in db.scalars(select(PayrollPayment)).all()]
         assert "RCP-1" in refs
+
+
+def test_new_product_run_requires_daily_overtime(guard_client):
+    from app.models import PayrollRun
+    client=guard_client;login(client)
+    run_id,item_id=create_run(client)
+    with client.test_session_factory() as db:
+        assert db.get(PayrollRun,run_id).overtime_daily_required is True

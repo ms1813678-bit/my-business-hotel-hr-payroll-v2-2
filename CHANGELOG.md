@@ -1,3 +1,10 @@
+## 2026-11-25 - Daily overtime review source checkpoint by Instinct
+
+- Add authenticated, source-bound manual daily review with explicit confirmation, append-only corrections, 8/9/12 hourly-rate divisors and explicit monthly aggregation. Basic plus performance basis, monthly sum of unrounded day amounts rounded once. No automatic awards.
+- Add additive0065 receipt/award migration with immutable predecessor scope, stale source/session/restore checks and serialized review/monthly/AI lock ordering. Preserve finance payroll access without finance leave-ledger writes or assistant payroll access.
+- Protect paid/closed snapshots, mixed paid/unpaid reopen and corrected historical payment chains. Approval/close require fresh sources; installment recording uses frozen proof without re-reading mutable attendance. Unpaid monthly-only bypass is refused.
+- Owner-selected stacked Arabic/English/Chinese desktop/mobile review preview inspected. Developer qualification spans five disjoint runs:1775 passed,44 skipped of1819 collected nodes; mixed PostgreSQL/SQLite, not one full-suite run. Independent source/artifact review accepted bounded backend, not independent runtime/native/hotel-device acceptance. See CURRENT_SOURCE_STATUS for exact limits.
+
 ## 2026-11-25 - Reviewed inert1102 replacement by Instinct
 
 - One separately reviewed/approved replacement attempt. Exact1102 source corrects win32file reparse-flag namespace and definite lstat absence checks. Previous1057 attempt failed preflight before create, no native ACL/service/probe acceptance. No product install/start or fallback.

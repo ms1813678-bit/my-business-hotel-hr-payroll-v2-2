@@ -108,7 +108,7 @@ def test_exemption_table_has_no_unknown_entries():
     # state, and a mid-window read of that state is exactly what the gate
     # exists to block (peer finding on bc74a88).
     assert not restore_gate_exempt("GET", "/settings/password")
-    assert len(GATE_EXEMPT_POST_PATTERNS) == 5
+    assert len(GATE_EXEMPT_POST_PATTERNS) == 6
     assert restore_gate_exempt("POST", "/leave/month-review/reconciliation-snapshot")
     assert restore_gate_exempt("POST", "/leave/month-review/reconciliation-draft")
     assert not restore_gate_exempt("POST", "/leave/month-review/reconciliation-draft/x")
@@ -163,3 +163,11 @@ def test_operational_router_canonical_validation_precedes_exclusive_service():
         assert not restore_gate_exempt('POST',path+'\n')
         assert not restore_gate_exempt('POST',path.replace('/1/','/01/'))
         assert not restore_gate_exempt('POST',path.replace('a'*64,'A'*64))
+
+
+def test_daily_overtime_gate_exemption_exact_and_monthly_shared_gate():
+    assert not restore_gate_exempt('GET','/payroll/items/1/overtime-days')
+    for action in ('review','confirm','monthly'):
+        assert restore_gate_exempt('POST','/payroll/items/1/overtime-days/'+action)
+        assert not restore_gate_exempt('POST','/payroll/items/1/overtime-days/'+action+'/other')
+    assert not restore_gate_exempt('POST','/payroll/runs/1/approve')

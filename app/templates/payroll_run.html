@@ -97,7 +97,7 @@
           <label>مكافأة حضور<input type="number" name="attendance_bonus" min="0" step="0.01" value="{{ item.attendance_bonus }}"></label>
           <label>مكافأة أداء<input type="number" name="performance_bonus" min="0" step="0.01" value="{{ item.performance_bonus }}"></label>
           <label>مكافأة إشغال<input type="number" name="occupancy_bonus" min="0" step="0.01" value="{{ item.occupancy_bonus }}"></label>
-          <label>ساعات إضافي<input type="number" name="overtime_hours" min="0" step="0.25" value="{{ item.overtime_hours }}"></label>
+          {% if not run.overtime_daily_required and not item.overtime_daily_digest %}<label>ساعات إضافي<input type="number" name="overtime_hours" min="0" step="0.25" value="{{ item.overtime_hours }}"></label>{% else %}<p>ساعات الإضافي من مراجعة الأيام: {{ item.overtime_hours }} · <a href="/payroll/items/{{ item.id }}/overtime-days">مراجعة وتأكيد الأيام</a></p>{% endif %}
           <label>مكافآت أخرى<input type="number" name="other_bonus" min="0" step="0.01" value="{{ item.other_bonus }}"></label>
           <label>أيام غياب معتمدة<input type="number" name="absence_days" min="0" max="31" step="0.25" value="{{ item.absence_days }}"></label>
           <label>خصم تأخير/انصراف مبكر<input type="number" name="lateness_deduction" min="0" step="0.01" value="{{ item.lateness_deduction }}"></label>
@@ -107,7 +107,7 @@
           <label>ملاحظات<input name="note" value="{{ item.note or '' }}"></label>
         </div>
         <button type="submit">حفظ ومراجعة الصافي</button>
-        {% if item.overtime_hours > 0 %}
+        {% if item.overtime_hours > 0 and not run.overtime_daily_required and not item.overtime_daily_digest %}
         {% if item.overtime_approved %}
         <span class="muted"><span>تم اعتماد الإضافي بواسطة</span> {{ item.overtime_approved_by }} <span>في</span> {{ item.overtime_approved_at|fmt_dt }}.</span>
         {% else %}

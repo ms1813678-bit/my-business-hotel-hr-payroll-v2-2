@@ -1,13 +1,13 @@
 # Current source and verification status
 
-Instinct, 25 November 2026, 12:25 Africa/Cairo. This page corrects the stale operational index. Historical documents remain available, but their old commit, test and readiness claims are not current acceptance.
+Instinct, 25 November 2026, 12:44 Africa/Cairo. This page corrects the stale operational index. Historical documents remain available, but their old commit, test and readiness claims are not current acceptance.
 
 ## Source of truth
 
 - Repository: [my-business-hotel-hr-payroll-v2-2](https://github.com/ms1813678-bit/my-business-hotel-hr-payroll-v2-2).
 - Development branch: `ui-overhaul`. `main` is not the development target. The owner controls merging.
 - Latest implementation commit at this checkpoint: [8357fa72](https://github.com/ms1813678-bit/my-business-hotel-hr-payroll-v2-2/commit/8357fa72da5815ff1c35d6cff2409a168b01563d). This documentation correction is separate from implementation. Before further work, read this page, check the live branch HEAD and working diff, then inspect the exact source body needed for the decision. A path existing is not proof that it is the intended candidate.
-- Current working tree also contains an unpublished Item2 daily-overtime draft, including proposed migration `0065_overtime_day_review`. It is not in 8357fa72. Do not infer deployed schema or feature availability from those local files.
+- This checkpoint adds the reviewed Item2 daily-overtime implementation and additive migration `0065_overtime_day_review` on top of 1660d473. This is source publication, not proof of deployed schema or hotel-device acceptance.
 - No hotel-device installation or acceptance is established. Use synthetic data until acceptance.
 
 ## Published changes and their limits
@@ -32,15 +32,17 @@ A later portable consultation prompt described the ordinary candidate while poin
 
 Other runtime/host-runner proposals remain separate unadopted proposals. Do not infer their presence, test results or approval from another artifact's name. No new native execution is authorized by documentation.
 
-## Unpublished Item2 daily overtime
+## Item2 daily overtime source checkpoint
 
 Current local work prepares manual same-day review, explicit confirmation, append-only correction and explicit monthly aggregation. It preserves finance payroll access and denies assistant payroll access; it does not grant finance leave-ledger writes. The owner chose stacked review details and monthly summation of unrounded daily values, rounding once at monthly money storage. Divisors8/9/12 determine the hourly rate, not a roster. No automatic award is intended.
 
 - Backend review accepted bounded stages, not all of Item2. Daily GET shared read/restore gate, source freshness at approval/close, frozen payment proof, mixed paid/unpaid handling and predecessor binding have targeted tests.
 - Actual browser previews in Arabic, English and Chinese were inspected at desktop and390px mobile widths, using synthetic data. This is not native Windows or hotel-device acceptance.
-- Latest targeted checkpoint:144 passed, mixed migrated PostgreSQL and legacy SQLite fixtures, not144 PostgreSQL cases and not a full-suite pass. Later consumer/lock tests also ran separately; do not add overlapping counts.
-- Broader regression is unfinished. Deterministic split group0:481 passed,9 skipped; group1:475 passed,1 skipped; group2:397 passed,11 skipped,9 failed in synthetic-transition guards with the current database name. Group3 timed out. Exact baseline comparison and remaining coverage are pending. A timed-out whole-suite attempt is not a result.
-- A remaining regression was identified in the unpublished frozen-payment guard: already partly paid historical monthly overtime with no daily digest can be stranded after reopen/re-close. Fix and test the paid-legacy exception before publishing this draft. Unpaid monthly-only bypass must remain blocked.
+- Final developer qualification: 1819 collected nodes across 158 files, executed as five disjoint completed runs on Python3.11.18: 481 passed/9 skipped, 475/1, 409/11, 241/21 and 169/2. Deduplicated result: 1775 passed, 44 skipped, zero failures. This was not a single full-suite run. Fixtures include migrated PostgreSQL and legacy SQLite, not1775 PostgreSQL cases. Prior focused counts overlap and are not added.
+- Dedicated PostgreSQL names remain enforced. Baseline8357 on fresh0064 had13 name-guard failures (nine leave, four return-cycle); current fresh0065 with the correct separate synthetic_leave and synthetic_cycle fixtures clears them. Two earlier downgrade failures came from a stale disposable0065 schema; rebuilt exact migration tests pass. No fixture guard was weakened.
+- The44 skipped nodes retain explicit dedicated acceptance flags, committed synthetic fixture/client requirements and SQLite-only concurrency limitations. Exact execution IDs, JUnit, source hashes and skip reasons are retained in qualification artifact SHA256 `0fd68a1936c3d9733a7fabeccbcd7427b3ba8f78e4316d9205d8a8c8bd3fb44d`. Four generated fingerprint parameter display IDs contain ZIP timestamps; actual execution IDs are retained, and collection comparison normalizes only those display IDs.
+- Paid-legacy correction is fixed: partly paid historical monthly overtime remains frozen through reopen/reapprove/reclose and later installments, including append-only payment corrections. Unpaid monthly-only first-payment bypass remains refused. Actual PostgreSQL chain and authenticated/CSRF HTTP route tests passed. Superseded payment records still establish historical-paid status, while active records alone determine payment totals.
+- Independent exact source/artifact review accepted the bounded backend and reconciled test accounting. It did not execute these tests independently. No whole-system, Windows, native or hotel-device acceptance follows from it.
 - Daily-specific simulation and AI execution/snapshot tests exist; the AI advisory-before-table lock change has a concurrent PostgreSQL regression. Whole-system concurrency is not certified by one tested ordering.
 
 ## Historical archive and recovery gap
@@ -59,7 +61,7 @@ Current recovery status: the live repository has no `مهملات` branch. Neith
 ## Next checkpoints
 
 1. Recover the historical archive attachment and verify its real contents, prerequisites and recoverability.
-2. Finish Item2 paid-legacy guard correction, exact baseline comparison, disjoint collection/coverage report and independent review. Keep publication held until this corrective checkpoint is settled.
+2. Run remaining explicit acceptance fixtures and qualify installation/native/hotel-device behavior separately. The reviewed daily-overtime source checkpoint does not complete all of Item2 or the wider branch.
 3. Keep Item3 and remaining Item4 proposals separate until qualified and approved. No blanket completion.
 4. Qualify the narrow local-AI proxy/redirect fix separately. Local-canary findings do not establish an observed real-use disclosure; localhost resolution check/connect remains a stated limitation, not pinned transport.
 5. Update this index with each implemented or tested boundary, including exact commit/artifact, outcome, limits and next step. Before every handoff, inspect the exact referenced source body and compare candidate identities.

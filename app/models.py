@@ -2,7 +2,7 @@ from datetime import date, datetime, time, timezone
 from zoneinfo import ZoneInfo
 from decimal import Decimal
 
-from sqlalchemy import Boolean, CheckConstraint, Date, DateTime, ForeignKey, Index, Integer, LargeBinary, Numeric, String, Text, Time, UniqueConstraint, event
+from sqlalchemy import Boolean, CheckConstraint, Date, DateTime, ForeignKey, ForeignKeyConstraint, Index, Integer, LargeBinary, Numeric, String, Text, Time, UniqueConstraint, event
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
@@ -724,6 +724,7 @@ class PayrollRun(Base):
     period_end: Mapped[date] = mapped_column(Date, nullable=False)
     pay_date: Mapped[date] = mapped_column(Date, nullable=False)
     status: Mapped[str] = mapped_column(String(20), default="draft", nullable=False)
+    overtime_daily_required: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)
     created_by: Mapped[str] = mapped_column(String(80), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     approved_by: Mapped[str | None] = mapped_column(String(80))
@@ -771,11 +772,13 @@ class PayrollItem(Base):
     attendance_bonus: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=0, nullable=False)
     performance_bonus: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=0, nullable=False)
     occupancy_bonus: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=0, nullable=False)
-    overtime_hours: Mapped[Decimal] = mapped_column(Numeric(8, 2), default=0, nullable=False)
+    overtime_hours: Mapped[Decimal] = mapped_column(Numeric(12, 6), default=0, nullable=False)
     overtime_approved: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)
     overtime_approved_by: Mapped[str | None] = mapped_column(String(80))
     overtime_approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     overtime_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=0, nullable=False)
+    overtime_daily_digest: Mapped[str | None] = mapped_column(String(64))
+    overtime_daily_hours: Mapped[str | None] = mapped_column(Text)
     other_bonus: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=0, nullable=False)
     absence_days: Mapped[Decimal] = mapped_column(Numeric(6, 2), default=0, nullable=False)
     absence_deduction: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=0, nullable=False)
@@ -1151,3 +1154,42 @@ class LeaveReconciliationApproval(Base):
     integrity_digest: Mapped[str]=mapped_column(String(64),nullable=False)
     created_at: Mapped[datetime]=mapped_column(DateTime(timezone=True),nullable=False)
     __table_args__=(Index('uq_reconciliation_approval_baseline','scope_key',unique=True,postgresql_where=__import__('sqlalchemy').text('predecessor_id IS NULL')),)
+
+
+class OvertimeDayReviewReceipt(Base):
+    """Source-bound manual day review, no monthly payroll approval by itself."""
+    __tablename__ = 'overtime_day_review_receipts'
+    __table_args__ = (UniqueConstraint('id','item_id','work_date',name='uq_ot_receipt_scope'),
+        CheckConstraint('expires_at > created_at',name='ck_ot_receipt_expiry'))
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    item_id: Mapped[int] = mapped_column(ForeignKey('payroll_items.id'), nullable=False)
+    work_date: Mapped[date] = mapped_column(Date, nullable=False)
+    actor_id: Mapped[int] = mapped_column(ForeignKey('admin_accounts.id'), nullable=False)
+    session_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    session_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    restore_epoch: Mapped[str | None] = mapped_column(Text)
+    predecessor_id: Mapped[str | None] = mapped_column(ForeignKey('overtime_day_awards.receipt_id',use_alter=True,name='fk_ot_receipt_predecessor'))
+    proposal_json: Mapped[str] = mapped_column(Text, nullable=False)
+    source_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    integrity_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class OvertimeDayAward(Base):
+    """Immutable confirmed daily award, not a paid or monthly-posted receipt."""
+    __tablename__ = 'overtime_day_awards'
+    __table_args__ = (UniqueConstraint('predecessor_id', name='uq_overtime_award_successor'),
+        ForeignKeyConstraint(['receipt_id','item_id','work_date'],['overtime_day_review_receipts.id','overtime_day_review_receipts.item_id','overtime_day_review_receipts.work_date'],name='fk_ot_award_receipt_scope'),
+        Index('uq_overtime_award_baseline', 'item_id', 'work_date', unique=True, postgresql_where=__import__('sqlalchemy').text('predecessor_id IS NULL')),
+        CheckConstraint('manual_hours >= 0 AND (manual_hours > 0 OR predecessor_id IS NOT NULL) AND rate_divisor IN (8,9,12)', name='ck_overtime_award_values'))
+    receipt_id: Mapped[str] = mapped_column(ForeignKey('overtime_day_review_receipts.id'), primary_key=True)
+    predecessor_id: Mapped[str | None] = mapped_column(ForeignKey('overtime_day_awards.receipt_id'))
+    item_id: Mapped[int] = mapped_column(ForeignKey('payroll_items.id'), nullable=False)
+    work_date: Mapped[date] = mapped_column(Date, nullable=False)
+    manual_hours: Mapped[Decimal] = mapped_column(Numeric(12, 6), nullable=False)
+    rate_divisor: Mapped[int] = mapped_column(Integer, nullable=False)
+    source_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    amount_unrounded: Mapped[str] = mapped_column(Text, nullable=False)
+    confirmed_by: Mapped[int] = mapped_column(ForeignKey('admin_accounts.id'), nullable=False)
+    confirmed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

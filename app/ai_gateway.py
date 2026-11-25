@@ -283,6 +283,8 @@ def build_confirmation_preview(plan: dict[str, Any], *, session=None) -> dict[st
             risks.append("اعتماد الشهر شرط سابق لإنشاء واعتماد مسير الرواتب.")
 
         elif action in {"approve_payroll_run", "close_payroll_run", "reopen_payroll_run"}:
+            from app.overtime_day_award import monthly_lock_scope
+            monthly_lock_scope(db)
             run_id = plan.get("payroll_run_id")
             item = db.scalar(select(PayrollRun).where(
                 PayrollRun.id == int(run_id)).with_for_update()) if run_id is not None else None
@@ -306,7 +308,8 @@ def build_confirmation_preview(plan: dict[str, Any], *, session=None) -> dict[st
             # source coverage deliberately prefers false-stale over omission.
             source_names = {"leave_records", "leave_types", "attendance_months",
                 "attendance_daily_records", "advance_requests", "advance_installments",
-                "staff_actions", "employees", "employee_service_periods", "employee_changes"}
+                "staff_actions", "employees", "employee_service_periods", "employee_changes",
+                "overtime_day_awards", "overtime_day_review_receipts"}
             source_payload = {}
             for table in sorted(Employee.metadata.sorted_tables, key=lambda t: t.name):
                 if table.name in source_names:
@@ -506,6 +509,11 @@ def _lock_command_business_tables(db):
     partly committed mutation. Table order is stable across AI executions.
     """
     if db.bind.dialect.name == "postgresql":
+        # Same global order as daily OT: advisory gate before business tables.
+        # Taking business tables first can deadlock a daily writer holding the
+        # exclusive advisory gate while waiting for one of these tables.
+        from app.restore_lock import acquire_authenticated_read_lock
+        acquire_authenticated_read_lock(db)
         db.execute(text("SET LOCAL lock_timeout = '3s'"))
         names = sorted(table.name for table in Employee.metadata.sorted_tables
                        if table.name not in {"ai_command_approvals", "ai_conversation_messages"})

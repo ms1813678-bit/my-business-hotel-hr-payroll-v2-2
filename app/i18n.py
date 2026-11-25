@@ -4785,3 +4785,52 @@ ZH['عرض الهدف والفرق بالقيم الدقيقة دون تقريب
 # Operational readiness diagnosis, not malformed-source or budget failure.
 EN['قراءة ملف البصمة المعزولة غير متاحة على نظام التشغيل الحالي. لم يتم حفظ مراجعة أو تسجيل حضور. يلزم استكمال دعم ويندوز قبل المتابعة.']='Isolated fingerprint-file reading is unavailable on this operating system. No review or attendance registration was saved. Windows support must be completed before continuing.'
 ZH['قراءة ملف البصمة المعزولة غير متاحة على نظام التشغيل الحالي. لم يتم حفظ مراجعة أو تسجيل حضور. يلزم استكمال دعم ويندوز قبل المتابعة.']='当前操作系统尚不支持隔离读取考勤指纹文件。未保存复核或考勤记录。必须先完成 Windows 支持才能继续。'
+
+# Source-bound daily overtime review and append-only corrections.
+for _ar,_en,_zh in [
+('مراجعة إضافي اليوم','Daily overtime review','每日加班复核'),
+('العودة للمسير','Back to payroll run','返回工资单'),
+('لم يتم التأكيد. تغير المصدر أو انتهت المراجعة أو أن البيانات غير مكتملة. راجع السجل الحالي وأعد المراجعة.','Not confirmed. The source changed, the review expired, or data is incomplete. Check the current record and review again.','未确认。来源已变更、复核已过期或数据不完整。请检查当前记录并重新复核。'),
+('الساعات تدخل يدويًا وتقارن بحضور نفس اليوم. 8 و9 و12 أساس ساعات اليوم لحساب السعر فقط وليست جدول ورديات. الأساسي المحفوظ','Enter hours manually and compare with the same day attendance. 8, 9 and 12 are rate bases only, not a shift schedule. Stored basic salary','手动输入时数并与当天考勤比较。8、9、12仅用于计算时薪，不是排班表。已保存的基本工资'),
+('ومكافأة الأداء','and performance bonus','及绩效奖金'),
+('فقط يدخلان الحساب.','are the only pay inputs.','是仅有的工资计算输入。'),
+('تأكيد اليوم ليس صرفًا ولا اعتمادًا نهائيًا للمسير. التصحيح يحفظ القرار السابق ويضيف بديلًا مع السبب.','Confirming a day does not record payment or final payroll approval. A correction keeps the previous decision and adds a replacement with a reason.','确认某天不代表付款或最终批准工资单。更正会保留原决定，并附理由新增替代记录。'),
+('الساعات اليدوية','Manual hours','手动时数'),
+('أساس ساعات اليوم لحساب السعر','Daily hours used to calculate the rate','计算时薪的每日小时基数'),
+('السبب، مطلوب عند تجاوز زيادة الحضور','Reason, required when hours exceed the attendance surplus','理由，超出考勤增量时必须填写'),
+('مراجعة يوم جديد قبل التأكيد','Review a new day before confirming','确认前复核新的一天'),
+('راجع ثم أكد','Review, then confirm','先复核，再确认'),
+('زيادة مدة الحضور التشخيصية، ليست استحقاقًا','Attendance duration surplus for comparison, not entitlement','用于比较的考勤时长增量，不代表应得加班'),
+('أساس ساعات اليوم','Daily hours rate basis','每日小时计薪基数'),
+('المبلغ للعرض فقط، ليس المبلغ النهائي للمسير','Display amount only, not the final payroll amount','仅展示金额，并非最终工资金额'),
+('القيمة قبل التقريب','Value before rounding','舍入前数值'),
+('انتهاء المراجعة','Review expires','复核到期时间'),
+('هذا بديل لقرار سابق، يبقى القرار السابق في السجل.','This replaces a previous decision. The previous decision remains in history.','此记录替代先前决定。原决定仍保留在历史中。'),
+('راجعت اليوم والساعات والسعر والسبب وأؤكد القرار','I reviewed the day, hours, rate and reason, and confirm this decision','我已复核日期、时数、时薪及理由，并确认本次决定'),
+('تأكيد إضافي هذا اليوم','Confirm overtime for this day','确认当天加班'),
+('القرارات الحالية لكل يوم','Current decisions by day','每天的当前决定'),
+('مراجعة تصحيح هذا اليوم','Review a correction for this day','复核当天更正'),
+('الساعات المصححة','Corrected hours','更正后的时数'),
+('سبب التصحيح','Correction reason','更正理由'),
+('عرض التصحيح قبل التأكيد','Preview correction before confirming','确认前预览更正'),
+('لا توجد قرارات يومية مؤكدة.','No confirmed daily decisions.','尚无已确认的每日决定。'),
+('مراجعة إجمالي الشهر من الأيام الحالية','Review monthly total from current days','根据当前每日记录复核月度合计'),
+('. تجمع قيم الأيام دون تقريب، ثم يقرب إجمالي الشهر مرة واحدة.','. Daily values are added without rounding, then the monthly total is rounded once.','。每日数值不舍入直接相加，然后仅对月度合计舍入一次。'),
+('راجعت قرارات الأيام الحالية وإجماليها','I reviewed the current daily decisions and their total','我已复核当前每日决定及其合计'),
+('تحديث بند الشهر من الأيام المؤكدة','Update monthly item from confirmed days','根据已确认天数更新月度工资项'),
+('يلزم تصحيح الأيام التي تغير مصدرها قبل تحديث إجمالي الشهر.','Correct days whose source changed before updating the monthly total.','更新月度合计前，必须更正来源已变更的天数。'),
+('لا توجد زيادة تحتاج سببًا','No excess requiring a reason','无需要说明理由的超出时数'),
+('· أساس ساعات اليوم','· Daily hours rate basis','· 每日小时计薪基数'),
+('· المبلغ للعرض','· Display amount','· 展示金额'),
+('· المبلغ','· Amount','· 金额'),
+('ساعات الإضافي من مراجعة الأيام:','Overtime hours from daily review:','来自每日复核的加班时数：'),
+('مراجعة وتأكيد الأيام','Review and confirm days','复核并确认每日记录'),
+]:
+    EN[_ar]=_en;ZH[_ar]=_zh
+
+EN['جنيه']='EGP';ZH['جنيه']='埃镑'
+EN['إلى']='to';ZH['إلى']='至'
+
+EN['الأساسي المحفوظ']='Stored basic salary';ZH['الأساسي المحفوظ']='已保存的基本工资'
+EN['سعر الساعة للعرض فقط']='Hourly rate for display only';ZH['سعر الساعة للعرض فقط']='仅展示时薪'
+EN['السعر قبل التقريب']='Rate before rounding';ZH['السعر قبل التقريب']='舍入前时薪'

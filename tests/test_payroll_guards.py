@@ -491,6 +491,9 @@ def test_unchanged_overtime_save_keeps_approval(guard_client):
     login(client)
     run_id, item_id = create_run(client)
     client.test_run_id = run_id
+    # Historical monthly-only compatibility regression, not new daily workflow.
+    with client.test_session_factory.begin() as db:
+        db.get(PayrollRun,run_id).overtime_daily_required=False
     save_item(client, item_id, overtime_hours=2)
     page = client.get(f"/payroll/runs/{run_id}")
     token = csrf(page)
@@ -511,6 +514,9 @@ def test_changed_overtime_resets_approval(guard_client):
     login(client)
     run_id, item_id = create_run(client)
     client.test_run_id = run_id
+    # Historical monthly-only compatibility regression, not new daily workflow.
+    with client.test_session_factory.begin() as db:
+        db.get(PayrollRun,run_id).overtime_daily_required=False
     save_item(client, item_id, overtime_hours=2)
     page = client.get(f"/payroll/runs/{run_id}")
     token = csrf(page)
@@ -729,3 +735,22 @@ def test_corrected_payment_excluded_from_excel_and_ai_reports(guard_client, monk
     assert report["status"] == "closed"
     assert len(report["items"]) == 1
     assert report["items"][0]["paid"] == "2000.00"
+
+
+def test_correction_route_cannot_create_first_payment(guard_client):
+    client=guard_client
+    login(client)
+    run_id,item_id=create_run(client);client.test_run_id=run_id
+    with client.test_session_factory() as db:
+        run=db.get(PayrollRun,run_id);run.status='closed';run.overtime_daily_required=True
+        item=db.get(PayrollItem,item_id);item.overtime_hours=2;item.overtime_amount=50
+        db.commit()
+    response=correct_payment(client,987654321,1)
+    assert response.status_code==303 and response.headers["location"]=="/payroll?error=payment"
+    with client.test_session_factory() as db:
+        assert db.scalar(select(PayrollPayment.id)) is None
+    page=client.get(f'/payroll/runs/{run_id}')
+    response=client.post(f'/payroll/items/{item_id}/payments',data={'csrf_token':csrf(page),'amount':'1','paid_date':'2026-10-31','method':'cash','reference':'Synthetic first payment bypass'},follow_redirects=False)
+    assert response.status_code==303 and 'error' in response.headers['location']
+    with client.test_session_factory() as db:
+        assert db.scalar(select(PayrollPayment.id)) is None

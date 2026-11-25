@@ -297,6 +297,11 @@ def test_overtime_requires_explicit_approval(payroll_client):
         item.overtime_approved = False
         db.commit()
 
+    # Historical monthly-only path regression. New-run daily requirement is
+    # separately exercised by actual migrated PG daily route/lifecycle tests.
+    with client.test_session_factory.begin() as db:
+        db.get(PayrollRun,run_id).overtime_daily_required=False
+
     response = client.post(
         f"/payroll/items/{item_id}/update",
         data={"csrf_token": csrf(client.get(f"/payroll/runs/{run_id}")),
@@ -389,6 +394,11 @@ def test_payroll_run_calculates_and_closes_once_then_tracks_partial_payment(payr
             acknowledgement_status="pending",
         ))
         db.commit()
+
+    # Keep this historical monthly-only calculation/payment regression.
+    # New payroll runs require source-bound daily review in the new PG suite.
+    with client.test_session_factory.begin() as db:
+        db.get(PayrollRun,run_id).overtime_daily_required=False
 
     updated = client.post(
         f"/payroll/items/{item_id}/update",
