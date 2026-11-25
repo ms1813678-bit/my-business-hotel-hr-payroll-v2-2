@@ -1,3 +1,7 @@
+## 2026-11-25 - Exercise exact native guarded popup with synthetic login by Instinct
+
+- Extend the isolated visible fixture to observe same-origin login popup handoff and exact environment/profile, parent DOM marker preservation, foreign popup guard refusal and popup close with owner. Production guard/window source untouched. Retain popup pixels only; not authenticated PDF/print, general unsaved-editor protection, network containment or language acceptance.
+
 ## 2026-11-25 - Match observed cleanup label whitespace by Instinct
 
 - Bounded character evidence confirms the removal dialog has whitespace before the label colon. Accept that label whitespace only; retain exact full normalized 40-digit SHA1 equality, owned helper PID/dialog and IDYES checks. Synthetic formatting check passes. No trust-policy or identity-check relaxation.

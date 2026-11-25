@@ -8,7 +8,12 @@ def run(root):
     from app.desktop_window import run_window
     origin=json.loads((root/'desktop.json').read_text())['origin']
     original=webview.create_window
-    evidence={}
+    from app.desktop_webview_guard import WebView2OriginGuard
+    guards=[];original_guard_init=WebView2OriginGuard.__init__
+    def observed_guard_init(self,*args,**kwargs):
+        original_guard_init(self,*args,**kwargs);guards.append(self)
+    WebView2OriginGuard.__init__=observed_guard_init
+    evidence={};observed_popups=[]
     def observed_create(*args,**kwargs):
         window=original(*args,**kwargs)
         def loaded():
@@ -35,6 +40,41 @@ def run(root):
                 image=ImageGrab.grab(bbox=box,all_screens=True)
                 image.save(root/'visible-login.png')
                 evidence.update(status='visible-login-rendered',password_inputs=parsed['passwords'],forms=parsed['forms'],exact_origin=True,width=image.width,height=image.height,normal_TLS=True)
+                root_guard=next(g for g in guards if g._window is window)
+                window.evaluate_js('document.querySelector("input[name=username]").value="synthetic-unsaved-marker";window.open(location.origin+"/login","_blank")')
+                until=time.monotonic()+15;popup=None
+                while time.monotonic()<until:
+                    candidates=[p for p in root_guard._popups if p.handed_off and not p.closed]
+                    if len(candidates)==1:
+                        popup=candidates[0]
+                        if popup not in observed_popups:observed_popups.append(popup)
+                        if str(popup.control.CoreWebView2.Source).startswith(origin+'/login'):break
+                    time.sleep(.1)
+                else:raise RuntimeError('actual guarded popup handoff missing')
+                # Native popup must retain exact production environment/profile.
+                core=popup.control.CoreWebView2;opener=root_guard._control.CoreWebView2
+                if core.Environment!=opener.Environment or core.Profile.ProfileName!=opener.Profile.ProfileName:raise RuntimeError('popup environment/profile mismatch')
+                if root_guard.opened_new_windows!=1:raise RuntimeError('popup open count mismatch')
+                if window.evaluate_js('document.querySelector("input[name=username]").value')!='synthetic-unsaved-marker':raise RuntimeError('parent unsaved marker replaced')
+                until=time.monotonic()+10
+                while time.monotonic()<until:
+                    holder=[]
+                    root_guard._marshal_to_ui(popup.control,lambda:holder.append(core.ExecuteScriptAsync('JSON.stringify({ready:document.readyState,passwords:document.querySelectorAll("input[type=password]").length})')))
+                    result=json.loads(json.loads(str(holder[0].Result)))
+                    if result.get('ready')=='complete' and result.get('passwords')==1:break
+                    time.sleep(.1)
+                else:raise RuntimeError('popup actual login DOM missing')
+                phwnd=int(popup.form.Handle.ToInt64());box=win32gui.GetWindowRect(phwnd)
+                ImageGrab.grab(bbox=box,all_screens=True).save(root/'visible-popup.png')
+                window.evaluate_js('window.open("https://foreign-popup.invalid/","_blank")')
+                until=time.monotonic()+5
+                while root_guard.blocked_new_windows!=1:
+                    if time.monotonic()>until:raise RuntimeError('foreign popup guard refusal missing')
+                    time.sleep(.1)
+                if root_guard.opened_new_windows!=1 or len(root_guard._popups)!=1:raise RuntimeError('foreign popup created native view')
+                evidence.update(popup_same_origin_login_rendered=True,popup_shared_environment_profile=True,parent_unsaved_marker_preserved=True,foreign_popup_guard_refused=True)
+                # This tests a marker, not a business editor save/close contract.
+
             except BaseException as exc:evidence.update(status='failed',error_type=type(exc).__name__)
             finally:window.destroy()
         window.events.loaded+=loaded
@@ -44,6 +84,10 @@ def run(root):
     threading.Timer(60,lambda:os._exit(97)).start()
     try:run_window(origin)
     finally:
+        (root/'visible-window-result.json').write_text(json.dumps(evidence))
+    if evidence.get('status')=='visible-login-rendered' and evidence.get('popup_same_origin_login_rendered'):
+        if len(observed_popups)!=1 or any(not p.closed or (p.control is not None and not p.control.IsDisposed) for p in observed_popups):raise RuntimeError('owned popup close unconfirmed')
+        evidence['popup_owner_close_confirmed']=True
         (root/'visible-window-result.json').write_text(json.dumps(evidence))
     if evidence.get('status')!='visible-login-rendered':raise RuntimeError('visible actual window failed')
     print('NATIVE_ACTUAL_VISIBLE_WINDOW_CLOSED_PASS',json.dumps(evidence),flush=True)

@@ -213,6 +213,7 @@ def parent(scm_mode=False,visible=False):
             evidence=pathlib.Path(os.environ['RUNNER_TEMP'])/'hony-visible-proof'
             if evidence.exists():raise RuntimeError('fresh proof output required')
             evidence.mkdir();shutil.copy2(root/'visible-login.png',evidence/'visible-login.png');shutil.copy2(root/'visible-window-result.json',evidence/'visible-window-result.json')
+            if (root/'visible-popup.png').is_file():shutil.copy2(root/'visible-popup.png',evidence/'visible-popup.png')
             print('NATIVE_ACTUAL_VISIBLE_CLOSE_SERVICE_HEALTH_PASS',flush=True)
         print('NATIVE_ACTUAL_HTTPS_BACKEND_DB_TLS_PASS',json.dumps({'production_settings':True,'real_app_health_database':'connected','strict_CA_hostname':True,'untrusted_CA_refused':True,'foreign_host_origin_refused':True,'no_store':True,'SCM_combined':scm_mode,'visible_window':visible}),flush=True)
     finally:
