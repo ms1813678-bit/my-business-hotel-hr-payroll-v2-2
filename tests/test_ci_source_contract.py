@@ -72,12 +72,16 @@ def test_dispatcher_migrates_and_runs_every_file_and_cleans(monkeypatch):
     monkeypatch.setenv('DATABASE_URL','postgresql+psycopg://synthetic@127.0.0.1/hotel_test')
     monkeypatch.setattr(runner.subprocess,'run',lambda args,**kw:commands.append((args,kw)))
     runner.main()
-    assert len(commands)==4
-    assert commands[0][0][-1]=='scripts.initialize_database' and commands[2][0][-1]=='scripts.initialize_database'
-    assert 'synthetic_leave_ci' in commands[1][1]['env']['DATABASE_URL']
-    assert 'synthetic_cycle_ci' in commands[3][1]['env']['DATABASE_URL']
-    actual=commands[1][0][4:]+commands[3][0][4:]
+    pytest_runs=[c for c in commands if c[0][2:3]==['pytest']]
+    inits=[c for c in commands if c[0][-1]=='scripts.initialize_database']
+    assert len(inits)==2 and len(pytest_runs)==runner.CHUNKS+1 and len(commands)==2+len(pytest_runs)
+    assert commands[0][0][-1]=='scripts.initialize_database'
+    assert all('synthetic_leave_ci' in c[1]['env']['DATABASE_URL'] for c in pytest_runs[:runner.CHUNKS])
+    assert 'synthetic_cycle_ci' in pytest_runs[-1][1]['env']['DATABASE_URL']
+    assert all(c[1]['timeout']==900 for c in pytest_runs)
+    actual=[f for c in pytest_runs for f in c[0][4:]]
     assert sorted(actual)==sorted(f for _,files in runner.assignments(WORKFLOW.parents[2]) for f in files)
+    assert len(actual)==len(set(actual))
     assert sum('CREATE DATABASE' in query for query,_ in calls)==2
     assert sum('DROP DATABASE' in query for query,_ in calls)==2
 
@@ -270,3 +274,51 @@ def test_linux_next_step_verifies_effective_path_not_only_candidate_binary():
     assert 'test "$(command -v pg_dump)" = /usr/lib/postgresql/16/bin/pg_dump' in linux
     assert 'test "$(command -v pg_restore)" = /usr/lib/postgresql/16/bin/pg_restore' in linux
     assert linux.index('Select PostgreSQL 16 client tools') < linux.index('Verify effective PostgreSQL client selection') < linux.index('python -m scripts.initialize_database')
+
+
+def test_leave_shard_chunks_are_complete_disjoint_ordered_and_balanced():
+    from scripts import run_ci_suite as runner
+    files=runner.assignments(WORKFLOW.parents[2])[0][1]
+    groups=runner.chunks(files)
+    assert len(groups)==runner.CHUNKS and all(groups)
+    assert [f for g in groups for f in g]==files and len({f for g in groups for f in g})==len(files)
+    weight=lambda g:sum(runner.WINDOWS_SECONDS_8E1.get(f,runner.DEFAULT_SECONDS) for f in g)
+    weights=[weight(g) for g in groups]
+    # Measured basis: one 900s session timed out at ~96%; every chunk must stay far below the cap.
+    assert max(weights)<=0.6*900 and max(weights)<=1.35*min(weights)
+
+
+def test_chunk_refuses_empty_or_lost_files():
+    import pytest
+    from scripts import run_ci_suite as runner
+    with pytest.raises(RuntimeError):runner.chunks(['tests/test_a.py'])
+
+
+import pytest
+
+
+@pytest.mark.parametrize('failure_kind', ['exit', 'timeout'])
+def test_failed_session_does_not_hide_later_chunks_or_cycle(monkeypatch, failure_kind):
+    from scripts import run_ci_suite as runner
+    import psycopg, subprocess
+    queries=[]; commands=[]
+    class Cursor:
+        def fetchone(self): return None
+    class Connection:
+        def __enter__(self): return self
+        def __exit__(self,*_): pass
+        def execute(self,query,params=None): queries.append(str(query)); return Cursor()
+    monkeypatch.setattr(psycopg,'connect',lambda *a,**k:Connection())
+    monkeypatch.setenv('DATABASE_URL','postgresql+psycopg://synthetic@127.0.0.1/hotel_test')
+    def run(args, **kw):
+        commands.append((args,kw))
+        if args[2:3] == ['pytest'] and len([x for x,_ in commands if x[2:3] == ['pytest']]) == 1:
+            if failure_kind == 'exit': raise subprocess.CalledProcessError(1,args)
+            raise subprocess.TimeoutExpired(args,900)
+    monkeypatch.setattr(runner.subprocess,'run',run)
+    with pytest.raises(RuntimeError, match='CI suite failed in sessions: synthetic_leave_ci:1'):
+        runner.main()
+    actual=[f for c,_ in commands if c[2:3] == ['pytest'] for f in c[4:]]
+    expected=[f for _,files in runner.assignments(WORKFLOW.parents[2]) for f in files]
+    assert sorted(actual)==sorted(expected) and len(actual)==len(set(actual))
+    assert sum('DROP DATABASE' in q for q in queries)==2
