@@ -1,3 +1,8 @@
+## 2026-11-25, Instinct: existing login-gate regression and protection limits
+
+- Add actual migrated-PostgreSQL HTTP/CSRF concurrency tests for the existing login advisory gate, persisted two-attempt/two-hour lock and single audit event. No product authentication/policy change.
+- Document the bounded evidence, archive-versus-live-database encryption protection and unresolved Windows scheduled execution-path trust checks. No ACL, task-account or crypto redesign.
+
 ## 2026-11-25, Instinct: monthly period history and evidence truth
 
 - Include former employees with monthly record evidence and show current service status without changing custom defaults, state/date filters or roles.
