@@ -1,3 +1,9 @@
+## 2026-11-25 - Current source index correction by Instinct
+
+- Point the operational index to published recovery commita9fb08b1 and0065 schema. Keep the unpublished0066 assertion candidate and held admission dependency separate.
+- Record exact recovery and internal-slice verification boundaries, without treating source-only review as runtime acceptance. Historical archive recovery remains an open evidence gap, not a first-step blocker for independent work.
+- Documentation only. No new product, permission, device or whole-project acceptance claim.
+
 ## 2026-11-25 - One-use disaster recovery login proof by Instinct
 
 - After an encrypted restore into an accountless target, allow the exact validated newer recovery record used to open the archive to prove possession once. Keep the account password, sensitive-action throttle, forced password change and recovery-code regeneration restrictions. Login and account recovery consume the proof only with their complete successful transaction.

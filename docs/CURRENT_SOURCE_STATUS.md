@@ -1,13 +1,13 @@
 # Current source and verification status
 
-Instinct, 25 November 2026, 12:44 Africa/Cairo. This page corrects the stale operational index. Historical documents remain available, but their old commit, test and readiness claims are not current acceptance.
+Instinct, 25 November 2026, 15:29 Africa/Cairo. This page corrects the stale operational index. Historical documents remain available, but their old commit, test and readiness claims are not current acceptance.
 
 ## Source of truth
 
 - Repository: [my-business-hotel-hr-payroll-v2-2](https://github.com/ms1813678-bit/my-business-hotel-hr-payroll-v2-2).
 - Development branch: `ui-overhaul`. `main` is not the development target. The owner controls merging.
-- Latest implementation commit at this checkpoint: [47a96c9a](https://github.com/ms1813678-bit/my-business-hotel-hr-payroll-v2-2/commit/47a96c9a0fd6d46b7118725a968bb6a36f1a336d). The earlier documentation-only correction was1660d473. Before further work, read this page, check the live branch HEAD and working diff, then inspect the exact source body needed for the decision. A path existing is not proof that it is the intended candidate.
-- This checkpoint adds the reviewed Item2 daily-overtime implementation and additive migration `0065_overtime_day_review` on top of 1660d473. This is source publication, not proof of deployed schema or hotel-device acceptance.
+- Latest implementation commit at this checkpoint: [a9fb08b1](https://github.com/ms1813678-bit/my-business-hotel-hr-payroll-v2-2/commit/a9fb08b13e93abeb37ede96b3b7461a8208d1a89). The prior bounded daily-overtime follow-up was72d1d591. The earlier documentation-only correction was1660d473. Before further work, read this page, check the live branch HEAD and working diff, then inspect the exact source body needed for the decision. A path existing is not proof that it is the intended candidate.
+- Published schema remains `0065_overtime_day_review`. The later internal0066 attendance schedule assertion candidate is isolated and not integrated or published. Published source is not proof of deployed schema or hotel-device acceptance.
 - No hotel-device installation or acceptance is established. Use synthetic data until acceptance.
 
 ## Published changes and their limits
@@ -45,6 +45,24 @@ Published source implements manual same-day review, explicit confirmation, appen
 - Independent exact source/artifact review accepted the bounded backend and reconciled test accounting. It did not execute these tests independently. No whole-system, Windows, native or hotel-device acceptance follows from it.
 - Daily-specific simulation and AI execution/snapshot tests exist; the AI advisory-before-table lock change has a concurrent PostgreSQL regression. Whole-system concurrency is not certified by one tested ordering.
 
+## Published one-use disaster recovery login proof
+
+[a9fb08b1](https://github.com/ms1813678-bit/my-business-hotel-hr-payroll-v2-2/commit/a9fb08b13e93abeb37ede96b3b7461a8208d1a89) adds the owner-approved bounded newer-record proof. After an encrypted restore into an accountless target, the exact validated recovery record that opened the selected archive can prove possession once. The existing account password or eligible recovery-code path, sensitive-action throttle, forced password changes and recovery-code regeneration remain. Normal setup creates an administrator; restore with that existing account uses current-credential carry-over and archive-only account locks, not the accountless proof branch.
+
+- Active backup encryption still returns to the archive-era record as documented. The new proof does not automatically rewrap it to the newer phrase. The stored archive hash is provenance and format-checked, not rechecked at sign-in; the enforced live binding is the restore epoch plus wrapped-record and key digests.
+- No new route, admission layer, lock or migration. A present corrupt proof fails closed; an absent proof preserves the legacy DB-record phrase check. New proof stores a bounded public wrapped record and digests, never the supplied phrase or raw key. The wrapped record remains an offline phrase verifier and is not harmless data.
+- Exact integrated-source developer qualification:77 targeted tests passed,2 warnings in17.92s, mostly SQLite and in-process handler fixtures. One separate dedicated PostgreSQL source/target encrypted restore and distinct-key forced rollback test passed in8.40s. Before/after hashes matched for the10 intended files. All10 published GitHub blobs matched the committed local blobs; main remained936f5d62.
+- Independent focused review inspected source and hashes and found no concrete defect in that scope. It did not run the77 tests or the PostgreSQL test. Neither route fixtures nor the helper proof establish live HTTP admission concurrency, Windows, external-media, native or hotel-device acceptance.
+- Documentation now states the configured target encryption prerequisite for an encrypted pre-restore snapshot, source recovery-record preservation and the absence of a supported encryption-reset command. No unsupported technician-reset route is promised.
+
+## Isolated attendance assertion slice, not published
+
+Candidate1642 is preserved separately from the published branch. It adds an internal two-step explicit operator schedule assertion and withdrawal with immutable history, source/projection checks and0066 deferred constraints. It does not add assignment UI or HTTP, infer a roster from punches/divisors, alter approved endpoints or automatically reverse money. Source changes stale daily overtime proof until explicit replacement and monthly restaging; approved/closed/paid states remain protected.
+
+- Final targeted candidate suite:80 passed,1 skipped,32 warnings. Dedicated same-receipt/different-receipt and legacy collision races and real encrypted restore/rollback were separate runs, not added to that count. The restore compared five business tables after a discriminating post-backup withdrawal and checked trigger persistence. The actual pre0066 upgrade artifact covered one committed attendance-consumption digest, not every historical financial artifact.
+- Direct corruption tests forced deferred constraints to evaluate. They are not a claim that an invalid final COMMIT was executed. Absolute-date raw CSV overnight consumption/assertion/approval is covered; the legacy out<=in correction branch and original hotel BIFF8 source/device cycle are not established.
+- Integration remains held on the separate HTTP/admission dependency. The specifically held experiment was not repeated or replaced. Bounded read-only lock inventory is not global proof of no deadlocks. Any new visible assignment UI still needs preview and owner choice before integration.
+
 ## Item6 narrow local-model transport checkpoint
 
 The reviewed ai_assistant.py-only patch disables environment/registry proxies, refuses redirects and checks http/https plus all resolved loopback addresses before opening. It adds no HTTPS restriction, transport framework or machine network configuration. Exact source diff SHA256: `64129874ba2d4533fe511bdd8c20d9f493abfc91878e408f5fa2681b787b74df` (27 insertions,6 deletions).
@@ -68,8 +86,8 @@ Current recovery status: the live repository has no `مهملات` branch. Neith
 
 ## Next checkpoints
 
-1. Recover the historical archive attachment and verify its real contents, prerequisites and recoverability.
-2. Run remaining explicit acceptance fixtures and qualify installation/native/hotel-device behavior separately. The reviewed daily-overtime source checkpoint does not complete all of Item2 or the wider branch.
-3. Keep Item3 and remaining Item4 proposals separate until qualified and approved. No blanket completion.
-4. Continue remaining Item6 requirements separately. The narrow local-AI proxy/redirect source checkpoint is qualified only as described above; localhost resolution check/connect remains unpinned.
+1. Continue independent checklist requirements and resolve current concrete blockers without restarting specifically held HTTP/admission experiments. The isolated0066 assignment slice stays separate until its integration dependency is cleared.
+2. Reconcile the two monthly-report business choices from original owner evidence, then obtain only any remaining choice. Preserve the custom report unchanged. New visible assignment UI requires preview and owner choice before integration.
+3. Run remaining explicit acceptance fixtures and qualify installation/native/hotel-device behavior separately. Recovery publication and isolated attendance proof do not complete all of Item2 or the wider branch. Keep Item3, remaining Item4 and broader Item6 boundaries explicit.
+4. Retain historical archive recovery as an unclosed evidence gap: recover the actual transferred archive and verify contents/prerequisites when its source becomes available. It is not a mandatory first step and must not stall independent work or be replaced with fabricated ancestry.
 5. Update this index with each implemented or tested boundary, including exact commit/artifact, outcome, limits and next step. Before every handoff, inspect the exact referenced source body and compare candidate identities.
