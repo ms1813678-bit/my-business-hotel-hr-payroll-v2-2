@@ -141,7 +141,7 @@ def parent(scm_mode=False,visible=False):
                             # map all hex digits to H and non-label letters to X.
                             at=text.lower().find('sha1')
                             print('NATIVE_REMOVE_SHA1_STRUCTURE',json.dumps({'sha1_offset':at,'label_tail_codes':[ord(c) for c in text[max(0,at-15):at+8]] if at>=0 else [],'following_shape':''.join('H' if c in '0123456789abcdefABCDEF' else ('W' if c.isspace() else ('X' if c.isalpha() else c)) for c in text[at+4:at+110]) if at>=0 else '', 'controls':len(labels)}),flush=True)
-                        match=re.search(r'Thumbprint \(sha1\):\s*([0-9A-Fa-f\s]{40,100})',text)
+                        match=re.search(r'Thumbprint \(sha1\)\s*:\s*([0-9A-Fa-f\s]{40,100})',text)
                         observed=''.join(match.group(1).split()).upper() if match else ''
                         print('NATIVE_TRUST_DIALOG_GUARD',json.dumps({'mode':mode,'matched':bool(match),'digits':len(observed),'exact':observed==ca_thumb,'label':'Disposable fixture CA' in text}),flush=True)
                         if not match or observed!=ca_thumb or 'Disposable fixture CA' not in text:raise RuntimeError('owned CA confirmation fingerprint mismatch')

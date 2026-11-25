@@ -1,3 +1,7 @@
+## 2026-11-25 - Match observed cleanup label whitespace by Instinct
+
+- Bounded character evidence confirms the removal dialog has whitespace before the label colon. Accept that label whitespace only; retain exact full normalized 40-digit SHA1 equality, owned helper PID/dialog and IDYES checks. Synthetic formatting check passes. No trust-policy or identity-check relaxation.
+
 ## 2026-11-25 - Observe cleanup label structure without trust relaxation by Instinct
 
 - Removal label exists but SHA1 regex does not match. Retain bounded label-character codes and redacted value shape to identify formatting, never bypass the exact fingerprint guard.
