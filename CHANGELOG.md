@@ -1,3 +1,7 @@
+## 2026-11-25 - Retain fixed cleanup guard diagnostics by Instinct
+
+- Preserve only numeric/boolean fingerprint and button-match flags, plus fixed locally authored refusal text, to locate the cleanup guard that refused. No raw dialog text, external exception text, relaxed match or policy change.
+
 ## 2026-11-25 - Confirm exact owned CA cleanup warning by Instinct
 
 - Actual owned-window pixels show a separate Root Certificate Store deletion confirmation. Apply the same helper-Job ownership, exact displayed SHA1, fixture label and IDYES checks to removal. Prior functional window checks passed but the whole gate remains refused until CA removal is verified. No trust-policy or store-scope change.

@@ -137,8 +137,11 @@ def parent(scm_mode=False,visible=False):
                         win32gui.EnumChildWindows(hwnd,lambda child,_:labels.append(win32gui.GetWindowText(child)),None)
                         text='\n'.join(labels)
                         match=re.search(r'Thumbprint \(sha1\):\s*([0-9A-Fa-f\s]{40,100})',text)
-                        if not match or ''.join(match.group(1).split()).upper()!=ca_thumb or 'Disposable fixture CA' not in text:raise RuntimeError('owned CA confirmation fingerprint mismatch')
+                        observed=''.join(match.group(1).split()).upper() if match else ''
+                        print('NATIVE_TRUST_DIALOG_GUARD',json.dumps({'mode':mode,'matched':bool(match),'digits':len(observed),'exact':observed==ca_thumb,'label':'Disposable fixture CA' in text}),flush=True)
+                        if not match or observed!=ca_thumb or 'Disposable fixture CA' not in text:raise RuntimeError('owned CA confirmation fingerprint mismatch')
                         yes=win32gui.GetDlgItem(hwnd,6) # Documented WinUser IDYES.
+                        print('NATIVE_TRUST_DIALOG_BUTTON',json.dumps({'mode':mode,'idyes_present':bool(yes),'exact_yes':bool(yes) and win32gui.GetWindowText(yes).replace('&','')=='Yes'}),flush=True)
                         if not yes or win32gui.GetWindowText(yes).replace('&','')!='Yes':raise RuntimeError('exact CA confirmation button missing')
                         win32gui.SendMessage(yes,0x00F5,0,0) # BM_CLICK only on exact owned IDYES.
                         confirmed=True;print('NATIVE_TRUST_EXACT_OWNED_CA_OS_CONFIRMATION_PASS',mode,flush=True)
@@ -249,7 +252,9 @@ def parent(scm_mode=False,visible=False):
             if ca_owned:
                 trust('remove');trust('absent')
                 print('NATIVE_VISIBLE_CURRENTUSER_CA_EXACT_REMOVAL_PASS',flush=True)
-        except BaseException as exc:cleanup_errors.append('CA-cleanup:'+type(exc).__name__)
+        except BaseException as exc:
+            print('NATIVE_CA_CLEANUP_FAILURE_FIXED_CONTEXT',type(exc).__name__,str(exc) if isinstance(exc,RuntimeError) else 'external-error-redacted',flush=True)
+            cleanup_errors.append('CA-cleanup:'+type(exc).__name__)
         if cleanup_errors:raise RuntimeError(';'.join(cleanup_errors))
 
 if __name__=='__main__':
