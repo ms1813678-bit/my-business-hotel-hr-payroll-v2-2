@@ -220,7 +220,7 @@ def test_leave_balance_is_deducted_once_and_restored_on_cancellation(leave_clien
         assert "leave_cancelled" in actions
 
 
-def test_short_notice_refused_but_explicit_confirmation_can_make_balance_negative(leave_client):
+def test_recording_needs_no_request_notice_and_confirmation_can_make_balance_negative(leave_client):
     client = leave_client
     login(client)
     token = csrf(client.get("/leave"))
@@ -240,7 +240,9 @@ def test_short_notice_refused_but_explicit_confirmation_can_make_balance_negativ
         follow_redirects=False,
     )
     assert short_notice.status_code == 303
-    assert "error=notice" in short_notice.headers["location"]
+    assert short_notice.headers["location"] == "/leave"
+    # Separate period avoids overlap with the successfully recorded planned leave.
+    start += timedelta(days=3)
 
     emergency = client.post(
         "/leave/records",

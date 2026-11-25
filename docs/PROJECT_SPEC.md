@@ -88,7 +88,7 @@ Future modules, not part of the initial release: purchasing, inventory, accounti
 - Types: annual, sick, casual/emergency, official holiday, weekly rest, unpaid.
 - Initial balances are entered manually. Never invent entitlements or balances.
 - Administrator manages leave directly; no employee self-service or manager approvals.
-- Planned leave is normally requested 72 hours in advance; sick/emergency leave may be entered anytime with a reason.
+- Leave is recorded and reviewed by the authorized operators, not submitted as employee or department-manager requests. Recording may be retrospective and has no request-only72-hour notice gate.
 - Deduct a balance only once leave is confirmed/recorded. Preserve balance history.
 - Entitlements remain configurable.
 

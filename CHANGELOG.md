@@ -1,5 +1,13 @@
 ## 2026-11-25 - Local model JSON request contract by Instinct
 
+## 2026-11-25, Instinct: shared operator leave recording and overlapping-create protection
+
+- Apply the owner's existing no-request workflow: remove the request-only72-hour notice gate from operator leave recording, including historical entries. No employee/department-manager submission flow or new permissions.
+- HTTP and local-AI draft creation use one service with existing caller-specific audits, validation/error surfaces and caller-owned transactions. Draft creation does not debit balances.
+- Serialize overlapping leave creates per employee using PostgreSQL FOR NO KEY UPDATE, with consistent table intent ordering against the existing AI gateway. Preserve integer IDs, confirmation/cancellation and balance history.
+- Add actual disposable-PostgreSQL cross-entry, rollback and gateway-lock-order regression with backend wait evidence and negative control; targeted integrated qualification recorded in current source status. This is not whole offline sync, global concurrency or hotel-device acceptance.
+
+
 ## 2026-11-25, Instinct: monthly leave status and historical employee reporting
 
 - Monthly leave PDFs show confirmed, draft and cancelled records in separate sections; assistant aggregates remain identity-free and split by type/status. Employees with overlapping leave are included with their current active/left status. Custom report defaults and approved payroll/attendance filters are unchanged.

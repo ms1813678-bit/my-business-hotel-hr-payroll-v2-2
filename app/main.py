@@ -2200,50 +2200,17 @@ def create_leave_record(
     reason: str = Form(...),
     admin: AdminAccount = Depends(require_attendance_write),
 ):
-    if not charged_days.is_finite() or end_date < start_date or charged_days <= 0 or not reason.strip():
-        return RedirectResponse("/leave?error=dates", status_code=303)
-    calendar_days = (end_date - start_date).days + 1
-    if charged_days > Decimal(calendar_days):
-        return RedirectResponse("/leave?error=days", status_code=303)
-    with SessionLocal.begin() as db:
-        employee = db.get(Employee, employee_id)
-        leave_type = db.get(LeaveType, leave_type_id)
-        if employee is None or employee.status != "active" or leave_type is None or not leave_type.active:
-            return RedirectResponse("/leave?error=employee", status_code=303)
-        overlap = db.scalar(
-            select(LeaveRecord.id).where(
-                LeaveRecord.employee_id == employee_id,
-                LeaveRecord.status != "cancelled",
-                LeaveRecord.start_date <= end_date,
-                LeaveRecord.end_date >= start_date,
-            ).limit(1)
-        )
-        if overlap is not None:
-            return RedirectResponse("/leave?error=overlap", status_code=303)
-        # Planned leave needs at least 72 hours' notice. Sick and emergency leave
-        # are exceptions, but the administrator must still enter a reason.
-        starts_at = datetime.combine(start_date, datetime.min.time(), tzinfo=CAIRO_TZ)
-        if leave_type.code not in {"sick", "casual"} and starts_at < datetime.now(CAIRO_TZ) + timedelta(hours=72):
-            return RedirectResponse("/leave?error=notice", status_code=303)
-        record = LeaveRecord(
-            employee_id=employee_id,
-            leave_type_id=leave_type_id,
-            start_date=start_date,
-            end_date=end_date,
-            calendar_days=calendar_days,
-            charged_days=charged_days,
-            reason=reason.strip(),
-            status="draft",
-            created_by=admin.username,
-        )
-        db.add(record)
-        db.flush()
-        db.add(AuditLog(
-            actor=admin.username, action="leave_record_created",
-            entity_type="leave_record", entity_id=str(record.id),
-            new_value=f"{start_date.isoformat()}|{end_date.isoformat()}|{charged_days}",
-            reason=reason.strip(),
-        ))
+    from app.leave_workflow import LeaveDraftError, create_leave_draft
+
+    try:
+        with SessionLocal.begin() as db:
+            create_leave_draft(
+                db, employee_id=employee_id, leave_type_id=leave_type_id,
+                start_date=start_date, end_date=end_date, charged_days=charged_days,
+                reason=reason, actor=admin.username,
+            )
+    except LeaveDraftError as exc:
+        return RedirectResponse(f"/leave?error={exc.code}", status_code=303)
     return RedirectResponse("/leave", status_code=303)
 
 

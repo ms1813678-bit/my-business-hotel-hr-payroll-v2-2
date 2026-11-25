@@ -27,7 +27,7 @@ from app.attendance_workflow import (
 from app.db import SessionLocal
 from app.employee_codes import allocate_employee_code
 from app.leave_balance_rules import validate_manual_balance_change
-from app.leave_workflow import add_balance_entry, cancel_leave, confirm_leave, leave_balance
+from app.leave_workflow import LeaveDraftError, create_leave_draft, add_balance_entry, cancel_leave, confirm_leave, leave_balance
 from app.models import (
     AdvanceRequest,
     AttendanceDailyRecord,
@@ -421,31 +421,20 @@ def execute_plan(plan: dict[str, Any], actor: str, *, db=None, human_coverage_co
             return ExecutionResult(action, {"name": employee.full_name})
 
         if action == "create_leave":
-            employee = db.get(Employee, int(plan["employee_id"]))
-            leave_type = db.get(LeaveType, int(plan["leave_type_id"]))
-            start = _parse_date(plan["start_date"], "البداية")
-            end = _parse_date(plan["end_date"], "النهاية")
-            charged = _decimal(plan["charged_days"], "الأيام")
-            if employee is None or employee.status != "active" or leave_type is None or not leave_type.active:
-                raise ValueError("الموظف أو نوع الإجازة غير صالح.")
-            if end < start or charged <= 0 or charged > Decimal((end - start).days + 1):
-                raise ValueError("بيانات الإجازة غير صحيحة.")
-            overlap = db.scalar(select(LeaveRecord.id).where(
-                LeaveRecord.employee_id == employee.id,
-                LeaveRecord.status != "cancelled",
-                LeaveRecord.start_date <= end,
-                LeaveRecord.end_date >= start,
-            ).limit(1))
-            if overlap is not None:
-                raise ValueError("يوجد تداخل مع إجازة أخرى.")
-            record = LeaveRecord(
-                employee_id=employee.id, leave_type_id=leave_type.id,
-                start_date=start, end_date=end, calendar_days=(end-start).days+1,
-                charged_days=charged, reason=reason, status="draft", created_by=actor,
-            )
-            db.add(record); db.flush()
-            db.add(AuditLog(actor=actor, action="ai_leave_record_created", entity_type="leave_record",
-                            entity_id=str(record.id), new_value=f"{start}|{end}|{charged}", reason=reason))
+            try:
+                record = create_leave_draft(
+                    db, employee_id=int(plan["employee_id"]), leave_type_id=int(plan["leave_type_id"]),
+                    start_date=_parse_date(plan["start_date"], "البداية"),
+                    end_date=_parse_date(plan["end_date"], "النهاية"),
+                    charged_days=_decimal(plan["charged_days"], "الأيام"),
+                    reason=reason, actor=actor, audit_action="ai_leave_record_created",
+                )
+            except LeaveDraftError as exc:
+                messages = {"employee": "الموظف أو نوع الإجازة غير صالح.",
+                            "overlap": "يوجد تداخل مع إجازة أخرى.",
+                            "dates": "بيانات الإجازة غير صحيحة.", "days": "بيانات الإجازة غير صحيحة."}
+                raise ValueError(messages[exc.code]) from exc
+            employee = db.get(Employee, record.employee_id)
             return ExecutionResult(action, {"record_id": record.id, "name": employee.full_name})
 
         if action == "confirm_leave":

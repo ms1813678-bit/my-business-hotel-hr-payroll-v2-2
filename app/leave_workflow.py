@@ -1,17 +1,75 @@
 """Business rules for administrator-managed leave records and balance history."""
 from decimal import Decimal
+from datetime import date
 
-from sqlalchemy import func, select
+
+from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
 from app.leave_balance_rules import preview_manual_balance, validate_manual_balance_change
 from app.models import (
     AuditLog,
+    Employee,
     LeaveBalanceTransaction,
     LeaveRecord,
     LeaveType,
     utcnow,
 )
+
+
+class LeaveDraftError(ValueError):
+    """Stable rejection code shared by HTTP and future master-side command wrappers."""
+
+    def __init__(self, code: str):
+        self.code = code
+        super().__init__(code)
+
+
+def create_leave_draft(
+    db: Session, *, employee_id: int, leave_type_id: int,
+    start_date: date, end_date: date, charged_days: Decimal,
+    reason: str, actor: str, audit_action: str = "leave_record_created",
+) -> LeaveRecord:
+    """Record administrator-managed leave, not an employee leave request.
+
+    Caller owns transaction/permission and chooses its established audit action.
+    No notice clock, confirmation, balance entry or commit occurs here.
+    """
+    if not charged_days.is_finite() or end_date < start_date or charged_days <= 0 or not reason.strip():
+        raise LeaveDraftError("dates")
+    calendar_days = (end_date - start_date).days + 1
+    if charged_days > Decimal(calendar_days):
+        raise LeaveDraftError("days")
+    # Reserve DML table intents before the employee row, in the same global
+    # alphabetical order as the AI gateway. Otherwise gateway table locks can
+    # wait for this row while this transaction waits to insert its audit/leave.
+    if db.get_bind().dialect.name == "postgresql":
+        db.execute(text("LOCK TABLE audit_logs, employees, leave_records IN ROW EXCLUSIVE MODE"))
+    # FOR NO KEY UPDATE serializes creates without blocking unrelated FK KEY SHARE checks.
+    employee = db.scalar(select(Employee).where(Employee.id == employee_id).with_for_update(key_share=True))
+    leave_type = db.get(LeaveType, leave_type_id)
+    if employee is None or employee.status != "active" or leave_type is None or not leave_type.active:
+        raise LeaveDraftError("employee")
+    overlap = db.scalar(select(LeaveRecord.id).where(
+        LeaveRecord.employee_id == employee_id,
+        LeaveRecord.status != "cancelled",
+        LeaveRecord.start_date <= end_date,
+        LeaveRecord.end_date >= start_date,
+    ).limit(1))
+    if overlap is not None:
+        raise LeaveDraftError("overlap")
+    record = LeaveRecord(
+        employee_id=employee_id, leave_type_id=leave_type_id,
+        start_date=start_date, end_date=end_date, calendar_days=calendar_days,
+        charged_days=charged_days, reason=reason.strip(), status="draft", created_by=actor,
+    )
+    db.add(record)
+    db.flush()
+    db.add(AuditLog(actor=actor, action=audit_action, entity_type="leave_record",
+                    entity_id=str(record.id),
+                    new_value=f"{start_date.isoformat()}|{end_date.isoformat()}|{charged_days}",
+                    reason=reason.strip()))
+    return record
 
 
 def leave_balance(db: Session, employee_id: int, leave_type_id: int) -> Decimal:
