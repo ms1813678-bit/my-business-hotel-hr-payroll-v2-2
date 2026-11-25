@@ -6,7 +6,7 @@
   "dependency_smoke.py": "36284e4d759179ca0817634cc446d4f5363cabab144eb8d9d41656b55bdb657b",
   "desktop_webview_guard.RECOVERED-EXACT.py": "9ab40677931f0942a8523f24ee9df68419b07d61cf2fc91f1284cee049fe625e",
   "native_root_hooks.py": "b92a14aa6fcd41b99e84ec384eb9fa67c19a5d16610c5d7192c9bd2e750d54a6",
-  "offline_wheel_closure.py": "dfd7787b2918623e98e8a638f7e33a7c4ce745473ed3fcc7729dc340da431e28",
+  "offline_wheel_closure.py": "05559e99f31f3f31c769452576a94c9cf5fd4ba9821d1bf6923ed14c88b03bcb",
   "qualify-dependencies.ps1": "b016e828efdc096e589870dde3f3e0bb957f6730b4087a72971690a9652cfe73",
   "requirements-native-SDIST-NEW-CANDIDATE.txt": "8be577630f8cc6ac19d6a4f4d332ae3f33d65ad9dec72cba44b0f96f228fb267",
   "scripts/windows/activate-desktop-certificate.ps1": "c2d5c70827163fe6ac85dd08aeda7adddd69a98cd036a6134959c0d38cee4343",
@@ -24,8 +24,10 @@
   "stage-source-manifest.json": "3cf609f303dfa84b412ef39e5db6423e1b7ef8634c3ed52d8e2637791d32eb8f",
   "stage_fixture_smoke.py": "5e516d2a7debde18d83d97f4fb2c415bdc8a768134b6677ccfb42fc62edd578d",
   "stager_candidate/HOnY-Desktop-Staged.iss": "31c417680d834992f44e8358cfab0232f92cd1a32c3f6120d6147f1f1625bb36",
+  "stager_candidate/staging/build_wheel_projection.py": "da1579ba418513dccff978d5ba8b6be86571b0272a10611cebf3699ff7a472f0",
   "stager_candidate/staging/hony_journal.py": "e1873f30648fed81cd647d20eda7002307d223719a976cca021334ee690eb0a2",
   "stager_candidate/staging/hony_stage.py": "ab460bbad0304236b832443ba6819972cfed1b75bf7e652d09daa331c64d5e02",
   "stager_candidate/staging/hony_stagetree.py": "47c40e1b02319a092ec72d6189f5f254c836ae913891d027a0eaff07778b9a5f",
-  "stager_candidate/staging/verify_install.py": "fe4d007316b15c1713dd0bff4657353b841963a6e9d8e20ec22d69076e9cb8dd"
+  "stager_candidate/staging/verify_install.py": "fe4d007316b15c1713dd0bff4657353b841963a6e9d8e20ec22d69076e9cb8dd",
+  "stager_candidate/staging/verify_wheel_projection.py": "42731e360f9ce73818f9f6730828fc868a6304e9ff832aa7816a898b82d1feab"
 }

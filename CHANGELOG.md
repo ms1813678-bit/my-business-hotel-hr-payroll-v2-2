@@ -1,3 +1,7 @@
+## 2026-11-25 - Check original wheel payload projection by Instinct
+
+- Pair NEW read-only projection builder and isolated verifier after fresh offline install. Check original site-packages payload bytes, explicitly exclude 54 transformed/rewritten members in current 50 artifacts. No exact full-installed-tree, manifest authenticity or runtime security claim. Writer corrected paired mapping/schema contradictions; real artifact inert payload verification passed 3267 files.
+
 ## 2026-11-25 - Qualify actual offline wheel closure by Instinct
 
 - Download only hash-pinned dependency origins, build pinned proxy-tools sdist with separately pinned build tools, record exact per-run wheel hash, then install all exact wheels in a second fresh venv with no index. Check dependency closure, metadata-only paired verifier and native imports. No wheel binary upload or release-security/byte-integrity claim.

@@ -51,5 +51,14 @@ subprocess.run([str(py), '-m', 'pip', 'install', '--disable-pip-version-check',
 subprocess.run([str(py), '-m', 'pip', 'check'], check=True)
 subprocess.run([str(py), '-I', str(here / 'stager_candidate/staging/verify_install.py'),
                 str(lockpath)], check=True)
+# Pair trusted builder output with the actual fresh interpreter's explicit root.
+projection = work / 'wheel-projection.json'
+subprocess.run([sys.executable, '-I', str(here / 'stager_candidate/staging/build_wheel_projection.py'),
+                str(lockpath), str(wh), str(projection)], check=True)
+site_root = subprocess.check_output([str(py), '-I', '-c',
+                                    'import sysconfig; print(sysconfig.get_path("purelib"))'], text=True).strip()
+subprocess.run([str(py), '-I', str(here / 'stager_candidate/staging/verify_wheel_projection.py'),
+                str(projection), site_root], check=True)
+print('NATIVE_WHEEL_ORIGINAL_PAYLOAD_PROJECTION_PASS NOT_FULL_INSTALLED_TREE', flush=True)
 subprocess.run([str(py), '-I', str(here / 'dependency_smoke.py')], check=True)
 print('NATIVE_ACTUAL50_OFFLINE_FRESH_INSTALL_METADATA_IMPORT_PASS NOT_BYTE_INTEGRITY_NOT_RELEASE', flush=True)
