@@ -1,3 +1,7 @@
+## 2026-11-25 - Remove informational compiler-help exit gate by Instinct
+
+- The compiler printed help but returned nonzero, stopping the harness before compilation. Remove that unnecessary help invocation; retain compiler SHA256 and strict actual compile exit checking. SourcePath repair remains unproven until the next compile result.
+
 ## 2026-11-25 - Correct source-staging recipe root by Instinct
 
 - Actual Windows source verification, nine PowerShell syntax checks, pinned dependency installation and24module imports passed. ISCC rejected the recovered root-script path expression before producing a package.

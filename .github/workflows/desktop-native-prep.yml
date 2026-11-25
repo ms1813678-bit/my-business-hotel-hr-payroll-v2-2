@@ -50,8 +50,6 @@ jobs:
             if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { throw 'Preinstalled Inno compiler unavailable; no installation fallback.' }
           } else { $Path = $Compiler.Source }
           Write-Output ('INNO_COMPILER_SHA256=' + (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash)
-          & $Path '/?'
-          if ($LASTEXITCODE -ne 0) { throw 'Preinstalled compiler self-description failed.' }
           $CompileRoot = Join-Path $env:RUNNER_TEMP 'hony-source-staging-compile'
           if (Test-Path -LiteralPath $CompileRoot) { throw 'Refusing existing compile root.' }
           New-Item -ItemType Directory -Path $CompileRoot | Out-Null
