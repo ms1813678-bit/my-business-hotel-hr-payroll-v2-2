@@ -1,5 +1,5 @@
 name: Read-only installer ownership primitive
-# Actual GENERIC_READ hold, metadata-only handles did not block file write/rename.
+# Actual GENERIC_READ hold and bounded intent-journal model, no installer effects.
 on:
   push:
     branches: [ui-overhaul]
