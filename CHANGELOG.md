@@ -645,3 +645,9 @@ Final supported Python3.11.18 shared verification after neutral AR/EN/ZH message
 
 - Select and verify major16 dump/restore tools for the Linux postgres:16 service instead of relying on runner PATH. Preserve complete migration/suite and fail-closed restore checks.
 - Record the exact hosted3fdd UID restore failure and local real roundtrip evidence. Not hosted-green or Windows acceptance. Product PATH-first backup compatibility remains a separate lead. See HOSTED_PG_CLIENT_1744.md.
+
+## 2026-11-25, Instinct: usable local-model settings and bounded polite command routing
+
+- Honor install.env/process model and local URL settings with documented alias/precedence, UTF8BOM handling and fixed reader warnings; keep default unchanged and loopback/pinned transport intact. Remove unmeasured model-suitability claims, not a production model approval.
+- Route bounded everyday AR/EN/ZH write phrases to the existing explicit-review gateway, preserving read/explanation cases and unchanged execution/consent gates. Add actual HTTP proposal-to-review/approval proof, synthetic model only.
+- Add current monthly-role and realPG nonfinite amount characterization tests without product policy or finance changes.598passed4existingSQLitevariantskips in focused qualification; see AI_CONFIG_ROUTING_1747.md.

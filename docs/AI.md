@@ -21,11 +21,11 @@
 - إن كان النموذج غير متاح، يعمل المساعد بالردود المهيكلة من قاعدة البيانات، والنظام الأساسي لا يتأثر.
 
 ### النموذج والجهاز
-- الافتراضي: **qwen2.5:3b** (خفيف، يناسب جهازك: معالج i9-12900H وذاكرة 16GB). يُشغَّل عبر:
+- الافتراضي: **qwen2.5:3b** هو الاسم الافتراضي الحالي فقط، وليس اعتمادًا للإنتاج أو إثبات أداء على جهاز الفندق. ترخيص هذا الحجم بحثي؛ يلزم نموذج ذو ترخيص مناسب واختبار جودة وأداء قبل الاعتماد. أوامر التشغيل التقنية:
   - `ollama pull qwen2.5:3b`
   - `ollama serve` (يعمل تلقائيًا بعد التثبيت على ويندوز)
-- **تغيير النموذج اختياري**: اضبط المتغير `OLLAMA_MODEL` على اسم نموذج آخر مثبت لديك (مثال: `qwen2.5:7b`). النماذج الأكبر قد تكون أبطأ على جهازك أو تستهلك ذاكرة أكبر؛ التأثير الفعلي يعتمد على جهازك وما يعمل عليه، فجرّب وقِس قبل الاعتماد. لا توجد أرقام أداء مضمونة.
-- إن أردت العودة للوضع الخفيف: أعد `OLLAMA_MODEL` إلى `qwen2.5:3b`.
+- **تغيير النموذج اختياري**: اضبط `LOCAL_AI_MODEL` (أو الاسم البديل `OLLAMA_MODEL`) في ملف `.env` أو في متغيرات البيئة على اسم نموذج آخر مثبت لديك (مثال: `qwen2.5:7b`)، ثم أعد تشغيل التطبيق. متغيرات البيئة لها الأولوية على `.env`، وإن كان الاسم غير صالح يُستخدم الافتراضي. النماذج الأكبر قد تكون أبطأ على جهازك أو تستهلك ذاكرة أكبر؛ التأثير الفعلي يعتمد على جهازك وما يعمل عليه، فجرّب وقِس قبل الاعتماد. لا توجد أرقام أداء مضمونة.
+- إن أردت العودة للوضع الخفيف: أعد `LOCAL_AI_MODEL` إلى `qwen2.5:3b` (أو احذف السطر).
 
 ---
 
@@ -48,11 +48,11 @@ A local AI assistant running **entirely on your machine** via Ollama. Hotel data
 - If the model is unavailable, the assistant still answers the structured questions from the database and the core system is unaffected.
 
 ### Model and hardware
-- Default: **qwen2.5:3b** (light; suits the target machine: i9-12900H, 16 GB RAM). Run with:
+- Default: **qwen2.5:3b** is the current configured default, not production approval or measured hotel-device performance. This size has a Research license. A suitable model license and measured quality/performance are required before production acceptance. Technical commands:
   - `ollama pull qwen2.5:3b`
   - `ollama serve` (starts automatically after install on Windows)
-- **Changing the model is optional**: set `OLLAMA_MODEL` to another installed model (e.g. `qwen2.5:7b`). Larger models may run slower or use more memory on your machine; the real impact depends on your hardware and load, so try and measure before committing. No performance numbers are guaranteed.
-- To return to the light default, set `OLLAMA_MODEL` back to `qwen2.5:3b`.
+- **Changing the model is optional**: set `LOCAL_AI_MODEL` (or the alias `OLLAMA_MODEL`) in the `.env` file or the environment to another installed model (e.g. `qwen2.5:7b`), then restart the app. Environment variables take priority over `.env`; an invalid name falls back to the default. Larger models may run slower or use more memory on your machine; the real impact depends on your hardware and load, so try and measure before committing. No performance numbers are guaranteed.
+- To return to the light default, set `LOCAL_AI_MODEL` back to `qwen2.5:3b` (or remove the line).
 
 ---
 
@@ -75,8 +75,15 @@ A local AI assistant running **entirely on your machine** via Ollama. Hotel data
 - 模型不可用时，助手仍可用数据库回答结构化问题，核心系统不受影响。
 
 ### 模型与硬件
-- 默认：**qwen2.5:3b**（轻量，适合目标设备：i9-12900H、16GB 内存）。运行方式：
+- 默认：**qwen2.5:3b** 仅为当前默认配置，并非生产批准或酒店设备性能测试结果。此规格采用研究许可证；生产验收前须验证合适的模型许可、质量和性能。技术命令：
   - `ollama pull qwen2.5:3b`
   - `ollama serve`（Windows 安装后自动运行）
-- **更换模型（可选）**：将 `OLLAMA_MODEL` 设为已安装的其他模型（如 `qwen2.5:7b`）。更大的模型在您的设备上可能更慢或占用更多内存；实际影响取决于硬件和负载，请先试用再决定。不保证任何性能数字。
-- 恢复轻量默认：将 `OLLAMA_MODEL` 改回 `qwen2.5:3b`。
+- **更换模型（可选）**：在 `.env` 文件或环境变量中将 `LOCAL_AI_MODEL`（别名 `OLLAMA_MODEL`）设为已安装的其他模型（如 `qwen2.5:7b`），然后重启应用。环境变量优先于 `.env`；名称无效时使用默认值。更大的模型在您的设备上可能更慢或占用更多内存；实际影响取决于硬件和负载，请先试用再决定。不保证任何性能数字。
+- 恢复轻量默认：将 `LOCAL_AI_MODEL` 改回 `qwen2.5:3b`（或删除该行）。
+
+
+Configuration precedence detail: an environment `OLLAMA_MODEL` alias takes priority over a `LOCAL_AI_MODEL` entry in the install `.env`, because the whole environment source wins. Blank values fall through to the next source; an invalid winning model name logs a warning and uses the unchanged default. The install `.env` accepts UTF-8 with or without a BOM. Missing reader or unreadable file logs a warning and uses environment/default settings. Restart after edits. This does not install/pull a model or approve its license/performance.
+
+تفصيل الأولوية: الاسم البديل OLLAMA_MODEL في بيئة التشغيل يتقدم على LOCAL_AI_MODEL داخل ملف .env. القيم الفارغة تنتقل للمصدر التالي؛ الاسم غير الصالح في المصدر الأعلى يسجل تحذيرًا ويستخدم الافتراضي. ملف التثبيت يقبلUTF-8بعلامةBOMأو دونها. تعذر القراءة يسجل تحذيرًا. يلزم إعادة التشغيل؛ لا تنزيل نموذج ولا اعتماد ترخيصه أو أدائه.
+
+配置优先级：环境变量 OLLAMA_MODEL 别名优先于安装目录 .env 中的 LOCAL_AI_MODEL。空值会尝试下一来源；最高优先级的无效模型名会记录警告并使用原默认值。文件支持带或不带 BOM 的 UTF-8。缺少读取器或文件不可读时会记录警告。修改后重启，不会下载模型，也不代表模型许可或性能获批。

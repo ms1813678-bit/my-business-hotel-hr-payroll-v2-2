@@ -6,6 +6,8 @@ can mutate the database, and every operation uses existing workflow rules.
 """
 from __future__ import annotations
 
+import re
+
 import http.client
 import json
 from contextlib import nullcontext
@@ -69,6 +71,59 @@ ZH_COMMAND_WORDS = (
     "删除", "批准", "拒绝", "取消", "支付", "关闭", "重新打开",
 )
 
+# Everyday phrasing. Routing only sends a request to the confirm-first approval gateway;
+# it never executes (wants_execution still needs an explicit execute prefix).
+# Leading politeness is skipped before matching, so "please add ..." routes like "add ...".
+# A negation such as "don't change" or "请不要修改" still does not start with a command word.
+POLITE_PREFIXES = (
+    "من فضلك", "لو سمحت", "رجاءً", "رجاء", "please ", "kindly ", "麻烦您", "麻烦", "请", "给我",
+)
+EXTRA_AR_COMMAND_WORDS = ("صحّح", "صحح", "امسح", "ضيف", "ضِف")
+EXTRA_EN_COMMAND_WORDS = ("fix", "remove", "register")
+# "correct" is also an adjective ("correct answer"), so it routes only before an object.
+EXTRA_EN_PHRASE_PREFIXES = ("correct my ", "correct the ", "correct employee ", "correct attendance ")
+EXTRA_ZH_COMMAND_WORDS = ("更正", "修正", "登记")
+# Chinese "把 <thing> <change verb>" (e.g. 把打卡时间改成九点). The verb must be a change predicate
+# (改成/改为/改到/删除/删掉/取消/批准/更正/修正/添加), not a word inside a noun like 修改记录.
+ZH_BA_RE = re.compile(r"^把.{1,40}?(改成|改为|改到|删除|删掉|取消|批准|更正|修正|添加)(?!记录|历史|日志)")
+# The NEW everyday verbs above only route when the thing being changed is an HR record. A request whose
+# object is a piece of text (an explanation, answer, wording, sentence...) is about wording, not data:
+# a text-object word in the initial requested clause is not treated as an HR-row change.
+# Later explanation/preview clauses do not suppress an explicit HR change. Words like show/preview/history/question marks do not matter. Existing command words
+# are untouched.
+_HR_OBJECT_RE = re.compile(
+    r"attendance|check-?in|check-?out|clock|late|lateness|absen|leave|record|entry|salary|advance|balance|shift|payroll"
+    r"|الحضور|حضور|الانصراف|الخروج|التأخير|غياب|الغياب|إجازة|الإجازة|اجازة|الاجازة|تسجيل|سجل|الراتب|راتب|سلفة|رصيد"
+    r"|考勤|打卡|签到|签退|迟到|缺勤|休假|请假|记录|工资|预支|余额|班次|员工"
+)
+_TEXT_OBJECT_RE = re.compile(
+    r"explanation|\banswer\b|wording|\btext\b|summary|message|translation|grammar|spelling|sentence|\bword\b|reply|response"
+    r"|شرح|الشرح|الإجابة|الاجابة|إجابة|الرد|ردك|الجواب|النص|الصياغة|الترجمة|الجملة"
+    r"|解释|说明|答案|回答|措辞|翻译|语法|拼写|句子|回复",
+    re.IGNORECASE,
+)
+
+
+def _everyday_write_ok(q: str) -> bool:
+    hr = _HR_OBJECT_RE.search(q.casefold())
+    if hr is None:
+        return False
+    # Check the requested object, not later explanation/preview clauses.
+    # Word order alone cannot distinguish "leave explanation" from an HR row.
+    first_clause = re.split(r"\b(?:and|then)\b|[;；]|ثم|然后|并且", q, maxsplit=1, flags=re.IGNORECASE)[0]
+    return _TEXT_OBJECT_RE.search(first_clause) is None
+
+
+def _strip_politeness(q: str) -> str:
+    changed = True
+    while changed:
+        changed = False
+        for prefix in POLITE_PREFIXES:
+            if q.casefold().startswith(prefix):
+                q = q[len(prefix):].lstrip(" ,،:：")
+                changed = True
+    return q
+
 
 def _msg(language: str, ar: str, en: str, zh: str) -> str:
     return {"ar": ar, "en": en, "zh": zh}.get(language, ar)
@@ -105,12 +160,30 @@ def is_command_request(question: str) -> bool:
     gateway, which always requires explicit confirmation before anything runs."""
     q = " ".join(question.strip().split())
     folded = q.casefold()
-    return (
+    if (
         q.startswith(WRITE_PREFIXES)
         or folded.startswith(EN_WRITE_PREFIXES)
         or any(q.startswith(word) for word in COMMAND_WORDS)
         or any(folded == word or folded.startswith(word + " ") for word in EN_COMMAND_WORDS)
         or any(q.startswith(word) for word in ZH_COMMAND_WORDS)
+    ):
+        return True
+    q = _strip_politeness(q)
+    folded = q.casefold()
+    return (
+        any(q.startswith(word) for word in COMMAND_WORDS)
+        or any(folded == word or folded.startswith(word + " ") for word in EN_COMMAND_WORDS)
+        or any(q.startswith(word) for word in ZH_COMMAND_WORDS)
+        or (
+            _everyday_write_ok(q)
+            and (
+                any(q.startswith(word) for word in EXTRA_AR_COMMAND_WORDS)
+                or any(folded == word or folded.startswith(word + " ") for word in EXTRA_EN_COMMAND_WORDS)
+                or folded.startswith(EXTRA_EN_PHRASE_PREFIXES)
+                or any(q.startswith(word) for word in EXTRA_ZH_COMMAND_WORDS)
+                or bool(ZH_BA_RE.match(q))
+            )
+        )
     )
 
 

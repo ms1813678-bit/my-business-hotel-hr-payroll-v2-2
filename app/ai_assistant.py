@@ -17,10 +17,11 @@ from urllib.parse import urlparse
 from typing import Any
 from urllib import error, request
 
+from app.ai_local_config import resolve_base_url, resolve_model
 from app.i18n import translate_text
 
-OLLAMA_BASE_URL = os.getenv("LOCAL_AI_BASE_URL", "http://127.0.0.1:11434").rstrip("/")
-OLLAMA_MODEL = os.getenv("LOCAL_AI_MODEL", "qwen2.5:3b")
+OLLAMA_BASE_URL = resolve_base_url()
+OLLAMA_MODEL = resolve_model()
 
 _LOOPBACK_MESSAGE = "الاتصال بالنموذج مسموح فقط على الجهاز المحلي."
 

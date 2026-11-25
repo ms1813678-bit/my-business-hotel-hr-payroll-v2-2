@@ -570,3 +570,25 @@ def test_leave_detail_cross_month_clipped_consistent_with_aggregate(db_session):
     custom_row, custom_totals = detail(date(2026, 9, 1), date(2026, 9, 30), False)
     assert custom_row["calendar_days"] == 6 and custom_row["charged_days"] == Decimal("5")
     assert custom_totals["calendar_days"] == 6
+
+def test_monthly_route_assistant_blocked_from_advances_and_staff_actions_with_named_labels(client_factory):
+    client = client_factory("assistant_manager")
+    for option, label in ((5, "السلف"), (6, "الجزاءات والمكافآت"), (2, "تفاصيل الرواتب")):
+        response = client.get("/reports/monthly.pdf", params=[("month", "2026-10"), ("opt", str(option))])
+        assert response.status_code == 403
+        assert response.json()["detail"] == "خيارات غير متاحة لصلاحية حسابك: " + label
+
+
+def test_monthly_route_assistant_gets_attendance_detail_and_chart(client_factory):
+    client = client_factory("assistant_manager")
+    for option in (4, 9):
+        response = client.get("/reports/monthly.pdf", params=[("month", "2026-10"), ("opt", str(option))])
+        assert response.status_code == 200
+        assert response.content.startswith(b"%PDF")
+
+
+def test_monthly_route_finance_gets_advances_and_staff_actions(client_factory):
+    client = client_factory("finance")
+    response = client.get("/reports/monthly.pdf", params=[("month", "2026-10"), ("opt", "5"), ("opt", "6")])
+    assert response.status_code == 200
+    assert response.content.startswith(b"%PDF")

@@ -221,3 +221,7 @@ Complete default193-file inventory onPython3.11.18/PG16.2 plus legacySQLite:2605
 ## Hosted3fdd Linux disposition,25November20:48
 
 Hosted Linux migration succeeded but first full-suite shard had one UID populated restore failure: unsupported transaction_timeout emitted by restore client,2544pass46skip1fail,cycle shard not reached. Workflow-only correction selects/verifiesPG16clients againstPG16service; local actual UID dump/restore/CI qualification passed, not hosted rerun success. Windows not declaredgreen. See HOSTED_PG_CLIENT_1744.md. Noopeningproductrollback or gateweakening.
+
+## AI configuration/routing1747,25November20:52
+
+Installed.env and process settings now resolve model/baseURL consistently, with alias precedence/BOM handling/warnings and directdotenvdependency. Default3bunchanged/notproductionqualified. Bounded polite/everydayAR/EN/ZHcommands reach unchanged explicitreview/approval gateway; text/history queries remain read-only within qualified corpus. No broadgrammar/modelqualityclaim. Focused598pass4existingSQLitevariantskips with actualPGHTTP/consent and transport/regression. Added monthlyrole/nonfinite tests characterize existing behavior only. Details: AI_CONFIG_ROUTING_1747.md. No fullsuite/Windows/deviceacceptance fromthisdelta.
