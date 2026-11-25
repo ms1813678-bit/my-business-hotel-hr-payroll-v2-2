@@ -2,6 +2,7 @@
 
 - Use the project .venv interpreter explicitly in PowerShell restore examples, matching setup/start scripts; activation is not required. Stop the running app before recovery as an operational precaution.
 - Distinguish normal setup's current-target-admin login from the separately provisioned accountless one-use proof path. Archive-only accounts require re-enablement and password reset; re-activation alone is refused. Do not delete accounts to reach the accountless path.
+- Align the Windows acceptance restore example with the same interpreter and configured-target prerequisite. Historical changelog commands describe their earlier version, not the current procedure.
 - Keep the archive-era active-encryption limitation explicit. Documentation only, source/script checks only; no Windows run, hotel-device or whole-project acceptance claim.
 
 ## 2026-11-25 - Current source index correction by Instinct
