@@ -24,10 +24,14 @@ def load(path):
             text=(tail+block).replace(b'\0',b'').upper()
             if b'<!DOCTYPE' in text or b'<!ENTITY' in text:raise Refusal('XML declarations forbidden')
             tail=block[-128:]
-    rows=[];count=0;root=None;depth=0;elements=0
+    rows=[];count=0;root=None;depth=0;elements=0;event_elements=0
     for event,el in ET.iterparse(path,events=('start','end')):
         if event=='start':
             depth+=1;elements+=1
+            if depth==2:event_elements=0
+            if depth>=2:
+                event_elements+=1
+                if event_elements>96:raise Refusal('per-event element cap')
             if depth>12 or elements>4000000:raise Refusal('XML structure cap')
             if root is None:
                 root=el

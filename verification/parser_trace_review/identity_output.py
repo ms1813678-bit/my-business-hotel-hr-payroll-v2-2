@@ -30,8 +30,9 @@ def sanitized(result,key,allowed_basenames):
     if len(result['operations'])>20000:raise Refusal('output operation cap')
     output=[]
     for op in result['operations']:
-        path=op['path'];base=ntpath.basename(path)
+        path=op['path']
         if type(path)is not str or not path or len(path)>32768:raise Refusal('bounded decoded path required')
+        base=ntpath.basename(path)
         status=op['status']
         if type(status)is not int or not 0<=status<=0xffffffff:raise Refusal('status range')
         item=dict(status=status,path_hmac=hmac.new(key,path.encode('utf-16-le'),hashlib.sha256).hexdigest())
