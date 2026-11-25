@@ -9,7 +9,7 @@ def run_child(root):
     config=DesktopConfig.load(root/'desktop.json')
     create_server(config).run()
 
-def parent(scm_mode=False,visible=False):
+def parent(scm_mode=False,visible=False,authenticated=False):
     if sys.platform!='win32' or os.environ.get('GITHUB_ACTIONS')!='true':raise RuntimeError('disposable native CI required')
     import win32api,win32con,win32event,win32job,win32process
     from cryptography import x509
@@ -17,7 +17,7 @@ def parent(scm_mode=False,visible=False):
     from cryptography.hazmat.primitives.asymmetric import rsa
     from cryptography.x509.oid import NameOID,ExtendedKeyUsageOID
     from datetime import datetime,timedelta,timezone
-    root=pathlib.Path(os.environ['RUNNER_TEMP'])/('hony-actual-visible-fixture' if visible else ('hony-actual-https-scm-fixture' if scm_mode else 'hony-actual-https-fixture'))
+    root=pathlib.Path(os.environ['RUNNER_TEMP'])/('hony-actual-authenticated-fixture' if authenticated else ('hony-actual-visible-fixture' if visible else ('hony-actual-https-scm-fixture' if scm_mode else 'hony-actual-https-fixture')))
     if root.exists():raise RuntimeError('fresh fixture root required')
     root.mkdir();source=root/'source';source.mkdir()
     # Restore ONLY git-tracked public app consumer bytes, never checkout env/runtime.
@@ -61,6 +61,18 @@ def parent(scm_mode=False,visible=False):
         subprocess.run([str(pg/'createdb.exe'),'-h','127.0.0.1','-p',str(pgport),'-U','hotel_fixture','hotel_fixture'],check=True,env=env,timeout=15)
         # Real migrations using exact application source, no system Python path guess.
         subprocess.run([sys.executable,'-I','-c','import sys,runpy;sys.path.insert(0,sys.argv.pop(1));sys.argv=["alembic","upgrade","head"];runpy.run_module("alembic",run_name="__main__")',str(source)],cwd=source,env=env,check=True,timeout=60)
+        if authenticated:
+            # Already independently reviewed/migrated-DB-qualified helper, immutable peer bytes.
+            env['FIXTURE_ADMIN_USERNAME']='fixture_admin'
+            env['FIXTURE_ADMIN_PASSWORD']=secrets.token_urlsafe(24)
+            env['FIXTURE_DATABASE_URL']=env['DATABASE_URL']
+            for variable in ['TELEGRAM_BOT_TOKEN','TELEGRAM_CHAT_ID']:env.pop(variable,None)
+            result=subprocess.run([sys.executable,'-I',str(HERE/'auth_fixture/seed_fixture.py'),'--source-root',str(source),'--username',env['FIXTURE_ADMIN_USERNAME'],'--start-date','2026-03-01','--end-date','2026-03-31'],cwd=source,env=env,capture_output=True,text=True,timeout=30)
+            if result.returncode!=0:raise RuntimeError('authenticated seed refused; output deliberately not logged')
+            seed=json.loads(result.stdout)
+            if not seed.get('ok'):raise RuntimeError('authenticated seed success unconfirmed')
+            (root/'auth-seed.json').write_text(json.dumps(seed))
+            print('NATIVE_AUTH_REAL_PAYROLL_SEED_PASS SEEDED_APPROVAL_PREREQUISITES_ONLY',flush=True)
         if scm_mode:
             import importlib.util
             shutil.copy2(HERE/'actual_scm_controller.py',root/'actual_scm_controller.py')
@@ -201,19 +213,25 @@ def parent(scm_mode=False,visible=False):
             win32api.SetLastError(0);job=win32job.CreateJobObject(None,'Local\\HOnY-visible-'+uuid.uuid4().hex)
             if win32api.GetLastError()==183:raise RuntimeError('fresh visible Job required')
             info=win32job.QueryInformationJobObject(job,win32job.JobObjectExtendedLimitInformation);info['BasicLimitInformation']['LimitFlags']|=win32job.JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;win32job.SetInformationJobObject(job,win32job.JobObjectExtendedLimitInformation,info)
-            command=subprocess.list2cmdline([sys.executable,'-I',str(HERE/'visible_window_smoke.py'),str(root)])
+            driver='authenticated_window_smoke.py' if authenticated else 'visible_window_smoke.py'
+            command=subprocess.list2cmdline([sys.executable,'-I',str(HERE/driver),str(root)])
             process,thread,pid,tid=win32process.CreateProcess(sys.executable,command,None,None,False,win32con.CREATE_SUSPENDED,localenv,str(source),win32process.STARTUPINFO())
             win32job.AssignProcessToJobObject(job,process)
             if win32process.ResumeThread(thread)!=1:raise RuntimeError('visible prior suspend count refused')
             if win32event.WaitForSingleObject(process,75000)!=win32con.WAIT_OBJECT_0:raise RuntimeError('visible window deadline')
             if win32process.GetExitCodeProcess(process)!=0:raise RuntimeError('visible actual window child failed')
-            result=json.loads((root/'visible-window-result.json').read_text())
-            if result.get('status')!='visible-login-rendered' or not (root/'visible-login.png').is_file():raise RuntimeError('visible pixels/result missing')
+            result_name='authenticated-window-result.json' if authenticated else 'visible-window-result.json'
+            result=json.loads((root/result_name).read_text())
+            expected='authenticated-pages-rendered' if authenticated else 'visible-login-rendered'
+            image_names=['authenticated-dashboard.png','authenticated-payroll.png','authenticated-report.png'] if authenticated else ['visible-login.png','visible-popup.png']
+            if result.get('status')!=expected or any(not (root/name).is_file() for name in image_names):raise RuntimeError('visible pixels/result missing')
             assert owned_service.running() and request()[0]==200
-            evidence=pathlib.Path(os.environ['RUNNER_TEMP'])/'hony-visible-proof'
+            evidence=pathlib.Path(os.environ['RUNNER_TEMP'])/('hony-authenticated-proof' if authenticated else 'hony-visible-proof')
             if evidence.exists():raise RuntimeError('fresh proof output required')
-            evidence.mkdir();shutil.copy2(root/'visible-login.png',evidence/'visible-login.png');shutil.copy2(root/'visible-window-result.json',evidence/'visible-window-result.json')
-            if (root/'visible-popup.png').is_file():shutil.copy2(root/'visible-popup.png',evidence/'visible-popup.png')
+            if authenticated:
+                subprocess.run([sys.executable,'-I',str(HERE/'authenticated_state_check.py'),str(root)],cwd=source,env=env,check=True,timeout=20)
+            evidence.mkdir();shutil.copy2(root/result_name,evidence/result_name)
+            for name in image_names:shutil.copy2(root/name,evidence/name)
             print('NATIVE_ACTUAL_VISIBLE_CLOSE_SERVICE_HEALTH_PASS',flush=True)
         print('NATIVE_ACTUAL_HTTPS_BACKEND_DB_TLS_PASS',json.dumps({'production_settings':True,'real_app_health_database':'connected','strict_CA_hostname':True,'untrusted_CA_refused':True,'foreign_host_origin_refused':True,'no_store':True,'SCM_combined':scm_mode,'visible_window':visible}),flush=True)
     finally:
@@ -268,4 +286,5 @@ if __name__=='__main__':
     elif len(sys.argv)==1:parent()
     elif sys.argv[1:]==['--scm']:parent(scm_mode=True)
     elif sys.argv[1:]==['--visible']:parent(scm_mode=True,visible=True)
+    elif sys.argv[1:]==['--authenticated']:parent(scm_mode=True,visible=True,authenticated=True)
     else:raise SystemExit('unsupported invocation')

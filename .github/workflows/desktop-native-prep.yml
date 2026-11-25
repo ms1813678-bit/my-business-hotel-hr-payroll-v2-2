@@ -76,6 +76,15 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
+      - name: Retain synthetic authenticated page proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: synthetic-authenticated-proof
+          path: ${{ runner.temp }}/hony-authenticated-proof/
+          if-no-files-found: ignore
+          retention-days: 1
+
       - name: Retain owned synthetic trust-helper observation
         if: always()
         uses: actions/upload-artifact@v4

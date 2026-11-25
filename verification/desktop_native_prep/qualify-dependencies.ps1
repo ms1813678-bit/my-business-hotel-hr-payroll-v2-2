@@ -68,6 +68,10 @@ if ($LASTEXITCODE -ne 0) { throw 'Actual isolated HTTPS backend qualification re
 & $VenvPython -I (Join-Path $Here 'actual_https_smoke.py') --scm
 if ($LASTEXITCODE -ne 0) { throw 'Actual combined SCM HTTPS qualification refused.' }
 
+# Authenticated pages with reviewed synthetic prerequisites, no approval/payment actions.
+& $VenvPython -I (Join-Path $Here 'actual_https_smoke.py') --authenticated
+if ($LASTEXITCODE -ne 0) { throw 'Actual authenticated desktop page qualification refused.' }
+
 # Visible production window with disposable test-only CA/DNS and exact restoration.
 & $VenvPython -I (Join-Path $Here 'actual_https_smoke.py') --visible
 if ($LASTEXITCODE -ne 0) { throw 'Actual visible desktop qualification refused.' }
