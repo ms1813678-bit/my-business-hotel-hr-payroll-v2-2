@@ -19,6 +19,17 @@ def run(root):
         def trace(frame,event,arg):
             if event=='exception' and pathlib.Path(frame.f_code.co_filename).name=='desktop_webview_guard.py':
                 print('NATIVE_POPUP_FIXED_EXCEPTION',frame.f_code.co_name,frame.f_lineno,arg[0].__name__,flush=True)
+                if frame.f_code.co_name=='_on_initialized' and frame.f_lineno==517:
+                    from System.Reflection import BindingFlags
+                    from System.Runtime.InteropServices import Marshal
+                    obj=frame.f_locals['self'];target=frame.f_locals['core'];readback=obj.args.NewWindow
+                    for tag,value in [('target',target),('readback',readback)]:
+                        print('NATIVE_POPUP_WRAPPER',tag,'null',value is None,flush=True)
+                        if value is not None:
+                            for field in value.GetType().GetFields(BindingFlags.Instance|BindingFlags.NonPublic|BindingFlags.Public):
+                                raw=field.GetValue(value)
+                                print('NATIVE_POPUP_FIELD',tag,str(field.Name),str(field.FieldType.FullName),'com',bool(raw is not None and Marshal.IsComObject(raw)),flush=True)
+
             return trace
         sys.settrace(trace)
         try:return method(self,*args)

@@ -1,3 +1,7 @@
+## 2026-11-25 - Inspect native popup managed-wrapper identity boundary by Instinct
+
+- Trace locates refusal at NewWindow wrapper inequality, followed by documented invalid post-assignment reset during cleanup. Inspect only wrapper null state and fixed field names/types/COM flags before choosing a native identity comparison. No pointer values, raw exception text, changed guard or fallback.
+
 ## 2026-11-25 - Observe suppressed native popup exception boundary by Instinct
 
 - Actual same-origin native handoff failed and existing guard refused the host. Test-only callback tracing retains fixed source method/line and exception type, no raw native message or altered handler/fallback. Recovered production bytes unchanged; no popup acceptance claimed.
