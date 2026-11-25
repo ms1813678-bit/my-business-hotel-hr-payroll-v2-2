@@ -1,3 +1,7 @@
+## 2026-11-25 - Qualify combined actual SCM HTTPS chain by Instinct
+
+- Reuse isolated real app/DB/TLS fixture under unique demand-start NetworkService and exact service adapter. Grant only owned source/config/key read and var modify. Check strict HTTPS DB readiness after ordinary independent process closes, clean SCM stop/removal and synthetic PostgreSQL stop. Not visible-window, installer or hotel acceptance.
+
 ## 2026-11-25 - Independently verify HTTPS fixture cleanup by Instinct
 
 - Real HTTPS/DB/TLS checks passed but immediate fallback TerminateProcess failed after Job termination, and skipped owned PostgreSQL stop. Wait for exact process signal first, require positive exit/Job-zero proof even after a termination error, and always run PostgreSQL stop as an independent cleanup phase. No cleanup success inferred from runner disposal.

@@ -9,7 +9,7 @@ def run_child(root):
     config=DesktopConfig.load(root/'desktop.json')
     create_server(config).run()
 
-def parent():
+def parent(scm_mode=False):
     if sys.platform!='win32' or os.environ.get('GITHUB_ACTIONS')!='true':raise RuntimeError('disposable native CI required')
     import win32api,win32con,win32event,win32job,win32process
     from cryptography import x509
@@ -17,7 +17,7 @@ def parent():
     from cryptography.hazmat.primitives.asymmetric import rsa
     from cryptography.x509.oid import NameOID,ExtendedKeyUsageOID
     from datetime import datetime,timedelta,timezone
-    root=pathlib.Path(os.environ['RUNNER_TEMP'])/'hony-actual-https-fixture'
+    root=pathlib.Path(os.environ['RUNNER_TEMP'])/('hony-actual-https-scm-fixture' if scm_mode else 'hony-actual-https-fixture')
     if root.exists():raise RuntimeError('fresh fixture root required')
     root.mkdir();source=root/'source';source.mkdir()
     # Restore ONLY git-tracked public app consumer bytes, never checkout env/runtime.
@@ -26,7 +26,7 @@ def parent():
         blob=subprocess.check_output(['git','cat-file','blob','HEAD:'+e['path']])
         if hashlib.sha256(blob).hexdigest()!=e['sha256']:raise RuntimeError('source hash refused')
         p=source/e['path'];p.parent.mkdir(parents=True,exist_ok=True);p.write_bytes(blob)
-    for name in ['desktop_config','desktop_server','desktop_certificate','desktop_security','desktop_window']:
+    for name in ['desktop_config','desktop_server','desktop_certificate','desktop_security','desktop_window','desktop_service','desktop_diagnostics']:
         shutil.copy2(HERE/(name+'.RECOVERED-EXACT.py'),source/'app'/(name+'.py'))
     addresses=[]
     for item in socket.getaddrinfo(socket.gethostname(),None,socket.AF_INET):
@@ -51,7 +51,7 @@ def parent():
     installations=sorted((pathlib.Path(os.environ['ProgramFiles'])/'PostgreSQL').glob('[0-9]*/bin'),key=lambda p:int(p.parent.name),reverse=True)
     if not installations:raise RuntimeError('preinstalled PostgreSQL required')
     pg=installations[0];cluster=root/'postgres';pw=root/'test-password';pw.write_text('synthetic-fixture-password')
-    pgstarted=False;job=process=thread=None;output=None
+    pgstarted=False;job=process=thread=None;output=None;owned_service=None
     env={**os.environ,'PGPASSWORD':'synthetic-fixture-password','APP_ENV':'production','DATABASE_URL':f'postgresql+psycopg://hotel_fixture:synthetic-fixture-password@127.0.0.1:{pgport}/hotel_fixture','SESSION_SECRET':secrets.token_hex(32),'LOGIN_ALERT_WEBHOOK_URL':''}
     (source/'.env').write_text('APP_ENV=production\nDATABASE_URL='+env['DATABASE_URL']+'\nSESSION_SECRET='+env['SESSION_SECRET']+'\n')
     try:
@@ -61,14 +61,21 @@ def parent():
         subprocess.run([str(pg/'createdb.exe'),'-h','127.0.0.1','-p',str(pgport),'-U','hotel_fixture','hotel_fixture'],check=True,env=env,timeout=15)
         # Real migrations using exact application source, no system Python path guess.
         subprocess.run([sys.executable,'-I','-c','import sys,runpy;sys.path.insert(0,sys.argv.pop(1));sys.argv=["alembic","upgrade","head"];runpy.run_module("alembic",run_name="__main__")',str(source)],cwd=source,env=env,check=True,timeout=60)
-        win32api.SetLastError(0);job=win32job.CreateJobObject(None,'Local\\HOnY-https-'+uuid.uuid4().hex)
-        if win32api.GetLastError()==183:raise RuntimeError('fresh Job required')
-        info=win32job.QueryInformationJobObject(job,win32job.JobObjectExtendedLimitInformation);info['BasicLimitInformation']['LimitFlags']|=win32job.JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;win32job.SetInformationJobObject(job,win32job.JobObjectExtendedLimitInformation,info)
-        command=subprocess.list2cmdline([sys.executable,'-I',str(HERE/'actual_https_smoke.py'),'--child',str(root)])
-        startup=win32process.STARTUPINFO()
-        process,thread,pid,tid=win32process.CreateProcess(sys.executable,command,None,None,False,win32con.CREATE_SUSPENDED,env,str(source),startup)
-        win32job.AssignProcessToJobObject(job,process)
-        if win32process.ResumeThread(thread)!=1:raise RuntimeError('prior suspend count refused')
+        if scm_mode:
+            import importlib.util
+            shutil.copy2(HERE/'actual_scm_controller.py',root/'actual_scm_controller.py')
+            spec=importlib.util.spec_from_file_location('controller',HERE/'actual_scm_controller.py')
+            controller=importlib.util.module_from_spec(spec);spec.loader.exec_module(controller)
+            controller.prepare_acl(root);owned_service=controller.OwnedService(root);owned_service.start()
+        else:
+            win32api.SetLastError(0);job=win32job.CreateJobObject(None,'Local\\HOnY-https-'+uuid.uuid4().hex)
+            if win32api.GetLastError()==183:raise RuntimeError('fresh Job required')
+            info=win32job.QueryInformationJobObject(job,win32job.JobObjectExtendedLimitInformation);info['BasicLimitInformation']['LimitFlags']|=win32job.JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;win32job.SetInformationJobObject(job,win32job.JobObjectExtendedLimitInformation,info)
+            command=subprocess.list2cmdline([sys.executable,'-I',str(HERE/'actual_https_smoke.py'),'--child',str(root)])
+            startup=win32process.STARTUPINFO()
+            process,thread,pid,tid=win32process.CreateProcess(sys.executable,command,None,None,False,win32con.CREATE_SUSPENDED,env,str(source),startup)
+            win32job.AssignProcessToJobObject(job,process)
+            if win32process.ResumeThread(thread)!=1:raise RuntimeError('prior suspend count refused')
         context=ssl.create_default_context(cafile=str(root/'ca.pem'))
         def request(path='/health',host=None,origin_header=None,ctx=context):
             raw=socket.create_connection((bind,port),timeout=4)
@@ -83,7 +90,7 @@ def parent():
         while True:
             try:status,headers,body=request();break
             except (OSError,ssl.SSLError):
-                if win32event.WaitForSingleObject(process,0)==win32con.WAIT_OBJECT_0:raise RuntimeError('actual backend child exited '+str(win32process.GetExitCodeProcess(process)))
+                if process is not None and win32event.WaitForSingleObject(process,0)==win32con.WAIT_OBJECT_0:raise RuntimeError('actual backend child exited '+str(win32process.GetExitCodeProcess(process)))
                 if time.monotonic()>until:raise RuntimeError('actual HTTPS bounded readiness failed')
                 time.sleep(.2)
         assert status==200 and json.loads(body)=={'status':'ok','database':'connected'}
@@ -94,7 +101,11 @@ def parent():
         try:request(ctx=ssl.create_default_context())
         except ssl.SSLCertVerificationError:pass
         else:raise RuntimeError('untrusted fixture leaf unexpectedly accepted')
-        print('NATIVE_ACTUAL_HTTPS_BACKEND_DB_TLS_PASS',json.dumps({'production_settings':True,'real_app_health_database':'connected','strict_CA_hostname':True,'untrusted_CA_refused':True,'foreign_host_origin_refused':True,'no_store':True,'SCM_combined':False,'visible_window':False}),flush=True)
+        if scm_mode:
+            subprocess.run([sys.executable,'-I','-c','pass'],check=True,timeout=10)
+            assert owned_service.running() and request()[0]==200
+            print('NATIVE_ACTUAL_HTTPS_SCM_NETWORKSERVICE_INDEPENDENT_PROCESS_PASS',flush=True)
+        print('NATIVE_ACTUAL_HTTPS_BACKEND_DB_TLS_PASS',json.dumps({'production_settings':True,'real_app_health_database':'connected','strict_CA_hostname':True,'untrusted_CA_refused':True,'foreign_host_origin_refused':True,'no_store':True,'SCM_combined':scm_mode,'visible_window':False}),flush=True)
     finally:
         # Independent cleanup phases: a child error must never skip owned PG stop.
         cleanup_errors=[]
@@ -117,6 +128,9 @@ def parent():
             for h in [thread,process,job]:
                 if h is not None:h.Close()
         try:
+            if owned_service is not None:owned_service.close()
+        except BaseException as exc:cleanup_errors.append('SCM-cleanup:'+type(exc).__name__)
+        try:
             if pgstarted:
                 subprocess.run([str(pg/'pg_ctl.exe'),'-D',str(cluster),'-m','fast','-w','stop'],check=True,timeout=40)
                 result=subprocess.run([str(pg/'pg_ctl.exe'),'-D',str(cluster),'status'],capture_output=True)
@@ -128,4 +142,5 @@ def parent():
 if __name__=='__main__':
     if len(sys.argv)==3 and sys.argv[1]=='--child':run_child(pathlib.Path(sys.argv[2]))
     elif len(sys.argv)==1:parent()
+    elif sys.argv[1:]==['--scm']:parent(scm_mode=True)
     else:raise SystemExit('unsupported invocation')

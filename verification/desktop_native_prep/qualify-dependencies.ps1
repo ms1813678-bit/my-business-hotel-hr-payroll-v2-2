@@ -63,3 +63,7 @@ if ($LASTEXITCODE -ne 0) { throw 'Native isolated SCM adapter qualification refu
 # Actual HTTPS app/production settings with synthetic PostgreSQL and ephemeral TLS.
 & $VenvPython -I (Join-Path $Here 'actual_https_smoke.py')
 if ($LASTEXITCODE -ne 0) { throw 'Actual isolated HTTPS backend qualification refused.' }
+
+# Combined exact SCM adapter and actual HTTPS backend, unique test service.
+& $VenvPython -I (Join-Path $Here 'actual_https_smoke.py') --scm
+if ($LASTEXITCODE -ne 0) { throw 'Actual combined SCM HTTPS qualification refused.' }
