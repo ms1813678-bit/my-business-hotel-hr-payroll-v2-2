@@ -1,3 +1,7 @@
+## 2026-11-25 - Bound current-user test certificate import by Instinct
+
+- Explicit store Add timed out, with no import confirmation. Use documented certutil current-user Root import with unchanged exact public-certificate validation. Cleanup independently verifies absence even when an armed partial import left no matching certificate. Prior failed gate remains failed. No machine-store or policy fallback.
+
 ## 2026-11-25 - Open exact current-user certificate store explicitly by Instinct
 
 - Visible qualification stopped before trust/DNS mutations because the certificate provider drive was unavailable in the invoked shell. Use explicit .NET X509Store Root/CurrentUser with unchanged exact identity checks and independent cleanup. No UI acceptance inferred from setup refusal.

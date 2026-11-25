@@ -14,13 +14,16 @@ try {
   if ($Found.Count -ne 0) { throw 'Refusing preexisting CA identity.' }
   $Certificate=New-Object Security.Cryptography.X509Certificates.X509Certificate2($CertificatePath)
   if ($Certificate.Thumbprint -ne $Thumbprint -or $Certificate.HasPrivateKey) { throw 'Wrong certificate identity or private key import.' }
-  $Store.Add($Certificate)
+  & certutil.exe -user -f -addstore Root $CertificatePath
+  if ($LASTEXITCODE -ne 0) { throw 'Current-user test CA import refused.' }
+  $Store.Close();$Store.Open([Security.Cryptography.X509Certificates.OpenFlags]::ReadWrite)
   $After=@($Store.Certificates | Where-Object { $_.Thumbprint -eq $Thumbprint })
   if ($After.Count -ne 1) { throw 'Test CA import unconfirmed.' }
   Write-Output 'TEST_CA_EXACT_IMPORT_PASS'
  } elseif ($Mode -eq 'remove') {
-  if ($Found.Count -ne 1) { throw 'Owned test CA identity no longer exact.' }
-  $Store.Remove($Found[0])
+  if ($Found.Count -gt 1) { throw 'Owned test CA identity ambiguous.' }
+  if ($Found.Count -eq 1) { $Store.Remove($Found[0]) }
+  $Store.Close();$Store.Open([Security.Cryptography.X509Certificates.OpenFlags]::ReadWrite)
   if (@($Store.Certificates | Where-Object { $_.Thumbprint -eq $Thumbprint }).Count -ne 0) { throw 'Test CA removal unconfirmed.' }
   Write-Output 'TEST_CA_EXACT_REMOVE_PASS'
  } else { throw 'Unknown fixture mode.' }
