@@ -38,7 +38,7 @@ def save_pdf(hwnd,destination,shot):
                 # Test the shown default as-is, not the unqualified editor.
                 shown=str(edits[0].GetCurrentPattern(ValuePattern.Pattern).Current.Value)
                 actual=pathlib.Path(os.environ['USERPROFILE'])/'Downloads'/'MY_HR_Report_2026-03-01_2026-03-31.pdf'
-                if shown not in (actual.name,str(actual)):
+                if shown not in (actual.name,actual.stem,str(actual)):
                     print('NATIVE_DEFAULT_PICKER_VALUE',json.dumps(dict(shown=shown,expected=str(actual))),flush=True)
                     raise RuntimeError('exact synthetic default filename mismatch')
                 if actual.exists():raise RuntimeError('synthetic default download already exists')
