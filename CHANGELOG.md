@@ -1,3 +1,10 @@
+## 2026-11-25 - One-use disaster recovery login proof by Instinct
+
+- After an encrypted restore into an accountless target, allow the exact validated newer recovery record used to open the archive to prove possession once. Keep the account password, sensitive-action throttle, forced password change and recovery-code regeneration restrictions. Login and account recovery consume the proof only with their complete successful transaction.
+- Keep the active backup encryption record at its documented archive-era value. New proof stores only a bounded public wrapped record and digests, not the supplied phrase or raw key. Corrupt present proof fails closed; absent proof preserves legacy behavior. No new route, admission layer, lock or migration.
+- Developer qualification:77 targeted tests passed,2 warnings, mostly SQLite/handler fixtures, plus one dedicated real PostgreSQL source/target archive restore and distinct-key forced rollback test. Independent review read source/hashes, not runtime. This is not whole-project, Windows, external-media or hotel-device acceptance.
+- Clarify configured target encryption prerequisites and remove the unsupported technician-reset promise. Normal setup with an existing administrator keeps the current-credential restore path; the one-use proof is for the accountless disaster path only.
+
 ## 2026-11-25 - Bounded daily overtime follow-up by Instinct
 
 - Fix English/Chinese dynamic daily-review labels and unavailable-review error text. Suppress the source warning when proof is valid; use a read-only notice when proof is unavailable on noneditable runs. No new layout, history link or reopen permission.

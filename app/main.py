@@ -724,7 +724,7 @@ def login(request: Request, username: str = Form(...), password: str = Form(...)
             # Disaster-restore identity proof: passwords alone came from the
             # archive, so the first sign-in must also present the offline
             # backup passphrase. Guesses share the sensitive-action throttle.
-            from app.backup_crypto import unwrap_data_key_for_restore
+            from app.recovery_login_proof import verify_login_phrase, clear_proof
             if reauth_lockout_remaining(db) is not None:
                 return templates.TemplateResponse(
                     request=request, name="login.html",
@@ -734,7 +734,7 @@ def login(request: Request, username: str = Form(...), password: str = Form(...)
                     status_code=429,
                 )
             try:
-                unwrap_data_key_for_restore(db, backup_passphrase)
+                verify_login_phrase(db, backup_passphrase)
             except Exception:
                 record_failed_reauth(db, actor="post_restore_login")
                 return templates.TemplateResponse(
@@ -744,6 +744,7 @@ def login(request: Request, username: str = Form(...), password: str = Form(...)
                              "csrf_token": get_csrf_token(request)},
                     status_code=401,
                 )
+            clear_proof(db, actor=admin.username)
             clear_reauth_attempts(db, actor="post_restore_login")
             db.merge(SystemSetting(key="post_restore_passphrase_required", value="", updated_by=admin.username))
             db.add(AuditLog(
@@ -4264,9 +4265,9 @@ def recover_account(
             # Guesses share the sensitive-action throttle, as on the login gate.
             if reauth_lockout_remaining(db) is not None:
                 return _render_recover(request, "أُوقفت هذه العملية مؤقتًا بعد كثرة المحاولات. حاول لاحقًا.", status_code=429)
-            from app.backup_crypto import unwrap_data_key_for_restore
+            from app.recovery_login_proof import verify_login_phrase, clear_proof
             try:
-                unwrap_data_key_for_restore(db, backup_passphrase)
+                verify_login_phrase(db, backup_passphrase)
             except Exception:
                 record_failed_reauth(db, actor="post_restore_recover")
                 return _render_recover(request, "كلمة مرور النسخ الاحتياطية غير صحيحة.", status_code=401)
@@ -4337,6 +4338,7 @@ def recover_account(
         account.must_change_password = False
         db.execute(delete(AdminSession).where(AdminSession.admin_account_id == account.id))
         if passphrase_armed:
+            clear_proof(db, actor=account.username)
             clear_reauth_attempts(db, actor="post_restore_recover")
             db.merge(SystemSetting(key="post_restore_passphrase_required", value="", updated_by=account.username))
             db.add(AuditLog(

@@ -882,6 +882,7 @@ def restore_backup(
         # use the install's key, never the archive's.
         target_data_key = load_data_key(db) if has_passphrase(db) else None
     data_key: bytes | None = None
+    selected_public_record = None
     if is_encrypted_archive(selected):
         if not passphrase:
             raise PassphraseRequiredError("The selected backup is encrypted; enter the backup passphrase to restore it.")
@@ -890,12 +891,14 @@ def restore_backup(
             # since the schema (and its settings) is dropped during the restore.
             try:
                 db_data_key: bytes | None = unwrap_data_key_for_restore(db, passphrase)
+                db_public_record = export_public_record(db)
                 db_error: ValueError | None = None
             except ValueError as exc:
                 db_data_key = None
                 db_error = exc
         if db_data_key is not None and encrypted_archive_accepts_key(db_data_key, selected):
             data_key = db_data_key
+            selected_public_record = db_public_record
         else:
             # The install's own record does not open this archive (or the
             # database has none): disaster recovery via the key files kept next
@@ -912,6 +915,7 @@ def restore_backup(
                 unwrapped_any = True
                 if encrypted_archive_accepts_key(candidate, selected):
                     data_key = candidate
+                    selected_public_record = record
                     break
             if data_key is None:
                 if db_data_key is not None:
@@ -965,6 +969,7 @@ def restore_backup(
                 pre_restore_path=pre_restore_path,
                 pre_restore_hash=pre_restore_hash,
                 completed_at=completed_at,
+                recovery_login_material=(selected_public_record, data_key, expected_sha256) if selected_public_record is not None else None,
             )
         except Exception as restore_error:
             try:
@@ -1018,6 +1023,7 @@ def _finalize_restored_security(
     pre_restore_path: Path,
     pre_restore_hash: str,
     completed_at: datetime,
+    recovery_login_material=None,
 ) -> None:
     """Carry the pre-restore credential state onto the restored database, lock
     archive-only accounts, arm the disaster gates and write the audit trail.
@@ -1035,9 +1041,10 @@ def _finalize_restored_security(
         # the credential write lock, so it cannot mutate an account whose
         # numeric id now belongs to a different user in the restored data.
         # Timestamp + random suffix: strictly different from any prior value.
+        restore_epoch = f"{int(completed_at.timestamp())}-{secrets.token_hex(3)}"
         db.merge(SystemSetting(
             key=RESTORE_EPOCH_KEY,
-            value=f"{int(completed_at.timestamp())}-{secrets.token_hex(3)}",
+            value=restore_epoch,
             updated_by=actor,
         ))
         # A restore rolls the whole security state back to archive time, which
@@ -1046,6 +1053,8 @@ def _finalize_restored_security(
         # accounts sign in again on the restored state.
 
         db.execute(delete(AdminSession))
+        from app.recovery_login_proof import clear_proof, install_proof
+        clear_proof(db, actor=actor)
         if security_snapshot["accounts"]:
             # Live-database restore: the pre-restore credential state is
             # carried over, so passwords, recovery-code consumption, throttle
@@ -1126,6 +1135,11 @@ def _finalize_restored_security(
                     value=completed_at.isoformat(),
                     updated_by=actor,
                 ))
+            if recovery_login_material is not None:
+                public_record, selected_key, selected_sha256 = recovery_login_material
+                install_proof(db, record=public_record, data_key=selected_key,
+                              archive_sha256=selected_sha256,
+                              restore_epoch=restore_epoch, actor=actor)
             # Disaster path revives the archive's bind nonce; a stale deep
             # link must not be able to bind a new chat and receive alerts.
             _neutralize_revived_bind_nonce(db, actor=actor)
