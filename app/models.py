@@ -1362,3 +1362,18 @@ class LeaveAnnualSettlement(Base):
     result_json: Mapped[str] = mapped_column(Text, nullable=False)
     result_digest: Mapped[str] = mapped_column(String(64), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+
+
+class LeaveYearTransition(Base):
+    __tablename__ = 'leave_year_transitions'
+    __table_args__ = (UniqueConstraint('employee_id', 'source_year', name='uq_leave_year_transition_year'), CheckConstraint('target_year = source_year + 1 AND source_year >= 1 AND source_year <= 9998', name='ck_leave_year_transition_adjacent'))
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    employee_id: Mapped[int] = mapped_column(ForeignKey('employees.id', ondelete='RESTRICT'), nullable=False)
+    source_year: Mapped[int] = mapped_column(Integer, nullable=False)
+    target_year: Mapped[int] = mapped_column(Integer, nullable=False)
+    source_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    request_json: Mapped[str] = mapped_column(Text, nullable=False)
+    request_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    result_json: Mapped[str] = mapped_column(Text, nullable=False)
+    result_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
