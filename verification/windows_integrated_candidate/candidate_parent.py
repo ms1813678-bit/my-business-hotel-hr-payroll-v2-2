@@ -22,14 +22,19 @@ def validate_aliases(aliases):
 def _run_checked(command, source_request, environment, decoder, verified_aliases, runner=subprocess.run):
     if type(source_request) is not bytes or not 1 <= len(source_request) <= 16_000_000:
         raise ValueError('Bounded request required')
-    with tempfile.TemporaryFile() as output:
+    with tempfile.TemporaryFile() as output, tempfile.TemporaryFile() as diagnostic:
         try:
-            result = runner(command, input=source_request, stdout=output, stderr=subprocess.DEVNULL,
+            result = runner(command, input=source_request, stdout=output, stderr=diagnostic,
                             timeout=3, check=False, env=environment, cwd=str(Path(command[3])))
         except subprocess.TimeoutExpired as exc:
-            raise ValueError('Candidate complete wall budget exceeded') from exc
+            diagnostic.seek(0);detail=diagnostic.read(16384).decode('ascii',errors='replace')
+            raise ValueError('Candidate complete wall budget exceeded; native='+detail) from exc
         if result.returncode != 0 or output.tell() > 4_000_000:
-            raise ValueError('Candidate refused or exceeded result budget')
+            diagnostic.seek(0)
+            detail=diagnostic.read(16385)
+            if len(detail)>16384:raise ValueError('Native diagnostic budget exceeded')
+            # Only trusted native stderr: worker stderr is NUL by handle list.
+            raise ValueError('Candidate refused code='+str(result.returncode)+' native='+detail.decode('ascii',errors='replace'))
         output.seek(0)
         return decoder(output.read(4_000_001), verified_aliases)
 

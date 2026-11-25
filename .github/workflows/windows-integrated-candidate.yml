@@ -1,4 +1,5 @@
 name: Integrated synthetic Windows parser candidate
+# Revision: bounded trusted-native refusal diagnostics
 on:
   push:
     branches: [ui-overhaul]

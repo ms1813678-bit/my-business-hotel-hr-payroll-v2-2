@@ -79,6 +79,7 @@ int wmain(int argc,wchar_t **argv){
  si.StartupInfo.cb=sizeof(si);si.StartupInfo.dwFlags=STARTF_USESTDHANDLES;si.StartupInfo.hStdInput=in_read;si.StartupInfo.hStdOutput=out_write;si.StartupInfo.hStdError=nul;si.lpAttributeList=attrs;
  stage="create_suspended";if(!CreateProcessW(argv[2],command,NULL,NULL,TRUE,CREATE_SUSPENDED|CREATE_NO_WINDOW|CREATE_UNICODE_ENVIRONMENT|EXTENDED_STARTUPINFO_PRESENT,environment,argv[3],&si.StartupInfo,&pi))goto done;created=1;
  {DWORD n=32768;if(!QueryFullProcessImageNameW(pi.hProcess,0,actual_image,&n)||_wcsicmp(actual_image,argv[2]))goto done;}
+ fprintf(stderr,"CANDIDATE_CREATED pid=%lu suspended=1\n",(unsigned long)GetProcessId(pi.hProcess));
  stage="verify_before_resume";if(!verify_created_child(pi.hProcess,job,sid,1))goto done;
  close_owned(&in_read,&clean);close_owned(&out_write,&clean);if(!clean)goto done;
  feed.pipe=in_write;feed.bytes=request;feed.size=request_size;
@@ -86,6 +87,7 @@ int wmain(int argc,wchar_t **argv){
  drain.pipe=out_read;drain.bytes=response;
  stage="start_reader";reader=CreateThread(NULL,0,drain_output,&drain,0,NULL);if(!reader)goto done;
  stage="resume";if(ResumeThread(pi.hThread)!=1)goto done;
+ fputs("CANDIDATE_RESUMED containment_verified=1\n",stderr);
  stage="duplex_wait";{ULONGLONG deadline=GetTickCount64()+3000;int fed=0,read_done=0,exited=0;
  while(!fed||!read_done||!exited){HANDLE waits[3];DWORD count=0;int ids[3];ULONGLONG now=GetTickCount64();
  if(now>=deadline){SetLastError(ERROR_TIMEOUT);goto done;}
