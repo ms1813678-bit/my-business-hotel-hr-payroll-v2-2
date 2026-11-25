@@ -1,3 +1,8 @@
+## 2026-11-25, Instinct: current-entry status correction
+
+- Correct stale README daily-overtime status and label old CI results as historical, not current acceptance. Refresh the source publication chain and keep isolated UID preparation separate.
+- Record the owner-backed four-stage work order and distinct peer-model review request in the maintained notebook. Documentation only; no new feature, schema or permission change.
+
 ## 2026-11-25, Instinct: maintained project decision notebook
 
 - Preserve the corrected Arabic decision register, seven-group remaining-work index, full91-item history and timeline in one canonical project document, with source gaps and acceptance limits intact.

@@ -1,6 +1,6 @@
 # Current source and verification status
 
-Instinct, 25 November 2026, 16:37 Africa/Cairo. This page corrects the stale operational index. Historical documents remain available, but their old commit, test and readiness claims are not current acceptance.
+Instinct, 25 November 2026, 17:07 Africa/Cairo. This page corrects the stale operational index. Historical documents remain available, but their old commit, test and readiness claims are not current acceptance.
 
 ## Source of truth
 
@@ -8,7 +8,7 @@ Instinct, 25 November 2026, 16:37 Africa/Cairo. This page corrects the stale ope
 
 - Repository: [my-business-hotel-hr-payroll-v2-2](https://github.com/ms1813678-bit/my-business-hotel-hr-payroll-v2-2).
 - Development branch: `ui-overhaul`. `main` is not the development target. The owner controls merging.
-- Published baseline before this monthly-leave checkpoint: `0c16238161e6b022e1b40c5eae21a506618fa93f` (strict local-model JSON request format), after `42d4e982f31599721458ea15abcb695e47721046` (recovery fixture seam). This document is part of the subsequent monthly-leave commit. Check the live `ui-overhaul` HEAD and working diff before further work. A path existing is not proof that it is the intended candidate.
+- Published baseline entering this documentation correction: `d648425744f7603e0d0f2c15699163111040ec24` (maintained decision notebook), following `7f868c5869da3dcd57ff43d8b8fb623813b65396` (shared operator leave recording), `2887068c2d77c02327b92533ef6b16c2ed008b55` (monthly leave reporting), `0c16238161e6b022e1b40c5eae21a506618fa93f` (strict local-model JSON request format) and `42d4e982f31599721458ea15abcb695e47721046` (recovery fixture seam). This correction changes documentation only. Check live development HEAD and working diff before further work; a path existing is not proof of candidate identity.
 - Published schema remains `0065_overtime_day_review`. The later internal0066 attendance schedule assertion candidate is isolated and not integrated or published. Published source is not proof of deployed schema or hotel-device acceptance.
 - No hotel-device installation or acceptance is established. Use synthetic data until acceptance.
 
@@ -113,3 +113,7 @@ The service locks the employee row before checking non-cancelled overlap, so coo
 The employee row uses FOR NO KEY UPDATE after alphabetical ROW EXCLUSIVE intents on audit_logs/employees/leave_records, preserving compatibility with unrelated FK KEY SHARE checks and avoiding a row-to-table inversion against the existing AI gateway table locks. The application has no isolation override; the PostgreSQL regression requires READ COMMITTED. Existing SHARE readers/importers may delay the route, which has no new lock timeout. Only current main/AI LeaveRecord creators are covered, not arbitrary raw SQL writers. No UID model or migration is included; isolated UID groundwork remains separate.
 
 Final integrated developer qualification on2887068 base:72passed,zero skipped,2warnings in18.93s across test_leave_create_pg, test_leave_draft_service, test_leave_routes, test_ai_gateway and test_ai_plan_model_output. The actual PostgreSQL concurrency regression explicitly PASSED, not skipped by database-name/xdist guards. The configured migrated PostgreSQL guard remained unchanged; its configured fixture DB is separate from the unique per-test Base schemas. PostgreSQL was stopped after cleanup.
+
+## Current-entry documentation correction,25November17:07
+
+Correct README daily-overtime status to the bounded published implementation described above, identify old CI evidence as historical and refresh this entrypoint publication chain. Decision notebook remains canonical for owner decisions and source gaps. Documentation/link checks only, no product/schema/permission change or new test/CI/native/hotel acceptance claim. Isolated UID migration preparation is still underway, not integrated.
