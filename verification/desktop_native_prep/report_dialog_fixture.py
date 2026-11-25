@@ -35,7 +35,13 @@ def save_pdf(hwnd,destination,shot):
             saves=[e for e in es if e.Current.ControlType==ControlType.Button and str(e.Current.Name) in ('Save','حفظ')]
             diagnostic=dict(edits=[dict(name=str(e.Current.Name),id=str(e.Current.AutomationId)) for e in es if e.Current.ControlType==ControlType.Edit],buttons=[str(e.Current.Name) for e in es if e.Current.ControlType==ControlType.Button])
             if len(edits)==1 and len(saves)==1:
+                edits[0].SetFocus()
                 edits[0].GetCurrentPattern(ValuePattern.Pattern).SetValue(str(destination))
+                # Commit the shell filename editor like a person moving to Save.
+                import System.Windows.Forms as WinForms
+                WinForms.SendKeys.SendWait('{TAB}')
+                time.sleep(.2)
+                if str(edits[0].GetCurrentPattern(ValuePattern.Pattern).Current.Value)!=str(destination):raise RuntimeError('native filename edit readback mismatch')
                 ImageGrab.grab(bbox=win32gui.GetWindowRect(h),all_screens=True).save(shot)
                 saves[0].GetCurrentPattern(InvokePattern.Pattern).Invoke()
                 break
