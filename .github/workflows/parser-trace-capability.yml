@@ -10,6 +10,49 @@ jobs:
     runs-on: windows-2022
     timeout-minutes: 3
     steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Compile query-only probe, no session recording or parser launch
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $owned=Join-Path $env:RUNNER_TEMP ('hony-query-probe-'+$env:GITHUB_RUN_ID)
+          if(Test-Path $owned){throw 'fresh root required'}
+          New-Item -ItemType Directory $owned | Out-Null
+          try {
+            $root=Join-Path $pwd 'verification/parser_trace_review'
+            $pins=Get-Content "$root/SHA256.json" -Raw|ConvertFrom-Json -AsHashtable
+            foreach($name in $pins.Keys){
+              $target=Join-Path $root $name
+              # Native source is hashed via blob bytes to avoid checkout CRLF ambiguity.
+              $psi=[Diagnostics.ProcessStartInfo]::new();$psi.FileName='git';$psi.UseShellExecute=$false;$psi.RedirectStandardOutput=$true
+              $psi.ArgumentList.Add('cat-file');$psi.ArgumentList.Add('blob');$psi.ArgumentList.Add('HEAD:verification/parser_trace_review/'+$name)
+              $proc=[Diagnostics.Process]::Start($psi);$stream=[IO.File]::Open($target,[IO.FileMode]::Create,[IO.FileAccess]::Write)
+              try{$proc.StandardOutput.BaseStream.CopyTo($stream)}finally{$stream.Dispose()}
+              $proc.WaitForExit();if($proc.ExitCode -ne 0){throw 'blob failed'}
+              if((Get-FileHash $target -Algorithm SHA256).Hash.ToLower() -ne $pins[$name]){throw 'source pin mismatch'}
+            }
+            $vs=(& "${env:ProgramFiles(x86)}/Microsoft Visual Studio/Installer/vswhere.exe" -latest -property installationPath)
+            if(-not $vs){throw 'preinstalled MSVC required'}
+            Import-Module (Join-Path $vs 'Common7/Tools/Microsoft.VisualStudio.DevShell.dll')
+            Enter-VsDevShell -VsInstallPath $vs -SkipAutomaticLocation -DevCmdArguments '-arch=x64 -host_arch=x64'
+            $probe=Join-Path $owned 'query-probe.exe'
+            & cl.exe /nologo /std:c11 /W4 /WX /guard:cf /GS "$root/session_probe.c" "/Fe:$probe" "/Fo:$owned/" advapi32.lib /link /DYNAMICBASE /NXCOMPAT
+            if($LASTEXITCODE -ne 0){throw 'compile refused'}
+            foreach($name in @('HOnYParserFile','HOnYParserProcess')){
+              $raw=& $probe query $name
+              if($LASTEXITCODE -ne 0){throw 'query failed'}
+              $status=$raw|ConvertFrom-Json
+              Write-Output ('QUERY_ONLY '+$name+' absent='+$status.absent)
+            }
+            Push-Location $root
+            try {& py -3.11 -m unittest -v; if($LASTEXITCODE -ne 0){throw 'synthetic tests failed'}}finally{Pop-Location}
+            Write-Output 'PROBE_COMPILE_QUERY_ONLY_NO_RECORDING_NO_STOP_NO_PARSER_LAUNCH'
+          } finally {
+            Remove-Item -LiteralPath $owned -Recurse -Force
+            if(Test-Path $owned){throw 'owned probe cleanup failed'}
+          }
       - name: Inspect installed trace commands only, no recording or child launch
         shell: pwsh
         run: |
