@@ -11,9 +11,16 @@ def validate_plan_values(plan, language='ar'):
     message = messages.get(language, messages['ar'])
     if not isinstance(plan, dict):
         raise ValueError(message)  # noqa: TRY004
+    if 'action' in plan and not isinstance(plan['action'], str):
+        raise ValueError(message)
     for key, value in plan.items():
         if key in {'is_financial', 'coverage_confirmed'} and value is not None and type(value) is not bool:
             raise ValueError(message)
+        if key == 'fingerprint_id':
+            # Free-text device identifier (employee form stores a stripped string); never an integer id.
+            if value is not None and (type(value) is not str or not value.strip() or len(value.strip()) > 50):
+                raise ValueError(message)
+            continue
         if key.endswith('_id') and value is not None and (type(value) is not int or value < 1):
             raise ValueError(message)
         if key in {'amount', 'basic_salary', 'daily_hours', 'balance_days', 'charged_days'} and value is not None:
@@ -31,7 +38,20 @@ def validate_plan_values(plan, language='ar'):
         'approve_attendance_day': ('attendance_record_id', 'clock_in', 'clock_out'),
         'create_manual_attendance': ('employee_id', 'work_date', 'clock_in', 'clock_out', 'reason'),
         'create_staff_action': ('employee_id', 'kind', 'category', 'title', 'is_financial'),
+        # Keys execute_plan reads with plan[...] (a missing key would be a KeyError at approval time).
+        'create_employee': ('department_id',),
+        'edit_employee': ('employee_id',),
+        'transfer_employee': ('employee_id', 'department_id'),
+        'archive_employee': ('employee_id',),
+        'rehire_employee': ('employee_id',),
+        'create_leave': ('employee_id', 'leave_type_id', 'start_date', 'end_date', 'charged_days'),
+        'confirm_leave': ('record_id',),
+        'cancel_leave': ('record_id',),
+        'delete_draft_leave': ('record_id',),
+        'adjust_leave_balance': ('employee_id', 'leave_type_id', 'balance_days'),
+        'create_advance': ('employee_id', 'amount'),
     }
     for key in required.get(plan.get('action'), ()):
-        if plan.get(key) is None or plan.get(key) == '':
+        value = plan.get(key)
+        if value is None or value == '' or (isinstance(value, str) and not value.strip()):
             raise ValueError(message)

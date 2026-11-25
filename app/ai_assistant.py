@@ -136,26 +136,30 @@ def ask_local_model(question: str, context: dict[str, Any], language: str = "ar"
     status = local_model_status(language)
     if not status["available"]:
         raise RuntimeError(status["message"])
-    response = _post_json(
-        "/api/chat",
-        {
-            "model": OLLAMA_MODEL,
-            "stream": False,
-            "messages": [
-                {"role": "system", "content": build_system_prompt(language)},
-                {
-                    "role": "user",
-                    "content": (
-                        translate_text("سؤال المسؤول", language) + f": {question.strip()}\n\n"
-                        + translate_text("بيانات النظام الحالية (للقراءة فقط)", language)
-                        + f": {json.dumps(context, ensure_ascii=False)}"
-                    ),
-                },
-            ],
-        },
-        timeout=30,
-    )
-    answer = str(response.get("message", {}).get("content", "")).strip()
+    try:
+        response = _post_json(
+            "/api/chat",
+            {
+                "model": OLLAMA_MODEL,
+                "stream": False,
+                "messages": [
+                    {"role": "system", "content": build_system_prompt(language)},
+                    {
+                        "role": "user",
+                        "content": (
+                            translate_text("سؤال المسؤول", language) + f": {question.strip()}\n\n"
+                            + translate_text("بيانات النظام الحالية (للقراءة فقط)", language)
+                            + f": {json.dumps(context, ensure_ascii=False)}"
+                        ),
+                    },
+                ],
+            },
+            timeout=30,
+        )
+    except OSError as exc:
+        raise RuntimeError(translate_text("لم يستجب النموذج المحلي في الوقت المناسب.", language)) from exc
+    message = response.get("message") if isinstance(response, dict) else None
+    answer = str(message.get("content", "") if isinstance(message, dict) else "").strip()
     if not answer:
         raise RuntimeError("لم يُرجع النموذج المحلي إجابة.")
     return answer
@@ -197,14 +201,18 @@ def ask_local_model_json(system_prompt: str, user_prompt: str) -> dict[str, Any]
     status = local_model_status()
     if not status["available"]:
         raise RuntimeError(status["message"])
-    response = _post_json(
-        "/api/chat",
-        {"model": OLLAMA_MODEL, "stream": False, "format": "json",
-         "messages": [{"role": "system", "content": system_prompt},
-                      {"role": "user", "content": user_prompt}]},
-        timeout=30,
-    )
-    raw = str(response.get("message", {}).get("content", "")).strip()
+    try:
+        response = _post_json(
+            "/api/chat",
+            {"model": OLLAMA_MODEL, "stream": False, "format": "json",
+             "messages": [{"role": "system", "content": system_prompt},
+                          {"role": "user", "content": user_prompt}]},
+            timeout=30,
+        )
+    except OSError as exc:
+        raise RuntimeError("لم يستجب النموذج المحلي في الوقت المناسب.") from exc
+    message = response.get("message") if isinstance(response, dict) else None
+    raw = str(message.get("content", "") if isinstance(message, dict) else "").strip()
     if not raw:
         raise RuntimeError("لم يُرجع النموذج المحلي خطة أمر.")
     try:

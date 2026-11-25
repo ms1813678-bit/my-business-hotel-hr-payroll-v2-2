@@ -335,7 +335,7 @@ def test_json_plan_asks_for_summary_in_ui_language(monkeypatch):
 
     monkeypatch.setattr(
         agent, "local_model_status",
-        lambda: {"available": True, "model": "qwen2.5:3b", "message": ""},
+        lambda language="ar": {"available": True, "model": "qwen2.5:3b", "message": ""},
     )
 
     def fake_post(path, payload, timeout=30):

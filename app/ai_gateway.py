@@ -90,12 +90,17 @@ def build_confirmation_preview(plan: dict[str, Any], *, session=None) -> dict[st
                 keys = ("full_name", "position", "department_id", "branch_id", "hire_date",
                         "basic_salary", "daily_hours", "phone", "address", "national_id", "fingerprint_id")
                 new_values = {key: _display_value(plan[key]) for key in keys if key in plan}
+                if isinstance(new_values.get("fingerprint_id"), str):
+                    new_values["fingerprint_id"] = new_values["fingerprint_id"].strip() or None
                 risks.append("سيتم إنشاء سجل وظيفي جديد وتخصيص كود موظف لا يُعاد استخدامه.")
             elif action == "edit_employee":
                 keys = ("full_name", "position", "department_id", "branch_id", "basic_salary",
                         "daily_hours", "phone", "address", "national_id", "fingerprint_id", "effective_date")
-                new_values = {key: _display_value(plan[key]) for key in keys if key in plan}
-                if "basic_salary" in plan or "daily_hours" in plan:
+                # execute_plan skips null fields (unchanged), so the preview must not show them as changes.
+                new_values = {key: _display_value(plan[key]) for key in keys if plan.get(key) is not None}
+                if isinstance(new_values.get("fingerprint_id"), str):
+                    new_values["fingerprint_id"] = new_values["fingerprint_id"].strip()
+                if plan.get("basic_salary") is not None or plan.get("daily_hours") is not None:
                     risks.append("تغيير الراتب أو ساعات العمل يؤثر على احتساب الرواتب حسب تاريخ السريان.")
             elif action == "transfer_employee":
                 new_values = {key: _display_value(plan.get(key)) for key in ("department_id", "branch_id", "effective_date")}
@@ -638,6 +643,10 @@ def review_receipt(token: str, actor: str, digest: str) -> str:
 
 def verify_review_receipt(token: str, actor: str, receipt: str) -> bool:
     import hmac
+    import re
+    # Receipts are lowercase SHA-256 hex. Reject anything else (non-ASCII, wrong length) before the DB lookup.
+    if type(receipt) is not str or re.fullmatch(r"[0-9a-f]{64}", receipt, re.ASCII) is None:
+        return False
     with SessionLocal() as db:
         record = db.scalar(select(AICommandApproval).where(
             AICommandApproval.token_hash == _token_hash(token)))

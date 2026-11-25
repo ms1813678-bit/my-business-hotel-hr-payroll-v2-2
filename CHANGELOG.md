@@ -1,3 +1,10 @@
+## 2026-11-25, Instinct: controlled local AI input and approval boundaries
+
+- Reject malformed action types, missing required executor keys and whitespace-only required values before review. Keep optional executor defaults. Preserve null edit fields as unchanged and omit them from proposed changes.
+- Treat fingerprint references as stripped text, preserving leading zeros and existing50-character model limit, rather than generic integer foreign keys. No blank-clearing semantics added.
+- Reject malformed review receipts before lookup; retain actor/token/plan binding. Normalize OSError model failures and malformed command JSON to controlled errors; request model status in the selected language.
+- Add synthetic and migrated-PostgreSQL parity/atomicity plus authenticated route regressions. No real-model, full language-purity or absolute transport-closure acceptance.
+
 ## 2026-11-25, Instinct: exact monthly leave charge totals
 
 - Keep monthly detail and all-status aggregate charge totals as exact Decimal values using the existing bounded leave arithmetic, independent of ambient precision/traps. Preserve the custom report and default aggregate legacy behavior. No ledger or payroll effects.

@@ -174,8 +174,17 @@ _SUMMARY_INSTRUCTIONS = {
 }
 
 
+def _bad_json_msg(language: str) -> str:
+    return _msg(
+        language,
+        "النموذج المحلي لم يُرجع أمرًا بصيغة JSON صحيحة.",
+        "The local model did not return a valid JSON command.",
+        "本地模型未返回有效的 JSON 指令。",
+    )
+
+
 def _json_plan(question: str, context: dict[str, Any], language: str = "ar") -> dict[str, Any]:
-    status = local_model_status()
+    status = local_model_status(language)
     if not status["available"]:
         raise RuntimeError(status["message"])
     prompt = (
@@ -192,36 +201,42 @@ def _json_plan(question: str, context: dict[str, Any], language: str = "ar") -> 
         + f"الأمر: {question}\nالبيانات المحلية: {json.dumps(context, ensure_ascii=False)}"
     )
     from app.ai_assistant import _post_json
-    response = _post_json(
-        "/api/chat",
-        {
-            "model": status["model"],
-            "stream": False,
-            "format": "json",
-            "messages": [
-                {
-                    "role": "system",
-                    "content": (
-                        "أنت محلل أوامر لنظام HR محلي. لا تنفذ أي شيء بنفسك. "
-                        "أخرج JSON صالحًا فقط. لا تقترح SQL أو shell أو HTTP أو ملفات."
-                    ),
-                },
-                {"role": "user", "content": prompt},
-            ],
-        },
-        timeout=30,
-    )
-    raw = str(response.get("message", {}).get("content", "")).strip()
+    try:
+        response = _post_json(
+            "/api/chat",
+            {
+                "model": status["model"],
+                "stream": False,
+                "format": "json",
+                "messages": [
+                    {
+                        "role": "system",
+                        "content": (
+                            "أنت محلل أوامر لنظام HR محلي. لا تنفذ أي شيء بنفسك. "
+                            "أخرج JSON صالحًا فقط. لا تقترح SQL أو shell أو HTTP أو ملفات."
+                        ),
+                    },
+                    {"role": "user", "content": prompt},
+                ],
+            },
+            timeout=30,
+        )
+    except OSError as exc:
+        raise RuntimeError(_msg(
+            language,
+            "لم يستجب النموذج المحلي في الوقت المناسب.",
+            "The local model did not respond in time.",
+            "本地模型未及时响应。",
+        )) from exc
+    except ValueError as exc:  # transport body was not valid JSON/UTF-8
+        raise ValueError(_bad_json_msg(language)) from exc
+    message = response.get("message") if isinstance(response, dict) else None
+    raw = str(message.get("content", "") if isinstance(message, dict) else "").strip()
     try:
         plan = json.loads(raw)
     except json.JSONDecodeError as exc:
-        raise ValueError(_msg(
-            language,
-            "النموذج المحلي لم يُرجع أمرًا بصيغة JSON صحيحة.",
-            "The local model did not return a valid JSON command.",
-            "本地模型未返回有效的 JSON 指令。",
-        )) from exc
-    if not isinstance(plan, dict) or plan.get("action") not in ALLOWED_ACTIONS:
+        raise ValueError(_bad_json_msg(language)) from exc
+    if not isinstance(plan, dict) or not isinstance(plan.get("action"), str) or plan.get("action") not in ALLOWED_ACTIONS:
         raise ValueError(_msg(
             language,
             "الأمر المطلوب غير مسموح به في المساعد.",
@@ -331,7 +346,7 @@ def execute_plan(plan: dict[str, Any], actor: str, *, db=None, human_coverage_co
             if "position" in plan and not str(plan["position"]).strip():
                 raise ValueError("المسمى الوظيفي لا يمكن أن يكون فارغًا.")
             if "department_id" in plan or "branch_id" in plan:
-                department_id = int(plan.get("department_id", employee.department_id))
+                department_id = int(plan["department_id"]) if plan.get("department_id") is not None else employee.department_id
                 branch_id = int(plan["branch_id"]) if plan.get("branch_id") is not None else employee.branch_id
                 department = db.get(Department, department_id)
                 if department is None or not department.active:
@@ -343,6 +358,8 @@ def execute_plan(plan: dict[str, Any], actor: str, *, db=None, human_coverage_co
             for field in fields:
                 if field in plan and plan[field] is not None:
                     new_value = plan[field]
+                    if field == "fingerprint_id":
+                        new_value = str(new_value).strip()  # same normalisation as the form and create_employee
                     if field in {"department_id", "branch_id"}:
                         new_value = int(new_value)
                     if field in {"basic_salary", "daily_hours"}:
