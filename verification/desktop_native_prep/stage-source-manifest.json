@@ -1,0 +1,1146 @@
+{
+  "schema": "hony-source-manifest",
+  "version": 1,
+  "files": [
+    {
+      "path": ".env.example",
+      "sha256": "8fd99031e6d85cb6176d711bba702b717e8a7a7ca8b761a5af4f6d5d8ece2e35"
+    },
+    {
+      "path": "README.md",
+      "sha256": "e44a51b05c9f08eb3ce37475d1f71825b7a1e7d82ab79333269394f14e6ee792"
+    },
+    {
+      "path": "USER_GUIDE.md",
+      "sha256": "4a8593e64d6e5df0ca58daf278174273903caa05f253cf6cdb284b05fcda94e9"
+    },
+    {
+      "path": "alembic.ini",
+      "sha256": "22f7d82b7e7c37182b0a31f7f7a1ffbf3ab2cdd084c6c7c58a3a747953dff621"
+    },
+    {
+      "path": "alembic/env.py",
+      "sha256": "fce1551007dc781cff098ad3de9f21d52c341df166a9df4ca8029a566b83870c"
+    },
+    {
+      "path": "alembic/script.py.mako",
+      "sha256": "ec7a1f4f04d677a0b038c15c4471c35803a9035352d37c36244c6e3c28b5e7f8"
+    },
+    {
+      "path": "alembic/versions/0001_initial_schema.py",
+      "sha256": "265f9b1df2920fb0052fe8a03cfed076ac56055d6d6f610669409780d4aaa8d3"
+    },
+    {
+      "path": "alembic/versions/0002_platform_state.py",
+      "sha256": "c7ed616ea413a8a684c5b0294d7d9f66263612078330c7a4ec864f1156fdd4b9"
+    },
+    {
+      "path": "alembic/versions/0003_employee_service_periods.py",
+      "sha256": "4ba9b2763cd3f37954984c1e4bdcffc989b583edd5d6520246880c3f98d83176"
+    },
+    {
+      "path": "alembic/versions/0004_employee_code_sequence.py",
+      "sha256": "f21e842b65b9bf224f5128a77bad907d02d37f1677483f4de4760f15c7d5c57b"
+    },
+    {
+      "path": "alembic/versions/0004_non_reusable_employee_codes.py",
+      "sha256": "36ba9b37ceecb3a0fba925ee84bb505d0d863b5f4493cda2547612c1194b032a"
+    },
+    {
+      "path": "alembic/versions/0005_merge_employee_code_sequence_heads.py",
+      "sha256": "923f8ad7a0ed2b1fc66b2e8bb6315fe7f73a9fadbc4d2da3005bc39ef94e9785"
+    },
+    {
+      "path": "alembic/versions/0006_employee_probation_dates.py",
+      "sha256": "6dea804d073df3e96efea340926d3bdf30075ec1090df95804ddd2f907a2ebe9"
+    },
+    {
+      "path": "alembic/versions/0007_attendance_shift_foundation.py",
+      "sha256": "0ccc904ecb98c99dde8fbb6413e8318a828f1c4834361ee7857b32de31c77365"
+    },
+    {
+      "path": "alembic/versions/0008_shift_matching_margins.py",
+      "sha256": "808c1a88fce66df0d79e313ccc62ee1bcab0f35a49d28046c17ce2cf50c0c78e"
+    },
+    {
+      "path": "alembic/versions/0009_audit_log_immutability.py",
+      "sha256": "3d61ebb8f7c3fc5d14fc538fccd680f507aef6b96688d3fe346208e4023d7c31"
+    },
+    {
+      "path": "alembic/versions/0010_attendance_records.py",
+      "sha256": "47c019619bdae85e5aecbb1b8315bca8ae9e4b1d614cdecd59a073ea07149a01"
+    },
+    {
+      "path": "alembic/versions/0011_attendance_import_issues.py",
+      "sha256": "55bcca06d65c1ad4d1baaa960c88e752d5e3c61d8495e04383f15c1dbe093148"
+    },
+    {
+      "path": "alembic/versions/0012_attendance_approval_values.py",
+      "sha256": "0bd9bbc253b0a11016c2964f26ff35b179720f82175050655f4415277942d291"
+    },
+    {
+      "path": "alembic/versions/0013_attendance_months.py",
+      "sha256": "0c62e3469f7317ebb69c0ec7ec125d756e811ae3444291423c54897b1ce7014e"
+    },
+    {
+      "path": "alembic/versions/0014_attendance_source_files.py",
+      "sha256": "da267d3d40c76c47fdbecce9a246ff78b8240d57b4430b9febc28078d399e2f9"
+    },
+    {
+      "path": "alembic/versions/0015_attendance_issue_resolution.py",
+      "sha256": "32f6725609051b68b10f79881c8b89f43182246214335c0ffec34477a85c9302"
+    },
+    {
+      "path": "alembic/versions/0016_leave_management.py",
+      "sha256": "57172a426abd40a58256763f04eee4d6485aca3eb581ed5fce50744b3022827f"
+    },
+    {
+      "path": "alembic/versions/0017_salary_advances.py",
+      "sha256": "bd34381273fa1e6a5b6eb809ce0ba2c4203ce09fd974b26fbcfa4ba1ee9c590f"
+    },
+    {
+      "path": "alembic/versions/0018_staff_actions.py",
+      "sha256": "5126dcb596ceb57c02b516afbaceee5cba55174fb93ba54e7a6fcdad5af39854"
+    },
+    {
+      "path": "alembic/versions/0019_payroll_runs.py",
+      "sha256": "73ad3dada76a9dc56269fa468830711dddc44f907196629d85894b63db954211"
+    },
+    {
+      "path": "alembic/versions/0020_backup_recovery.py",
+      "sha256": "94df8b1249191ad1d86f58a4913df16966bdf7b85e2643dbbd1c0b6d9f9068fa"
+    },
+    {
+      "path": "alembic/versions/0021_advance_installments.py",
+      "sha256": "c9049768acd78c30f80e3d74130ed1befcc18f8dd47a80379cce1f43c30e424e"
+    },
+    {
+      "path": "alembic/versions/0021_ai_command_approval.py",
+      "sha256": "dbb08ee1c30d669d325711910d7b21686076e5be3ff31f6400217bf56a738655"
+    },
+    {
+      "path": "alembic/versions/0022_advance_type.py",
+      "sha256": "9f13e458c4aa51f2420343fdaabcd828aaa1cbe6a66fb24d6a6f5fb3c64c626d"
+    },
+    {
+      "path": "alembic/versions/0023_overtime_approval.py",
+      "sha256": "249d8d86669a87b893b89ccd87fe65d8b21b21fbeae944fda9b17c4c808a6148"
+    },
+    {
+      "path": "alembic/versions/0024_merge_advance_and_ai_heads.py",
+      "sha256": "107fabca5edf25cb763f26d8b6451469c047a44dd10f2efdb6c06fe296b8436f"
+    },
+    {
+      "path": "alembic/versions/0025_manual_attendance_evidence.py",
+      "sha256": "772fdb12e49b9789d54a9974b4ad64f4407a5992576c95ce73056ae3dcaaacda"
+    },
+    {
+      "path": "alembic/versions/0026_ai_conversation_messages.py",
+      "sha256": "933fc81a4f42a38696e15602e72bbda40d580d3b15f62e041961690ce6404b1b"
+    },
+    {
+      "path": "alembic/versions/0027_employee_nationality.py",
+      "sha256": "8944cefea0eb7f88394d6923b0a1c8a3a2e35d83f33c78234541ea670426d7fb"
+    },
+    {
+      "path": "alembic/versions/0028_report_presets.py",
+      "sha256": "aa9420c10443c77d08c0c2401bec4458f28479d49c5d492b9e7526674ca13800"
+    },
+    {
+      "path": "alembic/versions/0029_report_presets_created_at.py",
+      "sha256": "3143dedd4cee9805d4ed1bad26aed36e567e6cfffb1da0dd4ef3c86324b1a1d0"
+    },
+    {
+      "path": "alembic/versions/0030_leave_type_name_zh.py",
+      "sha256": "d1ddb31b8a74e6256b8070022b2a40b6cb3b93847eb56e5e9bfd055635618567"
+    },
+    {
+      "path": "alembic/versions/0031_ai_conversation_language.py",
+      "sha256": "ec35cee12a48694ed54d4f9e49659a0f70ce345ebd7f13b7b0097d0c5fea8082"
+    },
+    {
+      "path": "alembic/versions/0032_ai_language_provenance.py",
+      "sha256": "12de0dae0ee2fd493fa96a04293133a15b95722650e62d84146197927fd05521"
+    },
+    {
+      "path": "alembic/versions/0033_absence_leave_review.py",
+      "sha256": "2b95531d9fc6e6da178455ba2d7fe3b672814a46f4de2e60167cd97b7382ccd5"
+    },
+    {
+      "path": "alembic/versions/0034_payment_correction.py",
+      "sha256": "cdf5397fb44488ec0a2313ae5b4fe5e3810941d10da929cc12307e58b513022b"
+    },
+    {
+      "path": "alembic/versions/0035_account_roles.py",
+      "sha256": "71959ac05409d5d39768e01cb501910bcc16b4967008b3976d644cea4e96715e"
+    },
+    {
+      "path": "alembic/versions/0036_password_must_change.py",
+      "sha256": "91acb4302c9b8c9a330a7afca0575f1ecf1b01500d2a8e25a69db4a425276774"
+    },
+    {
+      "path": "alembic/versions/0037_recovery_codes.py",
+      "sha256": "1f568edc91fe71e7a92206f14054742145790189a57d614d38e28863320c9c59"
+    },
+    {
+      "path": "alembic/versions/0038_admin_sessions.py",
+      "sha256": "dd959f2305768d7fe3e20b5921fb084904e17385bab893a7ad29f7e4caa0e309"
+    },
+    {
+      "path": "alembic/versions/0039_recovery_code_lookup.py",
+      "sha256": "0cf7cf1298afdddc00af8a81fc6ad0c6baca4884af7d263bd1eb9922a9bba251"
+    },
+    {
+      "path": "alembic/versions/0040_pending_credential_reset.py",
+      "sha256": "511e575f5c563a8962b109b22a5dd16001dee0940bc75a7b8b70714c55dd1ba1"
+    },
+    {
+      "path": "alembic/versions/0041_leave_foundation_facts.py",
+      "sha256": "33099601c9cc59b97771090c510ad9bf5f422378c7f5b6678e7a300da9383580"
+    },
+    {
+      "path": "alembic/versions/0042_leave_register_metadata.py",
+      "sha256": "246b25831d22d7467d025a33935c7b6dc9706ac8489b96944ab002e743569147"
+    },
+    {
+      "path": "alembic/versions/0043_leave_close_metadata.py",
+      "sha256": "cee0e32a09604f1cf554b563a04e9073609d7535787c5c35ea8580fc3eab3135"
+    },
+    {
+      "path": "alembic/versions/0044_leave_exact_day_storage.py",
+      "sha256": "d3924ca9b0c915e9535fb7b4bf449c3252d3d6a32cd65d1a42642b69fa0f2760"
+    },
+    {
+      "path": "alembic/versions/0045_leave_source_identity.py",
+      "sha256": "b94a62c02c4cba10c32cd4315a530686a7d68e130585c14f634679802b12deff"
+    },
+    {
+      "path": "alembic/versions/0046_leave_source_immutable.py",
+      "sha256": "dc79ff1ed16c263333c51ffce4ad3c81a72102fcf1ab53cd5e01ea9d857446e8"
+    },
+    {
+      "path": "alembic/versions/0047_leave_request_exact_days.py",
+      "sha256": "cb5a59225073d564a15df8deaaac5cc1594bdd7e4c8874a0030f7f3bc28c87f1"
+    },
+    {
+      "path": "alembic/versions/0048_leave_review_receipts.py",
+      "sha256": "57795db453709c5d7746b69e6ede9c3a6ab81972b717d9b02cab77130e7bad5c"
+    },
+    {
+      "path": "alembic/versions/0049_department_workbook_preparation.py",
+      "sha256": "524fbc593364682b9527c44b75c49c07440a4d6c826aac0b2cf6dbe8045b2f1c"
+    },
+    {
+      "path": "alembic/versions/0050_workbook_manifest_digest.py",
+      "sha256": "08dec9317768b4ec36c0584ed09211916c4f78d0230ed4baafc1814492d07a37"
+    },
+    {
+      "path": "alembic/versions/0051_historical_leave_evidence.py",
+      "sha256": "0e14978002212f53308f47b66f57b5420e51e1a2f4cdcf6aac6b80ab039fd581"
+    },
+    {
+      "path": "alembic/versions/0052_manual_opening_groups.py",
+      "sha256": "a381296d64939f4d064e55769f9d5734ceb92f96a722aafaf71ce933d09bc9af"
+    },
+    {
+      "path": "alembic/versions/0053_leave_policy_versions.py",
+      "sha256": "93e2b8f19bf5c98c134c1f078d5200d12eecb5ca28241aa1732b9cf8f6f4422b"
+    },
+    {
+      "path": "alembic/versions/0054_leave_opening_selections.py",
+      "sha256": "922f63d58e505f38f0043991abf379d0113d93516c93b1a5a6b977c2445f3011"
+    },
+    {
+      "path": "alembic/versions/0055_department_preparation_contract.py",
+      "sha256": "b4da46cc112468b5dcc5d4ea54001c4ddb9e1885b4769cc31a22ddf937d71382"
+    },
+    {
+      "path": "alembic/versions/0056_fingerprint_review.py",
+      "sha256": "db75d1ba310e220706305d0576931e5aad655430b8e575f125ee8dd65789b8d5"
+    },
+    {
+      "path": "alembic/versions/0057_receipt_integrity.py",
+      "sha256": "f3111cbf6c4fc841091b778e7a6cdc750cbdfafc14c158f7f0e51ca92b422264"
+    },
+    {
+      "path": "alembic/versions/0058_policy_edit_preview.py",
+      "sha256": "03f5ea8e5990b06f9b052f58263a9d5ca8362a829afbc5c5574fe190b9707298"
+    },
+    {
+      "path": "alembic/versions/0059_attendance_review_receipt.py",
+      "sha256": "ce2776a0bf00bc9c5675e6de6b73fb3547c7e7d9b861f811979564d55116451f"
+    },
+    {
+      "path": "alembic/versions/0060_attendance_occurrence_claim.py",
+      "sha256": "7eda636c890e746c3586b9e070d0cc4936be37683f683dba1b4d876593fe6d27"
+    },
+    {
+      "path": "alembic/versions/0061_leave_synthetic_transition.py",
+      "sha256": "e6cb026eca8b20daa6325f761d4add8c5c440118ef9b72b0c6a4205ced358c6b"
+    },
+    {
+      "path": "alembic/versions/0062_synthetic_register_consumption.py",
+      "sha256": "872e99b49df92cf05b103c12932f42aede4c25b04615be53cb787ac62ec8782f"
+    },
+    {
+      "path": "alembic/versions/0063_reconciliation_review.py",
+      "sha256": "8932b06ab0b1d407d5083a0163423aac84fc1ffbf1f3d0e918fde2fc87f4f655"
+    },
+    {
+      "path": "alembic/versions/0064_reconciliation_approval.py",
+      "sha256": "6def5808e1a23dee46662801cc91d8f0d72a4eb1877a4caa985aa5c744c9b0e4"
+    },
+    {
+      "path": "app/__init__.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "app/advance_repayment_schedule.py",
+      "sha256": "c815c131035cb4922dea51e848b2137813c9f2f5ce0e53d48f953e9c2a1de6c1"
+    },
+    {
+      "path": "app/advance_workflow.py",
+      "sha256": "4e0fce1546662fc4908a4e4c6787619f246b351d0d1fb13f0038428e166c0b53"
+    },
+    {
+      "path": "app/ai_agent.py",
+      "sha256": "71a39bde565394047445da8bf89cdbf747deef555cee664f0c72b607b1d2f288"
+    },
+    {
+      "path": "app/ai_assistant.py",
+      "sha256": "7b0e4e6fbbde82b9a608d7f29a5e1529ccc37cec2b9fb186bf8e220b2332fa00"
+    },
+    {
+      "path": "app/ai_execution_render.py",
+      "sha256": "9aa1278d15bd5ff6866d9dfdedb927cd6c2cccc971e6685d33520c8af2a4ee3c"
+    },
+    {
+      "path": "app/ai_gateway.py",
+      "sha256": "d0cb794a4594d53fd7e8df4934381bcd4f32f8c8b88d92b84ab4ecc5847f6a21"
+    },
+    {
+      "path": "app/ai_hr_queries.py",
+      "sha256": "2b6e3f7449f191f8f55ed2e029f27a8e0e0fc14e86aad7956ea7633add8ab596"
+    },
+    {
+      "path": "app/ai_plan_validation.py",
+      "sha256": "57fbc5f496c0d37e7e8a568b91ecc923c5e5e72813eadd75f0c097ec9f879c20"
+    },
+    {
+      "path": "app/ai_smart_scan.py",
+      "sha256": "5a00df7e05646b2824323bce74a6441d33704a6e7ec8bc601473761a038826bf"
+    },
+    {
+      "path": "app/attendance_evidence_review.py",
+      "sha256": "864cd8089e149a06ed5511667386aa2adba88e1109c24fadaaf09e2240959b5b"
+    },
+    {
+      "path": "app/attendance_import.py",
+      "sha256": "d5c3ff8cf79ae8426fa2ff8341e1269262f19b4523804ce6b8517eac7fb62c29"
+    },
+    {
+      "path": "app/attendance_reconciliation.py",
+      "sha256": "97bc884e6805d67c136cfc504b1f7cf00cf5d671fb1a0066774111649a27abc1"
+    },
+    {
+      "path": "app/attendance_workflow.py",
+      "sha256": "689c6ec684af96f5d793f767ac373e82b85817e2db6536b06562a9a71d180400"
+    },
+    {
+      "path": "app/audit_display.py",
+      "sha256": "f855ea95f5fea71614cf8ae56d0370d79e022a7ed086c37559e7bdc23dc72bed"
+    },
+    {
+      "path": "app/auth.py",
+      "sha256": "1ddc2baf3a5f4c4631875591a92d11b211a04ccea3edc2303b4f4e6da722b5bd"
+    },
+    {
+      "path": "app/backup_crypto.py",
+      "sha256": "aa45050cc8f9911a595a16dbfd0bb14ac2cfcc9e1795560dcb0802708d309977"
+    },
+    {
+      "path": "app/backup_workflow.py",
+      "sha256": "9ede9d91ae80045cfd62517677bd771229d861c09c3c1e15e9105260fefb87c4"
+    },
+    {
+      "path": "app/config.py",
+      "sha256": "a24fc2790a019df6815bf10b19d1320ad9d8d12d67e2cbc1a314c31f1ab953d5"
+    },
+    {
+      "path": "app/csrf.py",
+      "sha256": "232316d9e9a2b24f2d8fac10e87eb09ad527f13a2c4a6a5d5973900b20118d62"
+    },
+    {
+      "path": "app/db.py",
+      "sha256": "5115af2a54542c0ee037a3108ffcde1d6395580293bba1c5197d2ce8762b7bc8"
+    },
+    {
+      "path": "app/department_contract.py",
+      "sha256": "ce62845164bf704fc33bb2f8c6c6573955c35c6f32b1ad05804a13852451e891"
+    },
+    {
+      "path": "app/department_fingerprint_review.py",
+      "sha256": "110debedc51858b8033ca70d23c495064e587a81e922bb66c57ddd4ef992ce12"
+    },
+    {
+      "path": "app/department_fingerprint_workflow.py",
+      "sha256": "97031b99a3d565b34d7bfe8b0beea0076e8640f4f7b14a06a8c1fd752ba53954"
+    },
+    {
+      "path": "app/department_manifest.py",
+      "sha256": "95a82831ec62e007a033a5ad1684acb74af530c9bfd2cd0715edaa186cfb473f"
+    },
+    {
+      "path": "app/department_preparation_workflow.py",
+      "sha256": "683077742c98301f4ac7c0a4c60526fc992558001289e189a38d281e9965f8f5"
+    },
+    {
+      "path": "app/department_workbook.py",
+      "sha256": "6aa7af47d9d30dfa939d041dcf69b8d2c999793681a3c93ad0fbe95d2fb056b8"
+    },
+    {
+      "path": "app/department_workbook_guard.py",
+      "sha256": "0ecb2eb57f0cbe7ec69d86046240ee4beab298c4003d01d7b6fbf55e8addaf53"
+    },
+    {
+      "path": "app/department_workbook_projection.py",
+      "sha256": "c63b767de800966a2556879b749be4f786f58db12e28b610b7649e3290ea9258"
+    },
+    {
+      "path": "app/department_workbook_source.py",
+      "sha256": "a5212e0e1f103909c1b4978bce7d1c7a233976318313d43839172bc01df59c53"
+    },
+    {
+      "path": "app/department_workbook_store.py",
+      "sha256": "20043d845e30848f62027b80877d9609ceb73a1a3d2bc9be678a9a1718083720"
+    },
+    {
+      "path": "app/department_workbook_tiers.py",
+      "sha256": "901e9cb9ac9c1375d96cea537ed52ae910cedfc18fab7f8d7bc3be361c937026"
+    },
+    {
+      "path": "app/department_workflow_routes.py",
+      "sha256": "b238b402c744e809f225f839e255604a4c8c1fbfd9ec02a7370ef42734fd7c0f"
+    },
+    {
+      "path": "app/dependencies.py",
+      "sha256": "dca6efb196447579dd75134408abedc59f493d2c37569d2bf4912b5f112fb15c"
+    },
+    {
+      "path": "app/employee_codes.py",
+      "sha256": "293af63367062123374aebf19ac57565ffd37b409973e67118cfcbf19ee7d501"
+    },
+    {
+      "path": "app/fingerprint_bounded_parse.py",
+      "sha256": "f65ce3cea072599737163bca5522e1195d5f2082ca3540421cbd844eeb405b67"
+    },
+    {
+      "path": "app/fingerprint_evidence.py",
+      "sha256": "18b6facef376f3a6d22b0a8e59893063521d434d760a0f4af6a0a3abf941af48"
+    },
+    {
+      "path": "app/fingerprint_parse_worker.py",
+      "sha256": "1ecd78c3c11905b2a34a27b0760798fd2836b3e3aae7052b556a02c87ca50b4e"
+    },
+    {
+      "path": "app/i18n.py",
+      "sha256": "3323e75d6138fe1790294c55db0039ebc62b2ae6e8d941df3191ab1195441e3a"
+    },
+    {
+      "path": "app/leave_balance_explanation.py",
+      "sha256": "65ca84c2db056acff1e35255590533fe44ee4b6374c8054ec2fad6119f666b37"
+    },
+    {
+      "path": "app/leave_balance_explanation_routes.py",
+      "sha256": "eb081accf140bac22d65c75b20f09a32655dc32d05ae5dce56cb57f4e15e813d"
+    },
+    {
+      "path": "app/leave_balance_rules.py",
+      "sha256": "e43c746bfc1ed55ae33f41423fc75e3468a77615dbaffafce78f6c1ee80ad2f4"
+    },
+    {
+      "path": "app/leave_carry_grant.py",
+      "sha256": "e51ba7aeb137165e4e120ddfe380d866f2ee451e88213d8a808c0c9eaec33674"
+    },
+    {
+      "path": "app/leave_close_day_preview.py",
+      "sha256": "9c30f1cfe4dd45010c43d765063f82c298b402c3aa086d24b02d4146b42f1d28"
+    },
+    {
+      "path": "app/leave_close_preview.py",
+      "sha256": "cb41fecd9cc2162c288073f60c258beb84b00e161358a8739cb99910c9314d07"
+    },
+    {
+      "path": "app/leave_day_calculations.py",
+      "sha256": "06bb2573bdfa19491caae2ff1cd02cc8c27a0b72cd91aaab44111c46b6bb3cd4"
+    },
+    {
+      "path": "app/leave_exact_adjustment.py",
+      "sha256": "6967b3549066e0a2d957e7742fd60aa2aa83b56cc7a59b278bdb27c0f45787c3"
+    },
+    {
+      "path": "app/leave_exact_read.py",
+      "sha256": "1aab93b43add5e9c3575e5a51324eea78f4749ce1304db2380646fbf165c4e82"
+    },
+    {
+      "path": "app/leave_historical_evidence.py",
+      "sha256": "edd6dbecc29c2210f2aacf78421566ad32fdf054bf6a158f6ed9a8c2adc915e7"
+    },
+    {
+      "path": "app/leave_identity_preview.py",
+      "sha256": "1518a99c97ec39f0b977e0d4b60f207ff617516445da3d3421518efbfb480304"
+    },
+    {
+      "path": "app/leave_late_year_preservation.py",
+      "sha256": "fb135540fb7610d2938a900956523bf19a1a9b445dff3e2f8c4401829318701e"
+    },
+    {
+      "path": "app/leave_manual_opening.py",
+      "sha256": "795bd91cf7659dd26135bdef798581d3efa4d882ffc5c26463708a2e82a9fa52"
+    },
+    {
+      "path": "app/leave_manual_opening_groups.py",
+      "sha256": "ad848eb289c9d699f77b78bd93c5b7da064757a008ac31177ed05376d515c7ac"
+    },
+    {
+      "path": "app/leave_manual_opening_routes.py",
+      "sha256": "47482eacb88125e741a064c68a1e0e731218a6fa0eb733b85b3a10476184a243"
+    },
+    {
+      "path": "app/leave_month_close_readiness.py",
+      "sha256": "552ec82d9f303436152d04b3757c973ea5b617c3f8a42e1c5850d16b1c86e4a6"
+    },
+    {
+      "path": "app/leave_month_preview.py",
+      "sha256": "77172c843cb1f7b00e8b99dd39ab1c0ec021815872ae0188b625d66a57979705"
+    },
+    {
+      "path": "app/leave_month_review_routes.py",
+      "sha256": "7b421b8276735a759c6ca308838f525b5c6085dc027a14d958281bc5f74aae46"
+    },
+    {
+      "path": "app/leave_opening_source.py",
+      "sha256": "a2390c3cb29841b940b2659b1093f6481e106d17cfe1a63a1aea982d4b8b4b91"
+    },
+    {
+      "path": "app/leave_operator_permissions.py",
+      "sha256": "4b8116ca2d094cf5ba099aa0acc00b5373ecb9a153bfbd99cb72707f3e3bdf7e"
+    },
+    {
+      "path": "app/leave_overlap_evidence.py",
+      "sha256": "3ee4c3b956cd4adce2b8eed7a818da16a6acce5b16d12b35b4561686306fd1b9"
+    },
+    {
+      "path": "app/leave_payroll_day_routes.py",
+      "sha256": "67cbb900db7965534a42c45dbdfc1442c3ab0f18021129ca95e2a95f45186e0d"
+    },
+    {
+      "path": "app/leave_payroll_days.py",
+      "sha256": "b48fc8a433bf829dd6321c3c384645ebff02ad41e7eab69874272ab3b422b7f5"
+    },
+    {
+      "path": "app/leave_payroll_read.py",
+      "sha256": "ce1dd0c7fc56829e0dda84cec1c996c5028cf070be6eafc180376f164fed9243"
+    },
+    {
+      "path": "app/leave_policy_edit.py",
+      "sha256": "4f63cb90fb757a68694bcc2e8fadf33d4cbb8fc1d3098a11015de9eeece53136"
+    },
+    {
+      "path": "app/leave_policy_impact.py",
+      "sha256": "1aea1789d68dab54c3dbc84501fb33e0480927ba5ca8485da39e49bf6baf1269"
+    },
+    {
+      "path": "app/leave_policy_impact_routes.py",
+      "sha256": "8d3afd239b7ef36baabee6485b76e967ea428bcc51aab527684f5c3bdd047272"
+    },
+    {
+      "path": "app/leave_policy_preview.py",
+      "sha256": "48b8c3f822882402409994dde6c9db89c0d179cf89d1b09e723efde9b88610e6"
+    },
+    {
+      "path": "app/leave_policy_routes.py",
+      "sha256": "961050a558a7be7b32d616390fe7455635110fc46c59a8867f13309c6b37240a"
+    },
+    {
+      "path": "app/leave_policy_store.py",
+      "sha256": "84d2c73ca9b31c34fd75d0c370643de7b507d7bf245346625c82e30861b33c46"
+    },
+    {
+      "path": "app/leave_read_model.py",
+      "sha256": "e6f4d9328d768e527370d0588d4833bcaa30766e786be3ea9f4e378ec0f16e88"
+    },
+    {
+      "path": "app/leave_recalculation_preview.py",
+      "sha256": "5bcbca65e999b47ef926c68da9681ebf006d0e8d74b6ccdefeb3f4bc0a2b6c8f"
+    },
+    {
+      "path": "app/leave_reconciliation_approval.py",
+      "sha256": "418fa321e21b3cf2a4cd425400a66bd943a150554e581cf0019c6c9cf508596b"
+    },
+    {
+      "path": "app/leave_reconciliation_editor_routes.py",
+      "sha256": "50fef42357cf04609cf56ff15da75cb9e257c2ec520feab247a51c9d5ca31c25"
+    },
+    {
+      "path": "app/leave_reconciliation_receipt.py",
+      "sha256": "dd53e53aa27c33c25735208019c58a771552460f33918d223834959e5d5e55ab"
+    },
+    {
+      "path": "app/leave_reconciliation_source.py",
+      "sha256": "3eaaa352aaf58bc1969f39105ee1f35dc20ad1c44375e64a9dd536648a52d24d"
+    },
+    {
+      "path": "app/leave_register_preparation.py",
+      "sha256": "47513f8565d5d51b730e4e6b0accbe7425f4371de1de60e7e7ef80c5ec2d4915"
+    },
+    {
+      "path": "app/leave_register_preview.py",
+      "sha256": "41b38ccbda71fe8f3b30f072652990be9624a58458b53e44113e78473e1641ba"
+    },
+    {
+      "path": "app/leave_register_receipts.py",
+      "sha256": "191b337250a7ed1a35a7ecb71c18aee70d390e2278cab99a37fde896cd33ed99"
+    },
+    {
+      "path": "app/leave_register_review.py",
+      "sha256": "cd7812323d6591fea8563526a03d7dfc5bd2fac1197b8d294f9fc062ce3b9941"
+    },
+    {
+      "path": "app/leave_release_preview.py",
+      "sha256": "95e75415a6f848c37f2e54d2e2e41e713500424b143b7ca6d7aacf1d3b757996"
+    },
+    {
+      "path": "app/leave_source_reconciliation.py",
+      "sha256": "dfb6ecd46e8aeaa6cb47a3f8a159fa0ff4b3afbd1fc3cb7f4b27ac2204021eff"
+    },
+    {
+      "path": "app/leave_synthetic_close.py",
+      "sha256": "9f4e9ad46421d0ab3af1e8bdacdc79c2935e21aabf200827dcc97528b17caa35"
+    },
+    {
+      "path": "app/leave_synthetic_register.py",
+      "sha256": "512d4f53916762d28e7d35a80298ed0dc7e556152afd635441f16554dde0c0be"
+    },
+    {
+      "path": "app/leave_synthetic_transition.py",
+      "sha256": "2f8331b5728a88461e616485344a3097a3fdab5dfe5eb5908602d86a3413ae98"
+    },
+    {
+      "path": "app/leave_termination_evidence.py",
+      "sha256": "d26e00f16a7d07cacf9d29f8cabc77473cc7e7e39fa1761ec56593e5fe420a5f"
+    },
+    {
+      "path": "app/leave_tier_preview.py",
+      "sha256": "dff4c828b744815c4756068d72d2a3a9ade3d13d67ccc73842d0ffb9c741eb56"
+    },
+    {
+      "path": "app/leave_transition_draft.py",
+      "sha256": "faaf4a601ae924349684b4c0edcc3e9e53e3666e6482247c71dddda8c12c22a3"
+    },
+    {
+      "path": "app/leave_workbench_routes.py",
+      "sha256": "4fe6e513f277102526ca53240ad2129f84ecff8158bbf486f8cf83023e650802"
+    },
+    {
+      "path": "app/leave_workflow.py",
+      "sha256": "0c422d3514c9e6c6ca9beafde1afc97d91dafc24e9ab6015db4821ed00b59260"
+    },
+    {
+      "path": "app/legacy_department_evidence.py",
+      "sha256": "c555ee8b3fdb475975cfe5bbe8fe8aba321a4d9a0e0f0e8131f4c21d9dc9ba11"
+    },
+    {
+      "path": "app/login_security.py",
+      "sha256": "cc2d5a4c3811a37cc5c58d04f09d766ab5d875bd7254291a32fb5fb9c336442e"
+    },
+    {
+      "path": "app/main.py",
+      "sha256": "f6a487eb0e0d833310e93e89921d64eea4ad7e1a3b13c2d66d7e77f11b01d357"
+    },
+    {
+      "path": "app/models.py",
+      "sha256": "ac8c264451a8f62d2dd32f1fbd9be4db6bb203f19d50bc6d4a248f6f0930b81c"
+    },
+    {
+      "path": "app/national_id.py",
+      "sha256": "4ef6721edfa14e9ce4e281dbb48cea3f66bfab6c53c9e11fe69575fadb108c2a"
+    },
+    {
+      "path": "app/overtime_day_source.py",
+      "sha256": "fb8c4170cb66e69471036ee5db1155e2450e0fa94334c6c4d042f91203b26b86"
+    },
+    {
+      "path": "app/overtime_policy_preview.py",
+      "sha256": "3785c4313b81fb5768bed2edef6febb053fe5470c52eff2a650100345291cda1"
+    },
+    {
+      "path": "app/overtime_review_routes.py",
+      "sha256": "90c423ef63f9e4d3e8ca37c99383459050508072f8d01852ea828fadbca8c7f6"
+    },
+    {
+      "path": "app/pay_basis_preview.py",
+      "sha256": "412f6b5059a6bb9d97de21b5b28df9d85141934b2a2da1636587580ec6142abb"
+    },
+    {
+      "path": "app/pay_basis_routes.py",
+      "sha256": "98066f16c244f577b75b86999b264445823a486e842a6add931b663058a66f91"
+    },
+    {
+      "path": "app/pay_basis_source.py",
+      "sha256": "0727967cf4563232712fbc2e2bee85b6ad86ad29d6866b7beffa5f66c6e1c502"
+    },
+    {
+      "path": "app/payroll_math.py",
+      "sha256": "a39e0fe0ccef241a79404277f211a39e7aed99d89d7907a1f6564fe9ceeb2179"
+    },
+    {
+      "path": "app/payroll_simulation.py",
+      "sha256": "f8253b55dde842d7dab2a4746fe14c636b945fcb5a4e30dbd3c02d6966a9d914"
+    },
+    {
+      "path": "app/payroll_workflow.py",
+      "sha256": "d4ac1e08e114ae4d2363d5250d38db16f04ab930fe86e2ced36083d3af4df182"
+    },
+    {
+      "path": "app/payslip.py",
+      "sha256": "01b2342fde858ffbf0b237c188b3fdffed8279478e535e37eb6b1f5513b8b15f"
+    },
+    {
+      "path": "app/pre_payroll_review.py",
+      "sha256": "895d9b59cd3abcd486e234862c764445ca221a429e98f3302f05846f8b8b1a20"
+    },
+    {
+      "path": "app/report_builder.py",
+      "sha256": "6e9a3e266ffa6931a3529d4009247185a5f13b81084e52cd369ddbf0ad2e8e5d"
+    },
+    {
+      "path": "app/reports.py",
+      "sha256": "e43b8b89c7876aede2d248f905fecdfbffc25b97d8b253eedc19e933aa6af755"
+    },
+    {
+      "path": "app/restore_cli.py",
+      "sha256": "a93c0c593bda93c6fd76cc47991432f67a256fe09bf47fff80bc8e9ef796a1a8"
+    },
+    {
+      "path": "app/restore_lock.py",
+      "sha256": "d565b4096cb028ba7c692c7913abe92f3b798459852df2158578f2ed2fb06294"
+    },
+    {
+      "path": "app/security.py",
+      "sha256": "7e220e7e83673265f9f4570358a49dd82a686f8e8a807cd28ad27e042db9cd68"
+    },
+    {
+      "path": "app/security_roster.py",
+      "sha256": "aa20338eb5913129944b1cd7f470a7c06f93da980b816508b8130d4a2ff03077"
+    },
+    {
+      "path": "app/security_roster_compare.py",
+      "sha256": "826bb781bf1f61ff840d121211f87f42181308261911fc0499f44911af82d874"
+    },
+    {
+      "path": "app/security_roster_import.py",
+      "sha256": "e536eaa0adb02356871183c3c2a57c3652c6e753b395d9847183bc4394a7323c"
+    },
+    {
+      "path": "app/security_roster_workflow.py",
+      "sha256": "9a2037f016f861c5cc207be198dd311ab9a7813f2e174b057094b398380e182c"
+    },
+    {
+      "path": "app/shift_day_routes.py",
+      "sha256": "f5b6d3978bf8da7aec12a829b8832c6cfd45087e4b9cef371ad8dc435d96f01c"
+    },
+    {
+      "path": "app/shift_day_store.py",
+      "sha256": "4935c852f9c83aa8652bde051b46fabc06423a85a63781fd1cb0f9420872fa55"
+    },
+    {
+      "path": "app/shift_evidence_preview.py",
+      "sha256": "f3a94ad833005f86aa4ffba568c528c48dab3be402e23c5470a933e0ab91fced"
+    },
+    {
+      "path": "app/shift_evidence_source.py",
+      "sha256": "40de6d1facb2175ef1e67d8a7d19f521f91b6e64473758fa13fef9c80f701165"
+    },
+    {
+      "path": "app/shift_matching.py",
+      "sha256": "c9780f8c4df32955fbd688b0edc428ce9a13a906b82caee585c4654fc53934f2"
+    },
+    {
+      "path": "app/staff_actions_workflow.py",
+      "sha256": "ceba449ef237ce38bbab81e49053537a767b73ce6778332e7e58717fc277ec3a"
+    },
+    {
+      "path": "app/static/app.css",
+      "sha256": "8c49909aa211166e751d716961c07323e2b5e703989c8c21c4aeef97e044f417"
+    },
+    {
+      "path": "app/static/date-picker.js",
+      "sha256": "7d32daba3354165f315fcdcd90a3a35216073ca31e1b4b82598dededd3184ffd"
+    },
+    {
+      "path": "app/static/file-picker.js",
+      "sha256": "2aa1a8d2c52adaa53478607e2cd898a81e84a08f07ef0229ce65f149f1d9fab5"
+    },
+    {
+      "path": "app/static/hony-logo-light.svg",
+      "sha256": "ac1170ac4ccf15bfeff34461dba89354f4dc0aaa2454bc7b6495702e4fc72351"
+    },
+    {
+      "path": "app/static/hony-logo.svg",
+      "sha256": "1156b546806ecf9aedbc5aa84af5b92940b30d259c2ca12fcbd308f88c7bc9d0"
+    },
+    {
+      "path": "app/static/hony.ico",
+      "sha256": "266127fa5b9cfa08570b3d122e7071555d0c8e78d60dceb86c8e4f813ca412f7"
+    },
+    {
+      "path": "app/static/hotel-logo-print-approved.png",
+      "sha256": "29f48c7b17551b330e9722d3465abc1b964ea0872bb5ac5a5007cf23a4f0e3a8"
+    },
+    {
+      "path": "app/static/hotel-logo-transparent.png",
+      "sha256": "0c30e752301e0e12c9675ce79f1998b27311d76e544fb7eb37b49645931925d2"
+    },
+    {
+      "path": "app/static/logo-badge.png",
+      "sha256": "0c30e752301e0e12c9675ce79f1998b27311d76e544fb7eb37b49645931925d2"
+    },
+    {
+      "path": "app/static/logo.png",
+      "sha256": "0c30e752301e0e12c9675ce79f1998b27311d76e544fb7eb37b49645931925d2"
+    },
+    {
+      "path": "app/static/theme/corner.svg",
+      "sha256": "d3cb489256f6b74de846fe887b8ce3f3b04f27d5811f9ea28b0bdab9b69e2bf6"
+    },
+    {
+      "path": "app/static/theme/lotus.svg",
+      "sha256": "f6aa7bffa8433a6088693516bfaa7a878d0919f60879d422b95ad4ad08311faa"
+    },
+    {
+      "path": "app/static/vendor/VENDORED.md",
+      "sha256": "140ec43cc61d6edc9429413e12cde426554587df22018e7d57268e4bdaae501d"
+    },
+    {
+      "path": "app/static/vendor/ar.js",
+      "sha256": "ae0584eb50898ce251667bdcb3eae30f9ea1eb009af6b87773f1a9fb87bae90b"
+    },
+    {
+      "path": "app/static/vendor/flatpickr.min.css",
+      "sha256": "1b34a42552c96f10e4dfaaa4a367276b03868aacff63c1ac42ffe331352bc754"
+    },
+    {
+      "path": "app/static/vendor/flatpickr.min.js",
+      "sha256": "1eeab1cb779471a0b0aaa93dd91c2eb1aa537d696f01ab05ea9dabc55e8525a1"
+    },
+    {
+      "path": "app/static/vendor/zh.js",
+      "sha256": "8629568c4e6c9536864189e9434195416ab5b2d63c9793a3779f12a5b34d9955"
+    },
+    {
+      "path": "app/telegram_alerts.py",
+      "sha256": "4f936e633bae08f6fad06ac90d72bb0dadba110462990fd7aee05e879c607262"
+    },
+    {
+      "path": "app/templates/_language_picker.html",
+      "sha256": "6d7b6501456fc92f0a710cc35de04eb2c1048a349988d39014eef8b0dcbede9d"
+    },
+    {
+      "path": "app/templates/accounts.html",
+      "sha256": "50e56c7e01c68a15ae1a846d4c9fb9d00158ad615b981bf62c1ad2e62c0102e9"
+    },
+    {
+      "path": "app/templates/advances.html",
+      "sha256": "f99ae8ed022685960de8ffab6aa1c644eb23be863d2267e4b8e2b6a4df08da77"
+    },
+    {
+      "path": "app/templates/ai.html",
+      "sha256": "0762c5166d656f1f889f66e579fffd24a111cefe41b013f3ad19a772e19026c7"
+    },
+    {
+      "path": "app/templates/attendance_import.html",
+      "sha256": "936688092372a4d37ffc59c5ea81a08e1fa89b431b69a493f8c5aac06ee2ad83"
+    },
+    {
+      "path": "app/templates/attendance_import_issues.html",
+      "sha256": "e31e2f20c9946ee5a784f5b7c50a750fda9eb60ef19b3ddc8a09f25836527d5b"
+    },
+    {
+      "path": "app/templates/attendance_months.html",
+      "sha256": "ba973513a731290e5c1368b601dd2c2f8b5e8d9af389bd17c38a197e9259f47d"
+    },
+    {
+      "path": "app/templates/attendance_reconcile.html",
+      "sha256": "0e35a7ff8315cce086ae4fd3cc8720326ff6494e231cb796e2f65530a8328602"
+    },
+    {
+      "path": "app/templates/attendance_review.html",
+      "sha256": "e36da8b849fdf1eec756963f1197129c96ab54a0918e5585ee3078a025154d06"
+    },
+    {
+      "path": "app/templates/audit.html",
+      "sha256": "2b743847a13fceb72c12f9d70b0e0ed39a901be701d765fd6eee91b1b76de875"
+    },
+    {
+      "path": "app/templates/backup.html",
+      "sha256": "c6a7a2d5e35fb187a4a868f5707e2a92c2b6ae21cb5ef249d39da0e2a5ab49e7"
+    },
+    {
+      "path": "app/templates/base.html",
+      "sha256": "9306ce154d88fdb69ee888b15a8c209e7e3ffdd4b8035bfa74d8b6949b5df8c8"
+    },
+    {
+      "path": "app/templates/dashboard.html",
+      "sha256": "bf8a26cc285d48dc4ab3353e6386ec9b833d705dbc5cfeb4040378f98a22e0f0"
+    },
+    {
+      "path": "app/templates/employees.html",
+      "sha256": "00759b6f45b8977720c1678603c01480ce96a267bb845c5442541fcbeda94742"
+    },
+    {
+      "path": "app/templates/leave.html",
+      "sha256": "bc72fec534d3c8e644d681af88eabab34429111748b253832569abe59f029977"
+    },
+    {
+      "path": "app/templates/leave_balance_explanation.html",
+      "sha256": "a1852fad817bab01af5b120c01130784eb65123b5894b6bfe55d7fa1ad1c9eca"
+    },
+    {
+      "path": "app/templates/leave_day_review.html",
+      "sha256": "b603cc8ac38a3fdefc7d63178276896fcab18fbbfd9d58524bc51967f1b7866d"
+    },
+    {
+      "path": "app/templates/leave_departments.html",
+      "sha256": "e1c1b01110c3267377539629f17511ba3315ed6527b999b79bee7d3e82ecbffd"
+    },
+    {
+      "path": "app/templates/leave_manual_opening.html",
+      "sha256": "3158b773e75bd0f2dc6d88ca20b52999c0120d23c6f9544d8bd86067afa30a64"
+    },
+    {
+      "path": "app/templates/leave_month_close_preview.html",
+      "sha256": "d17945bb2ff45800aba2792ec6b68ec2babdd0122f9504ae7bfde192d5962483"
+    },
+    {
+      "path": "app/templates/leave_month_review.html",
+      "sha256": "ae301591bef458730a415e7bbf4f5a347fcddb2ef4055b8d39b3b6b44c308c4a"
+    },
+    {
+      "path": "app/templates/leave_payroll_day_handoff.html",
+      "sha256": "35bd7fe05b0c4ba00be356113d646ca93d859ed4cd8e414f60a6faf480b3cd4e"
+    },
+    {
+      "path": "app/templates/leave_policies.html",
+      "sha256": "3d6f3fdbffa78b17846aa3fe8c36a184f8a8f91ae534fa659644ffc33c60fa56"
+    },
+    {
+      "path": "app/templates/leave_policy_impact.html",
+      "sha256": "058b9f2b35fe4edbcbeaf547a259a0837d8b26963e2bec64882ca83ec3f90f11"
+    },
+    {
+      "path": "app/templates/leave_reconciliation_approval.html",
+      "sha256": "c7dca151b3a2e56cac3bd109a2188287e9d5960604d3799c35208d049b9ec233"
+    },
+    {
+      "path": "app/templates/leave_reconciliation_editor.html",
+      "sha256": "d26b306d952551050087246138fe1a98b96586606627c3e06353479b558a8ffe"
+    },
+    {
+      "path": "app/templates/leave_workbench.html",
+      "sha256": "48ccb4df52b1a75126c6d2cc016b74f325ff3451f00b8eaef3129f0c5b7134c4"
+    },
+    {
+      "path": "app/templates/login.html",
+      "sha256": "bbbd8d615a730743b219aca942c821fa1fbe5f350d616d5a820a652a96c009b3"
+    },
+    {
+      "path": "app/templates/overtime_day_preview.html",
+      "sha256": "c6671d4391a2c8b1f7b8fa2b357b63ccaa850765ac1bf77101c4306ed67cfac0"
+    },
+    {
+      "path": "app/templates/overtime_review.html",
+      "sha256": "65b1293b21d1c539766c4f25d5a1598a3690956ffb55bfd6a29143fc94abfd0e"
+    },
+    {
+      "path": "app/templates/password.html",
+      "sha256": "ab8e55bf0d96985ffb0ca23ade115a0629ddb20fba3c7ce20b1d7053b518a50f"
+    },
+    {
+      "path": "app/templates/pay_basis_preview.html",
+      "sha256": "be738ef3e1bff8203e0c1d5d571416408a4af75e232cdb93c4df59bece932d3d"
+    },
+    {
+      "path": "app/templates/payroll.html",
+      "sha256": "dbc6e89b3ab356b143e4abecea5c86ea79aff07d9a646b25191e28d08c0d4de7"
+    },
+    {
+      "path": "app/templates/payroll_run.html",
+      "sha256": "789a9b407047b82e6fe8ab72f190c73e1220038b32740e3d28a19cc7204ffb87"
+    },
+    {
+      "path": "app/templates/recover.html",
+      "sha256": "b2ddc1b73c7cdeed1b32a2fa11d9033401c8ce47ab776407e3ae3d41aa423277"
+    },
+    {
+      "path": "app/templates/recovery_codes.html",
+      "sha256": "d0ad6a585712d34ed7e6b987debd5707172cf270126edda7a324370e56f6ccb8"
+    },
+    {
+      "path": "app/templates/report_view.html",
+      "sha256": "1cc64ba51dd72bc5308a8e25fb5738d6df50dab2917ba9c7ccb23a2966a22878"
+    },
+    {
+      "path": "app/templates/reports.html",
+      "sha256": "d86c76339cb7134a485ad9c3f9e3eca23e1b26121dbf9dcec2295267054d347d"
+    },
+    {
+      "path": "app/templates/security_roster.html",
+      "sha256": "0a448f99377a376ae93bfbef33c919d6ab3b21015fb84e10b2ac9185381cd194"
+    },
+    {
+      "path": "app/templates/settings.html",
+      "sha256": "0d667e375ca2e2d41b7672c5f4460637a96fd0ae9516d7f7c905193dc617f326"
+    },
+    {
+      "path": "app/templates/shift_day_review.html",
+      "sha256": "fe1e1c7dada9d72b221c7eef86b3c44345207bb9a1e08b88d75ef3a81593c3e2"
+    },
+    {
+      "path": "app/templates/staff_actions.html",
+      "sha256": "355ab4bb0bbfaa314d72bfffd775cc98f64a898dc4e2d76adcc439c89ad07eca"
+    },
+    {
+      "path": "app/time_semantics.py",
+      "sha256": "11199dc7d12452b9ddaa8251db1ee1542f54fb4919d3752fb814de6dae5a488c"
+    },
+    {
+      "path": "app/usage_guide.py",
+      "sha256": "a4a884563461c105647a685553452fee3ef9897b6adb99e6a9b70d40738b4430"
+    },
+    {
+      "path": "app/validation_labels.py",
+      "sha256": "4ebf55c4c47cc3721b4407faffa4621a9d9910d9da1f714f5406a352c650a4b8"
+    },
+    {
+      "path": "app/weekly_summary.py",
+      "sha256": "c93b44765dd4893902adb94cee554ec910734ff8fc88a63775403c8844469ba7"
+    },
+    {
+      "path": "docs/ACCEPTANCE_CHECKLIST_AR.md",
+      "sha256": "87949d1470cd3663ddc9808d61bc2f86273687c347633fe48640805dab219c97"
+    },
+    {
+      "path": "docs/AI.md",
+      "sha256": "e0c91d818260ea423e96888d2c5542fb1a778649f7a207c30f3e914de1e24cf1"
+    },
+    {
+      "path": "docs/AI_ASSISTANT_ARCHITECTURE.md",
+      "sha256": "00196ca962bd2d0edcb9851f798939846afc1f6dc85b4722c57d29e86a26328f"
+    },
+    {
+      "path": "docs/APP_PREPARATION_BATCH.md",
+      "sha256": "1960bb2e87e5e6099b36ea8d60aafeef65b053aae096039d3bec16bdc9673e27"
+    },
+    {
+      "path": "docs/ATTENDANCE_SHIFT_DESIGN.md",
+      "sha256": "0a7d42e5b54af528ac9fe07fa0a0956badec0f223e2bade10c43d5fa6eaf9acb"
+    },
+    {
+      "path": "docs/BRANCH_INTEGRATION_MATRIX_V2_2.md",
+      "sha256": "49054ad3375dc13e2faeba2ac70e3b4e56852f60b1abb07345aefc123170d1b8"
+    },
+    {
+      "path": "docs/CI_PREPARATION.md",
+      "sha256": "7743657b2d8e15620dc13c2bc7f86f96fdfec34c33c0e2f92586125842b9aea0"
+    },
+    {
+      "path": "docs/MAINTENANCE.md",
+      "sha256": "aa6db3776e30a54d91334b24873a9c0373b1525a579df9ed42c06bf93e007a39"
+    },
+    {
+      "path": "docs/MASTER_PROJECT_NOTE_V2_2.md",
+      "sha256": "89356f2c5a6a816c1f897b5fd524afc2efe491e7be07e542369e5109ec12f1eb"
+    },
+    {
+      "path": "docs/PROJECT_HANDOFF.md",
+      "sha256": "13655bf5a78185cfb30f2cd67d10140d009e04c6e466df1f758c7f881c9f8ff5"
+    },
+    {
+      "path": "docs/PROJECT_SPEC.md",
+      "sha256": "bdf32bcf22bab2ff07ceab2433ca61bc8788b89ed31c593d963eae489af18b0f"
+    },
+    {
+      "path": "docs/RECONCILIATION_APPROVAL.md",
+      "sha256": "9850ced8f23a1b865eb6bdfa4e7f4f5626ad63e09914e455726c12c2da90aba2"
+    },
+    {
+      "path": "docs/SCHEMA_DRIFT.md",
+      "sha256": "f2bd0114fa8048e0c67e70782ee0cfd4fad6aaeef9e40b76192b23fca0cc3f95"
+    },
+    {
+      "path": "docs/TESTING.md",
+      "sha256": "7ac71a90d5c977ae1f620b09b041e499ede7875a3b58768d32e0124cd1521c75"
+    },
+    {
+      "path": "docs/WINDOWS_INSTALL.md",
+      "sha256": "557b05e4fa672063982bbfb11a0439f8bb6773661a24c008e41bf193a08842fa"
+    },
+    {
+      "path": "pyproject.toml",
+      "sha256": "22d20d65eb6bb7e460bda4587d62177019d7c27a189b073728bec9af9e83cd7b"
+    },
+    {
+      "path": "scripts/__init__.py",
+      "sha256": "240bbc09e8c8c0200c6434cd802f573622aa3a251c095984b94e8bc998930d5a"
+    },
+    {
+      "path": "scripts/backup/run_backup.py",
+      "sha256": "fad4417044069ab6b777521e0d5d89d87ccb45f210fe0fcdf7ea1d45b17afbf0"
+    },
+    {
+      "path": "scripts/create_admin.py",
+      "sha256": "038b067ad0c51408d2fdf1c2edd4f53b1b410b9d808787b41c1210e82d95a587"
+    },
+    {
+      "path": "scripts/generate_monthly_report.py",
+      "sha256": "613bb9db43ffc78189e963b7ba841c117b6aeb0b1ae74e252916fb1f027473a3"
+    },
+    {
+      "path": "scripts/i18n_audit.py",
+      "sha256": "e4bea70d745a6ee9ddda50158dc5c59b7decfe09dd90847efe1352a4f8622335"
+    },
+    {
+      "path": "scripts/initialize_database.py",
+      "sha256": "26a7b9d5447478f71c6047fc6ea0cb688e5aa0ba80eaaab28dbd8430da59940d"
+    },
+    {
+      "path": "scripts/run_ci_suite.py",
+      "sha256": "fd3c9585ab8a07ad6fe6308cd2de456a50756b0ae780efd78a2d3b6d078d6f44"
+    },
+    {
+      "path": "scripts/seed_departments.py",
+      "sha256": "64072e4bbca56b31d84c7df5474d99c08babdb758758baa1810b37e20dd71627"
+    },
+    {
+      "path": "scripts/seed_shifts.py",
+      "sha256": "49672b6a01efc68733f4bc23794673988d47689abdaddbf358f8689884c74873"
+    },
+    {
+      "path": "scripts/split_bilingual.py",
+      "sha256": "561cf7a38e227f38b0896fe4d382d276002d7e14f70f648404dd78c7d3c4b48c"
+    },
+    {
+      "path": "scripts/windows/install_backup_tasks.ps1",
+      "sha256": "964655a86327f91b445506206a1cc1c34c35fd07de5c059ee381cf0438e5d4ab"
+    },
+    {
+      "path": "scripts/windows/setup.ps1",
+      "sha256": "965a120c66665dd59652621ec72c8043f047ec95506cef25b590e71e7a897911"
+    },
+    {
+      "path": "scripts/windows/start.ps1",
+      "sha256": "1799e71243137c80335121953b5fd231fdfaeeee08deb20e598765570b92bad1"
+    }
+  ]
+}

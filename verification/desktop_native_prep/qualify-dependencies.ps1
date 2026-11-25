@@ -47,3 +47,7 @@ Write-Output 'DEPENDENCY_IMPORTS_PASS APP_SERVICE_UI_ACCEPTANCE_NOT_ESTABLISHED'
 # Actual hidden native root hooks only, no remote start or app configuration.
 & $VenvPython -I (Join-Path $Here 'native_root_hooks.py') (Join-Path $Here 'desktop_webview_guard.RECOVERED-EXACT.py') (Join-Path $env:RUNNER_TEMP 'hony-hidden-root-hook-smoke')
 if ($LASTEXITCODE -ne 0) { throw 'Hidden native root-hook smoke failed; no interactive acceptance.' }
+
+# Native stager uses committed public source and explicit never-run fixture bytes.
+& $VenvPython -I (Join-Path $Here 'stage_fixture_smoke.py')
+if ($LASTEXITCODE -ne 0) { throw 'Native stage/verify/compile fixture refused.' }

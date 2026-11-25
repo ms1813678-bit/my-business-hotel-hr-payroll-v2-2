@@ -1,3 +1,7 @@
+## 2026-11-25 - Qualify inert stager with native source fixture by Instinct
+
+- Preserve NEW refusal-qualified stager under verification only. Stage all 285 committed public source files with explicit synthetic wheel/vendor bytes, verify exact output and compile its actual ISS consumer. Never install or upload fixture outputs. No operational overlay or rollback claim.
+
 ## 2026-11-25 - Respect native Job binding name contract by Instinct
 
 - Hidden root-hook harness stopped before child creation because pywin32 requires a string Job name. Use an unpredictable session-local name and refuse an existing Job before setting limits or assigning a child. Preserve all suspended assignment, deadline and cleanup gates. No root-hook acceptance inferred from the failed setup.

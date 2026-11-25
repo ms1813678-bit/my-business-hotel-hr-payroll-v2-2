@@ -6,7 +6,7 @@
   "dependency_smoke.py": "36284e4d759179ca0817634cc446d4f5363cabab144eb8d9d41656b55bdb657b",
   "desktop_webview_guard.RECOVERED-EXACT.py": "9ab40677931f0942a8523f24ee9df68419b07d61cf2fc91f1284cee049fe625e",
   "native_root_hooks.py": "b92a14aa6fcd41b99e84ec384eb9fa67c19a5d16610c5d7192c9bd2e750d54a6",
-  "qualify-dependencies.ps1": "6d872af21a04e7bdfe1c00628cfd74d38db601b7e83486f8a16a64b0b153e7a5",
+  "qualify-dependencies.ps1": "76404497b27266605d3f3b02ddcc2a413ae18c35e9cecd0eaa80ddbc2d4fddea",
   "requirements-native-SDIST-NEW-CANDIDATE.txt": "8be577630f8cc6ac19d6a4f4d332ae3f33d65ad9dec72cba44b0f96f228fb267",
   "scripts/windows/activate-desktop-certificate.ps1": "c2d5c70827163fe6ac85dd08aeda7adddd69a98cd036a6134959c0d38cee4343",
   "scripts/windows/desktop-acl.ps1": "13097941ae1fe275da9798bbf0413765fc3d70ddff27e024138eea96a83d1e3f",
@@ -19,5 +19,12 @@
   "scripts/windows/remove-desktop-service.ps1": "e772b65a53110080c293901b8c93f46ed7bb30a7f65865bbc1f23fd3336bfb4e",
   "scripts/windows/renew-desktop-certificate.ps1": "9fb7190c6428340074e25f975932a0a9b3a70409fb2369d23899b3d38412827f",
   "scripts/windows/service_host.py": "c95486dc3e84c04c7a439ad681a1c727467cf22ed8ea19c843babf05519857f8",
-  "scripts/windows/start-desktop.ps1": "0e9ec1a26e9c73adb3d6bd6656aa2d4899d59c0ed04b3bdb3b61a2107dc429df"
+  "scripts/windows/start-desktop.ps1": "0e9ec1a26e9c73adb3d6bd6656aa2d4899d59c0ed04b3bdb3b61a2107dc429df",
+  "stage-source-manifest.json": "3cf609f303dfa84b412ef39e5db6423e1b7ef8634c3ed52d8e2637791d32eb8f",
+  "stage_fixture_smoke.py": "5e516d2a7debde18d83d97f4fb2c415bdc8a768134b6677ccfb42fc62edd578d",
+  "stager_candidate/HOnY-Desktop-Staged.iss": "8084e3ba69eee585df4dd1fbe50c67c7691619cbe5adda920844376bac4d0077",
+  "stager_candidate/staging/hony_journal.py": "e1873f30648fed81cd647d20eda7002307d223719a976cca021334ee690eb0a2",
+  "stager_candidate/staging/hony_stage.py": "ab460bbad0304236b832443ba6819972cfed1b75bf7e652d09daa331c64d5e02",
+  "stager_candidate/staging/hony_stagetree.py": "47c40e1b02319a092ec72d6189f5f254c836ae913891d027a0eaff07778b9a5f",
+  "stager_candidate/staging/verify_install.py": "fe4d007316b15c1713dd0bff4657353b841963a6e9d8e20ec22d69076e9cb8dd"
 }
