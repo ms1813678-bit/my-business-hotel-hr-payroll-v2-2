@@ -61,4 +61,4 @@ subprocess.run([str(py), '-I', str(here / 'stager_candidate/staging/verify_wheel
                 str(projection), site_root], check=True)
 print('NATIVE_WHEEL_ORIGINAL_PAYLOAD_PROJECTION_PASS NOT_FULL_INSTALLED_TREE', flush=True)
 subprocess.run([str(py), '-I', str(here / 'dependency_smoke.py')], check=True)
-print('NATIVE_ACTUAL50_OFFLINE_FRESH_INSTALL_METADATA_IMPORT_PASS NOT_BYTE_INTEGRITY_NOT_RELEASE', flush=True)
+print('NATIVE_ACTUAL50_OFFLINE_FRESH_INSTALL_METADATA_IMPORT_PASS NOT_FULL_INSTALLED_TREE_NOT_RELEASE', flush=True)

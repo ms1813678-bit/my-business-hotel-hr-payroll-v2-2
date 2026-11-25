@@ -1,3 +1,7 @@
+## 2026-11-25 - Qualify isolated native SCM adapter by Instinct
+
+- Use exact recovered service adapter with synthetic configuration/server seams, unique demand-start NetworkService name and owned fixture ACL grants only. Verify running heartbeat, independent ordinary process completion, clean explicit stop and exact service removal. Not real backend, desktop-window, hotel or production service acceptance.
+
 ## 2026-11-25 - Check original wheel payload projection by Instinct
 
 - Pair NEW read-only projection builder and isolated verifier after fresh offline install. Check original site-packages payload bytes, explicitly exclude 54 transformed/rewritten members in current 50 artifacts. No exact full-installed-tree, manifest authenticity or runtime security claim. Writer corrected paired mapping/schema contradictions; real artifact inert payload verification passed 3267 files.

@@ -55,3 +55,7 @@ if ($LASTEXITCODE -ne 0) { throw 'Native stage/verify/compile fixture refused.' 
 # Real pinned wheel closure into a second fresh venv, offline at install.
 & $VenvPython -I (Join-Path $Here 'offline_wheel_closure.py')
 if ($LASTEXITCODE -ne 0) { throw 'Actual offline wheel closure qualification refused.' }
+
+# Unique disposable SCM adapter, synthetic worker only, no app/TLS/DB config.
+& $VenvPython -I (Join-Path $Here 'scm_adapter_smoke.py')
+if ($LASTEXITCODE -ne 0) { throw 'Native isolated SCM adapter qualification refused.' }
