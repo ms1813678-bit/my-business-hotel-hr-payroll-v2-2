@@ -1,3 +1,9 @@
+## 2026-11-25 - Windows restore procedure correction by Instinct
+
+- Use the project .venv interpreter explicitly in PowerShell restore examples, matching setup/start scripts; activation is not required. Stop the running app before recovery as an operational precaution.
+- Distinguish normal setup's current-target-admin login from the separately provisioned accountless one-use proof path. Archive-only accounts require re-enablement and password reset; re-activation alone is refused. Do not delete accounts to reach the accountless path.
+- Keep the archive-era active-encryption limitation explicit. Documentation only, source/script checks only; no Windows run, hotel-device or whole-project acceptance claim.
+
 ## 2026-11-25 - Current source index correction by Instinct
 
 - Point the operational index to published recovery commita9fb08b1 and0065 schema. Keep the unpublished0066 assertion candidate and held admission dependency separate.
