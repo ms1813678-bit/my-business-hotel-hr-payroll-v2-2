@@ -17,6 +17,7 @@ from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models import CAIRO_TZ
@@ -1352,20 +1353,50 @@ def list_presets(db: Session) -> list[ReportPreset]:
     return list(db.scalars(select(ReportPreset).order_by(ReportPreset.name)).all())
 
 
-def save_preset(db: Session, name: str, config: dict, created_by: str) -> ReportPreset:
+def save_preset(db: Session, name: str, config: dict, created_by: str, existing_check=None) -> ReportPreset:
+    """Create or replace a preset by name. existing_check(stored_config) must raise
+    if the caller may not replace the stored config; it runs on the row locked
+    (SELECT ... FOR UPDATE) in this same transaction, so the stored config cannot
+    change between the check and the write."""
     name = name.strip()
     if not name:
         raise ValueError("اسم الاختيار مطلوب.")
     if len(name) > 120:
         raise ValueError("اسم الاختيار طويل جدًا.")
-    existing = db.scalar(select(ReportPreset).where(ReportPreset.name == name))
-    if existing is not None:
-        existing.config = json.dumps(config, ensure_ascii=False)
-        existing.created_by = created_by
-        return existing
-    preset = ReportPreset(name=name, config=json.dumps(config, ensure_ascii=False), created_by=created_by)
-    db.add(preset)
-    return preset
+    payload = json.dumps(config, ensure_ascii=False)
+    for _ in range(2):
+        existing = db.scalar(
+            select(ReportPreset).where(ReportPreset.name == name)
+            .with_for_update().execution_options(populate_existing=True)
+        )
+        if existing is not None:
+            if existing_check is not None:
+                existing_check(preset_config(existing))
+            existing.config = payload
+            existing.created_by = created_by
+            return existing
+        try:
+            with db.begin_nested():
+                preset = ReportPreset(name=name, config=payload, created_by=created_by)
+                db.add(preset)
+                db.flush()
+            return preset
+        except IntegrityError:
+            continue  # lost the create race: re-read the winner and re-check
+    raise ValueError("تعذر حفظ الاختيار الآن، حاول مرة أخرى.")
+
+
+def delete_preset(db: Session, preset_id: int, existing_check=None) -> bool:
+    preset = db.scalar(
+        select(ReportPreset).where(ReportPreset.id == preset_id)
+        .with_for_update().execution_options(populate_existing=True)
+    )
+    if preset is None:
+        return False
+    if existing_check is not None:
+        existing_check(preset_config(preset))
+    db.delete(preset)
+    return True
 
 
 def load_preset(db: Session, preset_id: int) -> ReportPreset | None:

@@ -124,6 +124,7 @@ from app.report_builder import (
     preset_config_from_params,
     resolve_period,
     save_preset,
+    delete_preset,
     selection_from_params,
 )
 from app.backup_crypto import (
@@ -3287,7 +3288,10 @@ async def save_report_preset_route(
     _enforce_report_scope(ReportSelection.from_config(config), admin)
     try:
         with SessionLocal() as db:
-            preset = save_preset(db, name, config, admin.username)
+            preset = save_preset(
+                db, name, config, admin.username,
+                existing_check=lambda stored: _enforce_report_scope(ReportSelection.from_config(stored), admin),
+            )
             db.commit()
             preset_id = preset.id
     except ValueError:
@@ -3301,10 +3305,10 @@ def delete_report_preset_route(
     admin: AdminAccount = Depends(get_current_admin),
 ):
     with SessionLocal() as db:
-        preset = load_preset(db, preset_id)
-        if preset is not None:
-            _enforce_report_scope(ReportSelection.from_config(preset_config(preset)), admin)
-            db.delete(preset)
+        if delete_preset(
+            db, preset_id,
+            existing_check=lambda stored: _enforce_report_scope(ReportSelection.from_config(stored), admin),
+        ):
             db.commit()
     return RedirectResponse("/reports?deleted=1", status_code=303)
 

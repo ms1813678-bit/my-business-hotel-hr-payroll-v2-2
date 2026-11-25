@@ -473,3 +473,10 @@ The preceding distinct debug-created candidate timed out waiting for its first c
 Production payroll overtime now uses the saved basic salary plus the selected month's actual performance bonus, divided by30 and the saved explicit rate divisor. Other bonus types remain excluded. Changing overtime hours or the performance award invalidates prior overtime approval and clears its money until explicit reapproval; saving equal values or changing an unrelated bonus preserves approval. Lateness and ordinary absence calculations are unchanged. This does not implement daily overtime awards, same-day attendance review, year close, cash settlements or the new leave-ledger production handoff. It does not mark Item2 complete.
 
 Grounded in owner's23November19:18:47/19:31:57 pay-basis instructions, not a proposed peer permission matrix. Existing paid-item and approved/closed-run edit guards are preserved. Verification includes a fresh fully migrated synthetic PostgreSQL cluster for basis-change/invalidation/reapproval and paid/closed refusal, plus payroll routes, guards, simulations and AI preview regression. Existing route tests still use their own SQLite fixtures; they are not relabeled PostgreSQL acceptance.
+
+
+## Instinct: scoped report-preset save/delete correction, 25 November 2026
+
+Applies the owner-approved Item4 report-preset correction from Mido's proposal and independent review. Saving an existing name checks the stored report's existing role scope while holding the row lock. A competing create uses a savepoint, then re-reads and checks the winning row. Deletion locks and checks the current stored scope too. Shared in-scope presets remain shared; no ownership or role policy is changed.
+
+Qualified on Python3.11.18 against a disposable migrated PostgreSQL database with real FastAPI login, sessions, CSRF and concurrent requests, plus existing report/role tests. The opt-in PostgreSQL qualification refuses non-loopback databases or a database not named synth. This narrow correction does not complete Item4 and includes no Item2 daily-overtime schema or UI changes.
