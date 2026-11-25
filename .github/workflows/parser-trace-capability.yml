@@ -30,11 +30,17 @@ jobs:
             & $wpr.Source -profiles
             Write-Output ('WPR_PROFILES_EXIT '+$LASTEXITCODE)
           }
+          & logman.exe create trace /?
+          Write-Output ('LOGMAN_HELP_EXIT '+$LASTEXITCODE)
+          & tracerpt.exe /?
+          Write-Output ('TRACERPT_HELP_EXIT '+$LASTEXITCODE)
           foreach($name in @('Microsoft-Windows-Kernel-File','Microsoft-Windows-Kernel-Process')) {
             try {
               $provider=Get-WinEvent -ListProvider $name
               Write-Output ('TRACE_PROVIDER '+$provider.Name+' '+$provider.Id)
-              $provider.Events | Where-Object {$_.Id -in @(1,2,10,11,12,14,15,16,20,30)} | Select-Object Id,Version,Level,Task,Opcode | Format-Table
+              $provider.Events | Where-Object {$_.Id -in @(1,2,3,4,10,11,12,14,15,16,20,24,30)} | ForEach-Object {
+                [pscustomobject]@{id=$_.Id;version=$_.Version;task=$_.Task.Name;opcode=$_.Opcode.Name;template=$_.Template} | ConvertTo-Json -Compress -Depth 4
+              }
               $provider.Keywords | Select-Object Name,Value | Format-Table
             } catch {Write-Output ('TRACE_PROVIDER_UNAVAILABLE '+$name+' '+$_.Exception.GetType().Name)}
           }
