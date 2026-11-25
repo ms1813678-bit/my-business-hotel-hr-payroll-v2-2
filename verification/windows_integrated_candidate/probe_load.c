@@ -43,7 +43,7 @@ static void try_system(const char *label, const wchar_t *name) {
   if (module) (void)FreeLibrary(module);
 }
 
-static void try_staged(const char *label, const wchar_t *directory, const wchar_t *name, int keep) {
+static void try_staged(const char *label, const wchar_t *directory, const wchar_t *name, DWORD flags, int keep) {
   wchar_t path[MAX_PATH + 32];
   size_t used = 0;
   while (directory[used] && used < MAX_PATH) {
@@ -53,7 +53,7 @@ static void try_staged(const char *label, const wchar_t *directory, const wchar_
   for (size_t i = 0; name[i] && used < MAX_PATH + 30; i++) path[used++] = name[i];
   path[used] = 0;
   SetLastError(0);
-  HMODULE module = LoadLibraryExW(path, NULL, LOAD_WITH_ALTERED_SEARCH_PATH);
+  HMODULE module = LoadLibraryExW(path, NULL, flags);
   DWORD error = module ? 0 : GetLastError();
   report(label, module, error);
   if (module && !keep) (void)FreeLibrary(module);
@@ -81,9 +81,14 @@ int wmain(void) {
   try_system("bcrypt", L"bcrypt.dll");
   try_system("ws2_32", L"ws2_32.dll");
   /* Staged dependencies, then the interpreter DLL last. */
-  try_staged("vcruntime140", self, L"vcruntime140.dll", 1);
-  try_staged("vcruntime140_1", self, L"vcruntime140_1.dll", 1);
-  try_staged("python314", self, L"python314.dll", 0);
+  try_staged("vcruntime140", self, L"vcruntime140.dll", LOAD_WITH_ALTERED_SEARCH_PATH, 1);
+  try_staged("vcruntime140_1", self, L"vcruntime140_1.dll", LOAD_WITH_ALTERED_SEARCH_PATH, 1);
+  /* Control: a trivial unsigned staged DLL under identical hardening flags. */
+  try_staged("control_dll", self, L"probe_ctl.dll", LOAD_WITH_ALTERED_SEARCH_PATH, 0);
+  try_staged("python314", self, L"python314.dll", LOAD_WITH_ALTERED_SEARCH_PATH, 0);
+  /* Same file, split by stage: map without DllMain/import resolution, then map as image resource. */
+  try_staged("python314_noresolve", self, L"python314.dll", DONT_RESOLVE_DLL_REFERENCES, 0);
+  try_staged("python314_imageres", self, L"python314.dll", LOAD_LIBRARY_AS_IMAGE_RESOURCE, 0);
   emit("probe_done ok=1\n", 16);
   return 0;
 }

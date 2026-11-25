@@ -14,6 +14,17 @@ from app.db import engine
 
 import pytest
 
+def _repo_alembic_head():
+    from alembic.config import Config
+    from alembic.script import ScriptDirectory
+    root = Path(__file__).resolve().parents[1]
+    config = Config(str(root / 'alembic.ini'))
+    config.set_main_option('script_location', str(root / 'alembic'))
+    heads = ScriptDirectory.from_config(config).get_heads()
+    assert len(heads) == 1
+    return heads[0]
+
+
 @pytest.mark.parametrize("lang",["ar","en","zh"])
 def test_disposable_normal_database_reviewed_register_http(tmp_path,lang):
     name='test_return_http_'+uuid4().hex[:12]
@@ -42,7 +53,7 @@ def test_disposable_normal_database_reviewed_register_http(tmp_path,lang):
             target=create_engine(engine.url.set(database=name))
             with target.connect() as check:
                 assert check.scalar(text('SELECT count(*) FROM leave_register_consumptions'))==1
-                assert check.scalar(text('SELECT version_num FROM alembic_version'))=='0071_leave_month_earning'
+                assert check.scalar(text('SELECT version_num FROM alembic_version'))==_repo_alembic_head()
             target.dispose()
     finally:
         with admin.connect() as c:

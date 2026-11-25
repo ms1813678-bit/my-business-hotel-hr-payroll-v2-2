@@ -43,6 +43,9 @@ jobs:
             & cl.exe /nologo /std:c11 /W4 /WX /guard:cf /GS /DUNICODE /D_UNICODE "$root/launcher.c" "/Fe:$launcher" userenv.lib advapi32.lib /link /DYNAMICBASE /NXCOMPAT
             if($LASTEXITCODE -ne 0){throw 'Native candidate compile failed'}
             $probe=Join-Path $owned 'probe_load.exe'
+            $probeCtl=Join-Path $owned 'probe_ctl.dll'
+            & cl.exe /nologo /std:c11 /W4 /WX /MT /GS /guard:cf /LD "$root/probe_ctl.c" "/Fe:$probeCtl" /link /DYNAMICBASE /NXCOMPAT
+            if($LASTEXITCODE -ne 0){throw 'Loader probe control DLL compile failed'}
             & cl.exe /nologo /std:c11 /W4 /WX /MT /GS /DUNICODE /D_UNICODE "$root/probe_load.c" "/Fe:$probe" /link /DYNAMICBASE /NXCOMPAT
             if($LASTEXITCODE -ne 0){throw 'Loader probe compile failed'}
             & py -3.11 "$root/acquire_locked.py" --lock "$root/ACQUISITION-LOCK.json" --destination "$owned/acquired"
@@ -53,6 +56,7 @@ jobs:
               if($sig.Status -ne 'Valid'){throw 'Runtime signature verification failed'}
             }
             Copy-Item -LiteralPath $probe -Destination "$owned/acquired/runtime/probe_load.exe"
+            Copy-Item -LiteralPath $probeCtl -Destination "$owned/acquired/runtime/probe_ctl.dll"
             $python=Join-Path $owned 'acquired/runtime/python.exe'
             & $python -I -B -c 'import sys;print(sys.version);sys.exit(0 if sys.version_info[:3]==(3,14,10) else 1)'
             if($LASTEXITCODE -ne 0){throw 'Pinned runtime startup/version failed'}
@@ -68,6 +72,11 @@ jobs:
             . (Join-Path $root 'loader_flag.ps1')
             Write-Output 'LOADER_PROBE_IFEO_SNAPS=OFF'
             & "$root/qualify_runtime.ps1" -Launcher $launcher -Stage "$owned/staged" -ManifestPin $pin -Request "$root/request-xls.json" -Owner $owner -ProductRoot $pwd -TrustedPython (py -3.11 -c 'import sys;print(sys.executable)') -Probe
+            # Read-only header facts of the staged python314.dll (same bytes the probe loaded). Never fails the job.
+            try {
+              & dumpbin.exe /nologo /dependents "$owned/staged/runtime/python314.dll" | ForEach-Object { 'dumpbin_dependents '+$_.Trim() } | Where-Object { $_ -match '^dumpbin_dependents [A-Za-z0-9_.-]+\.(dll|DLL)$' }
+              & dumpbin.exe /nologo /headers "$owned/staged/runtime/python314.dll" | Select-String -Pattern 'DLL characteristics|Guard|Control Flow|dynamic base|NX compatible|High Entropy|Terminal Server' | ForEach-Object { 'dumpbin_header '+($_.Line.Trim() -replace '[^A-Za-z0-9 _.()/-]','') }
+            } catch { Write-Output 'dumpbin_unavailable' }
             Write-Output 'Loader isolation probe returned; security/network acceptance remains separate and NOT_ESTABLISHED.'
           } finally {
             if(Test-Path $owned){Remove-Item -LiteralPath $owned -Recurse -Force}

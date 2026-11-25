@@ -19,6 +19,7 @@
   "verification/windows_integrated_candidate/real_open_diagnostics.h": "9cc2cc1e610a3cc384b8a82693d532b9f3aa0f07151e1bf0a461c64c23eac531",
   "verification/windows_integrated_candidate/loader_debug.h": "9f4debba9fae4d4d5fb00152b82d41ac2ac33a9447a77ef0945490036f07bcb7",
   "verification/windows_integrated_candidate/loader_flag.ps1": "24ff2466cb4be414f663c120170c0e5f5fa659c402d28707fbc886bcd5885b96",
-  "verification/windows_integrated_candidate/probe_load.c": "30d5b9c9b6ddf89e8fb307df6724782ab48de0b2b5eda8b63ce7b3b92e25730a",
-  "verification/windows_integrated_candidate/run_probe.py": "174c9dade159e9a39a122e7965848b66d83ff4c7dd057b3b9c53d80ee4175f3a"
+  "verification/windows_integrated_candidate/probe_load.c": "ba16b40d0701859540680d0c6fbd2a70a1be1d17c975f6acea2ad37d92133045",
+  "verification/windows_integrated_candidate/run_probe.py": "174c9dade159e9a39a122e7965848b66d83ff4c7dd057b3b9c53d80ee4175f3a",
+  "verification/windows_integrated_candidate/probe_ctl.c": "a91f0338804aac1fcf2f48ee6c7a308d629e147fe08d4d293fb44432ad9693fd"
 }

@@ -14,6 +14,17 @@ from tests.test_sync_uid_migration import seed, snapshot, uids
 pytestmark = pytest.mark.skipif(configured_engine.dialect.name != "postgresql", reason="Real PostgreSQL required")
 
 
+def _repo_alembic_head():
+    from alembic.config import Config
+    from alembic.script import ScriptDirectory
+    root = Path(__file__).resolve().parents[1]
+    config = Config(str(root / 'alembic.ini'))
+    config.set_main_option('script_location', str(root / 'alembic'))
+    heads = ScriptDirectory.from_config(config).get_heads()
+    assert len(heads) == 1
+    return heads[0]
+
+
 @pytest.mark.parametrize("mode", ["noop_" + t for t in TABLES] + ["check", "unique", "default"])
 def test_guard_rejects_same_named_ineffective_uid_objects(mode):
     name = "guard_uid_" + uuid.uuid4().hex[:12]
@@ -91,7 +102,7 @@ def test_populated_all_four_entities_dump_restore_preserves_identity_and_enforce
         with target.connect() as c:
             assert snapshot(c) == before and uids(c) == identity and _catalog(c) == catalog
             assert c.execute(text("SELECT to_jsonb(t) FROM audit_logs t ORDER BY id")).scalars().all() == audit
-            assert c.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "0071_leave_month_earning"
+            assert c.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == _repo_alembic_head()
             links = c.execute(text("SELECT e.department_id,d.id,r.employee_id,e.id,r.leave_type_id,t.id FROM leave_records r JOIN employees e ON r.employee_id=e.id JOIN departments d ON e.department_id=d.id JOIN leave_types t ON r.leave_type_id=t.id")).one()
             assert links[0] == links[1] and links[2] == links[3] and links[4] == links[5]
         verify_sync_uid_enforcement(target)

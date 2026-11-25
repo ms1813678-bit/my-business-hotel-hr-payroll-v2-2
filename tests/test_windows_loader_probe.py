@@ -40,7 +40,10 @@ def test_probe_is_kernel32_only_and_prints_no_text_from_the_system():
         assert banned not in PROBE, banned
     assert "GetModuleFileName" in PROBE and "LOAD_LIBRARY_SEARCH_SYSTEM32" in PROBE
     labels = re.findall(r'try_(?:system|staged)\("([a-z0-9_]+)"', PROBE)
-    assert labels[-1] == "python314" and "ws2_32" in labels and "vcruntime140" in labels
+    assert "ws2_32" in labels and "vcruntime140" in labels
+    assert labels.index("control_dll") < labels.index("python314") < labels.index("python314_noresolve") < labels.index("python314_imageres")
+    assert labels[-1] == "python314_imageres"
+    assert "DONT_RESOLVE_DLL_REFERENCES" in PROBE and "LOAD_LIBRARY_AS_IMAGE_RESOURCE" in PROBE
 
 
 def test_driver_accepts_only_fixed_vocabulary_probe_lines():
@@ -116,3 +119,20 @@ def test_duplicate_start_is_not_a_complete_protocol():
     module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
     code, lines = module.evaluate(0, b'probe_start ok=1\nprobe_start ok=1\nprobe_done ok=1\n', b'')
     assert code == 1 and any('missing_start' in line for line in lines)
+
+
+def test_control_dll_is_trivial_and_workflow_builds_it_hardened_then_pins_it():
+    ctl = (D / "probe_ctl.c").read_text()
+    assert "return TRUE" in ctl and "#include <windows.h>" in ctl
+    for banned in ("LoadLibrary", "CreateFile", "socket", "Reg", "GetProcAddress", "CreateProcess"):
+        assert banned not in ctl, banned
+    assert "/guard:cf" in WF and "probe_ctl.c" in WF and "probe_ctl.dll" in WF
+    import json
+    source = json.loads((D / "SOURCE-SHA256.json").read_text())
+    assert "verification/windows_integrated_candidate/probe_ctl.c" in source
+
+
+def test_dumpbin_step_is_read_only_filtered_and_cannot_fail_the_job():
+    assert "dumpbin.exe /nologo /dependents" in WF and "dumpbin.exe /nologo /headers" in WF
+    assert "catch { Write-Output 'dumpbin_unavailable' }" in WF
+    assert "-replace '[^A-Za-z0-9 _.()/-]',''" in WF
