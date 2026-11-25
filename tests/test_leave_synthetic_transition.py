@@ -165,6 +165,7 @@ def test_closed_period_and_immutable_operation_entries_and_ledger(history_contex
 
 @pytest.mark.skipif(__import__('os').environ.get('MANUAL_LEAVE_TRANSITION_CONCURRENCY')!='1',reason='Standalone dedicated synthetic_leave DB only, commits fixture')
 def test_actual_independent_sessions_serialize_replay_and_second_key(history_context,monkeypatch):
+    from fastapi import HTTPException
     from concurrent.futures import ThreadPoolExecutor
     from threading import Barrier
     from app.db import SessionLocal
@@ -179,19 +180,30 @@ def test_actual_independent_sessions_serialize_replay_and_second_key(history_con
                 id_=result.id
                 other.commit()
                 return ('success',id_)
+            except HTTPException as exc:
+                other.rollback()
+                assert exc.status_code == 503
+                assert exc.detail == 'النظام مشغول مؤقتًا، أعد المحاولة بعد قليل.'
+                return ('busy', None)
             except ValueError as exc:
                 other.rollback()
                 return ('refused',str(exc))
     with ThreadPoolExecutor(max_workers=2) as pool:
         futures=[pool.submit(run,'a'*64),pool.submit(run,'b'*64)]
         race=[f.result(timeout=15) for f in futures]
-    assert sorted(r[0] for r in race)==['refused','success']
+    assert sum(r[0]=='success' for r in race)==1
+    assert all(r[0] in {'success','refused','busy'} for r in race)
     winner=next(r[1] for r in race if r[0]=='success')
     loser='b'*64 if winner=='a'*64 else 'a'*64
     with ThreadPoolExecutor(max_workers=2) as pool:
         futures=[pool.submit(run,winner),pool.submit(run,winner)]
         results=[f.result(timeout=15) for f in futures]
-    assert results==[('success',winner)]*2
+    assert any(r==('success',winner) for r in results)
+    assert all(r==('success',winner) or r==('busy',None) for r in results)
+    # Busy admission is not a replay receipt. Retry after both holders exit.
+    with SessionLocal() as other:
+        assert apply_synthetic_transition(other,**{**call,'operation_id':winner}).id==winner
+        other.commit()
     # New operation key cannot duplicate a baseline, even in independent sessions.
     with SessionLocal() as other:
         with pytest.raises(ValueError,match='scope already'):apply_synthetic_transition(other,**{**call,'operation_id':loser})

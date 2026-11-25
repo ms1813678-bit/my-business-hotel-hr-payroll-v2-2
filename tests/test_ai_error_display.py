@@ -223,3 +223,12 @@ def test_real_validation_error_is_localized_typed():
         validate_plan_values({"action": "edit_employee", "employee_id": "x"}, "en")
     assert isinstance(e.value, LocalizedValueError) and e.value.language == "en"
     assert d.known_reason(e.value, "en") == str(e.value)
+
+
+@pytest.mark.parametrize('lang', ['ar','en','zh'])
+def test_malformed_manual_opening_receipt_refusal_is_localized(lang):
+    key = 'Malformed opening receipt evidence.'
+    text = d.safe_failure_message(ValueError(key), 'PFX', 'GENERIC', lang)
+    assert text == 'PFX: ' + d.known_reason(ValueError(key), lang)
+    assert text != 'GENERIC'
+    assert d.known_reason(ValueError(key), lang) == d._pick(d._REASONS[key], key, lang)

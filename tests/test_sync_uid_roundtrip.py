@@ -91,7 +91,7 @@ def test_populated_all_four_entities_dump_restore_preserves_identity_and_enforce
         with target.connect() as c:
             assert snapshot(c) == before and uids(c) == identity and _catalog(c) == catalog
             assert c.execute(text("SELECT to_jsonb(t) FROM audit_logs t ORDER BY id")).scalars().all() == audit
-            assert c.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "0067_sync_uid_base_entities"
+            assert c.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "0068_manual_opening_identity"
             links = c.execute(text("SELECT e.department_id,d.id,r.employee_id,e.id,r.leave_type_id,t.id FROM leave_records r JOIN employees e ON r.employee_id=e.id JOIN departments d ON e.department_id=d.id JOIN leave_types t ON r.leave_type_id=t.id")).one()
             assert links[0] == links[1] and links[2] == links[3] and links[4] == links[5]
         verify_sync_uid_enforcement(target)

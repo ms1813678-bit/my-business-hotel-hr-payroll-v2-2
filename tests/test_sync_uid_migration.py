@@ -12,6 +12,7 @@ from pathlib import Path
 import pytest
 from alembic import command
 from alembic.config import Config
+from alembic.script import ScriptDirectory
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import DBAPIError
 
@@ -20,6 +21,7 @@ from app.db import engine as configured_engine
 ROOT = Path(__file__).resolve().parents[1]
 PREV, REV = "0065_overtime_day_review", "0067_sync_uid_base_entities"
 TABLES = ("departments", "employees", "leave_types", "leave_records")
+HEAD = ScriptDirectory.from_config(Config(str(ROOT / "alembic.ini"))).get_current_head()
 RX = "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
 
 
@@ -93,11 +95,11 @@ def test_legacy_rows_backfilled_exactly_and_head_is_idempotent(iso):
     mig(iso, "head")
     with iso.connect() as c:
         assert uids(c) == u                               # re-upgrade keeps every uid
-    assert version(iso) == REV
+    assert version(iso) == HEAD
 
 
 def test_fresh_install_has_objects_and_seeded_types_have_uids(iso):
-    mig(iso, "head")
+    mig(iso, REV)
     with iso.connect() as c:
         assert c.execute(text("SELECT count(*) FROM leave_types WHERE sync_uid ~ :r"), {"r": RX}).scalar() >= 1
         trg = {r[0] for r in c.execute(text("SELECT g.tgname FROM pg_trigger g JOIN pg_class k ON k.oid=g.tgrelid WHERE k.relnamespace=current_schema()::regnamespace AND g.tgenabled='O' AND g.tgname LIKE 'trg_%_sync_uid_immutable'"))}
@@ -110,7 +112,7 @@ def test_fresh_install_has_objects_and_seeded_types_have_uids(iso):
 
 
 def test_insert_paths_raw_core_explicit_and_db_rejections(iso):
-    mig(iso, "head")
+    mig(iso, REV)
     good = str(uuid.uuid4())
     with iso.begin() as c:
         c.execute(text("INSERT INTO departments(name) VALUES ('raw1')"))                    # raw, column omitted
@@ -190,7 +192,7 @@ def test_populated_downgrade_refuses_without_touching_anything(iso):
         before = uids(c)
     with pytest.raises(RuntimeError, match="Refusing to downgrade"):
         mig(iso, PREV, down=True)
-    assert version(iso) == REV
+    assert version(iso) == HEAD
     with iso.connect() as c:
         assert uids(c) == before
         assert c.execute(text("SELECT count(*) FROM pg_trigger g JOIN pg_class k ON k.oid=g.tgrelid WHERE k.relnamespace=current_schema()::regnamespace AND g.tgname LIKE 'trg_%_sync_uid_immutable'")).scalar() == 4
@@ -211,4 +213,4 @@ def test_clean_empty_downgrade_removes_only_candidate_objects_and_reupgrade_is_s
         assert c.execute(text("SELECT count(*) FROM pg_proc WHERE pronamespace=current_schema()::regnamespace AND proname IN ('sync_uid_new','sync_uid_immutable')")).scalar() == 0
         assert c.execute(text("SELECT count(*) FROM pg_trigger g JOIN pg_class k ON k.oid=g.tgrelid WHERE k.relnamespace=current_schema()::regnamespace AND g.tgname='trg_audit_logs_immutable'")).scalar() == audit_before == 1
     mig(iso, "head")
-    assert version(iso) == REV
+    assert version(iso) == HEAD

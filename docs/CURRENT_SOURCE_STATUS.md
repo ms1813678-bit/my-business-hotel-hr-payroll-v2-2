@@ -211,3 +211,9 @@ Actualmiddleware+signedsession+auth+queuedexclusivePGproof now refuses secondsha
 The helper message is neutral and translated AR/EN/ZH: other credential writers share the advisory key, so contention alone does not prove a restore is active. Immediate503 is intentional, no polling added. The actual HTTP race runs in all three languages.
 
 Final supported Python3.11.18 shared verification after neutral AR/EN/ZH message:222passed0skipped29warnings60.58seconds. Static source acceptance received; no independent test rerun.
+
+## Manual opening application1708,25November20:35
+
+The existing review page now applies an explicitly confirmed A/W/H opening together with immutable source-bound evidence, zero-category aggregate coverage and safe retry. Migration0068 distinguishes this baseline from earned monthly credit; canonicalW/H become balance tracked without history backfill. Reconciliation verifies receipts strictly and leaves unverified manual rows unresolved. Register facts remain history, not ledger postings. No accrual/cash/year-close activation or role/admission relaxation.
+
+Complete default193-file inventory onPython3.11.18/PG16.2 plus legacySQLite:2605nodes=2558pass47existing-skips, thirteen disjoint runs, not one process. The realHTTPwrapper includes four child cases not added twice. A separately enabled existing synthetic transition concurrency case passed after stale test-only expectations were aligned to published1709 exactbusy503 and explicit post-release retry. Full details and residuals: [MANUAL_OPENING_APPLICATION_1708.md](MANUAL_OPENING_APPLICATION_1708.md). main/held0066/journal/native/AI candidates unchanged. NoWindows/hotel-device/whole-financial acceptance.

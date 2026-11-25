@@ -5,7 +5,7 @@ from zoneinfo import ZoneInfo
 from decimal import Decimal, InvalidOperation
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, JSONResponse
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -25,7 +25,7 @@ def manual_opening_router(templates):
         return dict(actor_id=admin.id,session_id=request.session.get('admin_session_id'),
             session_version=request.session.get('admin_session_version'),expected_epoch=request.state.restore_epoch)
 
-    def render(request, admin, *, error=False, reviews=(), employee=None, group_id=None, source_review=None):
+    def render(request, admin, *, error=False, reviews=(), employee=None, group_id=None, source_review=None, apply_review=None, apply_receipt=None, selection_id=None):
         with SessionLocal() as db, db.no_autoflush:
             employees = db.execute(select(Employee.id, Employee.code, Employee.full_name).order_by(Employee.code)).all()
             recent_groups = db.execute(select(LeaveManualOpeningGroup.id, LeaveManualOpeningGroup.created_at)
@@ -64,6 +64,7 @@ def manual_opening_router(templates):
             'employees': employees, 'csrf_token': get_csrf_token(request),
             'error': error, 'reviews': reviews, 'selected_employee': employee, 'recent_groups': recent_groups, 'policies':policy_choices, 'group_id':group_id,
             'source_review':source_review, 'policy_id':request.query_params.get('policy_id'),
+            'apply_review':apply_review,'apply_receipt':apply_receipt,'selection_id':selection_id,
             'confirmed':bool(source_review and source_review['is_current'])})
 
     @router.get('/leave/opening')
@@ -83,7 +84,26 @@ def manual_opening_router(templates):
                 source_review=review_opening_source(db,group_id=group_id,policy_id=policy_id,**identity(request,admin)) if policy_id else None
                 if source_review and source_review['policy']!=OWNER_DEFAULT_POLICY:
                     raise ValueError('This review screen supports the displayed policy version only.')
-            return render(request, admin, reviews=reviews, employee=employee,group_id=group_id,source_review=source_review)
+                apply_review = apply_receipt = selection_id = None
+                if source_review and source_review['is_current']:
+                    from app.models import LeaveOpeningSelection, LeaveType
+                    from app.leave_opening_apply import CANONICAL_TYPES, review_opening_apply, _receipt, _stored
+                    selection = db.scalar(select(LeaveOpeningSelection).where(
+                        LeaveOpeningSelection.group_id==group_id,LeaveOpeningSelection.policy_id==policy_id)
+                        .order_by(LeaveOpeningSelection.revision.desc()).limit(1))
+                    if selection is not None:
+                        selection_id=selection.id
+                        type_map={c:db.scalar(select(LeaveType.id).where(LeaveType.code==k)) for c,k in CANONICAL_TYPES.items()}
+                        previous=_receipt(db,selection.id)
+                        if previous is not None:
+                            apply_receipt=_stored(db,previous,type_map)
+                        else:
+                            try:
+                                apply_review=review_opening_apply(db,selection_id=selection.id,type_map=type_map,**identity(request,admin))
+                            except ValueError:
+                                apply_review={'blocked':True}
+            return render(request, admin, reviews=reviews, employee=employee,group_id=group_id,source_review=source_review,
+                          apply_review=apply_review,apply_receipt=apply_receipt,selection_id=selection_id)
         except (ValueError, SQLAlchemyError) as exc:
             raise HTTPException(status_code=404, detail='Not found') from exc
 
@@ -134,24 +154,61 @@ def manual_opening_router(templates):
             return RedirectResponse('/leave/opening?error=1',status_code=303)
 
     @router.post('/leave/opening/confirm-source', dependencies=[Depends(csrf_protect)])
-    def confirm_source(request: Request, group_id: str=Form(...),policy_id: str=Form(...),
-                       source_sha256: str=Form(...), previous_id: str=Form(''),
+    async def confirm_source(request: Request, group_id: str=Form(...),policy_id: str=Form(...),
+                       source_sha256: str=Form(''), previous_id: str=Form(''),
+                       operation_stage: str=Form('confirm_source'), selection_id: str=Form(''),
+                       response_format: str=Form('json'),
+                       reviewed_apply_sha256: str=Form(''),
                        reason: str=Form(...),human_confirmed: str=Form(''),
                        admin: AdminAccount=Depends(require_system_admin)):
-        try:
-            import re
-            if any(re.fullmatch('[0-9a-f]{64}',value) is None for value in (group_id,policy_id,source_sha256)) or (previous_id and re.fullmatch('[0-9a-f]{64}',previous_id) is None):
-                raise ValueError('Exact stored source references required.')
-            with SessionLocal() as db, db.begin():
-                from app.department_workbook_store import _guard
-                _guard(db,**identity(request,admin))
-                if read_policy_version(db,policy_id=policy_id,**identity(request,admin))!=OWNER_DEFAULT_POLICY:
-                    raise ValueError('Displayed policy version required.')
-                confirm_opening_source(db,group_id=group_id,policy_id=policy_id,
-                    reviewed_source_sha256=source_sha256,expected_previous_id=previous_id or None,
-                    reason=reason,human_confirmed=human_confirmed=='confirmed',**identity(request,admin))
-            return RedirectResponse('/leave/opening/groups/'+group_id+'?policy_id='+policy_id+'&confirmed=1',status_code=303)
-        except (ValueError,SQLAlchemyError):
-            return RedirectResponse('/leave/opening?error=1',status_code=303)
+        from starlette.concurrency import run_in_threadpool
+        parsed_form = await request.form()
+        def execute():
+            try:
+                import re
+                if operation_stage in ('review_apply', 'apply'):
+                    form = parsed_form
+                    allowed = {'csrf_token','group_id','policy_id','selection_id','operation_stage',
+                               'source_sha256','previous_id','reviewed_apply_sha256','reason','human_confirmed','response_format'}
+                    if any(k not in allowed or len(form.getlist(k)) != 1 for k in form):
+                        raise ValueError('Exact opening operation fields required.')
+                    if any(re.fullmatch('[0-9a-f]{64}',v) is None for v in (group_id,policy_id,selection_id)):
+                        raise ValueError('Exact opening references required.')
+                    from app.leave_opening_apply import apply_confirmed_opening, review_opening_apply, CANONICAL_TYPES
+                    from app.models import LeaveOpeningSelection, LeaveType
+                    with SessionLocal() as db, db.begin():
+                        from app.department_workbook_store import _guard
+                        _guard(db, **identity(request,admin))
+                        selection = db.get(LeaveOpeningSelection, selection_id, populate_existing=True)
+                        if selection is None or selection.group_id != group_id or selection.policy_id != policy_id:
+                            raise ValueError('Exact confirmed selection required.')
+                        # Model supplies no type ids. Canonical source codes alone select them.
+                        type_map = {c:db.scalar(select(LeaveType.id).where(LeaveType.code == k)) for c,k in CANONICAL_TYPES.items()}
+                        if operation_stage == 'review_apply':
+                            result = review_opening_apply(db,selection_id=selection_id,type_map=type_map,**identity(request,admin))
+                        else:
+                            result = apply_confirmed_opening(db,selection_id=selection_id,type_map=type_map,
+                                reviewed_apply_sha256=reviewed_apply_sha256,reason=reason,
+                                human_confirmed=human_confirmed == 'confirmed',**identity(request,admin))
+                    # No database reads or template render after the guarded transaction.
+                    if response_format == 'html':
+                        return RedirectResponse('/leave/opening/groups/'+group_id+'?policy_id='+policy_id,status_code=303)
+                    return JSONResponse(result)
+                if operation_stage != 'confirm_source':
+                    raise ValueError('Unknown opening operation.')
+                if any(re.fullmatch('[0-9a-f]{64}',value) is None for value in (group_id,policy_id,source_sha256)) or (previous_id and re.fullmatch('[0-9a-f]{64}',previous_id) is None):
+                    raise ValueError('Exact stored source references required.')
+                with SessionLocal() as db, db.begin():
+                    from app.department_workbook_store import _guard
+                    _guard(db,**identity(request,admin))
+                    if read_policy_version(db,policy_id=policy_id,**identity(request,admin))!=OWNER_DEFAULT_POLICY:
+                        raise ValueError('Displayed policy version required.')
+                    confirm_opening_source(db,group_id=group_id,policy_id=policy_id,
+                        reviewed_source_sha256=source_sha256,expected_previous_id=previous_id or None,
+                        reason=reason,human_confirmed=human_confirmed=='confirmed',**identity(request,admin))
+                return RedirectResponse('/leave/opening/groups/'+group_id+'?policy_id='+policy_id+'&confirmed=1',status_code=303)
+            except (ValueError,SQLAlchemyError):
+                return RedirectResponse('/leave/opening?error=1',status_code=303)
+        return await run_in_threadpool(execute)
 
     return router

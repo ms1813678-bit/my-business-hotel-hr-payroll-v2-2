@@ -634,3 +634,9 @@ Fix actual middleware/auth shared-lock queue cycle by fail-closed try-lock503/Re
 Busy/retry reason is neutral and localized, not an assertion that restore is definitely active; no polling expansion.
 
 Final supported Python3.11.18 shared verification after neutral AR/EN/ZH message:222passed0skipped29warnings60.58seconds. Static source acceptance received; no independent test rerun.
+
+## 2026-11-25, Instinct: explicit three-balance manual opening application
+
+- Add the owner-selected inline review/application on the existing page with separate reason/confirmation, exact immutable ledger/audit receipt and safe retry. Source confirmation is not ledger application.
+- Add strict0068 manual baseline identity, canonical W/H tracking and read-only receipt verification. Preserve historical register facts, existing posted/closed evidence guards, permissions and admission. No monthly accrual/cash/year-close activation.
+- Complete default inventory in13 disjoint runs:2558pass47existing-skips. Separate enabled synthetic concurrency case passes after test-only alignment to intentional1709 busy503, not a product gate change. ActualHTTPPG/CSRF/locales/races and inspected UI evidence have bounded scope. See MANUAL_OPENING_APPLICATION_1708.md.

@@ -179,26 +179,32 @@ def test_ai_actual_approve_cannot_bypass_daily_and_snapshot_binds_awards(committ
         assert before!=after and before['current']['source_digest']!=after['current']['source_digest']
 
 
-def test_ai_business_lock_order_waits_without_table_cycle(committed_day):
+def test_ai_business_lock_order_refuses_busy_without_table_cycle(committed_day):
+    from fastapi import HTTPException
     from app.ai_gateway import _lock_command_business_tables
     from app.restore_lock import acquire_credential_write_lock
     Session,auth,item_id,attendance_id=committed_day
-    started=threading.Event();done=threading.Event();errors=[]
+    started=threading.Event();finished=threading.Event();errors=[]
     def ai():
         try:
             with Session.begin() as db:
                 started.set();_lock_command_business_tables(db)
-            done.set()
         except Exception as exc:errors.append(exc)
+        finally:finished.set()
     with Session.begin() as daily:
         acquire_credential_write_lock(daily)
         worker=threading.Thread(target=ai);worker.start();assert started.wait(3)
-        assert not done.wait(.15)
-        # Would deadlock with AI holding this table before requesting advisory.
+        # Published admission refuses the busy advisory gate before table reads.
+        assert finished.wait(3)
+        assert len(errors)==1 and isinstance(errors[0],HTTPException)
+        assert errors[0].status_code==503
+        assert errors[0].detail=='النظام مشغول مؤقتًا، أعد المحاولة بعد قليل.'
         daily.execute(text("SET LOCAL lock_timeout='1500ms'"))
         daily.execute(text('LOCK TABLE payroll_items IN SHARE ROW EXCLUSIVE MODE'))
-    worker.join(8)
-    assert not worker.is_alive() and not errors and done.is_set(),errors
+    worker.join(3)
+    assert not worker.is_alive()
+    # A later request proceeds after the holder releases, without a gate bypass.
+    with Session.begin() as db:_lock_command_business_tables(db)
 
 
 def test_legacy_paid_monthly_snapshot_can_finish_after_reopen_reclose(committed_day):

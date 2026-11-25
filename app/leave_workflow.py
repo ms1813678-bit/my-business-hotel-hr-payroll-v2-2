@@ -1,4 +1,5 @@
 """Business rules for administrator-managed leave records and balance history."""
+import json
 from decimal import Decimal
 from datetime import date
 
@@ -111,6 +112,25 @@ def add_balance_entry(
     elif transaction_type not in {"leave_use", "leave_reversal"}:
         raise ValueError("Unknown leave balance transaction type.")
     if transaction_type == "opening":
+        # Same table order as the confirmed opening apply kernel. The ledger
+        # lock also serializes legacy opening writers, including zero-category
+        # receipts that deliberately have no nonzero ledger row.
+        if db.get_bind().dialect.name == "postgresql":
+            db.execute(text('LOCK TABLE audit_logs, employees IN ROW EXCLUSIVE MODE'))
+            db.execute(text('LOCK TABLE leave_balance_transactions IN SHARE ROW EXCLUSIVE MODE'))
+        receipts = db.scalars(select(AuditLog.new_value).where(
+            AuditLog.action == 'leave_opening_applied',
+            AuditLog.entity_type == 'leave_opening_selection'))
+        for raw in receipts:
+            try:
+                receipt = json.loads(raw)
+                if not isinstance(receipt, dict) or not isinstance(receipt.get('type_ids'), dict) or type(receipt.get('employee_id')) is not int:
+                    raise ValueError('Malformed opening receipt evidence.')
+            except (TypeError, json.JSONDecodeError) as exc:
+                raise ValueError('Malformed opening receipt evidence.') from exc
+            if (receipt['employee_id'] == employee_id
+                    and leave_type.id in receipt['type_ids'].values()):
+                raise ValueError("An opening balance was already recorded; use an adjustment instead.")
         exists = db.scalar(
             select(LeaveBalanceTransaction.id).where(
                 LeaveBalanceTransaction.employee_id == employee_id,

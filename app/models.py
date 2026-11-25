@@ -565,6 +565,25 @@ class LeaveMonthClose(Base):
     policy_snapshot_json: Mapped[str] = mapped_column(Text, nullable=False)
 
 
+def _manual_opening_identity_check():
+    # Portable equivalent of migration 0068's anchored lowercase-hex regex.
+    # SQLite metadata fixtures must retain the same strict identity shape.
+    def is_hex(expression):
+        remainder = expression
+        for character in "0123456789abcdef":
+            remainder = f"replace({remainder}, '{character}', '')"
+        return f"length({expression}) = 64 AND {remainder} = ''"
+    return (
+        "transaction_type = 'opening' AND length(source_operation_key) = 81 "
+        "AND substr(source_operation_key, 1, 15) = 'manual_opening:' "
+        "AND substr(source_operation_key, 80, 1) = ':' "
+        "AND substr(source_operation_key, 81, 1) IN ('A','W','H') AND "
+        + is_hex("substr(source_operation_key, 16, 64)") + " AND "
+        + is_hex("source_digest")
+        + " AND earning_year IS NULL AND released_on IS NULL"
+    )
+
+
 class LeaveBalanceTransaction(Base):
     __tablename__ = "leave_balance_transactions"
     __table_args__ = (
@@ -573,7 +592,8 @@ class LeaveBalanceTransaction(Base):
             "(source_operation_key IS NULL AND source_digest IS NULL AND earning_year IS NULL AND released_on IS NULL) OR "
             "(source_operation_key IS NOT NULL AND length(trim(source_operation_key)) > 0 "
             "AND source_digest IS NOT NULL AND length(source_digest) = 64 "
-            "AND earning_year IS NOT NULL AND earning_year BETWEEN 1 AND 9999 AND released_on IS NOT NULL)",
+            "AND earning_year IS NOT NULL AND earning_year BETWEEN 1 AND 9999 AND released_on IS NOT NULL) OR "
+            "COALESCE((" + _manual_opening_identity_check() + "), false)",
             name="ck_leave_ledger_source_identity"),
         CheckConstraint(
             "transaction_type IN ('opening', 'adjustment', 'leave_use', 'leave_reversal')",

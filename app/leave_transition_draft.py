@@ -122,6 +122,12 @@ def draft_transition(db, *, reviewed_reconciliation_digest, ledger_decisions,
     from sqlalchemy import select
     from app.models import LeaveBalanceTransaction
     ledger = {r.id: r for r in db.scalars(select(LeaveBalanceTransaction).where(LeaveBalanceTransaction.id.in_(expected_ids)).execution_options(populate_existing=True))}
+    from app.leave_opening_receipt import IDENTITY_KEYS, verified_receipt_ledger_ids
+    bound, unverified = verified_receipt_ledger_ids(db, ledger_rows={i: x.source_operation_key for i, x in ledger.items()},
+        selection_ids=selection['selection_ids'], **{k: selection.get(k) for k in IDENTITY_KEYS})
+    if any(decisions[i].treatment != 'included_in_scenario' for i in bound):
+        # The selected opening is already the scenario carry; its verified apply row can only be 'included'.
+        raise ValueError('Verified manual-opening receipt rows can only be included_in_scenario.')
     rows = []
     for r in result.rows:
         unresolved = []
@@ -132,6 +138,8 @@ def draft_transition(db, *, reviewed_reconciliation_digest, ledger_decisions,
             unresolved.append('category_inactive')
         if 'category_not_balance_tracked' in r.issues:
             unresolved.append('category_not_balance_tracked')
+        if unverified & set(r.ledger_row_ids):
+            unresolved.append('manual_opening_receipt_unverified')
         if r.ledger_total_separate is None:
             unresolved.append('ledger_category_unresolved')
         if any(decisions[i].treatment == 'unresolved' for i in r.ledger_row_ids):

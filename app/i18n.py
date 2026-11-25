@@ -4895,3 +4895,15 @@ ZH["شهر بلا مسيرة رواتب معتمدة لا يظهر له عمود
 
 EN["النظام مشغول مؤقتًا، أعد المحاولة بعد قليل."] = "The system is temporarily busy. Try again shortly."
 ZH["النظام مشغول مؤقتًا، أعد المحاولة بعد قليل."] = "系统暂时繁忙，请稍后重试。"
+
+for _ar, _en, _zh in [
+('تم اعتماد الأرصدة الافتتاحية','Opening balances recorded','期初余额已记录'),
+('سُجلت الأرصدة مرة واحدة في دفتر الحركات. لا يوجد صرف نقدي أو استحقاق شهري بهذه الخطوة.','Balances were recorded once in the ledger. This step does not pay cash or accrue monthly leave.','余额已一次性记入台账。本步骤不支付现金，也不增加每月应计假期。'),
+('اعتماد الأرصدة في دفتر الحركات','Record opening balances in the ledger','将期初余额记入台账'),
+('توجد بيانات تحتاج مراجعة قبل اعتماد الرصيد. لم يتغير دفتر الحركات.','Existing evidence needs review before recording opening balances. The ledger has not changed.','记录期初余额前需审核现有资料。台账未更改。'),
+('راجع القيم وتاريخ بداية الرصيد والمصدر أعلاه. الاعتماد يسجل الأرصدة الثلاثة مرة واحدة، ولا ينفذ صرفًا نقديًا أو استحقاقًا شهريًا.','Review the values, opening basis date and source above. Confirmation records all three balances once, without cash payment or monthly accrual.','请审核上述数值、期初基准日期和来源。确认后将一次性记录三类余额，不支付现金，也不增加每月应计假期。'),
+('سبب الاعتماد','Reason for confirmation','确认原因'),
+('أؤكد القيم وتاريخ بداية الرصيد، وأوافق على تسجيل الأرصدة الثلاثة.','I confirm the values and opening basis date and agree to record all three balances.','我确认数值和期初基准日期，并同意记录三类余额。'),
+]:
+    EN[_ar]=_en
+    ZH[_ar]=_zh
