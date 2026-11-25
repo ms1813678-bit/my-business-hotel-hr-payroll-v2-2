@@ -296,3 +296,8 @@ Added a separate synthetic real-parser LPAC qualification candidate with bounded
 Instinct: preserve bounded trusted-native refusal diagnostics for candidate qualification; worker stderr remains discarded, security and limits unchanged.
 
 Instinct: restore original explicit LOCALAPPDATA+SYSTEMROOT environment in real-parser candidate after measured CreateProcess error203; no capabilities or security limits changed.
+
+
+## Instinct: bounded startup operation measurements, 25 November 2026
+
+The separate Windows parser candidate now measures actual RX opens and unnamed SEC_IMAGE section creation for fifteen fixed runtime/system images on a dedicated thread impersonating the verified child token. No views are mapped or executed. Thread token identity, revert, join and handle cleanup are checked. This does not trace the child loader, clear dependencies for execution, or identify the cause of its previous C0000022 refusal. No capabilities, ACLs, environment, Job limits or production parser behavior change.

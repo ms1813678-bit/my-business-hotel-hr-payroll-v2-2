@@ -1,5 +1,5 @@
 name: Integrated synthetic Windows parser candidate
-# Revision: bounded read-only actual child-token startup evidence, no policy grants
+# Revision: fixed-list real child-token open/section operations, no loader clearance
 on:
   push:
     branches: [ui-overhaul]

@@ -14,6 +14,7 @@
 #include <wchar.h>
 #include "token_checks.h"
 #include "startup_diagnostics.h"
+#include "real_open_diagnostics.h"
 #ifndef PROC_THREAD_ATTRIBUTE_JOB_LIST
 #define PROC_THREAD_ATTRIBUTE_JOB_LIST ProcThreadAttributeValue(ProcThreadAttributeJobList,FALSE,TRUE,FALSE)
 #endif
@@ -85,6 +86,7 @@ int wmain(int argc,wchar_t **argv){
  fprintf(stderr,"CANDIDATE_CREATED pid=%lu suspended=1\n",(unsigned long)GetProcessId(pi.hProcess));
  stage="verify_before_resume";if(!verify_created_child(pi.hProcess,job,sid,1))goto done;
  stage="startup_readonly_diagnostics";if(!diagnose_startup(pi.hProcess,argv[3]))goto done;
+ stage="startup_fixed_real_open";if(!diagnose_real_open(pi.hProcess,argv[3]))goto done;
  close_owned(&in_read,&clean);close_owned(&out_write,&clean);if(!clean)goto done;
  feed.pipe=in_write;feed.bytes=request;feed.size=request_size;
  stage="start_feeder";feeder=CreateThread(NULL,0,feed_input,&feed,0,NULL);if(!feeder)goto done;
