@@ -1,3 +1,7 @@
+## 2026-11-25 - Respect native Job binding name contract by Instinct
+
+- Hidden root-hook harness stopped before child creation because pywin32 requires a string Job name. Use an unpredictable session-local name and refuse an existing Job before setting limits or assigning a child. Preserve all suspended assignment, deadline and cleanup gates. No root-hook acceptance inferred from the failed setup.
+
 ## 2026-11-25 - Hidden native root-hook qualification by Instinct
 
 - Add bounded disposable-runner initialization of an actual hidden WebView2 control and exact recovered root guard hooks without remote start/navigation.

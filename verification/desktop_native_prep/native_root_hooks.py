@@ -10,6 +10,7 @@ import os
 from pathlib import Path
 import sys
 import time
+import uuid
 
 
 def write_result(path, **fields):
@@ -76,6 +77,7 @@ def parent(guard_path, work):
     # The exact child is created suspended, assigned to an owned kill-on-close
     # Job before its single resume. No token policy/sandbox guarantee is claimed.
     import subprocess
+    import win32api
     import win32con
     import win32event
     import win32job
@@ -89,7 +91,13 @@ def parent(guard_path, work):
     profile = work/'profile'
     result = work/'result.json'
     output = work/'child-output.log'
-    job = win32job.CreateJobObject(None, None)
+    # pywin32's binding requires a string name. Refuse a pre-existing object
+    # before changing limits or assigning any process.
+    win32api.SetLastError(0)
+    job = win32job.CreateJobObject(None, 'Local\\HOnY-qualification-' + uuid.uuid4().hex)
+    if win32api.GetLastError() == 183:
+        job.Close()
+        raise RuntimeError('refusing-pre-existing-job-object')
     info = win32job.QueryInformationJobObject(job, win32job.JobObjectExtendedLimitInformation)
     info['BasicLimitInformation']['LimitFlags'] |= win32job.JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
     win32job.SetInformationJobObject(job, win32job.JobObjectExtendedLimitInformation, info)

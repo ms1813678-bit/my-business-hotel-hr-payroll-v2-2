@@ -5,7 +5,7 @@
   "build-tools-provenance.json": "c99eb30e476bf1dd33d6962dd2434eec9383d54fa5edd04ad2eb2e05cb99a6ce",
   "dependency_smoke.py": "36284e4d759179ca0817634cc446d4f5363cabab144eb8d9d41656b55bdb657b",
   "desktop_webview_guard.RECOVERED-EXACT.py": "9ab40677931f0942a8523f24ee9df68419b07d61cf2fc91f1284cee049fe625e",
-  "native_root_hooks.py": "a8e081148bf67d0ed4c226a57ab8911d827a77f7da3d455cfe309687068fc7b7",
+  "native_root_hooks.py": "b92a14aa6fcd41b99e84ec384eb9fa67c19a5d16610c5d7192c9bd2e750d54a6",
   "qualify-dependencies.ps1": "6d872af21a04e7bdfe1c00628cfd74d38db601b7e83486f8a16a64b0b153e7a5",
   "requirements-native-SDIST-NEW-CANDIDATE.txt": "8be577630f8cc6ac19d6a4f4d332ae3f33d65ad9dec72cba44b0f96f228fb267",
   "scripts/windows/activate-desktop-certificate.ps1": "c2d5c70827163fe6ac85dd08aeda7adddd69a98cd036a6134959c0d38cee4343",
