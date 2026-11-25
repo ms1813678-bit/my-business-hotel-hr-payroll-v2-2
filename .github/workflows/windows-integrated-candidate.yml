@@ -1,5 +1,6 @@
 name: Integrated synthetic Windows parser candidate
 # Revision: explicit suspended verification then exact1 resume before first debug event
+# Paired current-product source-pin control, both variants intentionally run on this head.
 on:
   push:
     branches: [ui-overhaul]
