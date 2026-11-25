@@ -41,5 +41,5 @@
   "stager_candidate/staging/verify_install.py": "fe4d007316b15c1713dd0bff4657353b841963a6e9d8e20ec22d69076e9cb8dd",
   "stager_candidate/staging/verify_wheel_projection.py": "42731e360f9ce73818f9f6730828fc868a6304e9ff832aa7816a898b82d1feab",
   "trust_fixture.ps1": "be7e04129ed402c61ee37a07cf577d36780897e1769a4f4df153c66857bf809a",
-  "visible_window_smoke.py": "977e1767b341e281eca9b39a115bc33dbd3782f36000effc0f6269d208113148"
+  "visible_window_smoke.py": "16ecadceed03ac2e9a484d880a7ac3fe4d85c6da3d5ae2c5256a3862b66212b3"
 }

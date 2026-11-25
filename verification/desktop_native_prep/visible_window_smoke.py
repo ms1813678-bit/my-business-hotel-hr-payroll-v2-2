@@ -9,6 +9,24 @@ def run(root):
     origin=json.loads((root/'desktop.json').read_text())['origin']
     original=webview.create_window
     from app.desktop_webview_guard import WebView2OriginGuard
+    from app.desktop_webview_guard import _NativeGuardedPopup
+    # Test-only tracing observes suppressed native exceptions without changing
+    # the recovered method's flow, handlers, fallback or production bytes.
+    original_initialized=_NativeGuardedPopup._on_initialized
+    original_fail=_NativeGuardedPopup.fail
+    def observe_call(method,self,*args):
+        prior=sys.gettrace()
+        def trace(frame,event,arg):
+            if event=='exception' and pathlib.Path(frame.f_code.co_filename).name=='desktop_webview_guard.py':
+                print('NATIVE_POPUP_FIXED_EXCEPTION',frame.f_code.co_name,frame.f_lineno,arg[0].__name__,flush=True)
+            return trace
+        sys.settrace(trace)
+        try:return method(self,*args)
+        finally:sys.settrace(prior)
+    def observed_initialized(self,*args):return observe_call(original_initialized,self,*args)
+    def observed_fail(self,*args):return observe_call(original_fail,self,*args)
+    _NativeGuardedPopup._on_initialized=observed_initialized
+    _NativeGuardedPopup.fail=observed_fail
     guards=[];original_guard_init=WebView2OriginGuard.__init__
     def observed_guard_init(self,*args,**kwargs):
         original_guard_init(self,*args,**kwargs);guards.append(self)

@@ -1,3 +1,7 @@
+## 2026-11-25 - Observe suppressed native popup exception boundary by Instinct
+
+- Actual same-origin native handoff failed and existing guard refused the host. Test-only callback tracing retains fixed source method/line and exception type, no raw native message or altered handler/fallback. Recovered production bytes unchanged; no popup acceptance claimed.
+
 ## 2026-11-25 - Exercise exact native guarded popup with synthetic login by Instinct
 
 - Extend the isolated visible fixture to observe same-origin login popup handoff and exact environment/profile, parent DOM marker preservation, foreign popup guard refusal and popup close with owner. Production guard/window source untouched. Retain popup pixels only; not authenticated PDF/print, general unsaved-editor protection, network containment or language acceptance.
