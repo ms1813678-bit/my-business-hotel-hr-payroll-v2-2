@@ -1,3 +1,7 @@
+## 2026-11-25 - Reviewed inert1102 replacement by Instinct
+
+- One separately reviewed/approved replacement attempt. Exact1102 source corrects win32file reparse-flag namespace and definite lstat absence checks. Previous1057 attempt failed preflight before create, no native ACL/service/probe acceptance. No product install/start or fallback.
+
 ## 2026-11-25 - Reviewed inert installer experiment by Instinct
 
 - Add exact independently reviewed1057 source and single disposable Windows CI attempt. No product install/start, database/TLS/network settings or generalized installer readiness. Fixed stopped/disabled inert fixture, restricted-token approximation, retained-ownership rollback and absence checks.
