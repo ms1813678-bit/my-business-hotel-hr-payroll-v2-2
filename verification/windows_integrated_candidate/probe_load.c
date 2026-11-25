@@ -26,7 +26,7 @@ static DWORD put_number(char *dst, DWORD at, DWORD value) {
 }
 
 static void report(const char *label, HMODULE module, DWORD error) {
-  char line[96];
+  char line[128];
   DWORD at = put(line, 0, "probe_load label=");
   at = put(line, at, label);
   at = put(line, at, module ? " ok=1 error=0" : " ok=0 error=");
@@ -80,6 +80,25 @@ int wmain(void) {
   try_system("user32", L"user32.dll");
   try_system("bcrypt", L"bcrypt.dll");
   try_system("ws2_32", L"ws2_32.dll");
+  /* python314.dll direct imports as reported by dumpbin /dependents in run 45707027584 (apiset contracts included). */
+  try_system("imp_version", L"version.dll");
+  try_system("imp_ws2_32", L"ws2_32.dll");
+  try_system("imp_api-ms-win-core-path-l1-1-0", L"api-ms-win-core-path-l1-1-0.dll");
+  try_system("imp_bcrypt", L"bcrypt.dll");
+  try_system("imp_advapi32", L"advapi32.dll");
+  try_system("imp_kernel32", L"kernel32.dll");
+  try_system("imp_api-ms-win-crt-stdio-l1-1-0", L"api-ms-win-crt-stdio-l1-1-0.dll");
+  try_system("imp_api-ms-win-crt-environment-l1-1-0", L"api-ms-win-crt-environment-l1-1-0.dll");
+  try_system("imp_api-ms-win-crt-string-l1-1-0", L"api-ms-win-crt-string-l1-1-0.dll");
+  try_system("imp_api-ms-win-crt-runtime-l1-1-0", L"api-ms-win-crt-runtime-l1-1-0.dll");
+  try_system("imp_api-ms-win-crt-heap-l1-1-0", L"api-ms-win-crt-heap-l1-1-0.dll");
+  try_system("imp_api-ms-win-crt-locale-l1-1-0", L"api-ms-win-crt-locale-l1-1-0.dll");
+  try_system("imp_api-ms-win-crt-convert-l1-1-0", L"api-ms-win-crt-convert-l1-1-0.dll");
+  try_system("imp_api-ms-win-crt-math-l1-1-0", L"api-ms-win-crt-math-l1-1-0.dll");
+  try_system("imp_api-ms-win-crt-time-l1-1-0", L"api-ms-win-crt-time-l1-1-0.dll");
+  try_system("imp_api-ms-win-crt-process-l1-1-0", L"api-ms-win-crt-process-l1-1-0.dll");
+  try_system("imp_api-ms-win-crt-conio-l1-1-0", L"api-ms-win-crt-conio-l1-1-0.dll");
+  try_system("imp_api-ms-win-crt-filesystem-l1-1-0", L"api-ms-win-crt-filesystem-l1-1-0.dll");
   /* Staged dependencies, then the interpreter DLL last. */
   try_staged("vcruntime140", self, L"vcruntime140.dll", LOAD_WITH_ALTERED_SEARCH_PATH, 1);
   try_staged("vcruntime140_1", self, L"vcruntime140_1.dll", LOAD_WITH_ALTERED_SEARCH_PATH, 1);

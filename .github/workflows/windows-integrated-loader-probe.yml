@@ -1,5 +1,5 @@
 name: "Integrated synthetic Windows loader isolation probe (diagnostic, not acceptance)"
-# Diagnostic only: same launcher/token/job/ACLs, child is a kernel32-only loader probe. IFEO loader snaps OFF.
+# Diagnostic only: unchanged launcher/token/job/ACLs; direct import-contract probes. IFEO loader snaps OFF.
 on:
   push:
     branches: [ui-overhaul]

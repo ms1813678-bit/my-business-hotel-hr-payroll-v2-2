@@ -35,11 +35,11 @@ def test_workflow_keeps_baseline_gates_before_the_probe():
 
 def test_probe_is_kernel32_only_and_prints_no_text_from_the_system():
     assert "#include <windows.h>" in PROBE
-    for banned in ("stdio", "printf", "wsprintf", "getenv", "CreateProcess", "socket", "WSAStartup",
+    for banned in ("stdio.h", "printf", "wsprintf", "getenv", "CreateProcess", "socket", "WSAStartup",
                    "RegOpen", "CreateFile", "SetSecurity", "Adjust"):
         assert banned not in PROBE, banned
     assert "GetModuleFileName" in PROBE and "LOAD_LIBRARY_SEARCH_SYSTEM32" in PROBE
-    labels = re.findall(r'try_(?:system|staged)\("([a-z0-9_]+)"', PROBE)
+    labels = re.findall(r'try_(?:system|staged)\("([A-Za-z0-9_-]+)"', PROBE)
     assert "ws2_32" in labels and "vcruntime140" in labels
     assert labels.index("control_dll") < labels.index("python314") < labels.index("python314_noresolve") < labels.index("python314_imageres")
     assert labels[-1] == "python314_imageres"
@@ -136,3 +136,12 @@ def test_dumpbin_step_is_read_only_filtered_and_cannot_fail_the_job():
     assert "dumpbin.exe /nologo /dependents" in WF and "dumpbin.exe /nologo /headers" in WF
     assert "catch { Write-Output 'dumpbin_unavailable' }" in WF
     assert "-replace '[^A-Za-z0-9 _.()/-]',''" in WF
+
+
+def test_probe_lists_every_dumpbin_import_without_changing_the_launcher():
+    imports = re.findall(r'try_system\("imp_([A-Za-z0-9_-]+)"', PROBE)
+    assert len(imports) == 18 and 'api-ms-win-core-path-l1-1-0' in imports
+    assert sum(name.startswith('api-ms-win-crt-') for name in imports) == 12
+    assert 'char line[128]' in PROBE
+    assert 'HONY_ORDINARY_AC_DIAGNOSTIC' not in (D/'launcher.c').read_text()
+    assert 'ORDINARY_AC_DIAGNOSTIC' not in WF
