@@ -3,7 +3,7 @@
   "EXPECTED-DIRECT-IMPORTS.json": "792c2385bcc4ab6fe18d8866e7dd4d89a3123e064f4a47541295356c9321d7cf",
   "PEER-FINDINGS.md": "ef0214d2ebd65064eb660424f45bdce3c88f74a2044fb146d19d96c0f62697cd",
   "README.md": "01579a1b2f2f0dbdf7c35435ce6c858669060fd7427dc0d6fc665f6e3ca50b49",
-  "capture_static.py": "cfeb10e4e5e946e94b5299d43776db4bf271c1b6ceb5bbdf3029110b6d04081c",
+  "capture_static.py": "082e02eed82c4597e546c0c5a5c39037febcaa2caeec2cbed0fef79ce396a478",
   "peinspect/__init__.py": "98a251c57fe22c673665a19589f43d14beec62417db97bbd79ce193d6c051812",
   "peinspect/__main__.py": "4b449de6707723921df6894f6150730e5ff5126fd731f2a1ec474a3deb8d8992",
   "peinspect/apiset.py": "4be20021582e8765f39acb7fb8b52d954b0103665540b3216d0d551eb64717f2",

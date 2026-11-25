@@ -1,5 +1,5 @@
 """Read-only static closure diagnostic, no analyzed-binary execution or loader probes."""
-import hashlib,json,os,pathlib,shutil,sys,urllib.request,urllib.parse,zipfile
+import base64,hashlib,json,os,pathlib,shutil,struct,sys,urllib.request,urllib.parse,zipfile
 from peinspect.pe import parse_pe,read_capped
 from peinspect.closure import run_closure,is_apiset_name,forwarder_target
 HERE=pathlib.Path(__file__).resolve().parent
@@ -66,6 +66,18 @@ def main():
                 if hashlib.sha256(target.read_bytes()).digest()!=hashlib.sha256(raw).digest():raise RuntimeError('snapshot copy mismatch')
                 capture.append(dict(requested=name,status='candidate-snapshot',source=str(source),sha256=hashlib.sha256(raw).hexdigest(),size=len(raw)))
                 queue.append(target)
+        # Capture exact owned read-only namespace section bytes, no interpretation
+        # or mapping use. Standalone evidence awaits source-qualified parser.
+        schema_source=system/'apisetschema.dll'
+        schema_raw=read_capped(str(schema_source));schema_image=parse_pe(schema_raw)
+        sections=[section for section in schema_image.sections if section.name=='.apiset']
+        if len(sections)!=1:raise RuntimeError('unique API-set namespace section required')
+        section=sections[0]
+        if not 4<=section.virtual_size<=4*1024*1024 or section.virtual_size>section.raw_size:raise RuntimeError('bounded file-backed API-set namespace required')
+        namespace=schema_raw[section.raw_offset:section.raw_offset+section.virtual_size]
+        if len(namespace)!=section.virtual_size:raise RuntimeError('truncated namespace capture')
+        (output/'apiset-namespace-capture.json').write_text(json.dumps(dict(status='uninterpreted-static-bytes',source=str(schema_source),file_sha256=hashlib.sha256(schema_raw).hexdigest(),file_bytes=len(schema_raw),section_sha256=hashlib.sha256(namespace).hexdigest(),section_bytes=len(namespace),section_raw_offset=section.raw_offset,observed_first_u32=struct.unpack_from('<I',namespace)[0],section_base64=base64.b64encode(namespace).decode('ascii'),os_build=sys.getwindowsversion().build,notice='No namespace mapping or layout acceptance. Exact raw section bytes for independent review only.'),indent=2)+'\n')
+        print('READONLY_UNINTERPRETED_APISET_SECTION_CAPTURE_PASS',flush=True)
         report=run_closure([str(runtime/'python.exe')],[dict(label='locked-runtime',path=str(runtime)),dict(label='system32-requested-snapshot',path=str(snapshot))])
         report['capture']=dict(runtime_archive_sha256=lock['sha256'],os_version=sys.getwindowsversion()._asdict() if hasattr(sys.getwindowsversion(),'_asdict') else str(sys.getwindowsversion()),system32_candidates=capture,system32_index='all regular nonsymlink basenames including DLL/DRV, bounded30000; absence means only not indexed here',parse_errors=parse_errors,notice='Static requested-file snapshot only. No API-set mapping captured; no actual loader resolution, restricted access or network claim.')
         (output/'static-closure.json').write_text(json.dumps(report,indent=2)+'\n')
