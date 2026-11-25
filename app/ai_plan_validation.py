@@ -1,5 +1,6 @@
 """Reject coercion at the local model proposal boundary, not authorization."""
 from decimal import Decimal, InvalidOperation
+from app.ai_errors import LocalizedValueError
 
 
 def validate_plan_values(plan, language='ar'):
@@ -10,26 +11,26 @@ def validate_plan_values(plan, language='ar'):
     }
     message = messages.get(language, messages['ar'])
     if not isinstance(plan, dict):
-        raise ValueError(message)  # noqa: TRY004
+        raise LocalizedValueError(message, language)  # noqa: TRY004
     if 'action' in plan and not isinstance(plan['action'], str):
-        raise ValueError(message)
+        raise LocalizedValueError(message, language)
     for key, value in plan.items():
         if key in {'is_financial', 'coverage_confirmed'} and value is not None and type(value) is not bool:
-            raise ValueError(message)
+            raise LocalizedValueError(message, language)
         if key == 'fingerprint_id':
             # Free-text device identifier (employee form stores a stripped string); never an integer id.
             if value is not None and (type(value) is not str or not value.strip() or len(value.strip()) > 50):
-                raise ValueError(message)
+                raise LocalizedValueError(message, language)
             continue
         if key.endswith('_id') and value is not None and (type(value) is not int or value < 1):
-            raise ValueError(message)
+            raise LocalizedValueError(message, language)
         if key in {'amount', 'basic_salary', 'daily_hours', 'balance_days', 'charged_days'} and value is not None:
             try:
                 amount = Decimal(str(value))
             except (InvalidOperation, TypeError, ValueError) as exc:
-                raise ValueError(message) from exc
+                raise LocalizedValueError(message, language) from exc
             if isinstance(value, bool) or not amount.is_finite():
-                raise ValueError(message)
+                raise LocalizedValueError(message, language)
     required = {
         'approve_payroll_run': ('payroll_run_id',),
         'close_payroll_run': ('payroll_run_id',),
@@ -54,4 +55,4 @@ def validate_plan_values(plan, language='ar'):
     for key in required.get(plan.get('action'), ()):
         value = plan.get(key)
         if value is None or value == '' or (isinstance(value, str) and not value.strip()):
-            raise ValueError(message)
+            raise LocalizedValueError(message, language)

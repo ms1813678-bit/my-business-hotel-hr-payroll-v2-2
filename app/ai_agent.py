@@ -6,6 +6,7 @@ can mutate the database, and every operation uses existing workflow rules.
 """
 from __future__ import annotations
 
+import http.client
 import json
 from contextlib import nullcontext
 from dataclasses import dataclass, field
@@ -19,6 +20,7 @@ from sqlalchemy import select
 from app.advance_workflow import approve_advance, create_advance, mark_advance_paid, reject_advance
 from app.ai_assistant import local_model_status
 from app.ai_plan_validation import validate_plan_values
+from app.ai_errors import LocalizedRuntimeError, LocalizedValueError
 from app.attendance_workflow import (
     add_manual_attendance,
     approve_attendance_day,
@@ -221,28 +223,28 @@ def _json_plan(question: str, context: dict[str, Any], language: str = "ar") -> 
             },
             timeout=30,
         )
-    except OSError as exc:
-        raise RuntimeError(_msg(
+    except (OSError, http.client.HTTPException) as exc:  # incl. IncompleteRead
+        raise LocalizedRuntimeError(_msg(
             language,
             "لم يستجب النموذج المحلي في الوقت المناسب.",
             "The local model did not respond in time.",
             "本地模型未及时响应。",
-        )) from exc
+        ), language) from exc
     except ValueError as exc:  # transport body was not valid JSON/UTF-8
-        raise ValueError(_bad_json_msg(language)) from exc
+        raise LocalizedValueError(_bad_json_msg(language), language) from exc
     message = response.get("message") if isinstance(response, dict) else None
     raw = str(message.get("content", "") if isinstance(message, dict) else "").strip()
     try:
         plan = json.loads(raw)
     except json.JSONDecodeError as exc:
-        raise ValueError(_bad_json_msg(language)) from exc
+        raise LocalizedValueError(_bad_json_msg(language), language) from exc
     if not isinstance(plan, dict) or not isinstance(plan.get("action"), str) or plan.get("action") not in ALLOWED_ACTIONS:
-        raise ValueError(_msg(
+        raise LocalizedValueError(_msg(
             language,
             "الأمر المطلوب غير مسموح به في المساعد.",
             "The requested command is not allowed in the assistant.",
             "助手不允许该请求指令。",
-        ))
+        ), language)
     validate_plan_values(plan, language)
     return plan
 

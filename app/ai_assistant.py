@@ -6,10 +6,13 @@ reports that the assistant is unavailable.
 """
 from __future__ import annotations
 
+import functools
+import http.client
 import ipaddress
 import json
 import os
 import socket
+import ssl
 from urllib.parse import urlparse
 from typing import Any
 from urllib import error, request
@@ -27,27 +30,120 @@ class _NoRedirect(request.HTTPRedirectHandler):
         return None  # a redirect is an error, never followed
 
 
-# ProxyHandler({}) (not None) ignores environment and Windows registry proxies.
-_OPENER = request.build_opener(request.ProxyHandler({}), _NoRedirect())
-
-
-def _ensure_loopback() -> None:
+def _resolve_verified_loopback() -> list:
+    """One resolution per request. Returns the verified (family, sockaddr) list that
+    is the only thing the connection may dial (no second DNS lookup)."""
     parsed = urlparse(OLLAMA_BASE_URL)
     host = parsed.hostname
     if parsed.scheme not in {"http", "https"} or host not in {"127.0.0.1", "localhost", "::1"}:
         raise RuntimeError(_LOOPBACK_MESSAGE)
     try:
-        found = {i[4][0].split("%")[0] for i in socket.getaddrinfo(host, parsed.port or 80, type=socket.SOCK_STREAM)}
+        port = parsed.port or (443 if parsed.scheme == "https" else 80)
+        infos = socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
     except (OSError, ValueError) as exc:
         raise RuntimeError(_LOOPBACK_MESSAGE) from exc
-    if not found or not all(ipaddress.ip_address(a).is_loopback for a in found):
+    pinned = []
+    for family, _type, _proto, _canon, sockaddr in infos:
+        try:
+            loopback = ipaddress.ip_address(sockaddr[0].split("%")[0]).is_loopback
+        except ValueError:
+            loopback = False
+        if not loopback:
+            raise RuntimeError(_LOOPBACK_MESSAGE)
+        pinned.append((family, sockaddr))  # full sockaddr keeps IPv6 flowinfo/scope_id
+    if not pinned:
         raise RuntimeError(_LOOPBACK_MESSAGE)
+    return pinned
+
+
+def _ensure_loopback() -> None:
+    _resolve_verified_loopback()
+
+
+def _dial(pinned, timeout):
+    last = None
+    for family, sockaddr in pinned:
+        sock = None
+        try:
+            sock = socket.socket(family, socket.SOCK_STREAM)
+            if timeout is not socket._GLOBAL_DEFAULT_TIMEOUT:
+                sock.settimeout(timeout)
+            sock.connect(sockaddr)  # numeric sockaddr: no DNS
+            sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+        except OSError as exc:
+            last = exc
+            if sock is not None:
+                sock.close()
+            continue
+        except BaseException:
+            if sock is not None:
+                sock.close()
+            raise
+        return sock
+    raise last or OSError("no verified loopback address connected")
+
+
+class _PinnedHTTPConnection(http.client.HTTPConnection):
+    def __init__(self, host, *args, pinned, **kwargs):
+        super().__init__(host, *args, **kwargs)
+        self._pinned = pinned
+
+    def connect(self):
+        self.sock = _dial(self._pinned, self.timeout)
+
+
+class _PinnedHTTPSConnection(http.client.HTTPSConnection):
+    def __init__(self, host, *args, pinned, **kwargs):
+        super().__init__(host, *args, **kwargs)
+        self._pinned = pinned
+
+    def connect(self):
+        raw = _dial(self._pinned, self.timeout)
+        try:
+            # Name and certificate are checked against the ORIGINAL host, not the dialled IP.
+            self.sock = self._context.wrap_socket(raw, server_hostname=self.host)
+        except BaseException:
+            raw.close()
+            raise  # TLS failure aborts; no fallback to another address
+
+
+class _PinnedHTTPHandler(request.HTTPHandler):
+    def __init__(self, pinned):
+        super().__init__()
+        self._pinned = pinned
+
+    def http_open(self, req):
+        if req.has_proxy():
+            raise RuntimeError(_LOOPBACK_MESSAGE)
+        return self.do_open(functools.partial(_PinnedHTTPConnection, pinned=self._pinned), req)
+
+
+class _PinnedHTTPSHandler(request.HTTPSHandler):
+    def __init__(self, pinned, context):
+        super().__init__(context=context)
+        self._pinned = pinned
+        self._ctx = context
+
+    def https_open(self, req):
+        if req.has_proxy():
+            raise RuntimeError(_LOOPBACK_MESSAGE)
+        return self.do_open(functools.partial(_PinnedHTTPSConnection, pinned=self._pinned),
+                            req, context=self._ctx)
+
+
+def _pinned_opener():
+    pinned = _resolve_verified_loopback()
+    context = ssl.create_default_context()  # CERT_REQUIRED + check_hostname; never weakened
+    # ProxyHandler({}) (not None) ignores environment and Windows registry proxies.
+    return request.build_opener(request.ProxyHandler({}), _NoRedirect(),
+                                _PinnedHTTPHandler(pinned), _PinnedHTTPSHandler(pinned, context))
+
 
 TIMEOUT_SECONDS = 1.5
 
 
 def _post_json(path: str, payload: dict[str, Any], timeout: float = TIMEOUT_SECONDS) -> dict[str, Any]:
-    _ensure_loopback()
+    opener = _pinned_opener()
     body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
     req = request.Request(
         f"{OLLAMA_BASE_URL}{path}",
@@ -55,19 +151,19 @@ def _post_json(path: str, payload: dict[str, Any], timeout: float = TIMEOUT_SECO
         headers={"Content-Type": "application/json"},
         method="POST",
     )
-    with _OPENER.open(req, timeout=timeout) as response:
+    with opener.open(req, timeout=timeout) as response:
         return json.loads(response.read().decode("utf-8"))
 
 
 def local_model_status(language: str = "ar") -> dict[str, Any]:
     try:
-        _ensure_loopback()
+        opener = _pinned_opener()
     except RuntimeError as exc:
         return {"available": False, "server": False, "model": OLLAMA_MODEL, "message": translate_text(str(exc), language) if str(exc) == _LOOPBACK_MESSAGE else str(exc)}
     """Return availability without ever contacting a remote service."""
     req = request.Request(f"{OLLAMA_BASE_URL}/api/tags", method="GET")
     try:
-        with _OPENER.open(req, timeout=0.8) as response:
+        with opener.open(req, timeout=0.8) as response:
             data = json.loads(response.read().decode("utf-8"))
         names = {str(item.get("name", "")) for item in data.get("models", [])}
         installed = OLLAMA_MODEL in names or any(name.startswith(f"{OLLAMA_MODEL}:") for name in names)
@@ -78,7 +174,7 @@ def local_model_status(language: str = "ar") -> dict[str, Any]:
             "model": OLLAMA_MODEL,
             "message": message,
         }
-    except (OSError, ValueError, error.URLError):
+    except (OSError, ValueError, error.URLError, http.client.HTTPException):
         return {
             "available": False,
             "server": False,
@@ -156,7 +252,7 @@ def ask_local_model(question: str, context: dict[str, Any], language: str = "ar"
             },
             timeout=30,
         )
-    except OSError as exc:
+    except (OSError, http.client.HTTPException, ValueError) as exc:  # incl. IncompleteRead / undecodable body
         raise RuntimeError(translate_text("لم يستجب النموذج المحلي في الوقت المناسب.", language)) from exc
     message = response.get("message") if isinstance(response, dict) else None
     answer = str(message.get("content", "") if isinstance(message, dict) else "").strip()
@@ -209,7 +305,7 @@ def ask_local_model_json(system_prompt: str, user_prompt: str) -> dict[str, Any]
                           {"role": "user", "content": user_prompt}]},
             timeout=30,
         )
-    except OSError as exc:
+    except (OSError, http.client.HTTPException, ValueError) as exc:
         raise RuntimeError("لم يستجب النموذج المحلي في الوقت المناسب.") from exc
     message = response.get("message") if isinstance(response, dict) else None
     raw = str(message.get("content", "") if isinstance(message, dict) else "").strip()

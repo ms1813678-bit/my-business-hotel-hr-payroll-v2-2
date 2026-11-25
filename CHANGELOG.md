@@ -580,3 +580,8 @@ Added one current source/status index and marked older operational checkpoint re
 - Immutable canonical per-table sync_uid on four base entities, migration0067 from0065; integer IDs and business history unchanged.
 - Real migration/default/immutability/failure-rollback/downgrade and populated4entity dump/restore plus behavioral guard proof. Targeted417pass6skip, not whole-suite/device/network acceptance.
 - Required pre-upgrade verified backup/tested restore and DDL maintenance window documented; populated downgrade refuses, restore backup for rollback. Held0066 not adopted.
+
+## 2026-11-25 Local AI refusal display and pinned loopback transport
+- Preserve safe actionable refusals in AR/EN/ZH through finite authored/domain catalogs and bounded parameters; unknown internal text is generic, localized marker alone not trusted.
+- Control local-model protocol/body failures; pin verified loopback numeric destinations per status/POST while preserving strict HTTPS original-host verification and proxy/redirect refusal.
+- Actual authenticated migrated-PG review/approve/CSRF/role/replay tests plus temporary-TLS/rebinding/IPv6/cleanup cases. Composed526pass4SQLite-onlyskip, not actual-model/native/hotel/global-egress acceptance.

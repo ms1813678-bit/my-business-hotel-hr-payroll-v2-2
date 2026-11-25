@@ -80,6 +80,8 @@ from app.employee_codes import allocate_employee_code
 from app.leave_workflow import add_balance_entry, cancel_leave, confirm_leave, leave_balance
 from app.advance_workflow import approve_advance, create_advance, mark_advance_paid, reject_advance
 from app.models import AdvanceInstallment, CAIRO_TZ
+from app.ai_error_display import safe_failure_message
+from app.ai_errors import LocalizedValueError
 from app.national_id import ERROR_MESSAGE as NATIONAL_ID_ERROR, is_valid_egyptian_national_id
 from app.staff_actions_workflow import (
     CATEGORY_LABELS_AR,
@@ -934,6 +936,62 @@ def dashboard(request: Request, admin: AdminAccount = Depends(get_current_admin)
         )
 
 
+# Fixed, per-language route errors for the AI assistant. Exception text is never rendered: it can
+# carry Arabic business detail, hosts, SQL or paths and would mix UI languages.
+_AI_ROUTE_ERRORS = {
+    "prepare": {
+        "ar": "لم يتم إعداد العملية. راجع الأمر وحاول مرة أخرى.",
+        "en": "The operation could not be prepared. Check the command and try again.",
+        "zh": "无法准备该操作。请检查指令后重试。",
+    },
+    "hr_query": {
+        "ar": "تعذر قراءة بيانات الموارد البشرية المطلوبة.",
+        "en": "Could not read the required HR data.",
+        "zh": "无法读取所需的人力资源数据。",
+    },
+    "review": {
+        "ar": "تغيرت البيانات. جهز معاينة جديدة.",
+        "en": "Data changed. Prepare a new preview.",
+        "zh": "数据已变更。请重新生成预览。",
+    },
+    "review_required": {
+        "ar": "راجع التفاصيل قبل التأكيد.",
+        "en": "Review the details before confirming.",
+        "zh": "确认前请先查看详情。",
+    },
+    "approve": {
+        "ar": "لم يتم تنفيذ العملية. جهز معاينة جديدة وراجعها قبل التأكيد.",
+        "en": "The operation was not carried out. Prepare a new preview and review it before confirming.",
+        "zh": "该操作未执行。请重新生成预览并在确认前查看。",
+    },
+    "reject": {
+        "ar": "لم يتم رفض العملية.",
+        "en": "The operation was not rejected.",
+        "zh": "未能拒绝该操作。",
+    },
+}
+
+
+def _ai_route_error(code: str, language: str) -> str:
+    return _AI_ROUTE_ERRORS[code].get(language) or _AI_ROUTE_ERRORS[code]["ar"]
+
+
+_AI_ROUTE_PREFIX = {
+    "prepare": {"ar": "لم يتم إعداد العملية", "en": "The operation could not be prepared", "zh": "无法准备该操作"},
+    "hr_query": {"ar": "تعذر قراءة بيانات الموارد البشرية المطلوبة", "en": "Could not read the required HR data",
+                 "zh": "无法读取所需的人力资源数据"},
+    "review": {"ar": "تغيرت البيانات", "en": "Data changed", "zh": "数据已变更"},
+    "approve": {"ar": "لم يتم تنفيذ العملية", "en": "The operation was not carried out", "zh": "该操作未执行"},
+    "reject": {"ar": "لم يتم رفض العملية", "en": "The operation was not rejected", "zh": "未能拒绝该操作"},
+}
+
+
+def _ai_failure(exc: BaseException, code: str, language: str) -> str:
+    """Known, localized reason when the failure is an allowlisted refusal; otherwise the fixed generic text."""
+    return safe_failure_message(exc, _AI_ROUTE_PREFIX[code].get(language) or _AI_ROUTE_PREFIX[code]["ar"],
+                                _ai_route_error(code, language), language)
+
+
 @app.get("/ai", response_class=HTMLResponse)
 def ai_page(request: Request, admin: AdminAccount = Depends(require_system_admin)):
     return templates.TemplateResponse(
@@ -983,8 +1041,7 @@ def ai_ask(
             }
             answer = _translate_text("تم إعداد خطة التنفيذ. لن يتم أي تعديل قبل موافقتك الصريحة.", request.state.language)
         except (RuntimeError, ValueError, SQLAlchemyError) as exc:
-            answer = _translate_text("لم يتم إعداد العملية", request.state.language) + f": {exc}"
-            answer_language = "ar"  # raw suffix may come from deeper Arabic layers
+            answer = _ai_failure(exc, "prepare", request.state.language)
     else:
         with SessionLocal() as db:
             context = {
@@ -1007,7 +1064,7 @@ def ai_ask(
             try:
                 answer = answer_structured_hr_query(question, language=request.state.language)
             except (RuntimeError, ValueError, SQLAlchemyError) as exc:
-                answer = _translate_text("تعذر قراءة بيانات الموارد البشرية المطلوبة", request.state.language) + f": {exc}"
+                answer = _ai_failure(exc, "hr_query", request.state.language)
         else:
             try:
                 answer = ask_local_model(question, context, language=request.state.language)
@@ -1040,9 +1097,9 @@ def ai_review(request: Request, token: str = Form(...),
     try:
         pending = review_command(token.strip(), admin.username, request.state.language)
         answer = None
-    except (RuntimeError, ValueError, SQLAlchemyError):
+    except (RuntimeError, ValueError, SQLAlchemyError) as exc:
         pending = None
-        answer = _translate_text("تغيرت البيانات. جهز معاينة جديدة.", request.state.language)
+        answer = _ai_failure(exc, "review", request.state.language)
     return templates.TemplateResponse(request=request, name="ai.html", context={
         "admin": admin.display_name or admin.username, "csrf_token": get_csrf_token(request),
         "status": local_model_status(request.state.language), "scan": build_smart_scan(request.state.language),
@@ -1061,15 +1118,14 @@ def ai_approve(
     history = recent_memory(admin.username)
     try:
         if not verify_review_receipt(token.strip(), admin.username, review_receipt):
-            raise ValueError(_translate_text("راجع التفاصيل قبل التأكيد.", request.state.language))
+            raise LocalizedValueError(_ai_route_error("review_required", request.state.language), request.state.language)
         answer = approve_command(token.strip(), admin.username, language=request.state.language,
                                  human_coverage_confirmed=human_coverage_confirmed == "confirmed")
         # structured execution results render fully in the UI language
         answer_language = request.state.language
     except (RuntimeError, ValueError, SQLAlchemyError) as exc:
-        # translated prefix + original (Arabic) error detail: mixed, no badge
-        answer = _translate_text("لم يتم تنفيذ العملية", request.state.language) + f": {exc}"
-        answer_language = "unknown"
+        answer = _ai_failure(exc, "approve", request.state.language)
+        answer_language = request.state.language
     return templates.TemplateResponse(
         request=request,
         name="ai.html",
@@ -1099,9 +1155,8 @@ def ai_reject(
         answer = reject_command(token.strip(), admin.username, language=request.state.language)
         answer_language = request.state.language
     except (RuntimeError, ValueError, SQLAlchemyError) as exc:
-        # translated prefix + original (Arabic) error detail: mixed, no badge
-        answer = _translate_text("لم يتم رفض العملية", request.state.language) + f": {exc}"
-        answer_language = "unknown"
+        answer = _ai_failure(exc, "reject", request.state.language)
+        answer_language = request.state.language
     return templates.TemplateResponse(
         request=request,
         name="ai.html",

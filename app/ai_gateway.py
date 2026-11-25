@@ -17,6 +17,7 @@ from typing import Any
 from sqlalchemy import select, text
 
 from app.ai_agent import build_plan, execute_plan
+from app.ai_errors import LocalizedValueError
 from app.ai_execution_render import render_execution_result
 from app.ai_plan_validation import validate_plan_values
 from app.db import SessionLocal
@@ -462,15 +463,15 @@ def reject_command(
             .with_for_update()
         )
         if approval is None or approval.actor != actor:
-            raise ValueError(_msg(
+            raise LocalizedValueError(_msg(
                 language, "طلب الموافقة غير موجود.",
                 "Approval request not found.", "未找到该批准请求。",
-            ))
+            ), language)
         if approval.status != "pending":
-            raise ValueError(_msg(
+            raise LocalizedValueError(_msg(
                 language, "هذا الطلب لم يعد قابلًا للرفض.",
                 "This request can no longer be rejected.", "该请求已无法拒绝。",
-            ))
+            ), language)
         if _as_utc(approval.expires_at) <= now:
             approval.status = "expired"
             expired = True
@@ -487,10 +488,10 @@ def reject_command(
             ))
     # Raise only after the transaction commits, or the terminal state would roll back.
     if expired:
-        raise ValueError(_msg(
+        raise LocalizedValueError(_msg(
             language, "انتهت صلاحية طلب الموافقة.",
             "The approval request has expired.", "批准请求已过期。",
-        ))
+        ), language)
     _memory(actor, "assistant", _msg(
         language,
         "تم رفض العملية ولم يتم تغيير بيانات النظام.",
@@ -529,7 +530,7 @@ def _lock_command_business_tables(db):
 def approve_command(token: str, actor: str, language: str = "ar", *,
                     human_coverage_confirmed: bool = False) -> str:
     if type(human_coverage_confirmed) is not bool:
-        raise ValueError(_msg(language, "يلزم تأكيد صريح من مسؤول الموارد البشرية.", "Explicit human HR confirmation required.", "需要人力资源人员明确确认。"))
+        raise LocalizedValueError(_msg(language, "يلزم تأكيد صريح من مسؤول الموارد البشرية.", "Explicit human HR confirmation required.", "需要人力资源人员明确确认。"), language)
     now = datetime.now(UTC)
     terminal_error = None
     result = None
@@ -541,13 +542,13 @@ def approve_command(token: str, actor: str, language: str = "ar", *,
         approval = db.scalar(select(AICommandApproval).where(
             AICommandApproval.token_hash == _token_hash(token)).with_for_update())
         if approval is None or approval.actor != actor:
-            raise ValueError(_msg(language, "طلب الموافقة غير موجود.",
-                                  "Approval request not found.", "未找到该批准请求。"))
+            raise LocalizedValueError(_msg(language, "طلب الموافقة غير موجود.",
+                                  "Approval request not found.", "未找到该批准请求。"), language)
         if approval.status != "pending":
-            raise ValueError(_msg(language,
+            raise LocalizedValueError(_msg(language,
                 "هذا الطلب سبق التعامل معه ولا يمكن تنفيذه مرة أخرى.",
                 "This request was already handled and cannot be executed again.",
-                "该请求已处理，无法再次执行。"))
+                "该请求已处理，无法再次执行。"), language)
         if _as_utc(approval.expires_at) <= now:
             approval.status = "expired"
             terminal_error = _msg(language, "انتهت صلاحية طلب الموافقة.",
@@ -584,7 +585,7 @@ def approve_command(token: str, actor: str, language: str = "ar", *,
                     # process crash rolls back business effects and token.
                     # There is never a separately committed executing state.
                     if plan.get("action") == "approve_attendance_month" and not human_coverage_confirmed:
-                        raise ValueError(_msg(language, "يلزم تأكيدك الشخصي لمراجعة تغطية الحضور.", "Your explicit attendance coverage confirmation is required.", "需要您明确确认已审核出勤覆盖情况。"))
+                        raise LocalizedValueError(_msg(language, "يلزم تأكيدك الشخصي لمراجعة تغطية الحضور.", "Your explicit attendance coverage confirmation is required.", "需要您明确确认已审核出勤覆盖情况。"), language)
                     result = execute_plan(plan, actor, db=db,
                         human_coverage_confirmed=human_coverage_confirmed)
                     rendered = render_execution_result(result, language)
@@ -604,7 +605,7 @@ def approve_command(token: str, actor: str, language: str = "ar", *,
                 db.add(AuditLog(actor=actor, action="ai_command_invalidated", entity_type="ai_command",
                     entity_id=str(approval.id), reason=terminal_error))
     if terminal_error:
-        raise ValueError(terminal_error)
+        raise LocalizedValueError(terminal_error, language)
     return rendered
 
 
@@ -616,15 +617,15 @@ def review_command(token: str, actor: str, language: str = 'ar') -> dict:
             AICommandApproval.token_hash == _token_hash(token)).with_for_update())
         if (record is None or record.actor != actor or record.status != 'pending'
                 or _as_utc(record.expires_at) <= datetime.now(UTC)):
-            raise ValueError(_msg(language, 'طلب الموافقة غير متاح أو انتهت صلاحيته.',
-                                  'Approval is unavailable or expired.', '批准请求不可用或已过期。'))
+            raise LocalizedValueError(_msg(language, 'طلب الموافقة غير متاح أو انتهت صلاحيته.',
+                                  'Approval is unavailable or expired.', '批准请求不可用或已过期。'), language)
         plan = json.loads(record.plan_json)
         if plan_hash(plan) != record.plan_hash:
             raise ValueError('Invalid plan.')
         preview = build_confirmation_preview(plan, session=db)
         if preview['snapshot'] != plan.get('_confirmation_snapshot'):
-            raise ValueError(_msg(language, 'تغيرت البيانات. جهز معاينة جديدة.',
-                                  'Data changed. Prepare a new preview.', '数据已变更。请重新生成预览。'))
+            raise LocalizedValueError(_msg(language, 'تغيرت البيانات. جهز معاينة جديدة.',
+                                  'Data changed. Prepare a new preview.', '数据已变更。请重新生成预览。'), language)
         return {'token': token, 'plan': {key: value for key, value in plan.items()
                 if key != '_confirmation_snapshot'}, 'summary': str(plan.get('summary') or ''),
                 'old_values': preview['old_values'], 'new_values': preview['new_values'],
