@@ -1377,3 +1377,22 @@ class LeaveYearTransition(Base):
     result_json: Mapped[str] = mapped_column(Text, nullable=False)
     result_digest: Mapped[str] = mapped_column(String(64), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+
+
+class LeaveCarryConsumption(Base):
+    __tablename__ = 'leave_carry_consumptions'
+    __table_args__ = (CheckConstraint("grant_kind IN ('carry','annual')", name='ck_carry_consumption_kind'),)
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    employee_id: Mapped[int] = mapped_column(ForeignKey('employees.id', ondelete='RESTRICT'), nullable=False)
+    leave_type_id: Mapped[int] = mapped_column(ForeignKey('leave_types.id', ondelete='RESTRICT'), nullable=False)
+    grant_kind: Mapped[str] = mapped_column(String(16), nullable=False)
+    grant_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    usage_ledger_id: Mapped[int] = mapped_column(ForeignKey('leave_balance_transactions.id', ondelete='RESTRICT'), nullable=False)
+    work_date: Mapped[date] = mapped_column(Date, nullable=False)
+    quantity_canonical: Mapped[str] = mapped_column(Text, nullable=False)
+    source_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    request_json: Mapped[str] = mapped_column(Text, nullable=False)
+    request_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    result_json: Mapped[str] = mapped_column(Text, nullable=False)
+    result_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)

@@ -4,6 +4,7 @@ All three existing day-balance categories must have a completed-year source and
 an explicit closing receipt. No date change, cash payment, expiry, month close,
 new-year earning admission or grant consumption is performed by this service.
 """
+from datetime import date
 import json
 import re
 from sqlalchemy import select, text
@@ -137,3 +138,74 @@ def record_year_transition(db, *, operation_id, reviewed_digest, human_confirmed
             entity_type='leave_year_transition',entity_id=operation_id,old_value=reviewed_digest,
             new_value=row.result_json,reason=reason.strip()));db.flush()
     return json.loads(row.result_json)
+
+
+def verify_transition_for_month(db, *, employee_id, selection_id, month_start, identity):
+    """Verify every intervening checkpoint and original monthly source evidence.
+
+    This admits monthly accrual/register accounting only. It does not grant carry
+    spending, erase expired days, or enable the completed-year cash service.
+    """
+    from app.models import LeaveMonthEarning, Employee
+    from app.leave_month_earning import _verify_receipt, _earning_binding
+    from app.department_workbook_source import read_workbook_source
+    from app.department_workbook_tiers import resolve_workbook_tiers
+    from app.leave_opening_source import read_confirmed_opening_source
+    from app.leave_opening_receipt import verified_manual_opening
+    reviews,policy,policy_digest=read_confirmed_opening_source(db,selection_id=selection_id,**identity)
+    opening=verified_manual_opening(db,selection_id=selection_id,**identity)
+    baseline=date.fromisoformat(reviews[0]['effective_start'])
+    if baseline.year>=month_start.year:raise ValueError('Earlier baseline required for transition admission.')
+    employee=db.get(Employee,employee_id,populate_existing=True)
+    bindings=[]
+    for year in range(baseline.year,month_start.year):
+        row=db.scalar(select(LeaveYearTransition).where(LeaveYearTransition.employee_id==employee_id,
+            LeaveYearTransition.source_year==year))
+        if row is None:raise ValueError('Reviewed year-transition checkpoint required before next-year earning.')
+        result=json.loads(row.result_json);request=json.loads(row.request_json)
+        audits=db.scalars(select(AuditLog).where(AuditLog.action=='leave_year_transition_recorded',
+            AuditLog.entity_type=='leave_year_transition',AuditLog.entity_id==row.id)).all()
+        if (row.source_digest!=row.result_digest or digest(result)!=row.result_digest
+                or digest(request)!=row.request_digest or request['plan']!=result
+                or request['reviewed_digest']!=row.result_digest or request['expected_epoch']!=identity['expected_epoch']
+                or result['employee_id']!=employee_id or result['source_year']!=year or result['target_year']!=year+1
+                or row.target_year!=year+1 or result['selection_id']!=selection_id
+                or result['new_opening_credit']!='0/1' or result['ledger_delta']!='0/1'
+                or result['new_year_earning_allowed'] is not False or result['operational_spending_allowed'] is not False
+                or len(audits)!=1 or audits[0].actor!=request['actor_username']
+                or audits[0].old_value!=row.source_digest or audits[0].new_value!=row.result_json
+                or audits[0].reason!=result['reason']):
+            raise ValueError('Year-transition checkpoint integrity changed.')
+        for code,balance in result['balances'].items():
+            # Existing named rows cannot be changed merely because later rows grow.
+            for item in balance['ledger']:
+                ledger=db.get(LeaveBalanceTransaction,item[0],populate_existing=True)
+                actual=[ledger.id,canonical_amount(ledger_amount(ledger)),ledger.source_operation_key,
+                    ledger.source_digest,ledger.earning_year,ledger.released_on.isoformat() if ledger.released_on else None] if ledger else None
+                if (actual!=item or ledger.employee_id!=employee_id or ledger.leave_type_id!=balance['leave_type_id']):
+                    raise ValueError('Year-transition recorded ledger changed.')
+            closing=_closing_receipt(db,employee_id=employee_id,leave_type_id=balance['leave_type_id'],
+                source_year=year,reviewed_on=date.fromisoformat(result['reviewed_on']),identity=identity)
+            if closing!=balance['closing_receipt']:raise ValueError('Year-transition closing receipt changed.')
+        receipts=db.scalars(select(LeaveMonthEarning).where(LeaveMonthEarning.employee_id==employee_id,
+            LeaveMonthEarning.month_start>=date(year,1,1),LeaveMonthEarning.month_start<=date(year,12,1))).all()
+        expected={item[0]:item[1:] for item in result['balances']['A']['source']['verified_months']}
+        if set(expected)!={receipt.id for receipt in receipts}:raise ValueError('Transition source-month coverage changed.')
+        for receipt in receipts:
+            _verify_receipt(db,receipt)
+            if expected[receipt.id]!=[receipt.source_digest,receipt.result_digest] or receipt.selection_id!=selection_id:
+                raise ValueError('Transition monthly receipt changed.')
+            old=json.loads(receipt.source_json)
+            facts=read_workbook_source(db,department_id=employee.department_id,employee_ids=(employee_id,),
+                window_start=date(year,1,1),month_start=receipt.month_start,policy_digest=policy_digest,
+                expected_epoch=identity['expected_epoch'])
+            if old['earning_binding']!=_earning_binding(json.loads(facts.canonical_json),receipt.month_start):
+                raise ValueError('Transition prior earned source changed.')
+            insurance={(i,date.fromisoformat(m)):None if v is None else __import__('decimal').Decimal(v)
+                for i,m,v in old['current_insurance_years']}
+            ages={date.fromisoformat(m):date.fromisoformat(d) for m,d in old['age_evaluation_dates']}
+            tiers=resolve_workbook_tiers(facts=facts,policy=policy,current_insurance_years=insurance,age_evaluation_dates=ages)
+            if (tiers.unresolved or tiers.tiers[employee_id,receipt.month_start]!=old['tier']
+                    or old['opening']!=opening['apply_sha256']):raise ValueError('Transition prior tier or opening changed.')
+        bindings.append([row.id,row.source_digest,row.result_digest])
+    return bindings

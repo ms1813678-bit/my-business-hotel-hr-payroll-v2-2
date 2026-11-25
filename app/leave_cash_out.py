@@ -263,6 +263,8 @@ def _derive(db, *, employee_id, leave_type_id, days, payroll_item_id, evaluated_
         raise ValueError('Negative or zero balance is debt/no balance, never eligible cash.')
     if exact_days > source['balance']:
         raise ValueError('Requested days exceed the verified released balance.')
+    from app.leave_carry_consumption import refuse_unresolved_expired_carry_cash
+    refuse_unresolved_expired_carry_cash(db,employee_id=employee_id,leave_type_id=leave_type_id,evaluated_on=evaluated_on,identity=identity)
     basis = _basis(db, employee=employee, payroll_item_id=payroll_item_id)
     calculation = calculate_leave_cash(days=exact_days, basic_salary=Decimal(basis['basic_salary']),
                                        performance_bonus=Decimal(basis['performance_bonus']))

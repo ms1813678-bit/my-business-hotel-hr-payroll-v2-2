@@ -81,7 +81,11 @@ def _derive(db,*,selection_id,month_start,evaluated_on,current_insurance_years,a
     if len(effective)!=1:raise ValueError('One explicit baseline required.')
     baseline=date.fromisoformat(next(iter(effective)))
     end=date(month_start.year,month_start.month,monthrange(month_start.year,month_start.month)[1])
-    if baseline.year!=month_start.year or baseline>end or policy.annual_year_basis!='calendar':
+    transition_bindings=[]
+    if baseline.year<month_start.year:
+        from app.leave_year_transition import verify_transition_for_month
+        transition_bindings=verify_transition_for_month(db,employee_id=employee_id,selection_id=selection_id,month_start=month_start,identity=identity)
+    if baseline.year>month_start.year or baseline>end or policy.annual_year_basis!='calendar':
         raise ValueError('Current calendar baseline must cover selected month.')
     if db.scalar(select(LeaveMonthClose.id).where(LeaveMonthClose.year==month_start.year,LeaveMonthClose.month==month_start.month)):
         raise ValueError('Closed leave month refuses earning.')
@@ -127,7 +131,7 @@ def _derive(db,*,selection_id,month_start,evaluated_on,current_insurance_years,a
     for receipt in existing_receipts:
         verified_result=_verify_receipt(db,receipt)
         known_ledger.update(item['id'] for item in verified_result['ledger'])
-        if json.loads(receipt.source_json)['earning_binding']!=_earning_binding(source,receipt.month_start):
+        if receipt.month_start.year==month_start.year and json.loads(receipt.source_json)['earning_binding']!=_earning_binding(source,receipt.month_start):
             raise ValueError('Prior earned source changed; separate correction required before release.')
     release_audits=db.scalars(select(AuditLog).where(AuditLog.action=='leave_annual_released',AuditLog.entity_type=='leave_annual_release')).all()
     for audit in release_audits:
@@ -173,7 +177,7 @@ def _derive(db,*,selection_id,month_start,evaluated_on,current_insurance_years,a
     while expected_month<month_start:
         prior_months.append(expected_month)
         expected_month=date(expected_month.year+int(expected_month.month==12),expected_month.month%12+1,1)
-    if {r.month_start for r in previous if r.month_start<month_start}!=set(prior_months):
+    if {r.month_start for r in previous if r.month_start.year==month_start.year and r.month_start<month_start}!=set(prior_months):
         raise ValueError('Post source months sequentially from explicit baseline; no omitted prior month.')
     if any(r.selection_id!=selection_id for r in previous):raise ValueError('Monthly baseline changed; reviewed correction required.')
     payload={'employee_id': employee_id,'selection_id': selection_id,'month_start': month_start.isoformat(),'evaluated_on': evaluated_on.isoformat(),
@@ -183,6 +187,7 @@ def _derive(db,*,selection_id,month_start,evaluated_on,current_insurance_years,a
         'earned': {c:canonical_amount(v) for c,v in zip(('A','W','H'),(earned.annual,earned.weekly,earned.holiday))},
         'used': {c:counts[c] for c in CATEGORIES},'annual_released': released.released,'annual_release_date': initial.earliest_release_date.isoformat(),
         'previous': [(r.id,r.source_digest,r.result_digest) for r in previous]}
+    if transition_bindings:payload['year_transitions']=transition_bindings
     return payload,kinds
 
 
