@@ -28,3 +28,5 @@ jobs:
           if ((Get-FileHash "$root/test_candidate.py" -Algorithm SHA256).Hash.ToLower() -ne 'c78364e4c9885b7ab4aa7ba8da403bbf95fe2baca5ce801423171e055cb82cf2') { throw 'Test hash mismatch' }
       - name: Run bounded isolated candidate checks
         run: python verification/windows_parser_rev9/run_native.py
+
+# Observe bounded loader module names and fixed-vocabulary masks on the same control head.

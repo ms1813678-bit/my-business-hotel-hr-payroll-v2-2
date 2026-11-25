@@ -17,6 +17,6 @@
   "verification/windows_integrated_candidate/token_checks.h": "7912cabd55604d49b4e57b351324aa7e4a6fd9eb4237bd112dcfd8cf884d8d05",
   "verification/windows_integrated_candidate/startup_diagnostics.h": "957770421786e79ee640bd6b55fc6477394cc12d0793a169c6e0d793adbf9857",
   "verification/windows_integrated_candidate/real_open_diagnostics.h": "9cc2cc1e610a3cc384b8a82693d532b9f3aa0f07151e1bf0a461c64c23eac531",
-  "verification/windows_integrated_candidate/loader_debug.h": "f3fac62f13cc2c810f42c72adc6beaa3a3f22d787e1f8038a67f8f3349eeac46",
+  "verification/windows_integrated_candidate/loader_debug.h": "9f4debba9fae4d4d5fb00152b82d41ac2ac33a9447a77ef0945490036f07bcb7",
   "verification/windows_integrated_candidate/loader_flag.ps1": "24ff2466cb4be414f663c120170c0e5f5fa659c402d28707fbc886bcd5885b96"
 }

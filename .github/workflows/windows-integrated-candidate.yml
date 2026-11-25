@@ -75,3 +75,5 @@ jobs:
             if(Test-Path $owned){throw 'Owned integrated root cleanup failed'}
             Write-Output 'Owned integrated root absence verified.'
           }
+
+# Observe bounded loader module names and fixed-vocabulary masks on the same control head.
