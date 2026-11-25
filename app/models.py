@@ -1278,3 +1278,36 @@ class LeaveMonthEarning(Base):
     result_json: Mapped[str] = mapped_column(Text,nullable=False)
     result_digest: Mapped[str] = mapped_column(String(64),nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True),default=utcnow,nullable=False)
+
+
+class LeaveCarryAllocation(Base):
+    """Exact source-year allocation, no new credit for an existing carry."""
+    __tablename__='leave_carry_allocations'
+    __table_args__=(UniqueConstraint('employee_id','leave_type_id','source_year',name='uq_leave_carry_source_year'),
+        CheckConstraint('source_year BETWEEN 1 AND 9998',name='ck_leave_carry_scope'))
+    id: Mapped[str]=mapped_column(String(64),primary_key=True)
+    employee_id: Mapped[int]=mapped_column(ForeignKey('employees.id',ondelete='RESTRICT'),nullable=False)
+    leave_type_id: Mapped[int]=mapped_column(ForeignKey('leave_types.id',ondelete='RESTRICT'),nullable=False)
+    source_year: Mapped[int]=mapped_column(Integer,nullable=False)
+    request_digest: Mapped[str]=mapped_column(String(64),nullable=False)
+    source_digest: Mapped[str]=mapped_column(String(64),nullable=False)
+    result_digest: Mapped[str]=mapped_column(String(64),nullable=False)
+    request_json: Mapped[str]=mapped_column(Text,nullable=False)
+    result_json: Mapped[str]=mapped_column(Text,nullable=False)
+    created_at: Mapped[datetime]=mapped_column(DateTime(timezone=True),default=utcnow,nullable=False)
+
+
+class LeaveYearAttribution(Base):
+    __tablename__ = 'leave_year_attributions'
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    ledger_id: Mapped[int] = mapped_column(ForeignKey('leave_balance_transactions.id', ondelete='RESTRICT'), nullable=False, unique=True)
+    actor_id: Mapped[int] = mapped_column(ForeignKey('admin_accounts.id', ondelete='RESTRICT'), nullable=False)
+    session_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    session_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    restore_epoch: Mapped[str | None] = mapped_column(String(128))
+    source_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    request_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    result_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    request_json: Mapped[str] = mapped_column(Text, nullable=False)
+    result_json: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)

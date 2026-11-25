@@ -6,13 +6,16 @@ Caller must supply the confirmed grant start/end and explicitly selected days.
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
+from fractions import Fraction
+
+from app.leave_exact_amount import as_fraction
 
 
 @dataclass(frozen=True)
 class CarryGrant:
     employee_id: int
     code: str
-    days: Decimal
+    days: Decimal | Fraction
     granted_on: date
     available_from: date
     available_through: date
@@ -23,8 +26,12 @@ class CarryGrant:
             raise ValueError('Resolved employee identity required.')
         if self.code not in {'A', 'H', 'W'}:
             raise ValueError('Explicit supported day balance category required.')
-        if not isinstance(self.days, Decimal) or not self.days.is_finite() or self.days <= 0:
-            raise ValueError('Explicit finite positive Decimal grant days required.')
+        try:
+            valid = as_fraction(self.days) > 0
+        except ValueError as exc:
+            raise ValueError('Explicit finite positive exact grant days required.') from exc
+        if not valid:
+            raise ValueError('Explicit finite positive exact grant days required.')
         if any(type(day) is not date for day in (
                 self.granted_on, self.available_from, self.available_through)):
             raise ValueError('Explicit grant and availability dates required.')

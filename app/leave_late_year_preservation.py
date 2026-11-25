@@ -5,9 +5,10 @@ manual opening. Preservation never accelerates release or erases a balance.
 """
 from dataclasses import dataclass
 from datetime import date
-from decimal import Decimal,localcontext
+from decimal import Decimal
+from fractions import Fraction
 
-from app.leave_balance_rules import _bounded_amount
+from app.leave_exact_amount import as_fraction,exact_negate,exact_sum
 from app.leave_release_preview import annual_release_preview
 
 
@@ -16,9 +17,9 @@ class LateYearAnnualPreservation:
     employee_id: int
     earning_year: int
     exception_applies: bool
-    preserved_earned_remainder: Decimal | None
-    released_part: Decimal | None
-    held_part: Decimal | None
+    preserved_earned_remainder: Decimal | Fraction | None
+    released_part: Decimal | Fraction | None
+    held_part: Decimal | Fraction | None
     following_year_start: date
     following_year_end: date
     earliest_release_date: date
@@ -47,8 +48,7 @@ def describe_late_year_annual(*,employee_id,hire_date,earning_year,earned_annual
     if type(earning_year_attribution_confirmed) is not bool:
         raise TypeError('Explicit earning-year attribution status required.')
     for amount in (earned_annual,annual_used_from_that_earning_year):
-        _bounded_amount(amount)
-        if amount<0:raise ValueError('Explicit nonnegative earned/used days required.')
+        if as_fraction(amount)<0:raise ValueError('Explicit nonnegative earned/used days required.')
     if hire_date>release_evaluated_on:
         raise ValueError('Hire date cannot follow evaluation.')
     release=annual_release_preview(hire_date=hire_date,as_of=release_evaluated_on,
@@ -61,10 +61,7 @@ def describe_late_year_annual(*,employee_id,hire_date,earning_year,earned_annual
     elif not earning_year_attribution_confirmed:
         issues.append('earned_year_attribution_unresolved_no_opening_inference')
     else:
-        with localcontext() as context:
-            context.prec=max(50,max(earned_annual.adjusted(),annual_used_from_that_earning_year.adjusted())-
-                min(earned_annual.as_tuple().exponent,annual_used_from_that_earning_year.as_tuple().exponent)+2)
-            remaining=earned_annual-annual_used_from_that_earning_year
+        remaining=exact_sum((earned_annual,exact_negate(annual_used_from_that_earning_year)))
         if remaining<0:
             issues.append('negative_remainder_requires_separate_debt_carry')
         else:

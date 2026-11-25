@@ -121,7 +121,7 @@ def apply_reviewed_exact_adjustment(engine, *, proposal: ExactAdjustment,
     with Session(engine) as db, db.begin():
         db.execute(text("SET LOCAL lock_timeout = '3s'"))
         # Conservative serialization also excludes writes through old leave paths.
-        db.execute(text('LOCK TABLE leave_balance_transactions, employees, leave_types '
+        db.execute(text('LOCK TABLE audit_logs, employees, leave_balance_transactions, leave_types '
                         'IN SHARE ROW EXCLUSIVE MODE'))
         actor = db.scalar(select(AdminAccount).where(AdminAccount.id == actor_id).with_for_update())
         login = db.scalar(select(AdminSession).where(AdminSession.id == session_id).with_for_update())
