@@ -37,8 +37,10 @@ def save_pdf(hwnd,destination,shot):
             if len(edits)==1 and len(saves)==1:
                 # Test the shown default as-is, not the unqualified editor.
                 shown=str(edits[0].GetCurrentPattern(ValuePattern.Pattern).Current.Value)
-                if shown!='MY_HR_Report_2026-03-01_2026-03-31.pdf':raise RuntimeError('exact synthetic default basename mismatch')
-                actual=pathlib.Path(os.environ['USERPROFILE'])/'Downloads'/shown
+                actual=pathlib.Path(os.environ['USERPROFILE'])/'Downloads'/'MY_HR_Report_2026-03-01_2026-03-31.pdf'
+                if shown not in (actual.name,str(actual)):
+                    print('NATIVE_DEFAULT_PICKER_VALUE',json.dumps(dict(shown=shown,expected=str(actual))),flush=True)
+                    raise RuntimeError('exact synthetic default filename mismatch')
                 if actual.exists():raise RuntimeError('synthetic default download already exists')
                 ImageGrab.grab(bbox=win32gui.GetWindowRect(h),all_screens=True).save(shot)
                 saves[0].GetCurrentPattern(InvokePattern.Pattern).Invoke()
