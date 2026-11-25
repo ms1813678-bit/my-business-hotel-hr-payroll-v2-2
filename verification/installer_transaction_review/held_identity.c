@@ -24,7 +24,7 @@ static int valid(const wchar_t *p){
 }
 int wmain(int argc,wchar_t **argv){
  HANDLE held[128];DWORD count=0;wchar_t path[256],final[512];size_t n;int result=1;
- if(argc!=2||!valid(argv[1])){puts("{\"refused\":\"path_shape\"}");return 2;}
+ if((argc!=2&&!(argc==3&&!wcscmp(argv[2],L"--hold-fixture-2s")))||!valid(argv[1])){puts("{\"refused\":\"path_shape\"}");return 2;}
  n=wcslen(argv[1]);wcscpy_s(path,256,argv[1]);
  for(size_t end=3;end<=n;end++){
   BY_HANDLE_FILE_INFORMATION info;DWORD got;wchar_t saved;
@@ -44,7 +44,9 @@ int wmain(int argc,wchar_t **argv){
   if(_wcsicmp(final+4,path)){path[end]=saved;puts("{\"refused\":\"resolved_path_mismatch\"}");goto done;}
   path[end]=saved;
   if(end==n){
+   if(!(info.dwFileAttributes&FILE_ATTRIBUTE_DIRECTORY)&&info.nNumberOfLinks!=1){puts("{\"refused\":\"multiple_hardlinks\"}");goto done;}
    printf("{\"held\":true,\"ancestors\":%lu,\"volume\":%lu,\"file_id_high\":%lu,\"file_id_low\":%lu,\"links\":%lu,\"directory\":%s}\n",count,info.dwVolumeSerialNumber,info.nFileIndexHigh,info.nFileIndexLow,info.nNumberOfLinks,(info.dwFileAttributes&FILE_ATTRIBUTE_DIRECTORY)?"true":"false");
+   fflush(stdout);if(argc==3)Sleep(2000);
    result=0;
   }
  }
