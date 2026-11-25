@@ -1,5 +1,5 @@
 name: Read-only installer ownership primitive
-# Actual GENERIC_READ hold and bounded intent-journal model, no installer effects.
+# Actual held reads and abrupt-exit intent recovery, no installer effects.
 on:
   push:
     branches: [ui-overhaul]
