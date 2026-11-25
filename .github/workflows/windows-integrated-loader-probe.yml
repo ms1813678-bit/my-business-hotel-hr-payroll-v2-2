@@ -49,6 +49,9 @@ jobs:
             $probeTls=Join-Path $owned 'probe_tls_ctl.dll'
             & cl.exe /nologo /std:c11 /W4 /WX /MT /GS /guard:cf /LD "$root/probe_tls_ctl.c" "/Fe:$probeTls" /link /DYNAMICBASE /NXCOMPAT
             if($LASTEXITCODE -ne 0){throw 'Loader probe TLS control DLL compile failed'}
+            $probeNoCfg=Join-Path $owned 'probe_nocfg_ctl.dll'
+            & cl.exe /nologo /std:c11 /W4 /WX /MT /GS /guard:no /LD "$root/probe_ctl.c" "/Fe:$probeNoCfg" /link /DYNAMICBASE /NXCOMPAT
+            if($LASTEXITCODE -ne 0){throw 'Loader probe no-CFG control DLL compile failed'}
             & cl.exe /nologo /std:c11 /W4 /WX /MT /GS /DUNICODE /D_UNICODE "$root/probe_load.c" "/Fe:$probe" /link /DYNAMICBASE /NXCOMPAT
             if($LASTEXITCODE -ne 0){throw 'Loader probe compile failed'}
             & py -3.11 "$root/acquire_locked.py" --lock "$root/ACQUISITION-LOCK.json" --destination "$owned/acquired"
@@ -61,6 +64,7 @@ jobs:
             Copy-Item -LiteralPath $probe -Destination "$owned/acquired/runtime/probe_load.exe"
             Copy-Item -LiteralPath $probeCtl -Destination "$owned/acquired/runtime/probe_ctl.dll"
             Copy-Item -LiteralPath $probeTls -Destination "$owned/acquired/runtime/probe_tls_ctl.dll"
+            Copy-Item -LiteralPath $probeNoCfg -Destination "$owned/acquired/runtime/probe_nocfg_ctl.dll"
             $python=Join-Path $owned 'acquired/runtime/python.exe'
             & $python -I -B -c 'import sys;print(sys.version);sys.exit(0 if sys.version_info[:3]==(3,14,10) else 1)'
             if($LASTEXITCODE -ne 0){throw 'Pinned runtime startup/version failed'}
@@ -80,7 +84,7 @@ jobs:
             try {
               & dumpbin.exe /nologo /dependents "$owned/staged/runtime/python314.dll" | ForEach-Object { 'dumpbin_dependents '+$_.Trim() } | Where-Object { $_ -match '^dumpbin_dependents [A-Za-z0-9_.-]+\.(dll|DLL)$' }
               & dumpbin.exe /nologo /headers "$owned/staged/runtime/python314.dll" | Select-String -Pattern 'DLL characteristics|Guard|Control Flow|dynamic base|NX compatible|High Entropy|Terminal Server' | ForEach-Object { 'dumpbin_header '+($_.Line.Trim() -replace '[^A-Za-z0-9 _.()/-]','') }
-              foreach($d in 'python314.dll','probe_ctl.dll','probe_tls_ctl.dll'){
+              foreach($d in 'python314.dll','probe_ctl.dll','probe_tls_ctl.dll','probe_nocfg_ctl.dll'){
                 $img="$owned/staged/runtime/$d"
                 $f=@(& dumpbin.exe /nologo /tls $img | ForEach-Object { $_.Trim() } | Where-Object { $_ -match '^[0-9A-Fa-f]+ (Start of raw data|End of raw data|Address of index|Address of callbacks|Size of zero fill|Characteristics)$' })
                 'dumpbin_tls_fields dll='+($d -replace '\.dll$','')+' count='+$f.Count+' exit='+$LASTEXITCODE
