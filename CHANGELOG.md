@@ -1,3 +1,7 @@
+## 2026-11-25 - Honor optional membership comparison in custom exports by Instinct
+
+- Custom PDF and Excel now check the existing like-for-like enabled flag before showing continuing/joiner/leaver separation. Add off/on output regressions; ordinary model comparison and values remain. No paper layout, signature, scope or financial-write change. Full print-content parity remains open.
+
 ## 2026-11-25 - Observe normal print preview readiness by Instinct
 
 - Disposable authenticated fixture waits and captures actual preview at2,8,20 seconds, then invokes only Cancel. No physical print, settings change, alternate renderer or product UI change. Export/chosen-filename and state/cleanup gates stay distinct.

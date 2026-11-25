@@ -1051,7 +1051,7 @@ def build_custom_workbook(db: Session, selection: ReportSelection, language: str
                 pct or "—",
             ])
         lfl = result.comparison.get("like_for_like")
-        if lfl:
+        if lfl and lfl.get("enabled"):
             cmp_sheet.append([])
             cmp_sheet.append([L("مقارنة مثل بمثل (المستمرون في الفترتين)")])
             cmp_sheet[cmp_sheet.max_row][0].font = Font(bold=True)
@@ -1255,7 +1255,7 @@ def build_custom_pdf(db: Session, selection: ReportSelection, language: str = "a
         ]))
         story.append(summary_table)
 
-    if result.comparison and result.comparison.get("like_for_like"):
+    if result.comparison and (result.comparison.get("like_for_like") or {}).get("enabled"):
         lfl = result.comparison["like_for_like"]
         story.append(Spacer(1, 4 * mm))
         story.append(Paragraph(cell_(f"{L('مقارنة مثل بمثل مع الفترة السابقة')} ({result.comparison['period_label']})"), meta_style))

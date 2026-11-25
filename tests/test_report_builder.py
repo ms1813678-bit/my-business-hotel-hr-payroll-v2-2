@@ -448,3 +448,42 @@ def test_comprehensive_view_redirects_back_with_note(monkeypatch):
         app.dependency_overrides.clear()
         Base.metadata.drop_all(engine)
         engine.dispose()
+
+
+@pytest.mark.parametrize("enabled", [False, True])
+def test_custom_exports_respect_optional_like_for_like(monkeypatch, enabled):
+    """User option must control existing output, not just model.enabled."""
+    from app import reports as pdf_helpers
+    engine = _db()
+    observed = []
+    original = pdf_helpers._pdf_cell
+
+    def record(value):
+        observed.append(str(value))
+        return original(value)
+
+    monkeypatch.setattr(pdf_helpers, "_pdf_cell", record)
+    try:
+        with Session(engine) as db:
+            _seed(db)
+            selection = _november_selection(compare_like_for_like=enabled)
+            result = build_report(db, selection)
+            pdf = build_custom_pdf(db, selection)
+            workbook = load_workbook(BytesIO(build_custom_workbook(db, selection)), read_only=True, data_only=True)
+        try:
+            comparison_cells = [str(v) for row in workbook["المقارنة"].values for v in row if v is not None]
+        finally:
+            workbook.close()
+        assert pdf.startswith(b"%PDF-")
+        assert any("مقارنة مثل بمثل مع الفترة السابقة" in text for text in observed) is enabled
+        assert any("مقارنة مثل بمثل (المستمرون في الفترتين)" in text for text in comparison_cells) is enabled
+        assert any("منضمون في الفترة الحالية" in text for text in observed) is enabled
+        assert any("منضمون في الفترة الحالية" in text for text in comparison_cells) is enabled
+        # Disabling optional membership separation preserves ordinary comparison
+        # and current-period payroll values instead of dropping all comparison.
+        assert len(result.comparison["items"]) == 4
+        assert "الفترة الحالية" in comparison_cells
+        assert dict(result.summary)["عدد الموظفين"] == 3
+    finally:
+        Base.metadata.drop_all(engine)
+        engine.dispose()
