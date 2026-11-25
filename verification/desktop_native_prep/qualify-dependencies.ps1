@@ -51,3 +51,7 @@ if ($LASTEXITCODE -ne 0) { throw 'Hidden native root-hook smoke failed; no inter
 # Native stager uses committed public source and explicit never-run fixture bytes.
 & $VenvPython -I (Join-Path $Here 'stage_fixture_smoke.py')
 if ($LASTEXITCODE -ne 0) { throw 'Native stage/verify/compile fixture refused.' }
+
+# Real pinned wheel closure into a second fresh venv, offline at install.
+& $VenvPython -I (Join-Path $Here 'offline_wheel_closure.py')
+if ($LASTEXITCODE -ne 0) { throw 'Actual offline wheel closure qualification refused.' }

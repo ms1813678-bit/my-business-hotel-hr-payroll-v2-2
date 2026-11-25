@@ -1,3 +1,7 @@
+## 2026-11-25 - Qualify actual offline wheel closure by Instinct
+
+- Download only hash-pinned dependency origins, build pinned proxy-tools sdist with separately pinned build tools, record exact per-run wheel hash, then install all exact wheels in a second fresh venv with no index. Check dependency closure, metadata-only paired verifier and native imports. No wheel binary upload or release-security/byte-integrity claim.
+
 ## 2026-11-25 - Use actual Inno Pascal directory check by Instinct
 
 - Native stager verified all 285 committed source files. The first actual staged-consumer compile refused an unknown DirectoryExists identifier. Correct only the NEW verification recipe to documented DirExists; retain all existing preflight refusal semantics. No installer executed.
