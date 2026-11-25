@@ -20,7 +20,17 @@ def discard_sync_uid_for_older_downgrade(connection):
     if not (disposable_database or isolated_schema):
         raise RuntimeError('UID test-only discard requires an explicit disposable database or migration schema')
     current = connection.execute(text('SELECT version_num FROM alembic_version')).scalar()
-    if current in {'0075_leave_annual_settlement','0074_leave_cash_out','0073_leave_year_attribution','0072_leave_carry_allocation','0071_leave_month_earning','0070_exact_leave_amount','0069_leave_register_consume','0068_manual_opening_identity'}:
+    # Resolve ancestry from this checkout, never hard-code every later head.
+    # The migration's own populated-evidence downgrade guards still run.
+    from pathlib import Path
+    from alembic.config import Config
+    from alembic.script import ScriptDirectory
+    root=Path(__file__).resolve().parents[1]
+    config=Config(str(root/'alembic.ini'))
+    config.set_main_option('script_location',str(root/'alembic'))
+    scripts=ScriptDirectory.from_config(config)
+    descendants={revision.revision for revision in scripts.iterate_revisions('heads',REVISION)}
+    if current in descendants:
         from tests.test_leave_precision_migration import migrate
         migrate(connection, REVISION, down=True)
         current = connection.execute(text('SELECT version_num FROM alembic_version')).scalar()
