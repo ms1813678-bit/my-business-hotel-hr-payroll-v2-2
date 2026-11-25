@@ -39,14 +39,14 @@ jobs:
             if($LASTEXITCODE -ne 0){throw 'compile failed'}
             New-Item -ItemType Directory "$owned/nested" | Out-Null
             [IO.File]::WriteAllText("$owned/nested/owned.txt",'synthetic-only')
-            & $exe "$owned/nested/owned.txt"
+            & $exe ([IO.Path]::GetFullPath((Join-Path $owned "nested/owned.txt")))
             if($LASTEXITCODE -ne 0){throw 'ordinary exact held path refused'}
             foreach($path in @('relative.txt',"$owned/nested/../nested/owned.txt","$owned/nested/owned.txt:stream")){
               & $exe $path
               if($LASTEXITCODE -eq 0){throw 'ambiguous path accepted'}
             }
             New-Item -ItemType Junction -Path "$owned/junction" -Target "$owned/nested" | Out-Null
-            & $exe "$owned/junction/owned.txt"
+            & $exe ([IO.Path]::GetFullPath((Join-Path $owned "junction/owned.txt")))
             if($LASTEXITCODE -eq 0){throw 'junction accepted'}
             Remove-Item -LiteralPath "$owned/junction" -Force
             Push-Location $root
