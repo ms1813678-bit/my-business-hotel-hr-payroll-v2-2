@@ -1,3 +1,7 @@
+## 2026-11-25 - Observe only owned timed-out trust windows by Instinct
+
+- Retain bounded window crops only for visible windows whose PIDs are in the exact helper Job at timeout. No full-desktop image, automatic confirmation, deadline relaxation, store-scope change or trust-policy bypass. Existing cleanup remains independent. This observation distinguishes a visible OS prompt from an unlocalized hang.
+
 ## 2026-11-25 - Own trust-operation process trees by Instinct
 
 - Start each test-store shell suspended, assign a fresh kill-on-close Job, then resume exactly once. Bound descendants as well as shell; verify signaled process and Job active zero before the next store inspection. Prevent a timed-out import helper from racing cleanup.

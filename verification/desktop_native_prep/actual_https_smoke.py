@@ -121,7 +121,25 @@ def parent(scm_mode=False,visible=False):
                     tp,tt,_,_=win32process.CreateProcess(exe,cmd,None,None,False,win32con.CREATE_SUSPENDED,None,None,win32process.STARTUPINFO())
                     win32job.AssignProcessToJobObject(tj,tp)
                     if win32process.ResumeThread(tt)!=1:raise RuntimeError('trust prior suspend count refused')
-                    if win32event.WaitForSingleObject(tp,20000)!=win32con.WAIT_OBJECT_0:raise RuntimeError('trust operation deadline')
+                    if win32event.WaitForSingleObject(tp,20000)!=win32con.WAIT_OBJECT_0:
+                        # Observe only windows whose process is in THIS owned helper Job.
+                        import win32gui,win32process as wp
+                        from PIL import ImageGrab
+                        proof=pathlib.Path(os.environ['RUNNER_TEMP'])/'hony-trust-observation'
+                        proof.mkdir(exist_ok=False)
+                        owned=set(win32job.QueryInformationJobObject(tj,win32job.JobObjectBasicProcessIdList))
+                        windows=[]
+                        def inspect(hwnd,_):
+                            _,pid=wp.GetWindowThreadProcessId(hwnd)
+                            if pid in owned and win32gui.IsWindowVisible(hwnd):windows.append(hwnd)
+                        win32gui.EnumWindows(inspect,None)
+                        captured=0
+                        for hwnd in windows[:4]:
+                            box=win32gui.GetWindowRect(hwnd)
+                            if 20<=box[2]-box[0]<=2000 and 20<=box[3]-box[1]<=1600:
+                                ImageGrab.grab(bbox=box,all_screens=True).save(proof/('owned-window-'+str(captured)+'.png'));captured+=1
+                        (proof/'result.json').write_text(json.dumps({'mode':mode,'owned_processes':len(owned),'visible_owned_windows':len(windows),'captured':captured,'deadline_seconds':20,'no_automatic_click':True}))
+                        raise RuntimeError('trust operation deadline; bounded owned-window observation retained')
                     if win32process.GetExitCodeProcess(tp)!=0:raise RuntimeError('trust operation refused')
                 finally:
                     try:

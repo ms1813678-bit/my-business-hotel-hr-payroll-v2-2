@@ -75,3 +75,12 @@ jobs:
           path: ${{ runner.temp }}/hony-visible-proof/
           if-no-files-found: error
           retention-days: 1
+
+      - name: Retain owned synthetic trust-helper observation
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: synthetic-trust-observation
+          path: ${{ runner.temp }}/hony-trust-observation/
+          if-no-files-found: ignore
+          retention-days: 1
