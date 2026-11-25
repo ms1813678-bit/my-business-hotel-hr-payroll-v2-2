@@ -40,6 +40,6 @@
   "stager_candidate/staging/hony_stagetree.py": "47c40e1b02319a092ec72d6189f5f254c836ae913891d027a0eaff07778b9a5f",
   "stager_candidate/staging/verify_install.py": "fe4d007316b15c1713dd0bff4657353b841963a6e9d8e20ec22d69076e9cb8dd",
   "stager_candidate/staging/verify_wheel_projection.py": "42731e360f9ce73818f9f6730828fc868a6304e9ff832aa7816a898b82d1feab",
-  "trust_fixture.ps1": "01987de9c1560a78f19a131717d9aa88042a69a5890731a4ac915cd3ac615994",
+  "trust_fixture.ps1": "575340163b10dac07a195078f6017a88c8817be255751e54e03a980b87039719",
   "visible_window_smoke.py": "eb4481f2c3cb9f313029376000886b9a566f6433f958f1ebac065de529a4ecff"
 }

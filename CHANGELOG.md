@@ -1,3 +1,7 @@
+## 2026-11-25 - Open exact current-user certificate store explicitly by Instinct
+
+- Visible qualification stopped before trust/DNS mutations because the certificate provider drive was unavailable in the invoked shell. Use explicit .NET X509Store Root/CurrentUser with unchanged exact identity checks and independent cleanup. No UI acceptance inferred from setup refusal.
+
 ## 2026-11-25 - Qualify actual visible window with disposable trust fixture by Instinct
 
 - Run exact production window/guard against actual NetworkService HTTPS backend with fresh synthetic DB. Test-only current-user CA and unique hosts marker require absence/import/exact independent removal and byte restoration. Preserve only synthetic login-window pixels/result for inspection. No TLS bypass or user/hotel profile changes, no interactive acceptance inferred before visual inspection.
