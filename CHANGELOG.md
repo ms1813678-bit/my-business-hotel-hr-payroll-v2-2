@@ -1,3 +1,7 @@
+## 2026-11-25 - Observe cleanup label structure without trust relaxation by Instinct
+
+- Removal label exists but SHA1 regex does not match. Retain bounded label-character codes and redacted value shape to identify formatting, never bypass the exact fingerprint guard.
+
 ## 2026-11-25 - Retain fixed cleanup guard diagnostics by Instinct
 
 - Preserve only numeric/boolean fingerprint and button-match flags, plus fixed locally authored refusal text, to locate the cleanup guard that refused. No raw dialog text, external exception text, relaxed match or policy change.
