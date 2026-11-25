@@ -48,10 +48,12 @@ def run(root):
     def observed_guard_init(self,*args,**kwargs):
         original_guard_init(self,*args,**kwargs);guards.append(self)
     WebView2OriginGuard.__init__=observed_guard_init
-    evidence={};observed_popups=[]
+    evidence={};observed_popups=[];started=threading.Event()
     def observed_create(*args,**kwargs):
         window=original(*args,**kwargs)
         def loaded():
+            if started.is_set():return
+            started.set()
             stage='login-dom'
             try:
                 # Production create/start/guard/navigation/TLS are unchanged.
@@ -89,7 +91,15 @@ def run(root):
                         root_guard._marshal_to_ui(popup.control,lambda:holder.append(str(popup.control.CoreWebView2.Source)))
                         if holder and holder[0].startswith(origin+'/login'):break
                     time.sleep(.1)
-                else:raise RuntimeError('actual guarded popup handoff missing')
+                else:
+                    states=[]
+                    def describe():
+                        for item in list(root_guard._popups):
+                            source=str(item.control.CoreWebView2.Source) if item.control is not None and not item.control.IsDisposed and item.control.CoreWebView2 is not None else None
+                            states.append(dict(handed_off=item.handed_off,closed=item.closed,source_path=source[len(origin):] if source and source.startswith(origin) else ('about:blank' if source=='about:blank' else 'other-or-none')))
+                    root_guard._marshal_to_ui(root_guard._control,describe)
+                    print('NATIVE_POPUP_HANDOFF_STATE',json.dumps(dict(opened=root_guard.opened_new_windows,blocked=root_guard.blocked_new_windows,popups=states)),flush=True)
+                    raise RuntimeError('actual guarded popup handoff missing')
                 # Native popup must retain exact production environment/profile.
                 stage='popup-environment-profile'
                 def check_shared():
