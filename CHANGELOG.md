@@ -1,3 +1,9 @@
+## 2026-11-25 - Narrow local-model transport correction by Instinct
+
+- Ignore environment/registry proxies for the local AI client, refuse redirects and validate http/https plus all resolved loopback addresses before opening. No network configuration, new framework or HTTPS restriction.
+- Seven local canaries plus existing AI/gateway/UI/HR/i18n tests:68 passed,2 deprecation warnings on Python3.11.18. Same canaries before correction:5 failed,2 passed. POST307 was already fail-closed. Synthetic local listeners only; no observed real-use disclosure is established.
+- Localhost resolution check and connection remain separate, so this is not absolute egress closure or whole Item6 acceptance. Source patch exactly matches independently reviewed SHA25664129874ba2d4533fe511bdd8c20d9f493abfc91878e408f5fa2681b787b74df.
+
 ## 2026-11-25 - Daily overtime review source checkpoint by Instinct
 
 - Add authenticated, source-bound manual daily review with explicit confirmation, append-only corrections, 8/9/12 hourly-rate divisors and explicit monthly aggregation. Basic plus performance basis, monthly sum of unrounded day amounts rounded once. No automatic awards.

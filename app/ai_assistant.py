@@ -6,8 +6,10 @@ reports that the assistant is unavailable.
 """
 from __future__ import annotations
 
+import ipaddress
 import json
 import os
+import socket
 from urllib.parse import urlparse
 from typing import Any
 from urllib import error, request
@@ -17,10 +19,29 @@ from app.i18n import translate_text
 OLLAMA_BASE_URL = os.getenv("LOCAL_AI_BASE_URL", "http://127.0.0.1:11434").rstrip("/")
 OLLAMA_MODEL = os.getenv("LOCAL_AI_MODEL", "qwen2.5:3b")
 
+_LOOPBACK_MESSAGE = "الاتصال بالنموذج مسموح فقط على الجهاز المحلي."
+
+
+class _NoRedirect(request.HTTPRedirectHandler):
+    def redirect_request(self, *args, **kwargs):
+        return None  # a redirect is an error, never followed
+
+
+# ProxyHandler({}) (not None) ignores environment and Windows registry proxies.
+_OPENER = request.build_opener(request.ProxyHandler({}), _NoRedirect())
+
+
 def _ensure_loopback() -> None:
-    host = urlparse(OLLAMA_BASE_URL).hostname
-    if host not in {"127.0.0.1", "localhost", "::1"}:
-        raise RuntimeError("الاتصال بالنموذج مسموح فقط على الجهاز المحلي.")
+    parsed = urlparse(OLLAMA_BASE_URL)
+    host = parsed.hostname
+    if parsed.scheme not in {"http", "https"} or host not in {"127.0.0.1", "localhost", "::1"}:
+        raise RuntimeError(_LOOPBACK_MESSAGE)
+    try:
+        found = {i[4][0].split("%")[0] for i in socket.getaddrinfo(host, parsed.port or 80, type=socket.SOCK_STREAM)}
+    except (OSError, ValueError) as exc:
+        raise RuntimeError(_LOOPBACK_MESSAGE) from exc
+    if not found or not all(ipaddress.ip_address(a).is_loopback for a in found):
+        raise RuntimeError(_LOOPBACK_MESSAGE)
 
 TIMEOUT_SECONDS = 1.5
 
@@ -34,7 +55,7 @@ def _post_json(path: str, payload: dict[str, Any], timeout: float = TIMEOUT_SECO
         headers={"Content-Type": "application/json"},
         method="POST",
     )
-    with request.urlopen(req, timeout=timeout) as response:
+    with _OPENER.open(req, timeout=timeout) as response:
         return json.loads(response.read().decode("utf-8"))
 
 
@@ -42,11 +63,11 @@ def local_model_status(language: str = "ar") -> dict[str, Any]:
     try:
         _ensure_loopback()
     except RuntimeError as exc:
-        return {"available": False, "server": False, "model": OLLAMA_MODEL, "message": translate_text(str(exc), language) if str(exc) == "الاتصال بالنموذج مسموح فقط على الجهاز المحلي." else str(exc)}
+        return {"available": False, "server": False, "model": OLLAMA_MODEL, "message": translate_text(str(exc), language) if str(exc) == _LOOPBACK_MESSAGE else str(exc)}
     """Return availability without ever contacting a remote service."""
     req = request.Request(f"{OLLAMA_BASE_URL}/api/tags", method="GET")
     try:
-        with request.urlopen(req, timeout=0.8) as response:
+        with _OPENER.open(req, timeout=0.8) as response:
             data = json.loads(response.read().decode("utf-8"))
         names = {str(item.get("name", "")) for item in data.get("models", [])}
         installed = OLLAMA_MODEL in names or any(name.startswith(f"{OLLAMA_MODEL}:") for name in names)

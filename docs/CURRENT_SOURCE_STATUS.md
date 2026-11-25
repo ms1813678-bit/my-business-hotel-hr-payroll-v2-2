@@ -45,6 +45,14 @@ Published source implements manual same-day review, explicit confirmation, appen
 - Independent exact source/artifact review accepted the bounded backend and reconciled test accounting. It did not execute these tests independently. No whole-system, Windows, native or hotel-device acceptance follows from it.
 - Daily-specific simulation and AI execution/snapshot tests exist; the AI advisory-before-table lock change has a concurrent PostgreSQL regression. Whole-system concurrency is not certified by one tested ordering.
 
+## Item6 narrow local-model transport checkpoint
+
+The reviewed ai_assistant.py-only patch disables environment/registry proxies, refuses redirects and checks http/https plus all resolved loopback addresses before opening. It adds no HTTPS restriction, transport framework or machine network configuration. Exact source diff SHA256: `64129874ba2d4533fe511bdd8c20d9f493abfc91878e408f5fa2681b787b74df` (27 insertions,6 deletions).
+
+Python3.11.18 qualification in a separate disposable copy:68 passed,2 deprecation warnings across seven local canaries and existing AI/gateway/UI/HR/i18n tests. Before the patch, the same seven canaries had5 failures and2 passes. POST307 already failed closed before this patch. No observed real-use disclosure is established by synthetic canaries.
+
+Residual: localhost name resolution is checked before a later separate connection lookup. Addresses are not pinned. This checkpoint is not absolute egress closure, full Item6 acceptance or native/hotel-device qualification. Further Item6 requirements and acceptance remain separate.
+
 ## Historical archive and recovery gap
 
 On23November, four unused fixed-January leave-preview files were removed from the active work after a byte-exact local archive:
@@ -63,5 +71,5 @@ Current recovery status: the live repository has no `مهملات` branch. Neith
 1. Recover the historical archive attachment and verify its real contents, prerequisites and recoverability.
 2. Run remaining explicit acceptance fixtures and qualify installation/native/hotel-device behavior separately. The reviewed daily-overtime source checkpoint does not complete all of Item2 or the wider branch.
 3. Keep Item3 and remaining Item4 proposals separate until qualified and approved. No blanket completion.
-4. Qualify the narrow local-AI proxy/redirect fix separately. Local-canary findings do not establish an observed real-use disclosure; localhost resolution check/connect remains a stated limitation, not pinned transport.
+4. Continue remaining Item6 requirements separately. The narrow local-AI proxy/redirect source checkpoint is qualified only as described above; localhost resolution check/connect remains unpinned.
 5. Update this index with each implemented or tested boundary, including exact commit/artifact, outcome, limits and next step. Before every handoff, inspect the exact referenced source body and compare candidate identities.
