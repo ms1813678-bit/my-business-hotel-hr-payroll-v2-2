@@ -80,14 +80,14 @@ def test_populated_all_four_entities_dump_restore_preserves_identity_and_enforce
             audit = c.execute(text("SELECT to_jsonb(t) FROM audit_logs t ORDER BY id")).scalars().all()
         target_url = _make_db(target_name)
         target = create_engine(target_url)
-        import pgserver
-        bindir = Path(pgserver.__file__).parent / "pginstall" / "bin"
+        from app.backup_workflow import _find_pg_tool
+        pg_dump, pg_restore = _find_pg_tool("pg_dump"), _find_pg_tool("pg_restore")
         archive = tmp_path / "populated.dump"
         def cli_url(url):
             from sqlalchemy.engine import make_url
             return make_url(url).set(drivername="postgresql").render_as_string(hide_password=False)
-        subprocess.run([str(bindir / "pg_dump"), "-Fc", "--no-owner", "--no-acl", "-d", cli_url(source_url), "-f", str(archive)], check=True, capture_output=True)
-        subprocess.run([str(bindir / "pg_restore"), "--no-owner", "--no-acl", "--exit-on-error", "-d", cli_url(target_url), str(archive)], check=True, capture_output=True)
+        subprocess.run([pg_dump, "-Fc", "--no-owner", "--no-acl", "-d", cli_url(source_url), "-f", str(archive)], check=True, capture_output=True)
+        subprocess.run([pg_restore, "--no-owner", "--no-acl", "--exit-on-error", "-d", cli_url(target_url), str(archive)], check=True, capture_output=True)
         with target.connect() as c:
             assert snapshot(c) == before and uids(c) == identity and _catalog(c) == catalog
             assert c.execute(text("SELECT to_jsonb(t) FROM audit_logs t ORDER BY id")).scalars().all() == audit

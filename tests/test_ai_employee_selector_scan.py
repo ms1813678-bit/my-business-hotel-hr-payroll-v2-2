@@ -262,3 +262,12 @@ def test_attendance_all_three_branches_propagate_the_flag(db_factory):
     text = q.format_attendance_analysis(_attendance("الموظف Sam"), "en")
     assert "first 5 matching employees" in text
     assert "Sam 6" not in text and "Sam 7" not in text  # counts cover the selected five only
+
+
+@pytest.mark.parametrize('question', ['كام موظف اتأخر النهارده؟','كم موظف اتأخر اليوم؟','كل موظف حاضر','جميع موظف حاضر'])
+def test_count_singular_is_not_named_employee_filter(question):
+    assert q._employee_filter_requested(question) is False
+
+@pytest.mark.parametrize('question', ['كم الموظف زيد','كام الحارس زيد','حلل حضور الموظف زيد النهارده','الموظف كام','MY-9999 كام موظف اتأخر','كام موظف MY-9999 اتأخر'])
+def test_explicit_name_or_code_still_targets_and_never_falls_back(question):
+    assert q._employee_filter_requested(question) is True

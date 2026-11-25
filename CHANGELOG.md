@@ -625,3 +625,12 @@ Added one current source/status index and marked older operational checkpoint re
 - 180 focused tests passed, zero skipped, two warnings; 44 new cases including actual HTTP translated refusals and boundary-neighbor PDFs/save ranges. Original probes already returned400, not a reproduced500. Independent source review accepted; reviewer did not rerun tests. See docs/MONTHLY_DATE_BOUNDS_1706.md.
 
 Final shared-tree qualification: 180 passed, zero skipped, two warnings, 32.42 seconds; 44 new boundary tests including nine preserved modifier-only rejection cases. Independent acceptance was static source review, not test execution. No visual/layout acceptance claim.
+
+
+## Instinct,2026-11-25,authgate1709andCI1707
+
+Fix actual middleware/auth shared-lock queue cycle by fail-closed try-lock503/Retry-After5, preserving existing gate/exemptions/auth/epoch. Repair Arabic count-vs-name selector regressions and UID dump/restore test client-tool portability, no skips.222focusedsharedpass0skip29warnings60.58s; independent source review, no reviewer execution. NewWindows immediate-process failure remains unexplained/unfixed. Journal1704notadopted. See docs/AUTH_GATE_AND_CI_1709.md.
+
+Busy/retry reason is neutral and localized, not an assertion that restore is definitely active; no polling expansion.
+
+Final supported Python3.11.18 shared verification after neutral AR/EN/ZH message:222passed0skipped29warnings60.58seconds. Static source acceptance received; no independent test rerun.

@@ -270,7 +270,7 @@ def test_negated_absence_is_declined_not_answered_with_flagged_rows(seeded):
 
 def test_unknown_employee_target_in_analysis_is_honest_not_found(seeded):
     answer = queries.answer_structured_hr_query("حلل حضور MY-9999 النهارده", language="ar")
-    assert "لم يتم العثور على الموظف المحدد" in answer
+    assert "لم يطابق النص أو الرمز المحدد أي موظف" in answer
     assert "MY-0001" not in answer  # never substitute another employee
 
 
@@ -286,7 +286,7 @@ def test_guide_marker_does_not_hijack_leave_balance_read(seeded):
     assert queries.is_structured_hr_query(question)
 def test_scoped_count_never_treated_as_unknown_employee_name(seeded):
     answer = queries.answer_structured_hr_query("كام موظف اتأخر النهارده؟", language="ar")
-    assert "لم يتم العثور على الموظف المحدد" not in answer
+    assert "لم يطابق النص أو الرمز المحدد أي موظف" not in answer
     assert "تحليل حضور" in answer
 def test_department_name_scopes_count_without_literal_marker(seeded):
     answer = queries.answer_structured_hr_query("كام موظف في الاستقبال؟", language="ar")
@@ -342,7 +342,7 @@ def test_fallback_dated_count_states_explicit_uncertainty():
 
 def test_unknown_named_target_in_analysis_is_not_found(seeded):
     answer = queries.answer_structured_hr_query("حلل حضور الموظف زيد النهارده", language="ar")
-    assert "لم يتم العثور على الموظف المحدد" in answer
+    assert "لم يطابق النص أو الرمز المحدد أي موظف" in answer
     assert "MY-0001" not in answer
 
 
@@ -530,3 +530,8 @@ def test_sub_minute_drift_is_not_late(seeded):
         db.commit()
     answer = queries.answer_structured_hr_query("كام موظف اتأخر النهارده؟", language="ar")
     assert "المتأخرون عن موعد بداية الوردية: 1." in answer
+
+@pytest.mark.parametrize('question',['كم الموظف زيد','كام الموظف زيد'])
+def test_count_prefix_does_not_broaden_explicit_named_employee(seeded,question):
+    answer=queries.answer_structured_hr_query('حلل حضور '+question+' النهارده',language='ar')
+    assert 'لم يطابق النص أو الرمز المحدد أي موظف' in answer

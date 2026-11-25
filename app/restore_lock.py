@@ -91,7 +91,7 @@ def acquire_authenticated_read_lock(db) -> None:
 
     Concurrent requests share the lock, so normal traffic is NOT serialized;
     a restore's exclusive session-level lock makes every authenticated read
-    wait until finalization (or rollback) completes, so a stale cookie can
+    refuse promptly while finalization (or rollback) owns or awaits the gate, so a stale cookie can
     never resolve identity, role or session rows from the half-restored
     window. The caller must end the transaction right after authentication
     (get_current_admin commits) so the shared lock is not held for the whole
@@ -101,7 +101,14 @@ def acquire_authenticated_read_lock(db) -> None:
     bind = db.get_bind()
     if bind.dialect.name != "postgresql":
         return
-    db.execute(text("SELECT pg_advisory_xact_lock_shared(:key)"), {"key": RESTORE_LOCK_KEY})
+    # A request may already own the middleware shared gate on another
+    # connection. Never queue a second holder behind an exclusive restore
+    # waiter: refuse promptly so the first holder can release its lock.
+    acquired = db.scalar(text("SELECT pg_try_advisory_xact_lock_shared(:key)"), {"key": RESTORE_LOCK_KEY})
+    if not acquired:
+        raise HTTPException(status_code=503,
+            detail="النظام مشغول مؤقتًا، أعد المحاولة بعد قليل.",
+            headers={"Retry-After": "5"})
 
 
 def open_direct_connection(*, autocommit: bool = True):

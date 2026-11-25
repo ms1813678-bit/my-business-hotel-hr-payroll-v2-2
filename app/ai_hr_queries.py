@@ -109,8 +109,15 @@ def _employee_filter_requested(question: str) -> bool:
     )
     if not match:
         return False
-    # Quantified singulars describe the register, not a person's name.
-    return not bool(re.search(r"(?:^|\s)(?:كل|أي|اي|جميع)\s+$", q[:match.start()]))
+    # Keep existing register quantifiers unchanged. Count questions use
+    # a bare indefinite singular, never a definite employee/name selector.
+    prefix = q[:match.start()]
+    if re.search(r"(?:^|\s)(?:كل|أي|اي|جميع)\s+$", prefix):
+        return False
+    if (match.group(0).split()[0] in {"موظف", "حارس"}
+            and re.search(r"(?:^|\s)(?:كام|كم)\s+$", prefix)):
+        return False
+    return True
 
 
 
