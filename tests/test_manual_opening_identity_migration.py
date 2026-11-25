@@ -14,7 +14,11 @@ def test_upgrade_preserves_history_and_enables_only_canonical_balance_types(prec
         employees = db.execute(text('SELECT to_jsonb(t) FROM employees t')).all()
         types = db.execute(text('SELECT id,code,active,sync_uid FROM leave_types ORDER BY id')).all()
         migrate(db, 'head')
-        assert db.execute(text('SELECT to_jsonb(t) FROM leave_balance_transactions t')).scalar_one() == before
+        after = db.execute(text('SELECT to_jsonb(t) FROM leave_balance_transactions t')).scalar_one()
+        # Additive0070 rational columns must be NULL on untouched finite history.
+        assert after.pop('exact_numerator') is None
+        assert after.pop('exact_denominator') is None
+        assert after == before
         assert db.execute(text('SELECT to_jsonb(t) FROM employees t')).all() == employees
         assert db.execute(text('SELECT id,code,active,sync_uid FROM leave_types ORDER BY id')).all() == types
         assert db.execute(text("SELECT count(*) FROM leave_types WHERE code IN ('annual','weekly_rest','official_holiday') AND tracks_balance")).scalar_one() == 3

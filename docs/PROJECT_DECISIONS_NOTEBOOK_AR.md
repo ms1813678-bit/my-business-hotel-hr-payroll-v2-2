@@ -439,3 +439,13 @@ fileConfig now keeps existing application loggers enabled; original warning test
 ## Instinct1803: bounded exact monthly integration
 
 Monthly leave slice integrated on feb849c base now has exact earned/held/released/usage receipts and normal HR signed review/confirmation, with migrations0070/0071. Current196pass3existingSQLite-onlyskip plus9newpayroll/rollback/replayguardpass; independent focused financial source review accepted, static only. Actual forced two-session HTTP overlap proves truthful503 while first holds exclusive transaction, then200 and exact retry without duplication. AR390/EN/ZH shown pixels inspected. No payroll/attendance/closure effect, no presumed register debit, no rounded ledger shadow. Cross-year carry/correction remains incomplete and fails closed. Independent consumer qualification found and repaired Fraction overlap-digest encoding. Final broad leave/workbook648pass2existing skips, separate required-name register cycle13pass1optional manualskip. Full hosted result remains unverified. Details: docs/EXACT_MONTH_LEDGER_1764_CANDIDATE.md. No Windows or hotel-device acceptance. Fixed94-point pre-device denominator:22.5/94=24%rounded, not publication or overall completion.
+
+
+## تحديث تحقق 25 نوفمبر 2026، 22:27: مراجعة القسم ومعالجة اختبار الترحيل
+
+- A1: مصدر التشخيص يرفض أي انتقال قسم فعلي بعد أقدم يوم مختار، بما في ذلك الانتقال ثم العودة. الانتقال في اليوم نفسه يقبل فقط خطوة واحدة واضحة تنتهي بالقسم الحالي. القيم غير الصحيحة ترفض حتى إن تساوت، ومعرف القسم محصور في نطاق عدد PostgreSQL الصحيح، لا حد أعمال جديد.
+- أقفال قراءة الموظفين ثم أنماط الورديات ثم تاريخ تغييرات الموظف تمنع تغير المصدر أثناء المراجعة. سجل النقل المقبول مرتبط ببصمة المصدر. لا يدعي هذا توفر جدول ورديات تاريخي أو تعيين تلقائي.
+- اختبار ترحيل الرصيد يقارن جميع الحقول القديمة مع التحقق المنفصل أن حقلي العدد الدقيق الجديدين NULL. اختبار منع خفض الإصدار يتوقع الرأس الفعلي 0071 بعد رفض الخفض، دون تغيير الحارس أو إضافة تخطيات.
+- تحقق مستقل سابق للدمج: A1 عدد 103 نجاح وتخط واحد قائم، واختبارا الترحيل/HTTP عدد 26 نجاح. دورة التسجيل الكاملة اختبرت منفردة على PostgreSQL 16 بعملاء متوافقين، والاختبارات العادية في قاعدة منفصلة لأن الدورة الكاملة تنفذ commit مقصودا.
+- التشغيل المنشور السابق e975: Linux عدد 2879 نجاح و4 فشل اختبارات توقعات الترحيل، Windows عدد 2831 نجاح و52 فشل منها 51 تعتمد على محلل البصمة غير المتاح وواحد توقع حقول الترحيل. هذا التحديث لا يغلق مانع محلل Windows ولا ينشطه بطريقة أضعف.
+- الترحيل السنوي والنقد وتوسيع جميع الأنواع في عمل معزول لم يدمج بعد. تجربة جهاز الفندق أخيرا وخارج نسب الإنجاز. لا إضافة نسبة إنجاز لهذا التحديث المحدود.

@@ -42,7 +42,7 @@ def test_disposable_normal_database_reviewed_register_http(tmp_path,lang):
             target=create_engine(engine.url.set(database=name))
             with target.connect() as check:
                 assert check.scalar(text('SELECT count(*) FROM leave_register_consumptions'))==1
-                assert check.scalar(text('SELECT version_num FROM alembic_version'))=='0069_leave_register_consume'
+                assert check.scalar(text('SELECT version_num FROM alembic_version'))=='0071_leave_month_earning'
             target.dispose()
     finally:
         with admin.connect() as c:
