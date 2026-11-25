@@ -1,5 +1,5 @@
 name: Integrated synthetic Windows parser candidate
-# Revision: fixed-list real child-token open/section operations, no loader clearance
+# Revision: scoped debugger-observed startup, no normal-execution acceptance
 on:
   push:
     branches: [ui-overhaul]
@@ -58,11 +58,17 @@ jobs:
             if($LASTEXITCODE -ne 0 -or $pin -notmatch '^[0-9a-f]{64}$'){throw 'Private runtime staging failed'}
             $owner=(Get-Content "$owned/staged/CANDIDATE-OWNER.json" -Raw|ConvertFrom-Json).owner
             if(-not (Test-Path "$owned/staged/runtime/python314.dll")){throw 'Locked version stem mismatch'}
+            $tokens=$null;$parseErrors=$null
+            [void][Management.Automation.Language.Parser]::ParseFile((Join-Path $root 'loader_flag.ps1'),[ref]$tokens,[ref]$parseErrors)
+            if($parseErrors.Count -ne 0){throw 'Loader flag script parse failed before registry effects'}
+            . (Join-Path $root 'loader_flag.ps1')
+            Invoke-WithLoaderSnaps {
             foreach($suffix in @('xls','xlsx')){
               Write-Output ('QUALIFY_FORMAT='+$suffix)
               & "$root/qualify_runtime.ps1" -Launcher $launcher -Stage "$owned/staged" -ManifestPin $pin -Request "$root/request-$suffix.json" -Owner $owner -ProductRoot $pwd -TrustedPython (py -3.11 -c 'import sys;print(sys.executable)')
             }
-            Write-Output 'Contained real parser candidate workload returned; security/network acceptance remains separate and NOT_ESTABLISHED.'
+            }
+            Write-Output 'Contained debugger-observed parser candidate workload returned; security/network acceptance remains separate and NOT_ESTABLISHED.'
           } finally {
             if(Test-Path $owned){Remove-Item -LiteralPath $owned -Recurse -Force}
             if(Test-Path $owned){throw 'Owned integrated root cleanup failed'}

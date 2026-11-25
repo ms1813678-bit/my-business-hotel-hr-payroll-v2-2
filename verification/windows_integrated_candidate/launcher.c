@@ -15,6 +15,8 @@
 #include "token_checks.h"
 #include "startup_diagnostics.h"
 #include "real_open_diagnostics.h"
+#include <string.h>
+#include "loader_debug.h"
 #ifndef PROC_THREAD_ATTRIBUTE_JOB_LIST
 #define PROC_THREAD_ATTRIBUTE_JOB_LIST ProcThreadAttributeValue(ProcThreadAttributeJobList,FALSE,TRUE,FALSE)
 #endif
@@ -40,6 +42,7 @@ int wmain(int argc,wchar_t **argv){
  SIZE_T attr_size=0;LPPROC_THREAD_ATTRIBUTE_LIST attrs=NULL;int attrs_ready=0,clean=1,result=1,created=0;
  BYTE *request=NULL,*response=NULL;DWORD request_size=0,response_size=0,code=99;struct feed feed={0};struct drain drain={0};
  wchar_t command[32768],environment[65536],systemroot[32000],localappdata[32000],actual_image[32768];DWORD optout=PROCESS_CREATION_ALL_APPLICATION_PACKAGES_OPT_OUT;
+ struct loader_debug_state debug={0};
  const char *stage="arguments";
  /* profile, canonical python.exe, runtime cwd, candidate worker. Request on stdin. */
  if(argc!=5)return 2;
@@ -85,6 +88,10 @@ int wmain(int argc,wchar_t **argv){
  {DWORD n=32768;if(!QueryFullProcessImageNameW(pi.hProcess,0,actual_image,&n)||_wcsicmp(actual_image,argv[2]))goto done;}
  fprintf(stderr,"CANDIDATE_CREATED pid=%lu suspended=1\n",(unsigned long)GetProcessId(pi.hProcess));
  stage="verify_before_resume";if(!verify_created_child(pi.hProcess,job,sid,1))goto done;
+ stage="debug_attach";if(!DebugActiveProcess(pi.dwProcessId))goto done;debug.attached=1;
+ stage="verify_after_attach";if(!verify_created_child(pi.hProcess,job,sid,1))goto done;
+ fputs("loader_debug_attached existing_child=1 token_job_reverified=1 debugger_observed_only=1\n",stderr);
+ /* Advisory function return is cleanup hygiene, NOT an access verdict. */
  stage="startup_readonly_diagnostics";if(!diagnose_startup(pi.hProcess,argv[3]))goto done;
  stage="startup_fixed_real_open";if(!diagnose_real_open(pi.hProcess,argv[3]))goto done;
  close_owned(&in_read,&clean);close_owned(&out_write,&clean);if(!clean)goto done;
@@ -95,10 +102,12 @@ int wmain(int argc,wchar_t **argv){
  stage="resume";if(ResumeThread(pi.hThread)!=1)goto done;
  fputs("CANDIDATE_RESUMED containment_verified=1\n",stderr);
  stage="duplex_wait";{ULONGLONG deadline=GetTickCount64()+3000;int fed=0,read_done=0,exited=0;
- while(!fed||!read_done||!exited){HANDLE waits[3];DWORD count=0;int ids[3];ULONGLONG now=GetTickCount64();
+ while(!fed||!read_done||!exited||!debug.exited){
+ for(unsigned int burst=0;burst<64;burst++){int polled=loader_debug_poll(&debug,pi.hProcess,pi.dwProcessId);if(!polled)goto done;if(polled==2||debug.exited)break;}HANDLE waits[3];DWORD count=0;int ids[3];ULONGLONG now=GetTickCount64();
  if(now>=deadline){SetLastError(ERROR_TIMEOUT);goto done;}
  if(!fed){waits[count]=feeder;ids[count++]=0;}if(!read_done){waits[count]=reader;ids[count++]=1;}if(!exited){waits[count]=pi.hProcess;ids[count++]=2;}
- DWORD w=WaitForMultipleObjects(count,waits,FALSE,(DWORD)(deadline-now));if(w>=WAIT_OBJECT_0+count)goto done;
+ if(!count){Sleep(1);continue;}
+ DWORD w=WaitForMultipleObjects(count,waits,FALSE,10);if(w==WAIT_TIMEOUT)continue;if(w>=WAIT_OBJECT_0+count)goto done;
  switch(ids[w-WAIT_OBJECT_0]){
  case 0:if(!feed.ok)goto done;fed=1;close_owned(&in_write,&clean);if(!clean)goto done;break;
  case 1:if(!drain.ok)goto done;read_done=1;break;
@@ -111,7 +120,9 @@ int wmain(int argc,wchar_t **argv){
  done:
  if(created){DWORD preserved=GetLastError();diagnose_exit(pi.hProcess);SetLastError(preserved);}
  if(result)fprintf(stderr,"CANDIDATE_REFUSAL stage=%s error=%lu child=%lu\n",stage,(unsigned long)GetLastError(),(unsigned long)code);
- if(created){if(!TerminateJobObject(job,99))clean=0;if(WaitForSingleObject(pi.hProcess,2000)!=WAIT_OBJECT_0)clean=0;}
+ if(created){if(!TerminateJobObject(job,99))clean=0;
+ if(debug.attached&&!debug.exited){ULONGLONG until=GetTickCount64()+2000;while(!debug.exited&&GetTickCount64()<until){if(!loader_debug_poll(&debug,pi.hProcess,pi.dwProcessId)){clean=0;break;}Sleep(1);}if(!debug.exited){if(!DebugActiveProcessStop(pi.dwProcessId))clean=0;}}
+if(WaitForSingleObject(pi.hProcess,2000)!=WAIT_OBJECT_0)clean=0;}
  if(reader){DWORD waited=WaitForSingleObject(reader,0);if(waited!=WAIT_OBJECT_0){if(!CancelSynchronousIo(reader)&&GetLastError()!=ERROR_NOT_FOUND)clean=0;waited=WaitForSingleObject(reader,2000);}if(waited!=WAIT_OBJECT_0){fprintf(stderr,"READER_CLEANUP_UNCONFIRMED\n");ExitProcess(125);}}
  if(feeder){DWORD waited=WaitForSingleObject(feeder,0);if(waited!=WAIT_OBJECT_0){if(!CancelSynchronousIo(feeder)&&GetLastError()!=ERROR_NOT_FOUND)clean=0;waited=WaitForSingleObject(feeder,2000);}if(waited!=WAIT_OBJECT_0){fprintf(stderr,"FEEDER_CLEANUP_UNCONFIRMED\n");ExitProcess(125);}}
  close_owned(&reader,&clean);close_owned(&image,&clean);close_owned(&feeder,&clean);close_owned(&in_write,&clean);close_owned(&in_read,&clean);close_owned(&out_read,&clean);close_owned(&out_write,&clean);close_owned(&nul,&clean);

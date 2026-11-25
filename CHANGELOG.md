@@ -301,3 +301,7 @@ Instinct: restore original explicit LOCALAPPDATA+SYSTEMROOT environment in real-
 ## Instinct: bounded startup operation measurements, 25 November 2026
 
 The separate Windows parser candidate now measures actual RX opens and unnamed SEC_IMAGE section creation for fifteen fixed runtime/system images on a dedicated thread impersonating the verified child token. No views are mapped or executed. Thread token identity, revert, join and handle cleanup are checked. This does not trace the child loader, clear dependencies for execution, or identify the cause of its previous C0000022 refusal. No capabilities, ACLs, environment, Job limits or production parser behavior change.
+
+## Instinct: scoped debugger-observed startup, 25 November 2026
+
+Separate parser candidate only: attach debugger to the actual suspended child, recheck token/Job, bounded event loop, fixed-label/status-only output. Temporary image-name-specific loader flag is restored with readback; non-DWORD prior value refuses unchanged. Native script parse and strict compile precede registry effects. This alters timing/exception flow, so results are diagnostic only, never normal execution acceptance. No raw debug text, memory dumps, relaunch, capabilities, ACL or Job changes. Empty debug output does not localize a cause.
