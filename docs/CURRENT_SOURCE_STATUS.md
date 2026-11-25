@@ -1,12 +1,12 @@
 # Current source and verification status
 
-Instinct, 25 November 2026, 15:29 Africa/Cairo. This page corrects the stale operational index. Historical documents remain available, but their old commit, test and readiness claims are not current acceptance.
+Instinct, 25 November 2026, 16:37 Africa/Cairo. This page corrects the stale operational index. Historical documents remain available, but their old commit, test and readiness claims are not current acceptance.
 
 ## Source of truth
 
 - Repository: [my-business-hotel-hr-payroll-v2-2](https://github.com/ms1813678-bit/my-business-hotel-hr-payroll-v2-2).
 - Development branch: `ui-overhaul`. `main` is not the development target. The owner controls merging.
-- Latest implementation commit at this checkpoint: [a9fb08b1](https://github.com/ms1813678-bit/my-business-hotel-hr-payroll-v2-2/commit/a9fb08b13e93abeb37ede96b3b7461a8208d1a89). The prior bounded daily-overtime follow-up was72d1d591. The earlier documentation-only correction was1660d473. Before further work, read this page, check the live branch HEAD and working diff, then inspect the exact source body needed for the decision. A path existing is not proof that it is the intended candidate.
+- Published baseline before this monthly-leave checkpoint: `0c16238161e6b022e1b40c5eae21a506618fa93f` (strict local-model JSON request format), after `42d4e982f31599721458ea15abcb695e47721046` (recovery fixture seam). This document is part of the subsequent monthly-leave commit. Check the live `ui-overhaul` HEAD and working diff before further work. A path existing is not proof that it is the intended candidate.
 - Published schema remains `0065_overtime_day_review`. The later internal0066 attendance schedule assertion candidate is isolated and not integrated or published. Published source is not proof of deployed schema or hotel-device acceptance.
 - No hotel-device installation or acceptance is established. Use synthetic data until acceptance.
 
@@ -87,7 +87,17 @@ Current recovery status: the live repository has no `مهملات` branch. Neith
 ## Next checkpoints
 
 1. Continue independent checklist requirements and resolve current concrete blockers without restarting specifically held HTTP/admission experiments. The isolated0066 assignment slice stays separate until its integration dependency is cleared.
-2. Reconcile the two monthly-report business choices from original owner evidence, then obtain only any remaining choice. Preserve the custom report unchanged. New visible assignment UI requires preview and owner choice before integration.
+2. Monthly leave choices were settled on25November: all statuses separately and historical employees with current active/left status. The monthly PDF implementation below is bounded, not whole Item2/4 acceptance. Preserve custom reports and approved financial filters. New visible assignment UI remains separate from the held0066 integration.
 3. Run remaining explicit acceptance fixtures and qualify installation/native/hotel-device behavior separately. Recovery publication and isolated attendance proof do not complete all of Item2 or the wider branch. Keep Item3, remaining Item4 and broader Item6 boundaries explicit.
 4. Retain historical archive recovery as an unclosed evidence gap: recover the actual transferred archive and verify contents/prerequisites when its source becomes available. It is not a mandatory first step and must not stall independent work or be replaced with fabricated ancestry.
 5. Update this index with each implemented or tested boundary, including exact commit/artifact, outcome, limits and next step. Before every handoff, inspect the exact referenced source body and compare candidate identities.
+
+## Monthly leave checkpoint, 25November 2026
+
+Monthly-only leave PDF changes use all confirmed/draft/cancelled states separately and include employees with leave overlapping the report period, with current active/left or localized unknown status. The assistant aggregate contains no employee identities and splits each type/status. Calendar days are clipped to each month; recorded charge days appear only in the leave-start month and are explicitly not executed deductions. Custom report defaults, payroll/attendance approval filters and schema remain unchanged.
+
+AR/EN/ZH synthetic detailed pages for all three states plus aggregate pages were rendered and inspected. Stored localized leave-type labels are used; missing translations show a localized marker plus type ID, never silent Arabic fallback. Raw employee names remain unchanged. The Chinese monthly path embeds unmodified installed-distribution DroidSansFallbackFull.ttf with Apache2 license/copyright notice and explicit non-CJK fallback, including footer digits. The source asset is about3.9MiB; binary provenance is the installed distribution, not independently network-verified upstream. Existing recursive app packaging includes the asset. Custom Chinese PDF font portability is unchanged.
+
+Independent static review covered exact source, font/license and delta scope; it did not run the developer tests or inspect pixels. Developer qualification on the exact integrated source:64passed,2warnings in4.38s across new monthly-leave and existing monthly/custom-builder tests. Synthetic SQLite fixtures run with the configured migrated PostgreSQL suite guard intact, not a claim that every case ran on PostgreSQL. Full-table snapshots after six PDF variants show no data changes. This does not establish native Windows, hotel-device or full Item2/4 completion. The separate0066 attendance assertion, HTTP/admission experiment and native adapter holds remain unchanged.
+
+Latest-source/cleanup check before integration: remote and local development HEAD both0c162381, main936f5d62 unchanged. All15tracked verification directories have workflow/build or current-document references. All127top-level app modules and13script files have recorded references. No tracked cache/log/tmp/bak files were found, and no file was proven obsolete for removal. No files were moved or deleted. This bounded audit does not certify all code is needed; ambiguous historical material and active evidence were preserved. The historical missing مهملات archive gap above remains unresolved.

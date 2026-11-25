@@ -172,6 +172,8 @@ class ReportSelection:
     # count once in the month the leave starts. Custom reports keep the
     # default False and are unchanged.
     monthly_leave_clipping: bool = False
+    monthly_leave_status: str | None = None
+    monthly_leave_language: str | None = None
     # Monthly-PDF only: a full-calendar-month section compares against the
     # previous calendar month. The equal-length shift used by custom reports
     # would end inside the month before last for 31-day months and catch that
@@ -834,7 +836,13 @@ def _build_leave_result(db: Session, selection: ReportSelection, start: date, en
             .order_by(LeaveRecord.start_date, LeaveRecord.id)
         ).all()
     )
-    leave_types = {item.id: item.name_ar for item in db.scalars(select(LeaveType)).all()}
+    if selection.monthly_leave_status is not None:
+        if selection.monthly_leave_status not in LEAVE_STATUS_LABELS:
+            raise ValueError("Exact monthly leave status required")
+        records = [r for r in records if r.status == selection.monthly_leave_status]
+    leave_types = {item.id: (getattr(item, "name_" + selection.monthly_leave_language, None) or (_L("ترجمة نوع الإجازة غير متاحة", selection.monthly_leave_language) + " [" + str(item.id) + "]"))
+                   if selection.monthly_leave_language in ("ar", "en", "zh") else item.name_ar
+                   for item in db.scalars(select(LeaveType)).all()}
     employee_columns = [key for key, _, _ in _ordered_columns(selection, ["employee"])]
     if selection.monthly_leave_clipping:
         # Original start/end stay as context; the day columns reflect this
@@ -863,12 +871,18 @@ def _build_leave_result(db: Session, selection: ReportSelection, start: date, en
         ("leave_start", "من", False),
         ("leave_end", "إلى", False),
         ("calendar_days", "الأيام", True),
-        ("charged_days", "الخصم من الرصيد", True),
+        ("charged_days", "أيام الخصم المسجلة" if selection.monthly_leave_status else "الخصم من الرصيد", True),
         ("status", "الحالة", False),
     ]
     rows = _record_rows(employee_map, records, employee_columns, record_columns)
+    if selection.monthly_leave_status is not None:
+        columns.insert(len(employee_columns), ("employment_status", "حالة الموظف الحالية", False))
+        for row in rows:
+            status = employee_map[row["employee_id"]].status
+            row["employment_status"] = {"active": "نشط", "archived": "غادر"}.get(status, "حالة موظف غير معروفة")
     summary = [
         ("عدد الإجازات", len(rows)),
+        (LEAVE_STATUS_LABELS[selection.monthly_leave_status], len(records)) if selection.monthly_leave_status else
         ("مؤكدة", sum(1 for r in records if r.status == "confirmed")),
         ("إجمالي الأيام", sum(clipped_days[r.id] for r in records)),
     ]
@@ -1130,7 +1144,7 @@ class _NumberedCanvas:
     """Canvas wrapper adding «page X of Y», extraction time, and hotel name to every page."""
 
     @staticmethod
-    def build(font_name: str, footer_text: str, language: str = "ar"):
+    def build(font_name: str, footer_text: str, language: str = "ar", cell_renderer=None):
         from reportlab.lib.units import mm
         from reportlab.pdfgen import canvas as pdf_canvas
 
@@ -1157,8 +1171,16 @@ class _NumberedCanvas:
                         page_text = f"第 {self._pageNumber} 页，共 {total} 页"
                     else:
                         page_text = f"صفحة {self._pageNumber} من {total}"
-                    self.drawRightString(self._pagesize[0] - 10 * mm, 7 * mm, cell(page_text))
-                    self.drawString(10 * mm, 7 * mm, cell(footer_text))
+                    if cell_renderer is None:
+                        self.drawRightString(self._pagesize[0] - 10 * mm, 7 * mm, cell(page_text))
+                        self.drawString(10 * mm, 7 * mm, cell(footer_text))
+                    else:
+                        from reportlab.platypus import Paragraph
+                        from reportlab.lib.styles import ParagraphStyle
+                        for text, x in [(footer_text, 10 * mm), (page_text, self._pagesize[0] - 55 * mm)]:
+                            para = Paragraph(cell_renderer(text), ParagraphStyle("monthlyFooter", fontName=font_name, fontSize=7, leading=9))
+                            para.wrap(180 * mm, 10 * mm)
+                            para.drawOn(self, x, 7 * mm)
                     super().showPage()
                 super().save()
 
@@ -1557,8 +1579,8 @@ def _monthly_chart_drawing(series: list[tuple[str, float]], bar_color_hex: str):
     return drawing
 
 
-def _monthly_leave_aggregate(db: Session, start: date, end: date) -> list[dict]:
-    """Confirmed-leave totals per leave type, without employee identity.
+def _monthly_leave_aggregate(db: Session, start: date, end: date, *, all_statuses: bool = False, language: str = "ar") -> list[dict]:
+    """Leave totals per type, optionally split by status, without employee identity.
 
     The assistant scope covers leave/balances visibility only; per-employee
     leave records stay with the roles that already have the custom leave report.
@@ -1569,18 +1591,19 @@ def _monthly_leave_aggregate(db: Session, start: date, end: date) -> list[dict]:
         db.scalars(
             select(_LeaveRecord)
             .where(
-                _LeaveRecord.status == "confirmed",
+                *([] if all_statuses else [_LeaveRecord.status == "confirmed"]),
                 _LeaveRecord.start_date <= end,
                 _LeaveRecord.end_date >= start,
             )
         ).all()
     )
-    type_names = {item.id: item.name_ar for item in db.scalars(select(_LeaveType)).all()}
-    buckets: dict[int, dict] = {}
+    type_names = {item.id: (getattr(item, "name_" + language, None) or (_L("ترجمة نوع الإجازة غير متاحة", language) + " [" + str(item.id) + "]")) for item in db.scalars(select(_LeaveType)).all()}
+    buckets: dict[int | tuple[int, str], dict] = {}
     for record in records:
         bucket = buckets.setdefault(
-            record.leave_type_id,
-            {"leave_type": type_names.get(record.leave_type_id, "—"), "count": 0, "days": Decimal(0), "charged": Decimal(0)},
+            (record.leave_type_id, record.status) if all_statuses else record.leave_type_id,
+            {"leave_type": type_names.get(record.leave_type_id, "—"), "count": 0, "days": Decimal(0), "charged": Decimal(0),
+             **({"status": record.status} if all_statuses else {})},
         )
         bucket["count"] += 1
         # Owner decision 2026-11-23: a leave spanning months shows each month's
@@ -1590,7 +1613,7 @@ def _monthly_leave_aggregate(db: Session, start: date, end: date) -> list[dict]:
         bucket["days"] += Decimal(overlap_days)
         if record.start_date >= start:
             bucket["charged"] += Decimal(record.charged_days or 0)
-    return sorted(buckets.values(), key=lambda row: row["leave_type"])
+    return sorted(buckets.values(), key=lambda row: (row["leave_type"], row.get("status", "")))
 
 
 def _payroll_month_summary(db: Session, start: date, end: date) -> dict:
@@ -1725,18 +1748,24 @@ def build_monthly_pdf(db: Session, month_start: date, options: set[int], languag
 
     if language == "zh":
         from reportlab.pdfbase import pdfmetrics
-        from reportlab.pdfbase.cidfonts import UnicodeCIDFont
-        if "STSong-Light" not in pdfmetrics.getRegisteredFontNames():
-            pdfmetrics.registerFont(UnicodeCIDFont("STSong-Light"))
-        font_name = "STSong-Light"
+        from reportlab.pdfbase.ttfonts import TTFont
+        from pathlib import Path
+        font_name = "MYHotelMonthlyCJK"
+        if font_name not in pdfmetrics.getRegisteredFontNames():
+            pdfmetrics.registerFont(TTFont(font_name, str(Path(__file__).parent / "static/fonts/DroidSansFallbackFull.ttf")))
     else:
         font_name = _pdf_font_name()
     if language == "zh":
-        from app.reports import _pdf_cell_mixed
         arabic_font = _pdf_font_name()
 
         def cell_(value):
-            return _pdf_cell_mixed(value, arabic_font)
+            import re
+            from xml.sax.saxutils import escape
+            text = "" if value is None else str(value)
+            parts = re.split(r"([\u3000-\u303f\u3400-\u9fff\uff00-\uffef]+)", text)
+            return "".join(escape(part) if re.fullmatch(r"[\u3000-\u303f\u3400-\u9fff\uff00-\uffef]+", part) else
+                           '<font name="' + arabic_font + '">' + _pdf_cell(part) + '</font>'
+                           for part in parts if part)
     else:
         cell_ = _pdf_cell
     base_styles = getSampleStyleSheet()
@@ -1775,12 +1804,12 @@ def build_monthly_pdf(db: Session, month_start: date, options: set[int], languag
         if not first_section:
             story.append(PageBreak())
         first_section = False
-        story.append(Paragraph(cell_(L(result.title)), section_style))
+        story.append(Paragraph(cell_(" · ".join(L(part) for part in result.title.split(" · "))), section_style))
         story.append(Paragraph(cell_(f"{L(result.period_label)} · {L(result.scope_label)} · {L(result.status_label)} · {result.employee_count} {L('موظف')}"), meta_style))
         if approved_note:
             story.append(Paragraph(cell_(L("يعرض المعتمد فقط")), meta_style))
         if extra_note:
-            story.append(Paragraph(cell_(L(extra_note)), meta_style))
+            story.append(Paragraph(cell_("\n".join(L(line) for line in extra_note.splitlines())), meta_style))
         story.append(Spacer(1, 2 * mm))
         groups = result.groups if grouped else _flatten_groups(result.groups)
         column_count = max(1, len(result.columns))
@@ -1886,28 +1915,30 @@ def build_monthly_pdf(db: Session, month_start: date, options: set[int], languag
                 story.append(PageBreak())
             first_section = False
             story.append(Paragraph(cell_(L(MONTHLY_OPTION_LABELS[7])), section_style))
-            story.append(Paragraph(cell_(L("إجمالي الإجازات المؤكدة حسب النوع — بدون بيانات الموظفين")), meta_style))
+            story.append(Paragraph(cell_(L("كل حالات الإجازات حسب النوع والحالة — بدون بيانات الموظفين")), meta_style))
             story.append(Paragraph(cell_(L("أيام كل شهر تُعرض في شهرها، وأيام الخصم تُحسب مرة واحدة في شهر بداية الإجازة")), meta_style))
             story.append(Spacer(1, 2 * mm))
-            rows = _monthly_leave_aggregate(db, month_start, month_end)
-            header = [L("نوع الإجازة"), L("عدد الإجازات"), L("إجمالي الأيام"), L("الخصم من الرصيد")]
+            rows = _monthly_leave_aggregate(db, month_start, month_end, all_statuses=True, language=language)
+            header = [L("نوع الإجازة"), L("الحالة"), L("عدد الإجازات"), L("إجمالي الأيام"), L("أيام الخصم المسجلة")]
             table_rows = [[Paragraph(cell_(h), header_style) for h in header]]
             for row in rows:
                 table_rows.append([
                     Paragraph(cell_(row["leave_type"]), cell_style),
+                    Paragraph(cell_(L(LEAVE_STATUS_LABELS[row["status"]])), cell_style),
                     Paragraph(cell_(str(row["count"])), cell_style),
                     Paragraph(cell_(_fmt_number(row["days"])), cell_style),
                     Paragraph(cell_(_fmt_number(row["charged"])), cell_style),
                 ])
             if len(table_rows) == 1:
-                table_rows.append([Paragraph(cell_(L("لا توجد إجازات مؤكدة في هذا الشهر.")), cell_style)] + [Paragraph("", cell_style)] * 3)
-            table = LongTable(table_rows, colWidths=[available_width * 0.4] + [available_width * 0.2] * 3, hAlign="RIGHT")
+                table_rows.append([Paragraph(cell_(L("لا توجد إجازات في هذا الشهر.")), cell_style)] + [Paragraph("", cell_style)] * 4)
+            table = LongTable(table_rows, colWidths=[available_width * 0.28] + [available_width * 0.18] * 4, hAlign="RIGHT")
             table.setStyle(TableStyle([
                 ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#24415E")),
                 ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#AAB4BE")),
                 ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
             ]))
             story.append(table)
+            story.append(Paragraph(cell_(L("المسودة والملغاة معروضتان منفصلتين؛ أيام الخصم المسجلة ليست خصمًا منفذًا من الرصيد.")), meta_style))
             continue
         if option == 1:
             if not first_section:
@@ -1989,8 +2020,18 @@ def build_monthly_pdf(db: Session, month_start: date, options: set[int], languag
         extra_note = None
         if MONTHLY_OPTION_TYPE[option] == REPORT_TYPE_LEAVE:
             selection.monthly_leave_clipping = True
+            selection.monthly_leave_language = language
             extra_note = "أيام كل شهر تُعرض في شهرها، وأيام الخصم تُحسب مرة واحدة في شهر بداية الإجازة"
-        render_result(build_report(db, selection), approved_note=approved_note, extra_note=extra_note)
+        if MONTHLY_OPTION_TYPE[option] == REPORT_TYPE_LEAVE:
+            selection.employee_status = "all"  # leave overlap, never today's active-only filter
+            for leave_status in ("confirmed", "draft", "cancelled"):
+                selection.monthly_leave_status = leave_status
+                result = build_report(db, selection)
+                result.title += " · " + LEAVE_STATUS_LABELS[leave_status]
+                result.status_label = "كل من له إجازة خلال الفترة مع حالته الحالية"
+                render_result(result, extra_note="أيام كل شهر تُعرض في شهرها، وأيام الخصم تُحسب مرة واحدة في شهر بداية الإجازة" + "\n" + "المسودة والملغاة معروضتان منفصلتين؛ أيام الخصم المسجلة ليست خصمًا منفذًا من الرصيد.")
+        else:
+            render_result(build_report(db, selection), approved_note=approved_note, extra_note=extra_note)
 
     story.append(Spacer(1, 10 * mm))
     signature_rows = [[
@@ -2004,5 +2045,5 @@ def build_monthly_pdf(db: Session, month_start: date, options: set[int], languag
 
     generated = datetime.now(CAIRO_TZ).strftime("%d/%m/%Y %H:%M")
     footer_text = f"M.Y. Business Hotel — {L('استُخرج في:')} {generated}"
-    document.build(story, canvasmaker=_NumberedCanvas.build(font_name, footer_text, language))
+    document.build(story, canvasmaker=_NumberedCanvas.build(font_name, footer_text, language, cell_ if language == "zh" else None))
     return output.getvalue()

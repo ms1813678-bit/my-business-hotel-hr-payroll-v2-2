@@ -1,5 +1,13 @@
 ## 2026-11-25 - Local model JSON request contract by Instinct
 
+## 2026-11-25, Instinct: monthly leave status and historical employee reporting
+
+- Monthly leave PDFs show confirmed, draft and cancelled records in separate sections; assistant aggregates remain identity-free and split by type/status. Employees with overlapping leave are included with their current active/left status. Custom report defaults and approved payroll/attendance filters are unchanged.
+- Cross-month calendar days remain clipped, and recorded charge days appear once in the leave-start month. Reporting does not execute balance deductions.
+- Monthly AR/EN/ZH labels use stored leave-type translations, localized missing/unknown markers and distinguishable missing-type IDs. Chinese monthly PDFs embed an unmodified licensed Droid font with mixed-script fallback; custom Chinese PDF portability is not changed.
+- Targeted developer qualification, source and visual limits are recorded in docs/CURRENT_SOURCE_STATUS.md. No Windows, hotel-device, whole Item2/4 or isolated0066 acceptance follows.
+
+
 - Ask the local command-planning endpoint for JSON format, matching the existing local query path. Keep strict JSON parsing, action/value validation and the human approval gateway unchanged. No prose-wrapper extractor.
 - Add scripted loopback HTTP request-contract and malformed-output tests. The exact candidate plus the existing AI suite passes 151 tests with 4 skips under the configured migrated PostgreSQL guard. This is fixture and application regression evidence, not a real-model behavior, model installation or whole-AI acceptance claim.
 

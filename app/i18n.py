@@ -4845,3 +4845,25 @@ ZH['الساعات']='时数'
 
 EN['تعذر التحقق من قرارات الأيام الحالية مقابل مصادرها. هذا المسير للقراءة فقط هنا؛ لا يمكن تصحيح الأيام أو تحديث إجمالي الشهر من هذه الصفحة.']='The current daily decisions could not be verified against their sources. This payroll run is read-only here; daily corrections and monthly updates are not available on this page.'
 ZH['تعذر التحقق من قرارات الأيام الحالية مقابل مصادرها. هذا المسير للقراءة فقط هنا؛ لا يمكن تصحيح الأيام أو تحديث إجمالي الشهر من هذه الصفحة.']='无法根据来源核验当前每日决定。此工资单在此处仅供查看；本页不能更正每日记录或更新月度合计。'
+
+# Monthly leave status reporting, owner choices 2026-11-25.
+for _ar, _en, _zh in [
+ ("حالة الموظف الحالية", "Employment now", "当前在职状态"),
+ ("نشط", "Active", "在职"), ("غادر", "Left", "已离职"),
+ ("كل حالات الإجازات حسب النوع والحالة — بدون بيانات الموظفين", "All leave statuses by type and status, without employee details", "按类型和状态列出全部休假，不含员工明细"),
+ ("أيام الخصم المسجلة", "Recorded charge days", "登记扣减天数"),
+ ("لا توجد إجازات في هذا الشهر.", "No leave records in this month.", "本月无休假记录。"),
+ ("كل من له إجازة خلال الفترة مع حالته الحالية", "All employees with leave overlapping the period, with current status", "期间有休假记录的全部员工及当前在职状态"),
+ ("المسودة والملغاة معروضتان منفصلتين؛ أيام الخصم المسجلة ليست خصمًا منفذًا من الرصيد.", "Draft and cancelled records are shown separately. Recorded charge days are not an executed balance deduction.", "草稿和已取消记录分别显示。登记扣减天数不等于已执行的余额扣减。"),
+]:
+ EN[_ar] = _en
+ ZH[_ar] = _zh
+
+EN["أيام كل شهر تُعرض في شهرها، وأيام الخصم تُحسب مرة واحدة في شهر بداية الإجازة"] = "Each month's calendar days appear in that month. Recorded charge days appear once, in the leave-start month."
+ZH["أيام كل شهر تُعرض في شهرها، وأيام الخصم تُحسب مرة واحدة في شهر بداية الإجازة"] = "各月显示当月日历天数。登记扣减天数仅在休假开始月显示一次。"
+
+EN['ترجمة نوع الإجازة غير متاحة'] = 'Leave type translation missing'
+ZH['ترجمة نوع الإجازة غير متاحة'] = '缺少休假类型翻译'
+
+EN['حالة موظف غير معروفة'] = 'Employment status unknown'
+ZH['حالة موظف غير معروفة'] = '在职状态未知'
