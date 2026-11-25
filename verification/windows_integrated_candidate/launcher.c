@@ -13,6 +13,7 @@
 #include <fcntl.h>
 #include <wchar.h>
 #include "token_checks.h"
+#include "startup_diagnostics.h"
 #ifndef PROC_THREAD_ATTRIBUTE_JOB_LIST
 #define PROC_THREAD_ATTRIBUTE_JOB_LIST ProcThreadAttributeValue(ProcThreadAttributeJobList,FALSE,TRUE,FALSE)
 #endif
@@ -83,6 +84,7 @@ int wmain(int argc,wchar_t **argv){
  {DWORD n=32768;if(!QueryFullProcessImageNameW(pi.hProcess,0,actual_image,&n)||_wcsicmp(actual_image,argv[2]))goto done;}
  fprintf(stderr,"CANDIDATE_CREATED pid=%lu suspended=1\n",(unsigned long)GetProcessId(pi.hProcess));
  stage="verify_before_resume";if(!verify_created_child(pi.hProcess,job,sid,1))goto done;
+ stage="startup_readonly_diagnostics";if(!diagnose_startup(pi.hProcess,argv[3]))goto done;
  close_owned(&in_read,&clean);close_owned(&out_write,&clean);if(!clean)goto done;
  feed.pipe=in_write;feed.bytes=request;feed.size=request_size;
  stage="start_feeder";feeder=CreateThread(NULL,0,feed_input,&feed,0,NULL);if(!feeder)goto done;
@@ -105,6 +107,7 @@ int wmain(int argc,wchar_t **argv){
  }
  result=0;
  done:
+ if(created){DWORD preserved=GetLastError();diagnose_exit(pi.hProcess);SetLastError(preserved);}
  if(result)fprintf(stderr,"CANDIDATE_REFUSAL stage=%s error=%lu child=%lu\n",stage,(unsigned long)GetLastError(),(unsigned long)code);
  if(created){if(!TerminateJobObject(job,99))clean=0;if(WaitForSingleObject(pi.hProcess,2000)!=WAIT_OBJECT_0)clean=0;}
  if(reader){DWORD waited=WaitForSingleObject(reader,0);if(waited!=WAIT_OBJECT_0){if(!CancelSynchronousIo(reader)&&GetLastError()!=ERROR_NOT_FOUND)clean=0;waited=WaitForSingleObject(reader,2000);}if(waited!=WAIT_OBJECT_0){fprintf(stderr,"READER_CLEANUP_UNCONFIRMED\n");ExitProcess(125);}}

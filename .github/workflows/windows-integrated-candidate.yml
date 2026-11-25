@@ -1,5 +1,5 @@
 name: Integrated synthetic Windows parser candidate
-# Revision: restore explicit known-good LOCALAPPDATA and SYSTEMROOT launcher block
+# Revision: bounded read-only actual child-token startup evidence, no policy grants
 on:
   push:
     branches: [ui-overhaul]
