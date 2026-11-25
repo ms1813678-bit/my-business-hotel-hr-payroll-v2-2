@@ -1,6 +1,6 @@
 name: "Integrated synthetic Windows parser candidate (control: IFEO loader snaps OFF)"
 # Control run: identical to windows-integrated-candidate.yml except the qualification block runs WITHOUT the temporary loader-snaps registry scope. Diagnostic only, not acceptance.
-# Paired current-product source-pin control, both variants intentionally run on this head.
+# Paired full source/product closure control, both variants intentionally run on this head.
 on:
   push:
     branches: [ui-overhaul]
