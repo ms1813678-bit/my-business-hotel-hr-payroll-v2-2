@@ -466,3 +466,10 @@ The attach-based attempt refused at the resume gate with actual prior count unre
 ## Instinct: corrected debug-created event sequence, 25 November 2026
 
 The preceding distinct debug-created candidate timed out waiting for its first creation event before Resume, not a child parser failure. Move the single recorded exact-1 Resume after original suspended identity/token/Job checks and before waiting for the first creation event. The event is documented before user-mode execution; its exact identity/token/Job checks still precede Continue. No repeated resumes, zero-count acceptance, workload budget change, normal-execution acceptance or production enablement. If this supported diagnostic protocol refuses again, consolidate the tooling blocker rather than serial unqualified variants.
+
+
+## Instinct: original Item2 overtime pay-basis correction,25 November2026
+
+Production payroll overtime now uses the saved basic salary plus the selected month's actual performance bonus, divided by30 and the saved explicit rate divisor. Other bonus types remain excluded. Changing overtime hours or the performance award invalidates prior overtime approval and clears its money until explicit reapproval; saving equal values or changing an unrelated bonus preserves approval. Lateness and ordinary absence calculations are unchanged. This does not implement daily overtime awards, same-day attendance review, year close, cash settlements or the new leave-ledger production handoff. It does not mark Item2 complete.
+
+Grounded in owner's23November19:18:47/19:31:57 pay-basis instructions, not a proposed peer permission matrix. Existing paid-item and approved/closed-run edit guards are preserved. Verification includes a fresh fully migrated synthetic PostgreSQL cluster for basis-change/invalidation/reapproval and paid/closed refusal, plus payroll routes, guards, simulations and AI preview regression. Existing route tests still use their own SQLite fixtures; they are not relabeled PostgreSQL acceptance.

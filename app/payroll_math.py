@@ -16,6 +16,21 @@ def hourly_rate(basic_salary: Decimal, daily_hours: Decimal) -> Decimal:
     return basic_salary / (daily_hours * Decimal(30))
 
 
+def overtime_hourly_rate(basic_salary: Decimal, performance_bonus: Decimal,
+                         daily_hours: Decimal) -> Decimal:
+    """Owner OT basis only. Other bonuses and ordinary salary days stay separate.
+
+    Does not approve hours or replace same-day attendance review. The explicit
+    existing rate divisor is not a shift schedule or an inferred daily award.
+    """
+    values = (basic_salary, performance_bonus, daily_hours)
+    if any(not isinstance(v, Decimal) or not v.is_finite() for v in values):
+        raise ValueError("Finite Decimal overtime rate values required.")
+    if min(basic_salary, performance_bonus) < 0 or daily_hours <= 0:
+        raise ValueError("Nonnegative overtime basis and positive divisor required.")
+    return (basic_salary + performance_bonus) / (Decimal(30) * daily_hours)
+
+
 def lateness_deduction(
     basic_salary: Decimal,
     daily_hours: Decimal,

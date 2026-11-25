@@ -25,3 +25,11 @@ def test_absence_uses_actual_calendar_month_length():
 
 def test_new_hire_salary_includes_hire_date():
     assert prorated_new_hire_salary(Decimal("9000"), date(2026, 2, 28)) == Decimal("321.43")
+
+
+def test_overtime_basis_includes_only_basic_and_performance():
+    from app.payroll_math import overtime_hourly_rate
+    assert overtime_hourly_rate(Decimal('6000'), Decimal('1200'), Decimal('8')) == Decimal('30')
+    assert overtime_hourly_rate(Decimal('6000'), Decimal('1200'), Decimal('9')) * 9 == Decimal('240')
+    # Lateness retains its existing basic-only rule.
+    assert hourly_rate(Decimal('6000'), Decimal('8')) == Decimal('25')

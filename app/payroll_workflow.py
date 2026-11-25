@@ -24,7 +24,7 @@ from app.models import (
     PayrollRun,
     StaffAction,
 )
-from app.payroll_math import absence_deduction, hourly_rate, lateness_deduction, money
+from app.payroll_math import absence_deduction, lateness_deduction, money, overtime_hourly_rate
 
 
 MANUAL_ITEM_FIELDS = {
@@ -229,7 +229,9 @@ def review_absence_leave_conflict(db: Session, item: PayrollItem, actor: str) ->
 
 
 def recompute_payroll_item(item: PayrollItem, run: PayrollRun) -> None:
-    overtime_rate = hourly_rate(Decimal(item.salary_basis), Decimal(item.daily_hours))
+    overtime_rate = overtime_hourly_rate(
+        Decimal(item.salary_basis), Decimal(item.performance_bonus), Decimal(item.daily_hours)
+    )
     item.overtime_amount = (
         money(overtime_rate * Decimal(item.overtime_hours))
         if item.overtime_approved
@@ -470,7 +472,10 @@ def update_payroll_item(
     if "absence_days" in values and Decimal(old["absence_days"]) != Decimal(new["absence_days"]):
         item.absence_leave_reviewed = False
         item.absence_leave_review_fingerprint = None
-    if "overtime_hours" in values and Decimal(old["overtime_hours"]) != Decimal(new["overtime_hours"]):
+    # A reviewed award cannot survive a changed financial basis. Unrelated
+    # bonuses are deliberately excluded from that basis and keep approval.
+    if any(key in values and Decimal(old[key]) != Decimal(new[key])
+           for key in ("overtime_hours", "performance_bonus")):
         item.overtime_approved = False
         item.overtime_approved_by = None
         item.overtime_approved_at = None
