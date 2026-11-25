@@ -1,7 +1,8 @@
+; NEW compile-repair candidate. Exact recovered input retained beside this file.
 ; Optional desktop preparation candidate, not a tested Windows release.
 ; Build only from reviewed source, do not distribute until Windows acceptance.
 #define AppName "HOnY"
-#define SourceRoot AddBackslash(ExtractFileDir(__FILE__)) + ".."
+#define SourceRoot AddBackslash(SourcePath) + ".."
 [Setup]
 AppId={{EC67865F-C7A7-4E77-A35B-B7554D8F4A81}
 AppName={#AppName} desktop candidate

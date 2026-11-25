@@ -1,3 +1,8 @@
+## 2026-11-25 - Correct source-staging recipe root by Instinct
+
+- Actual Windows source verification, nine PowerShell syntax checks, pinned dependency installation and24module imports passed. ISCC rejected the recovered root-script path expression before producing a package.
+- Preserve exact recovered ISS, label a NEW compile candidate and use documented SourcePath for its root-script directory. No installer execution, release, service/UI acceptance or security relaxation.
+
 ## 2026-11-25 - Exact source bytes for desktop qualification by Instinct
 
 - First Windows prep refused source integrity before dependency or compile work. Restore verification sources from committed git blobs and record checkout/committed/expected hashes before strict equality checks.
