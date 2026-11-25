@@ -1,3 +1,7 @@
+## 2026-11-25 - Confirm exact owned CA cleanup warning by Instinct
+
+- Actual owned-window pixels show a separate Root Certificate Store deletion confirmation. Apply the same helper-Job ownership, exact displayed SHA1, fixture label and IDYES checks to removal. Prior functional window checks passed but the whole gate remains refused until CA removal is verified. No trust-policy or store-scope change.
+
 ## 2026-11-25 - Confirm only exact owned synthetic CA warning by Instinct
 
 - Actual owned-window pixels show Windows certificate confirmation blocking the test import. Confirm only one Security Warning dialog in the owned helper Job, with exact displayed SHA1 equal to the newly generated test CA, expected fixture label and IDYES button. Refuse mismatches. No trust-policy bypass, machine-store change or wider click. Keep original 20-second bound and independent cleanup.

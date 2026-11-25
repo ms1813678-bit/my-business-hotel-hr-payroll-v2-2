@@ -123,12 +123,13 @@ def parent(scm_mode=False,visible=False):
                     if win32process.ResumeThread(tt)!=1:raise RuntimeError('trust prior suspend count refused')
                     trust_until=time.monotonic()+20;confirmed=False
                     while win32event.WaitForSingleObject(tp,200)!=win32con.WAIT_OBJECT_0 and time.monotonic()<trust_until:
-                        if mode!='import' or confirmed:continue
+                        if mode not in ('import','remove') or confirmed:continue
+                        title='Security Warning' if mode=='import' else 'Root Certificate Store'
                         import re,win32gui
                         members=set(win32job.QueryInformationJobObject(tj,win32job.JobObjectBasicProcessIdList));dialogs=[]
                         def find_confirmation(hwnd,_):
                             _,owner=win32process.GetWindowThreadProcessId(hwnd)
-                            if owner in members and win32gui.IsWindowVisible(hwnd) and win32gui.GetClassName(hwnd)=='#32770' and win32gui.GetWindowText(hwnd)=='Security Warning':dialogs.append(hwnd)
+                            if owner in members and win32gui.IsWindowVisible(hwnd) and win32gui.GetClassName(hwnd)=='#32770' and win32gui.GetWindowText(hwnd)==title:dialogs.append(hwnd)
                         win32gui.EnumWindows(find_confirmation,None)
                         if not dialogs:continue
                         if len(dialogs)!=1:raise RuntimeError('owned CA confirmation ambiguous')
@@ -140,7 +141,7 @@ def parent(scm_mode=False,visible=False):
                         yes=win32gui.GetDlgItem(hwnd,6) # Documented WinUser IDYES.
                         if not yes or win32gui.GetWindowText(yes).replace('&','')!='Yes':raise RuntimeError('exact CA confirmation button missing')
                         win32gui.SendMessage(yes,0x00F5,0,0) # BM_CLICK only on exact owned IDYES.
-                        confirmed=True;print('NATIVE_TRUST_EXACT_OWNED_CA_OS_CONFIRMATION_PASS',flush=True)
+                        confirmed=True;print('NATIVE_TRUST_EXACT_OWNED_CA_OS_CONFIRMATION_PASS',mode,flush=True)
                     if win32event.WaitForSingleObject(tp,0)!=win32con.WAIT_OBJECT_0:
                         # Observe only windows whose process is in THIS owned helper Job.
                         import win32gui,win32process as wp
