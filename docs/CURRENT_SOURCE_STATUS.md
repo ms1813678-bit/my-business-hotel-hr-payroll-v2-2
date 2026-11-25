@@ -6,7 +6,7 @@ Instinct, 25 November 2026, 12:44 Africa/Cairo. This page corrects the stale ope
 
 - Repository: [my-business-hotel-hr-payroll-v2-2](https://github.com/ms1813678-bit/my-business-hotel-hr-payroll-v2-2).
 - Development branch: `ui-overhaul`. `main` is not the development target. The owner controls merging.
-- Latest implementation commit at this checkpoint: [8357fa72](https://github.com/ms1813678-bit/my-business-hotel-hr-payroll-v2-2/commit/8357fa72da5815ff1c35d6cff2409a168b01563d). This documentation correction is separate from implementation. Before further work, read this page, check the live branch HEAD and working diff, then inspect the exact source body needed for the decision. A path existing is not proof that it is the intended candidate.
+- Latest implementation commit at this checkpoint: [47a96c9a](https://github.com/ms1813678-bit/my-business-hotel-hr-payroll-v2-2/commit/47a96c9a0fd6d46b7118725a968bb6a36f1a336d). The earlier documentation-only correction was1660d473. Before further work, read this page, check the live branch HEAD and working diff, then inspect the exact source body needed for the decision. A path existing is not proof that it is the intended candidate.
 - This checkpoint adds the reviewed Item2 daily-overtime implementation and additive migration `0065_overtime_day_review` on top of 1660d473. This is source publication, not proof of deployed schema or hotel-device acceptance.
 - No hotel-device installation or acceptance is established. Use synthetic data until acceptance.
 
@@ -34,7 +34,7 @@ Other runtime/host-runner proposals remain separate unadopted proposals. Do not 
 
 ## Item2 daily overtime source checkpoint
 
-Current local work prepares manual same-day review, explicit confirmation, append-only correction and explicit monthly aggregation. It preserves finance payroll access and denies assistant payroll access; it does not grant finance leave-ledger writes. The owner chose stacked review details and monthly summation of unrounded daily values, rounding once at monthly money storage. Divisors8/9/12 determine the hourly rate, not a roster. No automatic award is intended.
+Published source implements manual same-day review, explicit confirmation, append-only correction and explicit monthly aggregation. It preserves finance payroll access and denies assistant payroll access; it does not grant finance leave-ledger writes. The owner chose stacked review details and monthly summation of unrounded daily values, rounding once at monthly money storage. Divisors8/9/12 determine the hourly rate, not a roster. No automatic award is intended.
 
 - Backend review accepted bounded stages, not all of Item2. Daily GET shared read/restore gate, source freshness at approval/close, frozen payment proof, mixed paid/unpaid handling and predecessor binding have targeted tests.
 - Actual browser previews in Arabic, English and Chinese were inspected at desktop and390px mobile widths, using synthetic data. This is not native Windows or hotel-device acceptance.
