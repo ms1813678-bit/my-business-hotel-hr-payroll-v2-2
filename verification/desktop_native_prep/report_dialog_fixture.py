@@ -35,13 +35,11 @@ def save_pdf(hwnd,destination,shot):
             saves=[e for e in es if e.Current.ControlType==ControlType.Button and str(e.Current.Name) in ('Save','حفظ')]
             diagnostic=dict(edits=[dict(name=str(e.Current.Name),id=str(e.Current.AutomationId)) for e in es if e.Current.ControlType==ControlType.Edit],buttons=[str(e.Current.Name) for e in es if e.Current.ControlType==ControlType.Button])
             if len(edits)==1 and len(saves)==1:
-                edits[0].SetFocus()
-                edits[0].GetCurrentPattern(ValuePattern.Pattern).SetValue(str(destination))
-                # Commit the shell filename editor like a person moving to Save.
-                import System.Windows.Forms as WinForms
-                WinForms.SendKeys.SendWait('{TAB}')
-                time.sleep(.2)
-                if str(edits[0].GetCurrentPattern(ValuePattern.Pattern).Current.Value)!=str(destination):raise RuntimeError('native filename edit readback mismatch')
+                # Test the shown default as-is, not the unqualified editor.
+                shown=str(edits[0].GetCurrentPattern(ValuePattern.Pattern).Current.Value)
+                if shown!='MY_HR_Report_2026-03-01_2026-03-31.pdf':raise RuntimeError('exact synthetic default basename mismatch')
+                actual=pathlib.Path(os.environ['USERPROFILE'])/'Downloads'/shown
+                if actual.exists():raise RuntimeError('synthetic default download already exists')
                 ImageGrab.grab(bbox=win32gui.GetWindowRect(h),all_screens=True).save(shot)
                 saves[0].GetCurrentPattern(InvokePattern.Pattern).Invoke()
                 break
@@ -52,11 +50,16 @@ def save_pdf(hwnd,destination,shot):
         raise RuntimeError('exact native report Save dialog unresolved')
     until=time.monotonic()+15;last=None;stable=0
     while time.monotonic()<until:
-        if destination.is_file():
-            raw=destination.read_bytes()
+        if actual.is_file():
+            raw=actual.read_bytes()
             if raw==last:stable+=1
             else:stable=0
-            if stable>=3 and raw.startswith(b'%PDF-') and b'%%EOF' in raw[-1024:]:return dict(bytes=len(raw),sha256=hashlib.sha256(raw).hexdigest())
+            if stable>=3 and raw.startswith(b'%PDF-') and b'%%EOF' in raw[-1024:]:
+                destination.write_bytes(raw)
+                if destination.read_bytes()!=raw:raise RuntimeError('owned PDF preservation mismatch')
+                actual.unlink()
+                if actual.exists():raise RuntimeError('exact owned default PDF cleanup unconfirmed')
+                return dict(bytes=len(raw),sha256=hashlib.sha256(raw).hexdigest(),default_path_tested=True,chosen_path_tested=False,owned_default_removed=True)
             last=raw
         time.sleep(.2)
     print('NATIVE_REPORT_DOWNLOAD_BOUNDARY',json.dumps(dict(exists=destination.exists(),bytes=destination.stat().st_size if destination.exists() else None,siblings=[dict(name=p.name,bytes=p.stat().st_size) for p in destination.parent.glob('authenticated-report*') if p.is_file()])),flush=True)
