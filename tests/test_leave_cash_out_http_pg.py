@@ -18,7 +18,7 @@ def test_normal_leave_cash_out_http(tmp_path):
     try:
         with admin.connect() as c:
             c.execute(text(f'CREATE DATABASE "{name}"'))
-        env = {**os.environ, 'DATABASE_URL': str(engine.url.set(database=name))}
+        env = {**os.environ, 'DATABASE_URL': engine.url.set(database=name).render_as_string(hide_password=False)}
         for args in [['-m', 'alembic', 'upgrade', 'head'],
                      ['-m', 'pytest', 'tests/cash_out_http_acceptance.py', '-q', '--tb=short',
                       '--junitxml=' + str(tmp_path / 'http.xml')]]:

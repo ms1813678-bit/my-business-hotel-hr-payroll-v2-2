@@ -18,7 +18,7 @@ def test_normal_leave_annual_settlement_http_negative(tmp_path):
     try:
         with admin.connect() as c:
             c.execute(text(f'CREATE DATABASE "{name}"'))
-        env = {**os.environ, 'DATABASE_URL': str(engine.url.set(database=name))}
+        env = {**os.environ, 'DATABASE_URL': engine.url.set(database=name).render_as_string(hide_password=False)}
         for args in [['-m', 'alembic', 'upgrade', 'head'],
                      ['-m', 'pytest', 'tests/annual_settlement_http_negative.py', '-q', '--tb=short',
                       '--junitxml=' + str(tmp_path / 'http.xml')]]:

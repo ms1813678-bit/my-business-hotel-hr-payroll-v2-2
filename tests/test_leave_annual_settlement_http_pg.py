@@ -19,7 +19,7 @@ def test_normal_leave_annual_settlement_http(tmp_path,language):
     try:
         with admin.connect() as c:
             c.execute(text(f'CREATE DATABASE "{name}"'))
-        env = {**os.environ, 'DATABASE_URL': str(engine.url.set(database=name)), 'HR_ANNUAL_LANGUAGE':language}
+        env = {**os.environ, 'DATABASE_URL': engine.url.set(database=name).render_as_string(hide_password=False), 'HR_ANNUAL_LANGUAGE':language}
         if os.environ.get('HR_PIXEL_DIR'):
             env['HR_PIXEL_DIR']=str(Path(os.environ['HR_PIXEL_DIR'])/language)
         for args in [['-m', 'alembic', 'upgrade', 'head'],
