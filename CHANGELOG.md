@@ -1,3 +1,7 @@
+## 2026-11-25 - Qualify normal native landscape choice by Instinct
+
+- Disposable report fixture selects the exact native Landscape radio once and verifies selection before unchanged normal readiness/scroll captures, then Cancel. No product CSS change, physical print or persistent user-device setting. Previous portrait6employee content case remains qualified; landscape result awaits visual inspection.
+
 ## 2026-11-25 - Bounded native preview observer repair by Instinct
 
 - Native UIA tree may replace elements while preview opens. Snapshot each entry type/name once and skip only ElementNotAvailableException, keeping original deadlines, normal readiness waits, exact Cancel identity and no-print behavior. No product or print CSS change. Follow-up visual qualification pending.

@@ -70,7 +70,7 @@ def save_pdf(hwnd,destination,shot):
 def cancel_print(hwnd,shot):
     setup(hwnd)
     from System import IntPtr
-    from System.Windows.Automation import AutomationElement,TreeScope,Condition,ControlType,InvokePattern,ScrollPattern,ScrollAmount,ElementNotAvailableException
+    from System.Windows.Automation import AutomationElement,TreeScope,Condition,ControlType,InvokePattern,ScrollPattern,ScrollAmount,ElementNotAvailableException,SelectionItemPattern
     import win32gui
     from PIL import ImageGrab
     root=AutomationElement.FromHandle(IntPtr(hwnd));until=time.monotonic()+12;diagnostic={}
@@ -85,8 +85,14 @@ def cancel_print(hwnd,shot):
         cancel=[e for e,kind,name in es if kind==ControlType.Button and name in ('Cancel','إلغاء')]
         diagnostic=dict(print_text=any(n in ('Print','طباعة','Print preview') for n in names),cancel_buttons=len(cancel),buttons=[name for _,kind,name in es if kind==ControlType.Button])
         if diagnostic['print_text'] and len(cancel)==1:
-            # Bounded normal readiness observation only. No print invocation,
-            # settings change, DOM replacement or alternate renderer.
+            # Disposable fixture only: exercise normal Landscape radio once.
+            # No physical print or persistent user-device setting.
+            landscape=[e for e,kind,name in es if kind==ControlType.RadioButton and name=='Landscape']
+            if len(landscape)!=1:raise RuntimeError('exact native Landscape radio unresolved')
+            landscape[0].GetCurrentPattern(SelectionItemPattern.Pattern).Select()
+            if not landscape[0].GetCurrentPattern(SelectionItemPattern.Pattern).Current.IsSelected:raise RuntimeError('native Landscape selection unconfirmed')
+            print('NATIVE_PRINT_LANDSCAPE_SELECTED_DISPOSABLE_ONLY',flush=True)
+            # Normal readiness observations, no DOM/renderer replacement.
             observed=time.monotonic()
             for seconds in (2,8,20):
                 while time.monotonic()-observed<seconds:time.sleep(.1)
