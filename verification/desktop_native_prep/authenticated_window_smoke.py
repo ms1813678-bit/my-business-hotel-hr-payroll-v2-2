@@ -9,6 +9,11 @@ def run(root):
     origin=json.loads((root/'desktop.json').read_text())['origin']
     seed=json.loads((root/'auth-seed.json').read_text())
     username=os.environ['FIXTURE_ADMIN_USERNAME'];password=os.environ['FIXTURE_ADMIN_PASSWORD']
+    from app.desktop_webview_guard import WebView2OriginGuard
+    guards=[];original_init=WebView2OriginGuard.__init__
+    def observed_init(self,*args,**kwargs):
+        original_init(self,*args,**kwargs);guards.append(self)
+    WebView2OriginGuard.__init__=observed_init
     original=webview.create_window;evidence={};started=threading.Event()
     def observed_create(*args,**kwargs):
         window=original(*args,**kwargs)
@@ -41,6 +46,31 @@ def run(root):
             image=ImageGrab.grab(bbox=win32gui.GetWindowRect(matches[0]),all_screens=True)
             image.save(root/name)
             return [image.width,image.height]
+        def cancel_dirty_review():
+            guard=next(g for g in guards if g._window is window)
+            selector='form.payroll-item-edit[action="/payroll/items/'+str(seed['payroll_item_id'])+'/update"] input[name=other_bonus]'
+            review='form[action="/payroll/items/'+str(seed['payroll_item_id'])+'/absence-leave-review"] button[type=submit]'
+            expected=js('document.getElementById("review-unsaved-warning").textContent')
+            if not isinstance(expected,str) or not expected.strip():raise RuntimeError('exact dirty warning absent')
+            # Dispatch a real input event; do not replace confirm or submit logic.
+            js('var input=document.querySelector('+json.dumps(selector)+');input.value="7";input.dispatchEvent(new Event("input",{bubbles:true}));true')
+            wait_for('document.querySelector("form.payroll-item-edit").dataset.dirty==="1"')
+            state=[]
+            def fire():
+                core=guard._control.CoreWebView2
+                state.append(core.ExecuteScriptAsync('window.__fixtureReviewAttemptDone=false;window.__fixtureReviewPrevented=null;document.addEventListener("submit",function(e){window.__fixtureReviewPrevented=e.defaultPrevented;},{once:true});document.querySelector('+json.dumps(review)+').scrollIntoView({block:"center"});setTimeout(function(){document.querySelector('+json.dumps(review)+').click();window.__fixtureReviewAttemptDone=true;},0);true'))
+            guard._marshal_to_ui(guard._control,fire)
+            import win32gui,win32process
+            owned=[]
+            win32gui.EnumWindows(lambda h,_:owned.append(h) if win32process.GetWindowThreadProcessId(h)[1]==os.getpid() and win32gui.GetWindowText(h)=='HOnY' else None,None)
+            if len(owned)!=1:raise RuntimeError('exact dirty parent identity ambiguous')
+            import importlib.util
+            spec=importlib.util.spec_from_file_location('owned_confirm_fixture',pathlib.Path(__file__).with_name('confirm_ui_fixture.py'))
+            helper=importlib.util.module_from_spec(spec);spec.loader.exec_module(helper)
+            helper.cancel_confirm(owned[0],expected,root/'authenticated-dirty-confirm.png')
+            wait_for('window.__fixtureReviewAttemptDone===true && window.__fixtureReviewPrevented===true')
+            if not js('document.querySelector('+json.dumps(selector)+').value==="7" && document.querySelector("form.payroll-item-edit").dataset.dirty==="1"'):raise RuntimeError('dirty cancel lost unsaved value')
+            evidence['dirty_cancel_tested']=True
         def loaded():
             if started.is_set():return
             started.set()
@@ -55,13 +85,16 @@ def run(root):
                 wait_for('location.pathname==='+json.dumps(page)+' && document.querySelectorAll("form.payroll-item-edit").length===1 && typeof payrollReviewSubmit==="function"')
                 if not js('!!document.querySelector('+json.dumps('form[action="/payroll/items/'+str(seed['payroll_item_id'])+'/absence-leave-review"]')+')'):raise RuntimeError('real seeded conflict form absent')
                 evidence['authenticated_payroll_pixels']=capture('authenticated-payroll.png')
+                cancel_dirty_review()
                 from urllib.parse import urlencode
                 query=urlencode(dict(report_type='payroll',start_date=seed['report_start_date'],end_date=seed['report_end_date'],employee_id=seed['employee_id']))
                 js('location.href='+json.dumps(origin+'/reports/view?'+query)+';true')
                 wait_for('location.pathname==="/reports/view" && !!document.querySelector("a[href^=\'/reports/export.pdf?\']") && !!document.querySelector("button[onclick=\'window.print()\']")')
                 evidence['authenticated_report_pixels']=capture('authenticated-report.png')
-                evidence.update(status='authenticated-pages-rendered',normal_TLS=True,real_login_submission=True,pdf_download_tested=False,print_tested=False,dirty_cancel_tested=False,seeded_approvals_not_exercised=True)
-            except BaseException as exc:evidence.update(status='failed',error_type=type(exc).__name__)
+                evidence.update(status='authenticated-pages-rendered',normal_TLS=True,real_login_submission=True,pdf_download_tested=False,print_tested=False,dirty_cancel_tested=evidence.get('dirty_cancel_tested',False),seeded_approvals_not_exercised=True)
+            except BaseException as exc:
+                evidence.update(status='failed',error_type=type(exc).__name__)
+                print('NATIVE_AUTH_FIXTURE_FAILED',type(exc).__name__,'dirty_cancel',evidence.get('dirty_cancel_tested',False),flush=True)
             finally:window.destroy()
         window.events.loaded+=loaded
         return window
