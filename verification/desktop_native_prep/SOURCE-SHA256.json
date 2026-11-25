@@ -1,7 +1,7 @@
 {
   "HOnY-Desktop-Candidate.RECOVERED-EXACT.iss": "57db2b7c5edeb34bf3cad457e8e92f4bfa457f4b981ed1630f494df37b119451",
   "HOnY-Desktop-Candidate.iss": "e502ceca4b3d542694d34d9d8e159ae763f879ab8b9561bdb282114e3a519137",
-  "actual_https_smoke.py": "7b98efbea445bfaf4e6cc8c244c29bc40f9174011e3633c8e3cd4d03c5b4901c",
+  "actual_https_smoke.py": "6e86ac2536a8d03926ab1336cb2956758c6379a3d4fe115b34a30addba2df9e5",
   "actual_scm_controller.py": "8bd169036e2127c14d40dbd6791884c5a4411c68df30a2931f3788c91ecc42b9",
   "build-tools-HASHED.txt": "1bfa26246e73222c53c6bc9dd038eaae18b150d6132bc8d2ce2ea6496fddb850",
   "build-tools-provenance.json": "c99eb30e476bf1dd33d6962dd2434eec9383d54fa5edd04ad2eb2e05cb99a6ce",
@@ -16,7 +16,7 @@
   "desktop_window.RECOVERED-EXACT.py": "5adacf0a5264b3ff3de773fd7232eec67ae9813470f4e42a1e5a20c5573fef15",
   "native_root_hooks.py": "b92a14aa6fcd41b99e84ec384eb9fa67c19a5d16610c5d7192c9bd2e750d54a6",
   "offline_wheel_closure.py": "a01637b46132e2c3133b675ce05712c94e486ca9088062f1a14965cdf78f0184",
-  "qualify-dependencies.ps1": "ca33987f0eb0af341908026cbd224604a693a48991933a4580bbb6439b783096",
+  "qualify-dependencies.ps1": "d6b1e0e513a6975a589a67e9bf3add9b78a74fb4fbff67f0ec70dad89b92b580",
   "requirements-native-SDIST-NEW-CANDIDATE.txt": "8be577630f8cc6ac19d6a4f4d332ae3f33d65ad9dec72cba44b0f96f228fb267",
   "scm_adapter_smoke.py": "f363926a73c32b430e216f45d8f9204aed8cb1db2d323ab478c0f59a7ac8cdf3",
   "scripts/windows/activate-desktop-certificate.ps1": "c2d5c70827163fe6ac85dd08aeda7adddd69a98cd036a6134959c0d38cee4343",
@@ -39,5 +39,7 @@
   "stager_candidate/staging/hony_stage.py": "ab460bbad0304236b832443ba6819972cfed1b75bf7e652d09daa331c64d5e02",
   "stager_candidate/staging/hony_stagetree.py": "47c40e1b02319a092ec72d6189f5f254c836ae913891d027a0eaff07778b9a5f",
   "stager_candidate/staging/verify_install.py": "fe4d007316b15c1713dd0bff4657353b841963a6e9d8e20ec22d69076e9cb8dd",
-  "stager_candidate/staging/verify_wheel_projection.py": "42731e360f9ce73818f9f6730828fc868a6304e9ff832aa7816a898b82d1feab"
+  "stager_candidate/staging/verify_wheel_projection.py": "42731e360f9ce73818f9f6730828fc868a6304e9ff832aa7816a898b82d1feab",
+  "trust_fixture.ps1": "01987de9c1560a78f19a131717d9aa88042a69a5890731a4ac915cd3ac615994",
+  "visible_window_smoke.py": "eb4481f2c3cb9f313029376000886b9a566f6433f958f1ebac065de529a4ecff"
 }

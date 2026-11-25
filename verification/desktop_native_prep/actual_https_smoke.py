@@ -9,7 +9,7 @@ def run_child(root):
     config=DesktopConfig.load(root/'desktop.json')
     create_server(config).run()
 
-def parent(scm_mode=False):
+def parent(scm_mode=False,visible=False):
     if sys.platform!='win32' or os.environ.get('GITHUB_ACTIONS')!='true':raise RuntimeError('disposable native CI required')
     import win32api,win32con,win32event,win32job,win32process
     from cryptography import x509
@@ -17,7 +17,7 @@ def parent(scm_mode=False):
     from cryptography.hazmat.primitives.asymmetric import rsa
     from cryptography.x509.oid import NameOID,ExtendedKeyUsageOID
     from datetime import datetime,timedelta,timezone
-    root=pathlib.Path(os.environ['RUNNER_TEMP'])/('hony-actual-https-scm-fixture' if scm_mode else 'hony-actual-https-fixture')
+    root=pathlib.Path(os.environ['RUNNER_TEMP'])/('hony-actual-visible-fixture' if visible else ('hony-actual-https-scm-fixture' if scm_mode else 'hony-actual-https-fixture'))
     if root.exists():raise RuntimeError('fresh fixture root required')
     root.mkdir();source=root/'source';source.mkdir()
     # Restore ONLY git-tracked public app consumer bytes, never checkout env/runtime.
@@ -26,7 +26,7 @@ def parent(scm_mode=False):
         blob=subprocess.check_output(['git','cat-file','blob','HEAD:'+e['path']])
         if hashlib.sha256(blob).hexdigest()!=e['sha256']:raise RuntimeError('source hash refused')
         p=source/e['path'];p.parent.mkdir(parents=True,exist_ok=True);p.write_bytes(blob)
-    for name in ['desktop_config','desktop_server','desktop_certificate','desktop_security','desktop_window','desktop_service','desktop_diagnostics']:
+    for name in ['desktop_config','desktop_server','desktop_certificate','desktop_security','desktop_window','desktop_service','desktop_diagnostics','desktop_webview_guard']:
         shutil.copy2(HERE/(name+'.RECOVERED-EXACT.py'),source/'app'/(name+'.py'))
     addresses=[]
     for item in socket.getaddrinfo(socket.gethostname(),None,socket.AF_INET):
@@ -36,7 +36,7 @@ def parent(scm_mode=False):
     bind=sorted(set(addresses))[0]
     with socket.socket() as sock:sock.bind((bind,0));port=sock.getsockname()[1]
     with socket.socket() as sock:sock.bind(('127.0.0.1',0));pgport=sock.getsockname()[1]
-    hostname='hony-qualification.invalid';origin=f'https://{hostname}:{port}'
+    hostname=('hony-'+uuid.uuid4().hex+'.invalid' if visible else 'hony-qualification.invalid');origin=f'https://{hostname}:{port}'
     now=datetime.now(timezone.utc)
     ca_key=rsa.generate_private_key(public_exponent=65537,key_size=2048)
     subject=x509.Name([x509.NameAttribute(NameOID.COMMON_NAME,'Disposable fixture CA')])
@@ -51,7 +51,7 @@ def parent(scm_mode=False):
     installations=sorted((pathlib.Path(os.environ['ProgramFiles'])/'PostgreSQL').glob('[0-9]*/bin'),key=lambda p:int(p.parent.name),reverse=True)
     if not installations:raise RuntimeError('preinstalled PostgreSQL required')
     pg=installations[0];cluster=root/'postgres';pw=root/'test-password';pw.write_text('synthetic-fixture-password')
-    pgstarted=False;job=process=thread=None;output=None;owned_service=None
+    pgstarted=False;job=process=thread=None;output=None;owned_service=None;ca_owned=False;hosts_owned=False;hosts_before=None;hosts_written=None;ca_thumb=None
     env={**os.environ,'PGPASSWORD':'synthetic-fixture-password','APP_ENV':'production','DATABASE_URL':f'postgresql+psycopg://hotel_fixture:synthetic-fixture-password@127.0.0.1:{pgport}/hotel_fixture','SESSION_SECRET':secrets.token_hex(32),'LOGIN_ALERT_WEBHOOK_URL':''}
     (source/'.env').write_text('APP_ENV=production\nDATABASE_URL='+env['DATABASE_URL']+'\nSESSION_SECRET='+env['SESSION_SECRET']+'\n')
     try:
@@ -105,7 +105,40 @@ def parent(scm_mode=False):
             subprocess.run([sys.executable,'-I','-c','pass'],check=True,timeout=10)
             assert owned_service.running() and request()[0]==200
             print('NATIVE_ACTUAL_HTTPS_SCM_NETWORKSERVICE_INDEPENDENT_PROCESS_PASS',flush=True)
-        print('NATIVE_ACTUAL_HTTPS_BACKEND_DB_TLS_PASS',json.dumps({'production_settings':True,'real_app_health_database':'connected','strict_CA_hostname':True,'untrusted_CA_refused':True,'foreign_host_origin_refused':True,'no_store':True,'SCM_combined':scm_mode,'visible_window':False}),flush=True)
+        if visible:
+            ca_thumb=ca.fingerprint(hashes.SHA1()).hex().upper()
+            def trust(mode):
+                subprocess.run(['powershell.exe','-NoProfile','-File',str(HERE/'trust_fixture.ps1'),'-Mode',mode,'-Thumbprint',ca_thumb,'-CertificatePath',str(root/'ca.pem')],check=True,timeout=20)
+            hosts_path=pathlib.Path(os.environ['SystemRoot'])/'System32/drivers/etc/hosts'
+            hosts_before=hosts_path.read_bytes()
+            if hostname.encode('ascii') in hosts_before:raise RuntimeError('unexpected hosts name already present')
+            trust('absent')
+            # Mark owned before import so partial import cannot silently escape cleanup.
+            ca_owned=True;trust('import')
+            marker='HOnY-owned-'+uuid.uuid4().hex
+            hosts_written=hosts_before+('\r\n'+bind+' '+hostname+' # '+marker+'\r\n').encode('ascii')
+            hosts_owned=True;hosts_path.write_bytes(hosts_written)
+            if hosts_path.read_bytes()!=hosts_written:raise RuntimeError('owned hosts append unconfirmed')
+            if bind not in [x[4][0] for x in socket.getaddrinfo(hostname,None,socket.AF_INET)]:raise RuntimeError('owned hosts resolution unconfirmed')
+            profile=root/'window-profile';profile.mkdir();localenv={**env,'LOCALAPPDATA':str(profile)}
+            # Dedicated owned Job bounds the actual window and WebView descendants.
+            win32api.SetLastError(0);job=win32job.CreateJobObject(None,'Local\\HOnY-visible-'+uuid.uuid4().hex)
+            if win32api.GetLastError()==183:raise RuntimeError('fresh visible Job required')
+            info=win32job.QueryInformationJobObject(job,win32job.JobObjectExtendedLimitInformation);info['BasicLimitInformation']['LimitFlags']|=win32job.JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;win32job.SetInformationJobObject(job,win32job.JobObjectExtendedLimitInformation,info)
+            command=subprocess.list2cmdline([sys.executable,'-I',str(HERE/'visible_window_smoke.py'),str(root)])
+            process,thread,pid,tid=win32process.CreateProcess(sys.executable,command,None,None,False,win32con.CREATE_SUSPENDED,localenv,str(source),win32process.STARTUPINFO())
+            win32job.AssignProcessToJobObject(job,process)
+            if win32process.ResumeThread(thread)!=1:raise RuntimeError('visible prior suspend count refused')
+            if win32event.WaitForSingleObject(process,75000)!=win32con.WAIT_OBJECT_0:raise RuntimeError('visible window deadline')
+            if win32process.GetExitCodeProcess(process)!=0:raise RuntimeError('visible actual window child failed')
+            result=json.loads((root/'visible-window-result.json').read_text())
+            if result.get('status')!='visible-login-rendered' or not (root/'visible-login.png').is_file():raise RuntimeError('visible pixels/result missing')
+            assert owned_service.running() and request()[0]==200
+            evidence=pathlib.Path(os.environ['RUNNER_TEMP'])/'hony-visible-proof'
+            if evidence.exists():raise RuntimeError('fresh proof output required')
+            evidence.mkdir();shutil.copy2(root/'visible-login.png',evidence/'visible-login.png');shutil.copy2(root/'visible-window-result.json',evidence/'visible-window-result.json')
+            print('NATIVE_ACTUAL_VISIBLE_CLOSE_SERVICE_HEALTH_PASS',flush=True)
+        print('NATIVE_ACTUAL_HTTPS_BACKEND_DB_TLS_PASS',json.dumps({'production_settings':True,'real_app_health_database':'connected','strict_CA_hostname':True,'untrusted_CA_refused':True,'foreign_host_origin_refused':True,'no_store':True,'SCM_combined':scm_mode,'visible_window':visible}),flush=True)
     finally:
         # Independent cleanup phases: a child error must never skip owned PG stop.
         cleanup_errors=[]
@@ -137,10 +170,23 @@ def parent(scm_mode=False):
                 if result.returncode!=3:raise RuntimeError('owned synthetic PostgreSQL stop unconfirmed')
                 print('NATIVE_ACTUAL_HTTPS_OWNED_POSTGRES_STOP_PASS',flush=True)
         except BaseException as exc:cleanup_errors.append('postgres-cleanup:'+type(exc).__name__)
+        try:
+            if hosts_owned:
+                if hosts_path.read_bytes()!=hosts_written:raise RuntimeError('hosts changed outside owned fixture; refusing overwrite')
+                hosts_path.write_bytes(hosts_before)
+                if hosts_path.read_bytes()!=hosts_before:raise RuntimeError('hosts restoration unconfirmed')
+                print('NATIVE_VISIBLE_HOSTS_EXACT_RESTORE_PASS',flush=True)
+        except BaseException as exc:cleanup_errors.append('hosts-cleanup:'+type(exc).__name__)
+        try:
+            if ca_owned:
+                trust('remove');trust('absent')
+                print('NATIVE_VISIBLE_CURRENTUSER_CA_EXACT_REMOVAL_PASS',flush=True)
+        except BaseException as exc:cleanup_errors.append('CA-cleanup:'+type(exc).__name__)
         if cleanup_errors:raise RuntimeError(';'.join(cleanup_errors))
 
 if __name__=='__main__':
     if len(sys.argv)==3 and sys.argv[1]=='--child':run_child(pathlib.Path(sys.argv[2]))
     elif len(sys.argv)==1:parent()
     elif sys.argv[1:]==['--scm']:parent(scm_mode=True)
+    elif sys.argv[1:]==['--visible']:parent(scm_mode=True,visible=True)
     else:raise SystemExit('unsupported invocation')

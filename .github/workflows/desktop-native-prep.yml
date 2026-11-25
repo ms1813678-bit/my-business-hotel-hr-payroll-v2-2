@@ -68,3 +68,10 @@ jobs:
           Write-Output 'ISS_COMPILE_PASS SOURCE_STAGING_ONLY NEVER_RUN_NOT_RELEASED'
           # No artifact upload, no installer execution or publication. Runner disposal
           # removes the disposable compile outputs and dependency virtual environment.
+      - name: Preserve synthetic visible proof only
+        uses: actions/upload-artifact@v4
+        with:
+          name: synthetic-visible-proof
+          path: ${{ runner.temp }}/hony-visible-proof/
+          if-no-files-found: error
+          retention-days: 1
