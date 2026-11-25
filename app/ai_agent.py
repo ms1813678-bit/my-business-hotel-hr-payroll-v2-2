@@ -348,6 +348,11 @@ class ExecutionResult:
         return self.audit
 
 
+def _employee_value_taken(db, field: str, value: str, exclude_employee_id: int) -> bool:
+    return db.scalar(select(Employee.id).where(
+        getattr(Employee, field) == value, Employee.id != exclude_employee_id).limit(1)) is not None
+
+
 def execute_plan(plan: dict[str, Any], actor: str, *, db=None, human_coverage_confirmed=False) -> ExecutionResult:
     validate_plan_values(plan)
     if type(human_coverage_confirmed) is not bool:
@@ -453,6 +458,9 @@ def execute_plan(plan: dict[str, Any], actor: str, *, db=None, human_coverage_co
                         ):
                             raise ValueError(NATIONAL_ID_ERROR)
                     old_value = getattr(employee, field)
+                    if (field in {"national_id", "fingerprint_id"} and new_value is not None and old_value != new_value
+                            and _employee_value_taken(db, field, new_value, employee.id)):
+                        raise ValueError(f"{field} مستخدم بالفعل.")
                     if old_value != new_value:
                         setattr(employee, field, new_value)
                         db.add(EmployeeChange(employee_id=employee.id, field_name=field,

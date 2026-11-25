@@ -1,6 +1,6 @@
 {
   "verification/windows_integrated_candidate/ACQUISITION-LOCK.json": "3e3780d78e436454a2e14cff19866c75daf2c83ac0bc0dca7e10cc3f2036fc53",
-  "verification/windows_integrated_candidate/PRODUCT-SHA256.json": "9b9653a259bf2bd9bce9600af1431a3f19d7bf284a2ab64e2eba273eefdfbc86",
+  "verification/windows_integrated_candidate/PRODUCT-SHA256.json": "673676f156f97fd7f8745df867e3945ba578e5691816cd7d6ea5e08b4638f7da",
   "verification/windows_integrated_candidate/acquire_locked.py": "4e998f4bc4f62921d0b9f92e9ae956e857d18cadb75dcd083ddd9a4f17847546",
   "verification/windows_integrated_candidate/candidate_parent.py": "ba3687dc22ab808b7dcf642dc9e9f42f592cea33314d8cb964e7940e386a687f",
   "verification/windows_integrated_candidate/candidate_worker.py": "d99eac2c3dafd854fd3a3e2fca7b91049cf3ef7fb19ce0656de6e5b311d0e4fa",

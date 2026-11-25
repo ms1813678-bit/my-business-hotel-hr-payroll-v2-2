@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import secrets
 import os
 import shutil
@@ -294,7 +295,11 @@ def _find_pg_tool(name: str) -> str:
     if found:
         return found
     if os.name == "nt":
-        for candidate in sorted(Path("C:/Program Files/PostgreSQL").glob(f"*/bin/{name}.exe"), reverse=True):
+        def _version_key(path: Path) -> tuple:
+            # Numeric, not lexicographic: 17 must outrank 9.6. Non-numeric folders sort last.
+            parts = re.findall(r"\d+", path.parent.parent.name)
+            return (1, tuple(int(p) for p in parts)) if parts else (0, ())
+        for candidate in sorted(Path("C:/Program Files/PostgreSQL").glob(f"*/bin/{name}.exe"), key=_version_key, reverse=True):
             if candidate.is_file():
                 return str(candidate)
     raise FileNotFoundError(f"{name} was not found. Install PostgreSQL client tools and add them to PATH.")

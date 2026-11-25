@@ -47,6 +47,8 @@ def _validate(proposal):
     if (not isinstance(proposal.days_delta, Decimal)
             or not proposal.days_delta.is_finite() or proposal.days_delta == 0):
         raise ValueError('Finite nonzero Decimal days required.')
+    from app.leave_balance_rules import _bounded_amount
+    _bounded_amount(proposal.days_delta)   # same resource bound as every other manual change
     for value, limit in ((proposal.reason, 4000), (proposal.operation_key, 160)):
         if not isinstance(value, str) or not value.strip() or value != value.strip() or len(value) > limit:
             raise ValueError('Explicit bounded reason and operation key required.')

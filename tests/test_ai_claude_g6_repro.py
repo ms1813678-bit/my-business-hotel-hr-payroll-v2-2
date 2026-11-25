@@ -216,6 +216,7 @@ def test_edit_fingerprint_preview_and_execution_agree(monkeypatch, raw, stored):
     emp = _edit_emp(); db = _DB(emp)
     monkeypatch.setattr(ai_agent, "EmployeeChange", lambda **k: types.SimpleNamespace(**k))
     monkeypatch.setattr(ai_agent, "AuditLog", lambda **k: types.SimpleNamespace(**k))
+    monkeypatch.setattr(ai_agent, "_employee_value_taken", lambda *a: False)  # this double answers every scalar() with the employee
     ai_agent.execute_plan(plan, "admin", db=db)
     assert emp.fingerprint_id == stored
     preview = ai_gateway.build_confirmation_preview(plan, session=db)

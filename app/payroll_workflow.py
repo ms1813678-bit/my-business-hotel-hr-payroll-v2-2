@@ -82,10 +82,19 @@ def _active_days(periods: list[EmployeeServicePeriod], start: date, end: date) -
 def _coerce_employee_history_value(field_name: str, value):
     if value is None:
         return None
-    if field_name in {"basic_salary", "daily_hours"}:
-        return Decimal(str(value))
-    if field_name in {"department_id", "branch_id"}:
-        return int(value)
+    try:
+        if field_name in {"basic_salary", "daily_hours"}:
+            result = Decimal(str(value))
+            if not result.is_finite():
+                raise ValueError("not finite")
+            return result
+        if field_name in {"department_id", "branch_id"}:
+            return int(value)
+    except (ArithmeticError, ValueError, TypeError) as exc:
+        raise ValueError(
+            f"Employee change history for {field_name} is malformed; "
+            "reconcile the employee change history before payroll."
+        ) from exc
     return str(value)
 
 

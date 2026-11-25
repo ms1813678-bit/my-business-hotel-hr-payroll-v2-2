@@ -478,6 +478,14 @@ def format_security_comparison_report_ar(report: dict[str, Any]) -> str:
 
 def answer_security_roster_comparison(question: str, language: str = "ar") -> str:
     """Entry point for the AI assistant analysis path."""
-    work_date = parse_work_date_from_question(question)
+    try:
+        work_date = parse_work_date_from_question(question)
+    except ValueError:
+        return _msg(
+            language,
+            "التاريخ غير صحيح. اكتب التاريخ بصيغة YYYY-MM-DD.",
+            "The date is not valid. Write it as YYYY-MM-DD.",
+            "日期无效，请使用 YYYY-MM-DD 格式。",
+        )
     report = load_security_fingerprint_comparison(work_date)
     return format_security_comparison_report(report, language=language)

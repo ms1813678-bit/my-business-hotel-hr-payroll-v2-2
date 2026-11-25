@@ -98,6 +98,9 @@ def create_advance(
             previous_request = db.get(AdvanceRequest, previous_request_id)
             if previous_request is None:
                 raise ValueError("The previous advance submission no longer exists.")
+            if (previous_request.employee_id != employee_id or previous_request.advance_type != advance_type
+                    or Decimal(str(previous_request.amount)) != Decimal(str(amount))):
+                raise ValueError("This submission key was already used for a different advance request.")
             return previous_request
 
     salary = Decimal(str(employee.basic_salary))

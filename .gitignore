@@ -20,3 +20,7 @@ build/
 *.bak
 *.log
 .DS_Store
+
+# Backup key and encrypted archives (normally live outside the repo)
+backup_encryption_key*.json
+*.zip.enc

@@ -2296,7 +2296,8 @@ def cancel_leave_record(
         return RedirectResponse("/leave?error=cancel", status_code=303)
     try:
         with SessionLocal.begin() as db:
-            record = db.get(LeaveRecord, record_id)
+            record = db.scalar(select(LeaveRecord).where(LeaveRecord.id == record_id)
+                               .with_for_update().execution_options(populate_existing=True))
             if record is None:
                 return RedirectResponse("/leave?error=record", status_code=303)
             cancel_leave(db, record, admin.username, reason)

@@ -143,6 +143,16 @@ def _load_rows(file_bytes: bytes, filename: str, *, bounded=False):
                                     raise ValueError('fingerprint_evidence_scan_limit')
                                 raw_max_column=max(raw_max_column,column_number)
                             element.clear()
+        if not bounded:
+            # Ordinary path: same archive expansion bound as the evidence path (compression bombs).
+            from zipfile import BadZipFile, ZipFile
+            try:
+                with ZipFile(BytesIO(file_bytes)) as archive:
+                    members = archive.infolist()
+                    if len(members) > 3000 or sum(m.file_size for m in members) > 60000000:
+                        raise ValueError('attendance_workbook_archive_limit')
+            except BadZipFile:
+                pass  # openpyxl reports its own decode error for malformed workbooks
         workbook = load_workbook(BytesIO(file_bytes), read_only=True, data_only=True)
         try:
             result = []

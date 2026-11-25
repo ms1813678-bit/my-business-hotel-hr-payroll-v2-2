@@ -584,9 +584,9 @@ def _classify_attendance_row(record: AttendanceDailyRecord) -> list[tuple[str, o
         early = max(0, int((record.scheduled_end_at - actual_end).total_seconds() // 60))
         if early > 0:
             notes.append(("early_out", early))
-    if record.first_clock_in is None and record.program_clock_in is None:
+    if actual_start is None:
         notes.append(("no_clock_in", None))
-    if record.last_clock_out is None and record.program_clock_out is None:
+    if actual_end is None:
         notes.append(("no_clock_out", None))
     if record.worked_minutes is not None and record.scheduled_start_at and record.scheduled_end_at:
         # worked_minutes is stored as true elapsed time, so the scheduled side
