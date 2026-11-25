@@ -76,6 +76,15 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
+      - name: Retain bounded synthetic popup failure proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: synthetic-popup-failure-proof
+          path: ${{ runner.temp }}/hony-visible-failure-proof/
+          if-no-files-found: ignore
+          retention-days: 1
+
       - name: Retain synthetic authenticated page proof
         if: always()
         uses: actions/upload-artifact@v4

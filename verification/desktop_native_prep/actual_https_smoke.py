@@ -220,7 +220,13 @@ def parent(scm_mode=False,visible=False,authenticated=False):
             win32job.AssignProcessToJobObject(job,process)
             if win32process.ResumeThread(thread)!=1:raise RuntimeError('visible prior suspend count refused')
             if win32event.WaitForSingleObject(process,75000)!=win32con.WAIT_OBJECT_0:raise RuntimeError('visible window deadline')
-            if win32process.GetExitCodeProcess(process)!=0:raise RuntimeError('visible actual window child failed')
+            if win32process.GetExitCodeProcess(process)!=0:
+                # Retain only known synthetic result/pixels, never DB/config/keys.
+                failed=pathlib.Path(os.environ['RUNNER_TEMP'])/'hony-visible-failure-proof'
+                failed.mkdir(exist_ok=False)
+                for name in ['visible-window-result.json','visible-login.png','visible-popup.png']:
+                    if (root/name).is_file():shutil.copy2(root/name,failed/name)
+                raise RuntimeError('visible actual window child failed')
             result_name='authenticated-window-result.json' if authenticated else 'visible-window-result.json'
             result=json.loads((root/result_name).read_text())
             expected='authenticated-pages-rendered' if authenticated else 'visible-login-rendered'

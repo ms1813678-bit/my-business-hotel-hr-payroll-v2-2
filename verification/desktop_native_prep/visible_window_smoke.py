@@ -52,6 +52,7 @@ def run(root):
     def observed_create(*args,**kwargs):
         window=original(*args,**kwargs)
         def loaded():
+            stage='login-dom'
             try:
                 # Production create/start/guard/navigation/TLS are unchanged.
                 until=time.monotonic()+15
@@ -75,6 +76,7 @@ def run(root):
                 image=ImageGrab.grab(bbox=box,all_screens=True)
                 image.save(root/'visible-login.png')
                 evidence.update(status='visible-login-rendered',password_inputs=parsed['passwords'],forms=parsed['forms'],exact_origin=True,width=image.width,height=image.height,normal_TLS=True)
+                stage='popup-handoff'
                 root_guard=next(g for g in guards if g._window is window)
                 window.evaluate_js('document.querySelector("input[name=username]").value="synthetic-unsaved-marker";window.open(location.origin+"/login","_blank")')
                 until=time.monotonic()+15;popup=None
@@ -89,6 +91,7 @@ def run(root):
                     time.sleep(.1)
                 else:raise RuntimeError('actual guarded popup handoff missing')
                 # Native popup must retain exact production environment/profile.
+                stage='popup-environment-profile'
                 def check_shared():
                     from System.Reflection import BindingFlags
                     from System.Runtime.InteropServices import Marshal
@@ -105,8 +108,10 @@ def run(root):
                     finally:
                         for pointer in reversed(pointers):Marshal.Release(pointer)
                 root_guard._marshal_to_ui(popup.control,check_shared)
+                stage='parent-marker'
                 if root_guard.opened_new_windows!=1:raise RuntimeError('popup open count mismatch')
                 if window.evaluate_js('document.querySelector("input[name=username]").value')!='synthetic-unsaved-marker':raise RuntimeError('parent unsaved marker replaced')
+                stage='popup-login-dom'
                 until=time.monotonic()+10
                 while time.monotonic()<until:
                     holder=[]
@@ -115,9 +120,11 @@ def run(root):
                     if result.get('ready')=='complete' and result.get('passwords')==1:break
                     time.sleep(.1)
                 else:raise RuntimeError('popup actual login DOM missing')
+                stage='popup-pixels'
                 handles=[];root_guard._marshal_to_ui(popup.control,lambda:handles.append(int(popup.form.Handle.ToInt64())))
                 phwnd=handles[0];box=win32gui.GetWindowRect(phwnd)
                 ImageGrab.grab(bbox=box,all_screens=True).save(root/'visible-popup.png')
+                stage='foreign-popup-refusal'
                 window.evaluate_js('window.open("https://foreign-popup.invalid/","_blank")')
                 until=time.monotonic()+5
                 while root_guard.blocked_new_windows!=1:
@@ -127,7 +134,9 @@ def run(root):
                 evidence.update(popup_same_origin_login_rendered=True,popup_shared_environment_profile=True,parent_unsaved_marker_preserved=True,foreign_popup_guard_refused=True)
                 # This tests a marker, not a business editor save/close contract.
 
-            except BaseException as exc:evidence.update(status='failed',error_type=type(exc).__name__)
+            except BaseException as exc:
+                evidence.update(status='failed',error_type=type(exc).__name__,failed_stage=stage)
+                print('NATIVE_POPUP_FIXTURE_FAILED',stage,type(exc).__name__,flush=True)
             finally:window.destroy()
         window.events.loaded+=loaded
         return window
