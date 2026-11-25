@@ -96,23 +96,34 @@ def parent():
         else:raise RuntimeError('untrusted fixture leaf unexpectedly accepted')
         print('NATIVE_ACTUAL_HTTPS_BACKEND_DB_TLS_PASS',json.dumps({'production_settings':True,'real_app_health_database':'connected','strict_CA_hostname':True,'untrusted_CA_refused':True,'foreign_host_origin_refused':True,'no_store':True,'SCM_combined':False,'visible_window':False}),flush=True)
     finally:
-        if job is not None:win32job.TerminateJobObject(job,99)
-        if process is not None:
-            if win32event.WaitForSingleObject(process,0)!=win32con.WAIT_OBJECT_0:win32process.TerminateProcess(process,99)
-            if win32event.WaitForSingleObject(process,5000)!=win32con.WAIT_OBJECT_0:raise RuntimeError('owned HTTPS child cleanup unconfirmed')
-        if job is not None:
-            until=time.monotonic()+5
-            while win32job.QueryInformationJobObject(job,win32job.JobObjectBasicAccountingInformation)['ActiveProcesses']:
-                if time.monotonic()>until:raise RuntimeError('owned HTTPS Job cleanup unconfirmed')
-                time.sleep(.1)
-            print('NATIVE_ACTUAL_HTTPS_OWNED_JOB_CLEANUP_PASS',flush=True)
-        for h in [thread,process,job]:
-            if h is not None:h.Close()
-        if pgstarted:
-            subprocess.run([str(pg/'pg_ctl.exe'),'-D',str(cluster),'-m','fast','-w','stop'],check=True,timeout=40)
-            result=subprocess.run([str(pg/'pg_ctl.exe'),'-D',str(cluster),'status'],capture_output=True)
-            if result.returncode!=3:raise RuntimeError('owned synthetic PostgreSQL stop unconfirmed')
-            print('NATIVE_ACTUAL_HTTPS_OWNED_POSTGRES_STOP_PASS',flush=True)
+        # Independent cleanup phases: a child error must never skip owned PG stop.
+        cleanup_errors=[]
+        try:
+            if job is not None:win32job.TerminateJobObject(job,99)
+            if process is not None:
+                if win32event.WaitForSingleObject(process,5000)!=win32con.WAIT_OBJECT_0:
+                    try:win32process.TerminateProcess(process,99)
+                    except Exception:
+                        if win32event.WaitForSingleObject(process,5000)!=win32con.WAIT_OBJECT_0:raise
+                    if win32event.WaitForSingleObject(process,5000)!=win32con.WAIT_OBJECT_0:raise RuntimeError('owned HTTPS child cleanup unconfirmed')
+            if job is not None:
+                until=time.monotonic()+5
+                while win32job.QueryInformationJobObject(job,win32job.JobObjectBasicAccountingInformation)['ActiveProcesses']:
+                    if time.monotonic()>until:raise RuntimeError('owned HTTPS Job cleanup unconfirmed')
+                    time.sleep(.1)
+                print('NATIVE_ACTUAL_HTTPS_OWNED_JOB_CLEANUP_PASS',flush=True)
+        except BaseException as exc:cleanup_errors.append('child-cleanup:'+type(exc).__name__)
+        finally:
+            for h in [thread,process,job]:
+                if h is not None:h.Close()
+        try:
+            if pgstarted:
+                subprocess.run([str(pg/'pg_ctl.exe'),'-D',str(cluster),'-m','fast','-w','stop'],check=True,timeout=40)
+                result=subprocess.run([str(pg/'pg_ctl.exe'),'-D',str(cluster),'status'],capture_output=True)
+                if result.returncode!=3:raise RuntimeError('owned synthetic PostgreSQL stop unconfirmed')
+                print('NATIVE_ACTUAL_HTTPS_OWNED_POSTGRES_STOP_PASS',flush=True)
+        except BaseException as exc:cleanup_errors.append('postgres-cleanup:'+type(exc).__name__)
+        if cleanup_errors:raise RuntimeError(';'.join(cleanup_errors))
 
 if __name__=='__main__':
     if len(sys.argv)==3 and sys.argv[1]=='--child':run_child(pathlib.Path(sys.argv[2]))

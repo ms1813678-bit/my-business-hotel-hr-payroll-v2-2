@@ -1,3 +1,7 @@
+## 2026-11-25 - Independently verify HTTPS fixture cleanup by Instinct
+
+- Real HTTPS/DB/TLS checks passed but immediate fallback TerminateProcess failed after Job termination, and skipped owned PostgreSQL stop. Wait for exact process signal first, require positive exit/Job-zero proof even after a termination error, and always run PostgreSQL stop as an independent cleanup phase. No cleanup success inferred from runner disposal.
+
 ## 2026-11-25 - Qualify real HTTPS application backend by Instinct
 
 - Use exact desktop server/config/certificate/origin source against actual application in fresh synthetic tree and migrated SCRAM loopback PostgreSQL. Use RFC1918 runner bind, ephemeral CA/leaf and explicit SNI/CA validation without trust-store/hosts/firewall changes. Check real DB health, foreign-origin refusal and no-store, then owned process/cluster teardown. Not combined SCM/window/hotel acceptance.
