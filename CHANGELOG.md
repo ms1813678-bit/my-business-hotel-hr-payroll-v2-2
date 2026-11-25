@@ -305,3 +305,7 @@ The separate Windows parser candidate now measures actual RX opens and unnamed S
 ## Instinct: scoped debugger-observed startup, 25 November 2026
 
 Separate parser candidate only: attach debugger to the actual suspended child, recheck token/Job, bounded event loop, fixed-label/status-only output. Temporary image-name-specific loader flag is restored with readback; non-DWORD prior value refuses unchanged. Native script parse and strict compile precede registry effects. This alters timing/exception flow, so results are diagnostic only, never normal execution acceptance. No raw debug text, memory dumps, relaunch, capabilities, ACL or Job changes. Empty debug output does not localize a cause.
+
+## Instinct: debug-at-creation diagnostic baseline, 25 November 2026
+
+The attach-based attempt refused at the resume gate with actual prior count unrecorded, not a new C0000022 finding. A separate diagnostic baseline now adds DEBUG_ONLY_THIS_PROCESS at creation alongside CREATE_SUSPENDED, holds the first creation event before user code, verifies identity/token/Job, records and requires exactly one prior suspension before continuing. No count normalization. Held file ownership is consumed before close; cleanup kills before releasing any failed gate and never detaches an unconfirmed live child. Effective inherited mitigation parity remains unverified. No production parser enablement or workload budget change.

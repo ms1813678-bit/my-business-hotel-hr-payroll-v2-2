@@ -1,5 +1,5 @@
 name: Integrated synthetic Windows parser candidate
-# Revision: scoped debugger-observed startup, no normal-execution acceptance
+# Revision: debug-at-creation distinct diagnostic baseline, exact1 resume gate
 on:
   push:
     branches: [ui-overhaul]
