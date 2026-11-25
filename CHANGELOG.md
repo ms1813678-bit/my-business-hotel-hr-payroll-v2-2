@@ -1,3 +1,7 @@
+## 2026-11-25 - Qualify real HTTPS application backend by Instinct
+
+- Use exact desktop server/config/certificate/origin source against actual application in fresh synthetic tree and migrated SCRAM loopback PostgreSQL. Use RFC1918 runner bind, ephemeral CA/leaf and explicit SNI/CA validation without trust-store/hosts/firewall changes. Check real DB health, foreign-origin refusal and no-store, then owned process/cluster teardown. Not combined SCM/window/hotel acceptance.
+
 ## 2026-11-25 - Qualify isolated native SCM adapter by Instinct
 
 - Use exact recovered service adapter with synthetic configuration/server seams, unique demand-start NetworkService name and owned fixture ACL grants only. Verify running heartbeat, independent ordinary process completion, clean explicit stop and exact service removal. Not real backend, desktop-window, hotel or production service acceptance.

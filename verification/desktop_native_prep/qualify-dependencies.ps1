@@ -59,3 +59,7 @@ if ($LASTEXITCODE -ne 0) { throw 'Actual offline wheel closure qualification ref
 # Unique disposable SCM adapter, synthetic worker only, no app/TLS/DB config.
 & $VenvPython -I (Join-Path $Here 'scm_adapter_smoke.py')
 if ($LASTEXITCODE -ne 0) { throw 'Native isolated SCM adapter qualification refused.' }
+
+# Actual HTTPS app/production settings with synthetic PostgreSQL and ephemeral TLS.
+& $VenvPython -I (Join-Path $Here 'actual_https_smoke.py')
+if ($LASTEXITCODE -ne 0) { throw 'Actual isolated HTTPS backend qualification refused.' }

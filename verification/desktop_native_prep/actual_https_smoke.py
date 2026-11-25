@@ -1,0 +1,120 @@
+"""NEW actual HTTPS backend fixture, disposable native CI, synthetic config/DB/TLS only."""
+import hashlib,http.client,ipaddress,json,os,pathlib,secrets,shutil,socket,ssl,subprocess,sys,time,uuid
+HERE=pathlib.Path(__file__).resolve().parent
+
+def run_child(root):
+    sys.path.insert(0,str(root/'source'))
+    from app.desktop_config import DesktopConfig
+    from app.desktop_server import create_server
+    config=DesktopConfig.load(root/'desktop.json')
+    create_server(config).run()
+
+def parent():
+    if sys.platform!='win32' or os.environ.get('GITHUB_ACTIONS')!='true':raise RuntimeError('disposable native CI required')
+    import win32api,win32con,win32event,win32job,win32process
+    from cryptography import x509
+    from cryptography.hazmat.primitives import hashes,serialization
+    from cryptography.hazmat.primitives.asymmetric import rsa
+    from cryptography.x509.oid import NameOID,ExtendedKeyUsageOID
+    from datetime import datetime,timedelta,timezone
+    root=pathlib.Path(os.environ['RUNNER_TEMP'])/'hony-actual-https-fixture'
+    if root.exists():raise RuntimeError('fresh fixture root required')
+    root.mkdir();source=root/'source';source.mkdir()
+    # Restore ONLY git-tracked public app consumer bytes, never checkout env/runtime.
+    manifest=json.loads((HERE/'stage-source-manifest.json').read_bytes())
+    for e in manifest['files']:
+        blob=subprocess.check_output(['git','cat-file','blob','HEAD:'+e['path']])
+        if hashlib.sha256(blob).hexdigest()!=e['sha256']:raise RuntimeError('source hash refused')
+        p=source/e['path'];p.parent.mkdir(parents=True,exist_ok=True);p.write_bytes(blob)
+    for name in ['desktop_config','desktop_server','desktop_certificate','desktop_security','desktop_window']:
+        shutil.copy2(HERE/(name+'.RECOVERED-EXACT.py'),source/'app'/(name+'.py'))
+    addresses=[]
+    for item in socket.getaddrinfo(socket.gethostname(),None,socket.AF_INET):
+        addr=item[4][0]
+        if any(ipaddress.ip_address(addr) in ipaddress.ip_network(n) for n in ['10.0.0.0/8','172.16.0.0/12','192.168.0.0/16']):addresses.append(addr)
+    if not addresses:raise RuntimeError('runner has no policy-compatible RFC1918 IPv4')
+    bind=sorted(set(addresses))[0]
+    with socket.socket() as sock:sock.bind((bind,0));port=sock.getsockname()[1]
+    with socket.socket() as sock:sock.bind(('127.0.0.1',0));pgport=sock.getsockname()[1]
+    hostname='hony-qualification.invalid';origin=f'https://{hostname}:{port}'
+    now=datetime.now(timezone.utc)
+    ca_key=rsa.generate_private_key(public_exponent=65537,key_size=2048)
+    subject=x509.Name([x509.NameAttribute(NameOID.COMMON_NAME,'Disposable fixture CA')])
+    ca=(x509.CertificateBuilder().subject_name(subject).issuer_name(subject).public_key(ca_key.public_key()).serial_number(x509.random_serial_number()).not_valid_before(now-timedelta(minutes=5)).not_valid_after(now+timedelta(days=2)).add_extension(x509.BasicConstraints(ca=True,path_length=0),critical=True).sign(ca_key,hashes.SHA256()))
+    key=rsa.generate_private_key(public_exponent=65537,key_size=2048)
+    leaf=(x509.CertificateBuilder().subject_name(x509.Name([x509.NameAttribute(NameOID.COMMON_NAME,hostname)])).issuer_name(subject).public_key(key.public_key()).serial_number(x509.random_serial_number()).not_valid_before(now-timedelta(minutes=5)).not_valid_after(now+timedelta(days=1)).add_extension(x509.BasicConstraints(ca=False,path_length=None),critical=True).add_extension(x509.SubjectAlternativeName([x509.DNSName(hostname)]),critical=False).add_extension(x509.ExtendedKeyUsage([ExtendedKeyUsageOID.SERVER_AUTH]),critical=False).sign(ca_key,hashes.SHA256()))
+    (root/'ca.pem').write_bytes(ca.public_bytes(serialization.Encoding.PEM))
+    (root/'leaf.pem').write_bytes(leaf.public_bytes(serialization.Encoding.PEM))
+    (root/'leaf.key').write_bytes(key.private_bytes(serialization.Encoding.PEM,serialization.PrivateFormat.PKCS8,serialization.NoEncryption()))
+    # CA private key is never written. No trust-store/hosts/DNS/firewall changes.
+    (root/'desktop.json').write_text(json.dumps(dict(origin=origin,bind_ipv4=bind,certificate=str(root/'leaf.pem'),private_key=str(root/'leaf.key'),project_root=str(source))))
+    installations=sorted((pathlib.Path(os.environ['ProgramFiles'])/'PostgreSQL').glob('[0-9]*/bin'),key=lambda p:int(p.parent.name),reverse=True)
+    if not installations:raise RuntimeError('preinstalled PostgreSQL required')
+    pg=installations[0];cluster=root/'postgres';pw=root/'test-password';pw.write_text('synthetic-fixture-password')
+    pgstarted=False;job=process=thread=None;output=None
+    env={**os.environ,'PGPASSWORD':'synthetic-fixture-password','APP_ENV':'production','DATABASE_URL':f'postgresql+psycopg://hotel_fixture:synthetic-fixture-password@127.0.0.1:{pgport}/hotel_fixture','SESSION_SECRET':secrets.token_hex(32),'LOGIN_ALERT_WEBHOOK_URL':''}
+    (source/'.env').write_text('APP_ENV=production\nDATABASE_URL='+env['DATABASE_URL']+'\nSESSION_SECRET='+env['SESSION_SECRET']+'\n')
+    try:
+        subprocess.run([str(pg/'initdb.exe'),'-D',str(cluster),'-U','hotel_fixture','--encoding=UTF8','--locale=C','--auth=scram-sha-256','--pwfile',str(pw)],check=True,timeout=50)
+        pw.unlink()
+        subprocess.run([str(pg/'pg_ctl.exe'),'-D',str(cluster),'-l',str(root/'postgres.log'),'-o',f'-h 127.0.0.1 -p {pgport}','-w','start'],check=True,timeout=50);pgstarted=True
+        subprocess.run([str(pg/'createdb.exe'),'-h','127.0.0.1','-p',str(pgport),'-U','hotel_fixture','hotel_fixture'],check=True,env=env,timeout=15)
+        # Real migrations using exact application source, no system Python path guess.
+        subprocess.run([sys.executable,'-I','-c','import sys,runpy;sys.path.insert(0,sys.argv.pop(1));sys.argv=["alembic","upgrade","head"];runpy.run_module("alembic",run_name="__main__")',str(source)],cwd=source,env=env,check=True,timeout=60)
+        win32api.SetLastError(0);job=win32job.CreateJobObject(None,'Local\\HOnY-https-'+uuid.uuid4().hex)
+        if win32api.GetLastError()==183:raise RuntimeError('fresh Job required')
+        info=win32job.QueryInformationJobObject(job,win32job.JobObjectExtendedLimitInformation);info['BasicLimitInformation']['LimitFlags']|=win32job.JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;win32job.SetInformationJobObject(job,win32job.JobObjectExtendedLimitInformation,info)
+        command=subprocess.list2cmdline([sys.executable,'-I',str(HERE/'actual_https_smoke.py'),'--child',str(root)])
+        startup=win32process.STARTUPINFO()
+        process,thread,pid,tid=win32process.CreateProcess(sys.executable,command,None,None,False,win32con.CREATE_SUSPENDED,env,str(source),startup)
+        win32job.AssignProcessToJobObject(job,process)
+        if win32process.ResumeThread(thread)!=1:raise RuntimeError('prior suspend count refused')
+        context=ssl.create_default_context(cafile=str(root/'ca.pem'))
+        def request(path='/health',host=None,origin_header=None,ctx=context):
+            raw=socket.create_connection((bind,port),timeout=4)
+            try:
+                tls=ctx.wrap_socket(raw,server_hostname=hostname)
+            except BaseException:raw.close();raise
+            with tls:
+                data='GET '+path+' HTTP/1.1\r\nHost: '+(host or f'{hostname}:{port}')+'\r\nConnection: close\r\n'
+                if origin_header:data+='Origin: '+origin_header+'\r\n'
+                tls.sendall((data+'\r\n').encode('ascii'));resp=http.client.HTTPResponse(tls);resp.begin();return resp.status,dict(resp.getheaders()),resp.read()
+        until=time.monotonic()+35
+        while True:
+            try:status,headers,body=request();break
+            except (OSError,ssl.SSLError):
+                if win32event.WaitForSingleObject(process,0)==win32con.WAIT_OBJECT_0:raise RuntimeError('actual backend child exited '+str(win32process.GetExitCodeProcess(process)))
+                if time.monotonic()>until:raise RuntimeError('actual HTTPS bounded readiness failed')
+                time.sleep(.2)
+        assert status==200 and json.loads(body)=={'status':'ok','database':'connected'}
+        assert headers.get('cache-control')=='no-store, private'
+        assert request(host='foreign.invalid')[0]==403
+        assert request(origin_header='https://foreign.invalid')[0]==403
+        assert request(origin_header=origin)[0]==200
+        try:request(ctx=ssl.create_default_context())
+        except ssl.SSLCertVerificationError:pass
+        else:raise RuntimeError('untrusted fixture leaf unexpectedly accepted')
+        print('NATIVE_ACTUAL_HTTPS_BACKEND_DB_TLS_PASS',json.dumps({'production_settings':True,'real_app_health_database':'connected','strict_CA_hostname':True,'untrusted_CA_refused':True,'foreign_host_origin_refused':True,'no_store':True,'SCM_combined':False,'visible_window':False}),flush=True)
+    finally:
+        if job is not None:win32job.TerminateJobObject(job,99)
+        if process is not None:
+            if win32event.WaitForSingleObject(process,0)!=win32con.WAIT_OBJECT_0:win32process.TerminateProcess(process,99)
+            if win32event.WaitForSingleObject(process,5000)!=win32con.WAIT_OBJECT_0:raise RuntimeError('owned HTTPS child cleanup unconfirmed')
+        if job is not None:
+            until=time.monotonic()+5
+            while win32job.QueryInformationJobObject(job,win32job.JobObjectBasicAccountingInformation)['ActiveProcesses']:
+                if time.monotonic()>until:raise RuntimeError('owned HTTPS Job cleanup unconfirmed')
+                time.sleep(.1)
+            print('NATIVE_ACTUAL_HTTPS_OWNED_JOB_CLEANUP_PASS',flush=True)
+        for h in [thread,process,job]:
+            if h is not None:h.Close()
+        if pgstarted:
+            subprocess.run([str(pg/'pg_ctl.exe'),'-D',str(cluster),'-m','fast','-w','stop'],check=True,timeout=40)
+            result=subprocess.run([str(pg/'pg_ctl.exe'),'-D',str(cluster),'status'],capture_output=True)
+            if result.returncode!=3:raise RuntimeError('owned synthetic PostgreSQL stop unconfirmed')
+            print('NATIVE_ACTUAL_HTTPS_OWNED_POSTGRES_STOP_PASS',flush=True)
+
+if __name__=='__main__':
+    if len(sys.argv)==3 and sys.argv[1]=='--child':run_child(pathlib.Path(sys.argv[2]))
+    elif len(sys.argv)==1:parent()
+    else:raise SystemExit('unsupported invocation')
