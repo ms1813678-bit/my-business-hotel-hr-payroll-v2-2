@@ -27,7 +27,8 @@ def parent(scm_mode=False,visible=False,authenticated=False):
         if hashlib.sha256(blob).hexdigest()!=e['sha256']:raise RuntimeError('source hash refused')
         p=source/e['path'];p.parent.mkdir(parents=True,exist_ok=True);p.write_bytes(blob)
     for name in ['desktop_config','desktop_server','desktop_certificate','desktop_security','desktop_window','desktop_service','desktop_diagnostics','desktop_webview_guard']:
-        shutil.copy2(HERE/(name+'.RECOVERED-EXACT.py'),source/'app'/(name+'.py'))
+        suffix='.CANDIDATE.py' if name=='desktop_webview_guard' else '.RECOVERED-EXACT.py'
+        shutil.copy2(HERE/(name+suffix),source/'app'/(name+'.py'))
     addresses=[]
     for item in socket.getaddrinfo(socket.gethostname(),None,socket.AF_INET):
         addr=item[4][0]

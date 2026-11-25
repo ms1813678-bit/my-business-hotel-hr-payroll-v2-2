@@ -83,23 +83,40 @@ def run(root):
                     if len(candidates)==1:
                         popup=candidates[0]
                         if popup not in observed_popups:observed_popups.append(popup)
-                        if str(popup.control.CoreWebView2.Source).startswith(origin+'/login'):break
+                        holder=[]
+                        root_guard._marshal_to_ui(popup.control,lambda:holder.append(str(popup.control.CoreWebView2.Source)))
+                        if holder and holder[0].startswith(origin+'/login'):break
                     time.sleep(.1)
                 else:raise RuntimeError('actual guarded popup handoff missing')
                 # Native popup must retain exact production environment/profile.
-                core=popup.control.CoreWebView2;opener=root_guard._control.CoreWebView2
-                if core.Environment!=opener.Environment or core.Profile.ProfileName!=opener.Profile.ProfileName:raise RuntimeError('popup environment/profile mismatch')
+                def check_shared():
+                    from System.Reflection import BindingFlags
+                    from System.Runtime.InteropServices import Marshal
+                    core=popup.control.CoreWebView2;opener=root_guard._control.CoreWebView2
+                    pointers=[]
+                    try:
+                        for environment in (core.Environment,opener.Environment):
+                            field=environment.GetType().GetField('_rawNative',BindingFlags.Instance|BindingFlags.NonPublic)
+                            if field is None:raise RuntimeError('environment raw identity absent')
+                            raw=field.GetValue(environment)
+                            if raw is None or not Marshal.IsComObject(raw):raise RuntimeError('environment identity not COM')
+                            pointers.append(Marshal.GetIUnknownForObject(raw))
+                        if pointers[0]!=pointers[1] or core.Profile.ProfileName!=opener.Profile.ProfileName:raise RuntimeError('popup environment/profile mismatch')
+                    finally:
+                        for pointer in reversed(pointers):Marshal.Release(pointer)
+                root_guard._marshal_to_ui(popup.control,check_shared)
                 if root_guard.opened_new_windows!=1:raise RuntimeError('popup open count mismatch')
                 if window.evaluate_js('document.querySelector("input[name=username]").value')!='synthetic-unsaved-marker':raise RuntimeError('parent unsaved marker replaced')
                 until=time.monotonic()+10
                 while time.monotonic()<until:
                     holder=[]
-                    root_guard._marshal_to_ui(popup.control,lambda:holder.append(core.ExecuteScriptAsync('JSON.stringify({ready:document.readyState,passwords:document.querySelectorAll("input[type=password]").length})')))
+                    root_guard._marshal_to_ui(popup.control,lambda:holder.append(popup.control.CoreWebView2.ExecuteScriptAsync('JSON.stringify({ready:document.readyState,passwords:document.querySelectorAll("input[type=password]").length})')))
                     result=json.loads(json.loads(str(holder[0].Result)))
                     if result.get('ready')=='complete' and result.get('passwords')==1:break
                     time.sleep(.1)
                 else:raise RuntimeError('popup actual login DOM missing')
-                phwnd=int(popup.form.Handle.ToInt64());box=win32gui.GetWindowRect(phwnd)
+                handles=[];root_guard._marshal_to_ui(popup.control,lambda:handles.append(int(popup.form.Handle.ToInt64())))
+                phwnd=handles[0];box=win32gui.GetWindowRect(phwnd)
                 ImageGrab.grab(bbox=box,all_screens=True).save(root/'visible-popup.png')
                 window.evaluate_js('window.open("https://foreign-popup.invalid/","_blank")')
                 until=time.monotonic()+5

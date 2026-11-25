@@ -1,7 +1,7 @@
 {
   "HOnY-Desktop-Candidate.RECOVERED-EXACT.iss": "57db2b7c5edeb34bf3cad457e8e92f4bfa457f4b981ed1630f494df37b119451",
   "HOnY-Desktop-Candidate.iss": "e502ceca4b3d542694d34d9d8e159ae763f879ab8b9561bdb282114e3a519137",
-  "actual_https_smoke.py": "120a908c6467cf4617259632622d1032fc6d321238861e340610212dfcfe8c0c",
+  "actual_https_smoke.py": "46efee118b7ba68cd401ddd88b748260a8c48d62221a81aac4c59511f97470dd",
   "actual_scm_controller.py": "8bd169036e2127c14d40dbd6791884c5a4411c68df30a2931f3788c91ecc42b9",
   "auth_fixture/README.md": "70d068c60d17541af155c5b147106426dfe51b752e6dc906038419bbb8c0895e",
   "auth_fixture/seed_fixture.py": "3a5634e581eac323f96d72068797efce11418e91037a89c4950df19ae440d3cd",
@@ -16,8 +16,10 @@
   "desktop_security.RECOVERED-EXACT.py": "48dbc62950b908a09a06421c49983a1ece051e826dbe110cc2d6a227045d69c6",
   "desktop_server.RECOVERED-EXACT.py": "8641fe0e6821feb7fb2a0cfa2f18cd3c2332db86207a81deba1ee04706a028bc",
   "desktop_service.RECOVERED-EXACT.py": "51485828d2704fe95c8044e58fd673b18508cfc8f2323a496d1615e993ddbf4e",
+  "desktop_webview_guard.CANDIDATE.py": "3d389317129a8de528f60c1764c539a94c4f2d1a6d5a20de4c212e463843db18",
   "desktop_webview_guard.RECOVERED-EXACT.py": "9ab40677931f0942a8523f24ee9df68419b07d61cf2fc91f1284cee049fe625e",
   "desktop_window.RECOVERED-EXACT.py": "5adacf0a5264b3ff3de773fd7232eec67ae9813470f4e42a1e5a20c5573fef15",
+  "identity_source_test.py": "7a419134470f9c61e687459fdeb36740841d5f1031a5954ab4bd72b04d120d8e",
   "native_root_hooks.py": "b92a14aa6fcd41b99e84ec384eb9fa67c19a5d16610c5d7192c9bd2e750d54a6",
   "offline_wheel_closure.py": "a01637b46132e2c3133b675ce05712c94e486ca9088062f1a14965cdf78f0184",
   "qualify-dependencies.ps1": "09e93181de1510c9991f42122d0ce1856e9cf5e3c3227315770c3ad034616c82",
@@ -45,5 +47,5 @@
   "stager_candidate/staging/verify_install.py": "fe4d007316b15c1713dd0bff4657353b841963a6e9d8e20ec22d69076e9cb8dd",
   "stager_candidate/staging/verify_wheel_projection.py": "42731e360f9ce73818f9f6730828fc868a6304e9ff832aa7816a898b82d1feab",
   "trust_fixture.ps1": "be7e04129ed402c61ee37a07cf577d36780897e1769a4f4df153c66857bf809a",
-  "visible_window_smoke.py": "3868967b3918002567595c9ff3999e75d6148d04279f7175cb3d795aa1d7cb75"
+  "visible_window_smoke.py": "430112c5738e9c6d6290ea02571598851f5a06bc002e34a3e30403f6a476522a"
 }
