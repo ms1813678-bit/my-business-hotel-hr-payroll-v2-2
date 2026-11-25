@@ -480,3 +480,8 @@ Grounded in owner's23November19:18:47/19:31:57 pay-basis instructions, not a pro
 Applies the owner-approved Item4 report-preset correction from Mido's proposal and independent review. Saving an existing name checks the stored report's existing role scope while holding the row lock. A competing create uses a savepoint, then re-reads and checks the winning row. Deletion locks and checks the current stored scope too. Shared in-scope presets remain shared; no ownership or role policy is changed.
 
 Qualified on Python3.11.18 against a disposable migrated PostgreSQL database with real FastAPI login, sessions, CSRF and concurrent requests, plus existing report/role tests. The opt-in PostgreSQL qualification refuses non-loopback databases or a database not named synth. This narrow correction does not complete Item4 and includes no Item2 daily-overtime schema or UI changes.
+
+
+## Instinct: source/status documentation correction,25November2026
+
+Added one current source/status index and marked older operational checkpoint records as historical. Corrected the README's obsolete single-account and HR-only overtime claims. Recorded the distinct integrated LPAC and committed ordinary-AppContainer measurement artifacts, the measurement's preflight failure, unfinished Item2 qualification and the unresolved historical archive recovery. No application, migration, experiment or deployment change is included in this documentation-only correction.

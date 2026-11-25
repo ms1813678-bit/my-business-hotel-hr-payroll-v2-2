@@ -1,3 +1,5 @@
+> Current verification and source identity: [CURRENT_SOURCE_STATUS.md](CURRENT_SOURCE_STATUS.md). This procedure does not certify a Windows release or hotel-device acceptance. Check current source and actual completed test outcomes before applying it.
+
 # Windows 10 / Windows 11 installation and first administrator
 
 This is the initial setup path for the local M.Y. Business Hotel HR application. It does not install a Windows service or configure auto-start. It is not a complete offline first-install bundle: setup upgrades pip and installs dependencies from package sources, while Python and PostgreSQL must already be installed. Offline runtime after installation is a separate acceptance test.

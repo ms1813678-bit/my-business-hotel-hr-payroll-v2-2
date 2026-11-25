@@ -1,3 +1,5 @@
+> Current verification and source identity: [CURRENT_SOURCE_STATUS.md](CURRENT_SOURCE_STATUS.md). This procedure does not certify a Windows release or hotel-device acceptance. Check current source and actual completed test outcomes before applying it.
+
 # Running the test suite
 
 The suite must run against a database built with the project's real migration

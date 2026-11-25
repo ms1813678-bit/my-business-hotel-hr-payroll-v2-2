@@ -1,3 +1,5 @@
+> Historical record below. Current branch, candidate identities, test outcomes and open work are in [CURRENT_SOURCE_STATUS.md](CURRENT_SOURCE_STATUS.md), updated25November2026. Old HEAD/readiness/pending-publication statements below describe their original checkpoint, not current state. No history has been removed.
+
 # دفتر التعليمات والخطة وسجل التنفيذ — M.Y. Business Hotel HR & Payroll V2.2
 
 > **هذا الملف هو المرجع التشغيلي الرئيسي للمشروع.** يجب قراءته قبل بدء أي مهمة، وتحديثه بعد كل تعديل أو اختبار أو قرار أو اكتشاف مشكلة. لا تعتمد على ذاكرة المحادثة وحدها، ولا تعِد تنفيذ مهمة مسجلة كمكتملة إلا إذا ظهر سبب واضح لإعادة اختبارها.

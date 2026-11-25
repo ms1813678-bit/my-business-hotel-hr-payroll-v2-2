@@ -4,9 +4,13 @@
 
 A local-first HR and payroll application for Windows 10/11, using PostgreSQL on the hotel computer. Version 2 is developed in this repository only. The previous repository is a read-only reference and must not be modified as part of V2 work.
 
+## Current implementation status
+
+Read [the current source/status index](docs/CURRENT_SOURCE_STATUS.md) before using the older setup, architecture or handoff text below. Development is on `ui-overhaul`; daily overtime is still an unpublished draft. Windows installation and hotel-device acceptance are not complete.
+
 ## Product commitments
 
-- One account only: HR Manager / System Administrator.
+- Supported roles include HR/System Administrator, finance and the subordinate assistant. Role-specific powers must follow current verified permissions; no employee or department-manager login is implied.
 - Arabic (RTL), English (LTR), and Simplified Chinese (LTR).
 - Local PostgreSQL and local file storage. No cloud runtime.
 - Core HR/payroll workflows continue when the local AI model is unavailable.
@@ -21,7 +25,7 @@ A local-first HR and payroll application for Windows 10/11, using PostgreSQL on 
 - HR manually uploads the security roster as an Excel file, specifying each guard's shift start time or OFF for each day; the system does not generate or assign shifts. The shift model is determined by the number of active security guards registered in the system, regardless of OFF entries: exactly two active guards use 12-hour shifts (08:00–20:00 and 20:00–08:00), while three or more use 8-hour shifts (08:00–16:00, 16:00–00:00, and 00:00–08:00). OFF does not change the shift model. The system validates the uploaded roster and presents each day for manual HR approval before saving; after approval, the roster is checked against fingerprint clock-in and clock-out records. Never fewer than two guards assigned per day, no gaps, and no overlap. Overnight shifts belong to their start date.
 - Regular advances: request window 15–22 and maximum 25% of eligible basic salary for the accounting month. Installment advances are separate, 1–36 installments.
 - Payroll is normally paid on day 5 of the following month. Hourly rate = basic salary ÷ (daily hours × 30). Absence uses actual calendar days; partial first month is prorated by actual calendar days.
-- Overtime requires HR approval. Taxes and insurance are manually entered/approved; no guessed rates.
+- Overtime payroll access includes HR/System Administrator and finance, not the assistant. Published overtime uses basic plus performance only, divided by30 and the selected rate divisor. Daily review integration is pending; see the current status index. Taxes and insurance remain manual, with no guessed rates.
 - Bonuses and sanctions are manually entered; no automatically generated amounts.
 
 ## Architecture

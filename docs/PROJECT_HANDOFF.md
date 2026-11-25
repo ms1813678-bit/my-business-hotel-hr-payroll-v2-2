@@ -1,3 +1,5 @@
+> Historical record below. Current branch, candidate identities, test outcomes and open work are in [CURRENT_SOURCE_STATUS.md](CURRENT_SOURCE_STATUS.md), updated25November2026. Old HEAD/readiness/pending-publication statements below describe their original checkpoint, not current state. No history has been removed.
+
 # M.Y. Business Hotel HR & Payroll: current development acceptance
 
 Prepared 24 November 2026. Review copy, not an accepted release or installation instruction for real staff data.
