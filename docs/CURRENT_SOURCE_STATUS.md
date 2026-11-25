@@ -9,7 +9,7 @@ Instinct, 25 November 2026, 17:07 Africa/Cairo. This page corrects the stale ope
 - Repository: [my-business-hotel-hr-payroll-v2-2](https://github.com/ms1813678-bit/my-business-hotel-hr-payroll-v2-2).
 - Development branch: `ui-overhaul`. `main` is not the development target. The owner controls merging.
 - Published baseline entering this documentation correction: `d648425744f7603e0d0f2c15699163111040ec24` (maintained decision notebook), following `7f868c5869da3dcd57ff43d8b8fb623813b65396` (shared operator leave recording), `2887068c2d77c02327b92533ef6b16c2ed008b55` (monthly leave reporting), `0c16238161e6b022e1b40c5eae21a506618fa93f` (strict local-model JSON request format) and `42d4e982f31599721458ea15abcb695e47721046` (recovery fixture seam). This correction changes documentation only. Check live development HEAD and working diff before further work; a path existing is not proof of candidate identity.
-- Published schema remains `0065_overtime_day_review`. The later internal0066 attendance schedule assertion candidate is isolated and not integrated or published. Published source is not proof of deployed schema or hotel-device acceptance.
+- Published schema after the UID source checkpoint below is `0067_sync_uid_base_entities`, directly following `0065_overtime_day_review`. The later internal0066 attendance schedule assertion candidate is isolated and not integrated or published. Published source is not proof of deployed schema or hotel-device acceptance.
 - No hotel-device installation or acceptance is established. Use synthetic data until acceptance.
 
 ## Published changes and their limits
@@ -131,3 +131,13 @@ Exactcandidate qualification220passed,4skipped,18warnings30.49s under configured
 Not a real-model or wholeItem6 result. DNS check-to-connect gap, deeper mixed-language route error prefixes and non-OSError HTTP protocol failures such as IncompleteRead remain outside this patch. No blanket robust-transport, absolute egress, UI language-purity, Windows or hotel-device acceptance claim. Legacy unused ask_local_model_json Arabic errors remain unchanged.
 
 Final shared-tree qualification on6fa5924 base:220passed,4explicitSQLite-onlyskips,18warnings31.71s; same11files and migratedguard. PostgreSQL stopped after disposable-schema cleanup.
+
+## UID foundation,25November17:49
+
+Additive immutable sync_uid for departments/employees/leave_types/leave_records, preserving integer IDs/FKs/codes/business history. Real0065 backfill, defaults, canonical constraints, raw/bulk immutability, migration-failure rollback, populated downgrade refusal and clean-empty downgrade are covered. Source lineage is single0067->0065; held0066 remains absent and would require explicit rebase if later adopted.
+
+Final current-source Python3.11/PG16.2 targeted selection417passed6skipped100warnings106.51s, not fullsuite. Two dedicated committed reconciliation race/timeout tests skipped; four SQLite variants of PG-only AI tests skipped, PG counterparts ran. Actual populated linked4entity+audit dump/restore preserved values/IDs/UIDs and8constraints/4enabledtriggers/2functions/4defaults; restored enforcement and guarded health passed. Independent exact-source review accepted, without suite rerun. Guard probes roll back rows but may consume sequence values. Test-only destructive downgrade helper is name-gated, not strong target isolation.
+
+Before any installation upgrade: stop writes, verified pre-upgrade full backup and tested restore, maintenance window for DDL locks. Ordinary downgrade refuses seeded rows; rollback uses the retained backup. SQL-generated IDs are not CSPRNG/authentication secrets. Read SYNC_UID_CONTRACT release procedure. No applier/network/disclosure policy, full encrypted restoreepoch/admission, native Windows or hotel-device acceptance.
+
+Final shared-tree integration run:417passed6skipped100warnings108.45s on the same tested product/test bytes. No hosted-CI or deployed-device result.

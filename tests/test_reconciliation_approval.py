@@ -224,24 +224,27 @@ def test_exact_presentation_trims_only_insignificant_zeroes():
 
 def test_nonempty_approval_refuses_downgrade(history_context):
     from tests.test_leave_precision_migration import migrate
+    from tests.sync_uid_test_support import discard_sync_uid_for_older_downgrade
     db,ctx,e,selection,receipt,call=fixture(history_context)
     row=approve_reconciliation(db,**call);before=counts(db)
     with pytest.raises(RuntimeError,match='history would be lost'):
-        migrate(db.connection(),'0063_reconciliation_review',down=True)
+        discard_sync_uid_for_older_downgrade(db.connection());migrate(db.connection(),'0063_reconciliation_review',down=True)
     assert counts(db)==before and approval_hash(row)==row.integrity_digest
     assert db.scalar(text('SELECT version_num FROM alembic_version'))=='0064_reconciliation_approval'
 
 
 def test_additive_migration_preserves_populated_receipt_and_legacy(history_context):
     from tests.test_leave_precision_migration import migrate
+    from tests.sync_uid_test_support import discard_sync_uid_for_older_downgrade
     db,ctx,e,selection,receipt,call=fixture(history_context)
     receipt_before=db.execute(text('SELECT to_jsonb(t) FROM leave_reconciliation_review_receipts t WHERE id=:id'),{'id':receipt.id}).scalar_one()
-    employees_before=db.execute(text('SELECT to_jsonb(t) FROM employees t WHERE id=:id'),{'id':e.id}).scalar_one()
+    employees_before=db.execute(text('SELECT to_jsonb(t)-\'sync_uid\' FROM employees t WHERE id=:id'),{'id':e.id}).scalar_one()
     ledger_before=db.execute(text('SELECT to_jsonb(t) FROM leave_balance_transactions t ORDER BY id')).scalars().all()
-    migrate(db.connection(),'0063_reconciliation_review',down=True)
+    discard_sync_uid_for_older_downgrade(db.connection());migrate(db.connection(),'0063_reconciliation_review',down=True)
     migrate(db.connection(),'0064_reconciliation_approval')
+    migrate(db.connection(),'head')  # 0067 re-adds sync_uid, which the ORM models expect
     assert db.execute(text('SELECT to_jsonb(t) FROM leave_reconciliation_review_receipts t WHERE id=:id'),{'id':receipt.id}).scalar_one()==receipt_before
-    assert db.execute(text('SELECT to_jsonb(t) FROM employees t WHERE id=:id'),{'id':e.id}).scalar_one()==employees_before
+    assert db.execute(text('SELECT to_jsonb(t)-\'sync_uid\' FROM employees t WHERE id=:id'),{'id':e.id}).scalar_one()==employees_before
     assert db.execute(text('SELECT to_jsonb(t) FROM leave_balance_transactions t ORDER BY id')).scalars().all()==ledger_before
     assert db.scalar(select(func.count()).select_from(LeaveReconciliationApproval))==0
     assert approve_reconciliation(db,**call).id==call['operation_id']

@@ -6,6 +6,7 @@ from sqlalchemy import Boolean, CheckConstraint, Date, DateTime, ForeignKey, For
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
+from app.sync_uid_mixin import SyncUidMixin, sync_uid_constraints
 
 # Single hotel deployment: all business timestamps are interpreted in Cairo
 # local time (winter UTC+2, summer UTC+3), stored as absolute UTC instants.
@@ -17,8 +18,9 @@ def utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
 
-class Department(Base):
+class Department(SyncUidMixin, Base):
     __tablename__ = "departments"
+    __table_args__ = sync_uid_constraints("departments")
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(100), unique=True)
     active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
@@ -35,7 +37,7 @@ class Branch(Base):
     __table_args__ = (UniqueConstraint("department_id", "name"),)
 
 
-class Employee(Base):
+class Employee(SyncUidMixin, Base):
     __tablename__ = "employees"
     id: Mapped[int] = mapped_column(primary_key=True)
     code: Mapped[str] = mapped_column(String(20), unique=True, index=True)
@@ -57,6 +59,7 @@ class Employee(Base):
     __table_args__ = (
         CheckConstraint("prior_insurance_years IS NULL OR prior_insurance_years >= 0",
                         name="ck_employee_prior_insurance_nonnegative"),
+        *sync_uid_constraints("employees"),
     )
     probation_start_date: Mapped[date | None] = mapped_column(Date)
     probation_end_date: Mapped[date | None] = mapped_column(Date)
@@ -432,11 +435,12 @@ class AttendanceImportIssue(Base):
 
 
 
-class LeaveType(Base):
+class LeaveType(SyncUidMixin, Base):
     __tablename__ = "leave_types"
     __table_args__ = (
         UniqueConstraint("code", name="uq_leave_types_code"),
         CheckConstraint("length(trim(code)) > 0", name="ck_leave_types_code_nonempty"),
+        *sync_uid_constraints("leave_types"),
     )
     id: Mapped[int] = mapped_column(primary_key=True)
     code: Mapped[str] = mapped_column(String(40), nullable=False)
@@ -448,7 +452,7 @@ class LeaveType(Base):
     active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
 
-class LeaveRecord(Base):
+class LeaveRecord(SyncUidMixin, Base):
     __tablename__ = "leave_records"
     __table_args__ = (
         CheckConstraint("end_date >= start_date", name="ck_leave_records_date_range"),
@@ -458,6 +462,7 @@ class LeaveRecord(Base):
             "status IN ('draft', 'confirmed', 'cancelled')",
             name="ck_leave_records_status",
         ),
+        *sync_uid_constraints("leave_records"),
     )
     id: Mapped[int] = mapped_column(primary_key=True)
     employee_id: Mapped[int] = mapped_column(

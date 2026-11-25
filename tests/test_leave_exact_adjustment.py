@@ -15,6 +15,7 @@ from app.leave_exact_adjustment import (
 )
 from app.models import AdminAccount, AdminSession, AuditLog, LeaveBalanceTransaction
 from tests.test_leave_precision_migration import migrate, precision_schema, seed_legacy  # noqa: F401
+from tests.sync_uid_test_support import discard_sync_uid_for_older_downgrade
 
 
 @pytest.fixture
@@ -149,6 +150,8 @@ def test_source_history_is_immutable_but_legacy_rows_unchanged(adjustment_store)
     with engine.begin() as connection:
         connection.execute(text('UPDATE leave_balance_transactions SET reason=:reason '
                                 'WHERE source_operation_key IS NULL'), {'reason': 'Legacy behavior preserved'})
+    with engine.begin() as connection:
+        discard_sync_uid_for_older_downgrade(connection)
     with engine.begin() as connection, pytest.raises(RuntimeError, match='immutability'):
         migrate(connection, '0045_leave_source_identity', down=True)
     assert apply_reviewed_exact_adjustment(engine, proposal=proposal, **kwargs) == entry_id

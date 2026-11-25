@@ -80,6 +80,31 @@ def require_migrated_database():
             pytrace=False,
         )
     if engine.dialect.name == "postgresql":
+        # sync_uid objects (0067): enabled immutability triggers and named constraints.
+        uid_tables = ("departments", "employees", "leave_types", "leave_records")
+        with engine.connect() as connection:
+            uid_triggers = {r[0] for r in connection.execute(text(
+                "SELECT g.tgname FROM pg_trigger g JOIN pg_class c ON c.oid=g.tgrelid WHERE c.relnamespace=current_schema()::regnamespace AND g.tgenabled = 'O' AND NOT g.tgisinternal "
+                "AND tgname LIKE 'trg\\_%\\_sync\\_uid\\_immutable'"))}
+            uid_constraints = {r[0] for r in connection.execute(text(
+                "SELECT conname FROM pg_constraint WHERE connamespace = current_schema()::regnamespace "
+                "AND conname LIKE '%\\_sync\\_uid%'"))}
+        uid_required = {f"trg_{t}_sync_uid_immutable" for t in uid_tables}
+        uid_required_constraints = {f"{k}_{t}_sync_uid{'_v4' if k == 'ck' else ''}"
+                                    for t in uid_tables for k in ("uq", "ck")}
+        uid_missing = (uid_required - uid_triggers) | (uid_required_constraints - uid_constraints)
+        if uid_missing:
+            pytest.fail(
+                "The test database lacks enabled sync_uid objects the migration chain "
+                f"creates: {sorted(uid_missing)}. Rebuild with `alembic upgrade head`. "
+                "Behavioural enforcement is proven in tests/test_sync_uid_migration.py.",
+                pytrace=False,
+            )
+    if engine.dialect.name == "postgresql":
+        from tests.sync_uid_guard import verify_sync_uid_enforcement
+        verify_sync_uid_enforcement(engine)
+
+    if engine.dialect.name == "postgresql":
         # An enabled-looking trigger name is still not proof: probe the actual
         # behavior with a rolled-back INSERT+UPDATE so a same-named but
         # ineffective trigger cannot make the suite look protected. The

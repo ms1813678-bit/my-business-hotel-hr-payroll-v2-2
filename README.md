@@ -63,3 +63,7 @@ uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
 Do not commit `.env`, credentials, database dumps, or real employee data.
+
+### UID foundation migration 0067: release safety
+
+Source qualification is not deployment. Before applying 0067, stop writes and retain a verified full pre-migration backup whose restore was tested separately. A normal installation already has seeded leave types, so populated downgrade refuses identity loss. Roll back by restoring that backup, never by deleting rows or manually resetting migration stamps. The migration takes DDL locks and needs a maintenance window. Read [the UID contract and release procedure](docs/SYNC_UID_CONTRACT.md) before applying. No device/network-sync acceptance is claimed.

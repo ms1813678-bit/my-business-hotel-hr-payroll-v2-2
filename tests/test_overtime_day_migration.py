@@ -6,6 +6,7 @@ from alembic import command
 from alembic.config import Config
 from app.db import engine
 import pytest
+from tests.sync_uid_test_support import discard_sync_uid_for_older_downgrade
 
 
 def test_existing_draft_and_frozen_values_preserved():
@@ -35,6 +36,8 @@ def test_existing_draft_and_frozen_values_preserved():
                 db.add(AttendanceMonth(period_start=run.period_start,period_end=run.period_end,status='approved',created_by='synthetic'));db.flush()
                 with pytest.raises(ValueError,match='daily review'):
                     approve_payroll_run(db,run,actor='synthetic')
+            with pytest.raises(RuntimeError,match='Refusing to downgrade: removing sync_uid'):command.downgrade(cfg,'0064_reconciliation_approval')
+            discard_sync_uid_for_older_downgrade(conn)
             command.downgrade(cfg,'0064_reconciliation_approval')
             assert conn.execute(text('SELECT id,overtime_hours,overtime_amount,net_pay,note FROM payroll_items ORDER BY id')).all()==before
     finally:

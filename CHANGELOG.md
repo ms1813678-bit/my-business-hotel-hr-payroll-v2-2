@@ -575,3 +575,8 @@ Qualified on Python3.11.18 against a disposable migrated PostgreSQL database wit
 ## Instinct: source/status documentation correction,25November2026
 
 Added one current source/status index and marked older operational checkpoint records as historical. Corrected the README's obsolete single-account and HR-only overtime claims. Recorded the distinct integrated LPAC and committed ordinary-AppContainer measurement artifacts, the measurement's preflight failure, unfinished Item2 qualification and the unresolved historical archive recovery. No application, migration, experiment or deployment change is included in this documentation-only correction.
+
+## 2026-11-25 UID foundation
+- Immutable canonical per-table sync_uid on four base entities, migration0067 from0065; integer IDs and business history unchanged.
+- Real migration/default/immutability/failure-rollback/downgrade and populated4entity dump/restore plus behavioral guard proof. Targeted417pass6skip, not whole-suite/device/network acceptance.
+- Required pre-upgrade verified backup/tested restore and DDL maintenance window documented; populated downgrade refuses, restore backup for rollback. Held0066 not adopted.

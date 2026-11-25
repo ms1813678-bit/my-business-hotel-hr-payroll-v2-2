@@ -17,3 +17,11 @@ The migration history remains the install source of truth; no historical
 migration was edited. The model-side index additions only affect future
 `create_all` builds (e.g. fresh test databases) so they match what the
 migration chain already creates.
+
+## sync_uid (migration 0067, candidate)
+
+| Item | Drift | Decision |
+|---|---|---|
+| departments/employees/leave_types/leave_records.sync_uid default | DB: `server_default sync_uid_new()` (pure SQL, no extension); model: none (ORM assigns uuid4 in a before_insert listener) | Intentional: raw and Core inserts get a value from the DB, ORM inserts from Python. Alembic's default autogenerate does not compare server defaults. |
+| Constraint names | DB and model both use `uq_<table>_sync_uid` and `ck_<table>_sync_uid_v4` | The CHECK (PostgreSQL regex) is `ddl_if(postgresql)` so SQLite `create_all` fixtures still build; the trigger and CHECK exist only on migrated PostgreSQL. |
+| Immutability trigger | DB only (`trg_<table>_sync_uid_immutable`) | By design; checked by tests/conftest.py on migrated PostgreSQL. |

@@ -17,6 +17,7 @@ from app.db import engine as configured_engine, Base
 from app.attendance_workflow import approve_attendance_day
 from app.models import AttendanceDailyRecord, AuditLog, Department, Employee, ShiftPattern
 from app.employee_codes import allocate_employee_code
+from tests.sync_uid_test_support import discard_sync_uid_for_older_downgrade
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -59,6 +60,7 @@ def downgrade(test_engine, revision):
     config.set_main_option("script_location", str(PROJECT_ROOT / "alembic"))
     with test_engine.begin() as connection:
         config.attributes["connection"] = connection
+        discard_sync_uid_for_older_downgrade(connection)
         command.downgrade(config, revision)
         config.attributes.pop("connection", None)
 

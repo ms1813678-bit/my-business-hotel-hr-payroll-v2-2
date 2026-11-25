@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.leave_workflow import add_balance_entry, cancel_leave, confirm_leave, leave_balance
 from app.models import LeaveBalanceTransaction, LeaveRecord, LeaveType
+from tests.sync_uid_test_support import discard_sync_uid_for_older_downgrade
 from tests.test_leave_precision_migration import migrate, precision_schema, seed_legacy  # noqa: F401
 
 
@@ -57,6 +58,9 @@ def test_exact_use_negative_adjustment_and_reversal_preserve_fraction(precision_
             transaction_type='adjustment', days_delta=Decimal('-3.12345678901234567890123456789'),
             reason='Synthetic negative correction', actor='synthetic')
         assert leave_balance(db, original.employee_id, kind.id) == Decimal('-2.12345678901234567890123456789')
+        with pytest.raises(RuntimeError, match='Refusing to downgrade: removing sync_uid'):
+            migrate(db.connection(), '0046_leave_source_immutable', down=True)
+        discard_sync_uid_for_older_downgrade(db.connection())
         with pytest.raises(RuntimeError, match='would round'):
             migrate(db.connection(), '0046_leave_source_immutable', down=True)
 
