@@ -1,3 +1,9 @@
+## 2026-11-25 - Separate desktop dependency qualification by Instinct
+
+- Add isolated Windows3.11 exact-hash dependency import and recovered PowerShell syntax gates. No administrative source is invoked.
+- Compile the recovered source-staging Inno recipe only, never run/upload its output. This is not the missing standalone installer or operational rollback.
+- No service, certificate, firewall, database, parser policy or production desktop changes. Windows results remain pending until the exact run is read.
+
 ## Unpublished item1 renderer build-only validation
 - Add isolated native renderer compatibility candidate source and a supported MSVC x64 compile/link workflow.
 - Verify exact source and official NuGet SDK hashes. Do not download a WebView runtime or execute built binaries.

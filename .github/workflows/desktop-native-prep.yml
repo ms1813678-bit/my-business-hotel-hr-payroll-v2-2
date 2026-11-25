@@ -1,0 +1,64 @@
+name: Desktop dependency preparation only
+on:
+  push:
+    branches: [ui-overhaul]
+    paths:
+      - 'verification/desktop_native_prep/**'
+      - '.github/workflows/desktop-native-prep.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  dependency-prep:
+    runs-on: windows-2025
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          architecture: 'x64'
+      - name: Parse administrative source and import candidate native dependencies
+        shell: pwsh
+        run: |
+          @'
+          import hashlib,json,pathlib
+          root=pathlib.Path('verification/desktop_native_prep')
+          for name,want in json.loads((root/'SOURCE-SHA256.json').read_text()).items():
+              actual=hashlib.sha256((root/name).read_bytes()).hexdigest()
+              if actual!=want: raise SystemExit('Source manifest mismatch: '+name)
+          print('SOURCE_MANIFEST_PASS')
+          '@ | python -
+          if ($LASTEXITCODE -ne 0) { throw 'Source manifest refused.' }
+          & ./verification/desktop_native_prep/qualify-dependencies.ps1 -RepoRoot $env:GITHUB_WORKSPACE
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Compile source-staging recipe without running installer
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $Compiler = Get-Command ISCC.exe -ErrorAction SilentlyContinue
+          if (-not $Compiler) {
+            $Path = Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe'
+            if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { throw 'Preinstalled Inno compiler unavailable; no installation fallback.' }
+          } else { $Path = $Compiler.Source }
+          Write-Output ('INNO_VERSION=' + (Get-Item -LiteralPath $Path).VersionInfo.FileVersion)
+          $CompileRoot = Join-Path $env:RUNNER_TEMP 'hony-source-staging-compile'
+          if (Test-Path -LiteralPath $CompileRoot) { throw 'Refusing existing compile root.' }
+          New-Item -ItemType Directory -Path $CompileRoot | Out-Null
+          foreach ($Name in @('app','alembic','scripts','docs')) {
+            Copy-Item -LiteralPath (Join-Path $env:GITHUB_WORKSPACE $Name) -Destination $CompileRoot -Recurse
+          }
+          foreach ($Name in @('pyproject.toml','alembic.ini','.env.example','README.md','USER_GUIDE.md')) {
+            Copy-Item -LiteralPath (Join-Path $env:GITHUB_WORKSPACE $Name) -Destination $CompileRoot
+          }
+          $InstallerRoot = Join-Path $CompileRoot 'installer'
+          New-Item -ItemType Directory -Path $InstallerRoot | Out-Null
+          Copy-Item -LiteralPath './verification/desktop_native_prep/HOnY-Desktop-Candidate.iss' -Destination $InstallerRoot
+          $Out = Join-Path $env:RUNNER_TEMP 'hony-source-staging-compile-output'
+          & $Path '/Q' "/O$Out" (Join-Path $InstallerRoot 'HOnY-Desktop-Candidate.iss')
+          if ($LASTEXITCODE -ne 0) { throw 'Source-staging Inno compile failed.' }
+          Write-Output 'ISS_COMPILE_PASS SOURCE_STAGING_ONLY NEVER_RUN_NOT_RELEASED'
+          # No artifact upload, no installer execution or publication. Runner disposal
+          # removes the disposable compile outputs and dependency virtual environment.

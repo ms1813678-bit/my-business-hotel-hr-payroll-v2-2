@@ -1,0 +1,20 @@
+{
+  "HOnY-Desktop-Candidate.iss": "57db2b7c5edeb34bf3cad457e8e92f4bfa457f4b981ed1630f494df37b119451",
+  "build-tools-HASHED.txt": "1bfa26246e73222c53c6bc9dd038eaae18b150d6132bc8d2ce2ea6496fddb850",
+  "build-tools-provenance.json": "c99eb30e476bf1dd33d6962dd2434eec9383d54fa5edd04ad2eb2e05cb99a6ce",
+  "dependency_smoke.py": "36284e4d759179ca0817634cc446d4f5363cabab144eb8d9d41656b55bdb657b",
+  "qualify-dependencies.ps1": "654d68900cd690dce8a0942a445a4988d1e8ffb58d8120e3cce51124f2986f79",
+  "requirements-native-SDIST-NEW-CANDIDATE.txt": "8be577630f8cc6ac19d6a4f4d332ae3f33d65ad9dec72cba44b0f96f228fb267",
+  "scripts/windows/activate-desktop-certificate.ps1": "c2d5c70827163fe6ac85dd08aeda7adddd69a98cd036a6134959c0d38cee4343",
+  "scripts/windows/desktop-acl.ps1": "13097941ae1fe275da9798bbf0413765fc3d70ddff27e024138eea96a83d1e3f",
+  "scripts/windows/desktop-firewall.ps1": "de8717d1328c1918441647eab8cfe406d6c0d9e4bcf6b59c4c6a37f19ff693e9",
+  "scripts/windows/desktop-python-preflight.ps1": "19256872256cfa890b67261da3a146114058722e5a5dc11baad488432dd0f807",
+  "scripts/windows/desktop_admin_host.py": "6a9191359e1243fdac6efb5dad4e9156939d837bbbeea2da6d664824f57fdf8a",
+  "scripts/windows/desktop_window_host.py": "21fff260e24679322e4dcbbc8800bfb549d46d64007c40e15a58e8ef58c953d0",
+  "scripts/windows/install-desktop-service.ps1": "f8c5c59d35a1b4da9df8af2cbc13399b9248f86a6394c2b02a78cca749aa9ac5",
+  "scripts/windows/recover-desktop-certificate.ps1": "5f8f8cdfac785a3e2919248b661b0b3c71a97c6b005083019082f0864b03f907",
+  "scripts/windows/remove-desktop-service.ps1": "e772b65a53110080c293901b8c93f46ed7bb30a7f65865bbc1f23fd3336bfb4e",
+  "scripts/windows/renew-desktop-certificate.ps1": "9fb7190c6428340074e25f975932a0a9b3a70409fb2369d23899b3d38412827f",
+  "scripts/windows/service_host.py": "c95486dc3e84c04c7a439ad681a1c727467cf22ed8ea19c843babf05519857f8",
+  "scripts/windows/start-desktop.ps1": "0e9ec1a26e9c73adb3d6bd6656aa2d4899d59c0ed04b3bdb3b61a2107dc429df"
+}
