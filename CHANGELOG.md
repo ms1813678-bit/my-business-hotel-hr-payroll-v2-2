@@ -1,3 +1,10 @@
+## 2026-11-25 - Bounded daily overtime follow-up by Instinct
+
+- Fix English/Chinese dynamic daily-review labels and unavailable-review error text. Suppress the source warning when proof is valid; use a read-only notice when proof is unavailable on noneditable runs. No new layout, history link or reopen permission.
+- Align guide/checklist terminology and preserve historical CI references as historical evidence only. Remove optional hardcoded test screenshot output.
+- Targeted final candidate:31 passed,19 warnings on Python3.11.18. Four runtime/test file hashes unchanged before/after tests and fixture rendering, not a whole-source claim. Independent source/log/pixel delta review found no remaining concrete blocker within this scope; reviewer did not run tests or certify Chinese semantics.
+- Separate earlier encrypted archive fixture preserved seeded-attendance daily receipts/correction chain/monthly items through restore and one forced rollback. It did not execute original-file import/reconciliation. No new mobile/native/hotel-device acceptance or whole Item2 completion claim.
+
 ## 2026-11-25 - Narrow local-model transport correction by Instinct
 
 - Ignore environment/registry proxies for the local AI client, refuse redirects and validate http/https plus all resolved loopback addresses before opening. No network configuration, new framework or HTTPS restriction.

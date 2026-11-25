@@ -48,20 +48,10 @@ def test_actual_role_csrf_review_confirm_replace(daily_client,role):
     bad=form();bad.pop('csrf_token')
     assert client.post(url+'/review',data=bad).status_code==403
     capture_form=form()
-    import os
-    if os.environ.get('OT_VISUAL_CAPTURE') and role=='system_admin':
-        from app.models import PayrollItem
-        with Session.begin() as db:
-            db.get(PayrollItem,item_id).employee_name_snapshot='أحمد محمود، موظف تجريبي'
-            db.get(PayrollItem,item_id).employee_code_snapshot='تجريبي ١٠١'
-        capture_form['reason']='تكليف إضافي مسجل من مسؤول القسم بعد انتهاء الوردية'
+    capture_form=form()
     reviewed=client.post(url+'/review',data=capture_form);assert reviewed.status_code==200
     match=re.search(r'name="receipt_id" value="([a-f0-9]{64})"',reviewed.text);assert match
     receipt=match.group(1)
-    import os
-    if os.environ.get('OT_VISUAL_CAPTURE') and role=='system_admin':
-        from pathlib import Path
-        Path('/downloads/item2-daily-review1150.html').write_text(reviewed.text.replace('href="/static/','href="file:///downloads/recovered-ui/app/static/').replace('src="/static/','src="file:///downloads/recovered-ui/app/static/'),encoding='utf-8')
     with Session() as db:assert db.scalar(select(func.count()).select_from(OvertimeDayAward))==0
     confirmed=client.post(url+'/confirm',data=dict(csrf_token='synthetic-csrf-only',receipt_id=receipt,human_confirmed='yes'));assert confirmed.status_code==200
     assert '3.000000' in confirmed.text

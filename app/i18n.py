@@ -4796,12 +4796,12 @@ for _ar,_en,_zh in [
 ('فقط يدخلان الحساب.','are the only pay inputs.','是仅有的工资计算输入。'),
 ('تأكيد اليوم ليس صرفًا ولا اعتمادًا نهائيًا للمسير. التصحيح يحفظ القرار السابق ويضيف بديلًا مع السبب.','Confirming a day does not record payment or final payroll approval. A correction keeps the previous decision and adds a replacement with a reason.','确认某天不代表付款或最终批准工资单。更正会保留原决定，并附理由新增替代记录。'),
 ('الساعات اليدوية','Manual hours','手动时数'),
-('أساس ساعات اليوم لحساب السعر','Daily hours used to calculate the rate','计算时薪的每日小时基数'),
+('أساس ساعات اليوم لحساب السعر','Daily hours rate basis','计算时薪的每日小时基数'),
 ('السبب، مطلوب عند تجاوز زيادة الحضور','Reason, required when hours exceed the attendance surplus','理由，超出考勤增量时必须填写'),
 ('مراجعة يوم جديد قبل التأكيد','Review a new day before confirming','确认前复核新的一天'),
 ('راجع ثم أكد','Review, then confirm','先复核，再确认'),
 ('زيادة مدة الحضور التشخيصية، ليست استحقاقًا','Attendance duration surplus for comparison, not entitlement','用于比较的考勤时长增量，不代表应得加班'),
-('أساس ساعات اليوم','Daily hours rate basis','每日小时计薪基数'),
+('أساس ساعات اليوم','Daily hours rate basis','计算时薪的每日小时基数'),
 ('المبلغ للعرض فقط، ليس المبلغ النهائي للمسير','Display amount only, not the final payroll amount','仅展示金额，并非最终工资金额'),
 ('القيمة قبل التقريب','Value before rounding','舍入前数值'),
 ('انتهاء المراجعة','Review expires','复核到期时间'),
@@ -4820,7 +4820,7 @@ for _ar,_en,_zh in [
 ('تحديث بند الشهر من الأيام المؤكدة','Update monthly item from confirmed days','根据已确认天数更新月度工资项'),
 ('يلزم تصحيح الأيام التي تغير مصدرها قبل تحديث إجمالي الشهر.','Correct days whose source changed before updating the monthly total.','更新月度合计前，必须更正来源已变更的天数。'),
 ('لا توجد زيادة تحتاج سببًا','No excess requiring a reason','无需要说明理由的超出时数'),
-('· أساس ساعات اليوم','· Daily hours rate basis','· 每日小时计薪基数'),
+('· أساس ساعات اليوم','· Daily hours rate basis','· 计算时薪的每日小时基数'),
 ('· المبلغ للعرض','· Display amount','· 展示金额'),
 ('· المبلغ','· Amount','· 金额'),
 ('ساعات الإضافي من مراجعة الأيام:','Overtime hours from daily review:','来自每日复核的加班时数：'),
@@ -4834,3 +4834,14 @@ EN['إلى']='to';ZH['إلى']='至'
 EN['الأساسي المحفوظ']='Stored basic salary';ZH['الأساسي المحفوظ']='已保存的基本工资'
 EN['سعر الساعة للعرض فقط']='Hourly rate for display only';ZH['سعر الساعة للعرض فقط']='仅展示时薪'
 EN['السعر قبل التقريب']='Rate before rounding';ZH['السعر قبل التقريب']='舍入前时薪'
+
+EN['تعذر عرض مراجعة الإضافي.']='Could not display the overtime review.'
+ZH['تعذر عرض مراجعة الإضافي.']='无法显示加班复核。'
+
+EN['المبلغ للعرض']='Display amount'
+ZH['المبلغ للعرض']='展示金额'
+EN['الساعات']='Hours'
+ZH['الساعات']='时数'
+
+EN['تعذر التحقق من قرارات الأيام الحالية مقابل مصادرها. هذا المسير للقراءة فقط هنا؛ لا يمكن تصحيح الأيام أو تحديث إجمالي الشهر من هذه الصفحة.']='The current daily decisions could not be verified against their sources. This payroll run is read-only here; daily corrections and monthly updates are not available on this page.'
+ZH['تعذر التحقق من قرارات الأيام الحالية مقابل مصادرها. هذا المسير للقراءة فقط هنا؛ لا يمكن تصحيح الأيام أو تحديث إجمالي الشهر من هذه الصفحة.']='无法根据来源核验当前每日决定。此工资单在此处仅供查看；本页不能更正每日记录或更新月度合计。'
