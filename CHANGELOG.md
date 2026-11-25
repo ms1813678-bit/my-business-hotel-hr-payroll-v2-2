@@ -651,3 +651,8 @@ Final supported Python3.11.18 shared verification after neutral AR/EN/ZH message
 - Honor install.env/process model and local URL settings with documented alias/precedence, UTF8BOM handling and fixed reader warnings; keep default unchanged and loopback/pinned transport intact. Remove unmeasured model-suitability claims, not a production model approval.
 - Route bounded everyday AR/EN/ZH write phrases to the existing explicit-review gateway, preserving read/explanation cases and unchanged execution/consent gates. Add actual HTTP proposal-to-review/approval proof, synthetic model only.
 - Add current monthly-role and realPG nonfinite amount characterization tests without product policy or finance changes.598passed4existingSQLitevariantskips in focused qualification; see AI_CONFIG_ROUTING_1747.md.
+
+
+## Instinct 1751: hosted Ubuntu runner pin
+
+563329e hosted Linux log proved Ubuntu26.04 could not locate postgresql-client-16 before migrations/tests. Pin ubuntu-24.04, whose official inventory and Noble package source carry PG16. Keep strict absolute/effective client validation, unchanged PG16 service/full suite/Windows. Details and source URLs: docs/HOSTED_PG_CLIENT_1751.md. Hosted success remains unverified until next run.

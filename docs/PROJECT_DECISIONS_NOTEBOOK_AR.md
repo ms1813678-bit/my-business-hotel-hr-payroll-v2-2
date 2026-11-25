@@ -419,3 +419,8 @@
 - [تم مع الدفعة] إعداد اسم النموذج وعنوانه المحلي من بيئة التشغيل أو ملف.envبأولوية معلنة ودعمBOMوإعادة التشغيل. الاسم الافتراضي لم يتغير، ولم يُعتمد نموذج للإنتاج أو ادعاء أداء على جهاز الفندق. اتصال الجهاز المحلي والصلاحيات والتأكيد الصريح محفوظة.
 - صيغ يومية ومهذبة محددة بالعربية والإنجليزية والصينية تصل إلى بوابة المراجعة الموجودة، ولا تنفذ وحدها. طُرحت مرشحات أوسع ثم رُفضت بسبب خلط عرض التاريخ أو تصحيح الشرح بتغيير السجل. الفحص يغطي الصيغ المحددة لا فهمًا لغويًا عامًا.
 -598ناجحًا و4متخطاة أصلية لنسخSQLiteمع تنفيذ المقابلPG. ثلاث حالاتHTTPبمصادقةوCSRFتثبت أن العبارة تُعد اقتراحًا فقط حتى إيصال المراجعة والموافقة؛ مخطط النموذج مصطنع لا تجربة نموذج حقيقي. اختبارات أدوار التقرير والسلف غير المحدودة توصيف للحماية الحالية دون تغيير قاعدة أعمال أو إعلان ثغرة حفظ. لا اكتمال للبند6أوWindowsأو جهاز الفندق.
+
+
+## Instinct 1751: hosted Ubuntu runner pin
+
+563329e hosted Linux log proved Ubuntu26.04 could not locate postgresql-client-16 before migrations/tests. Pin ubuntu-24.04, whose official inventory and Noble package source carry PG16. Keep strict absolute/effective client validation, unchanged PG16 service/full suite/Windows. Details and source URLs: docs/HOSTED_PG_CLIENT_1751.md. Hosted success remains unverified until next run.

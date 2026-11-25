@@ -15,7 +15,9 @@ permissions:
 jobs:
   test:
     name: Run pytest (Python 3.11)
-    runs-on: ubuntu-latest
+    # PostgreSQL 16 is available on this supported image and in its Noble apt repository.
+    # ubuntu-latest moved to 26.04, whose default repository has no client-16.
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     services:
       postgres:

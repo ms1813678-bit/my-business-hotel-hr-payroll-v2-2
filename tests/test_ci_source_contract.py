@@ -264,7 +264,8 @@ def test_linux_dump_restore_tools_match_service_major_and_fail_closed():
 
 def test_linux_next_step_verifies_effective_path_not_only_candidate_binary():
     linux=WORKFLOW.read_text().split('  test:',1)[1].split('  windows:',1)[0]
-    assert 'runs-on: ubuntu-latest' in linux
+    assert 'runs-on: ubuntu-24.04' in linux
+    assert 'runs-on: ubuntu-latest' not in linux
     assert 'command -v pg_dump' in linux and 'command -v pg_restore' in linux
     assert 'test "$(command -v pg_dump)" = /usr/lib/postgresql/16/bin/pg_dump' in linux
     assert 'test "$(command -v pg_restore)" = /usr/lib/postgresql/16/bin/pg_restore' in linux

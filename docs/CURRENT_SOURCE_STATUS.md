@@ -225,3 +225,8 @@ Hosted Linux migration succeeded but first full-suite shard had one UID populate
 ## AI configuration/routing1747,25November20:52
 
 Installed.env and process settings now resolve model/baseURL consistently, with alias precedence/BOM handling/warnings and directdotenvdependency. Default3bunchanged/notproductionqualified. Bounded polite/everydayAR/EN/ZHcommands reach unchanged explicitreview/approval gateway; text/history queries remain read-only within qualified corpus. No broadgrammar/modelqualityclaim. Focused598pass4existingSQLitevariantskips with actualPGHTTP/consent and transport/regression. Added monthlyrole/nonfinite tests characterize existing behavior only. Details: AI_CONFIG_ROUTING_1747.md. No fullsuite/Windows/deviceacceptance fromthisdelta.
+
+
+## 1751 qualification checkpoint
+
+Exact shared runner-pin contract:21passed,0skips,1warning, Python3.11.18, actual0068migratedPG16.2 configured (some contract functions are pure/mocked). No broad suite rerun for runner-only change. Local setup retries before this result failed configuration validation and are not counted as test passes. Hosted success is not yet established. See HOSTED_PG_CLIENT_1751.md for exact runner/package failure and source proof.
