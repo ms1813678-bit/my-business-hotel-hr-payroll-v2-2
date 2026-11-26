@@ -1,3 +1,9 @@
+## 2026-11-26, Instinct: bounded entry77 diagnostic packet
+
+- Prepare one independently reviewed source-copy diagnostic with an import-free marker worker, unchanged canonical stager and native/security inputs, owned-root guards and strict existing process-time/postresume capture.
+- Portable controls only at publication: 73 passed; independent 30 passed plus static review. Marker77 is positive changed-copy entry evidence only, negative inconclusive. No operational adapter, security or hotel acceptance.
+- Record the separately completed Windows g8a all-seven qualification and its isolated-order/cleanup evidence limits in the Arabic notebook and ledger.
+
 ## 2026-11-25, exact monthly leave and source-bound release
 
 - Exact one-ledger rational amounts, immutable monthly earning and held/release/usage, HR signed review and confirmation with exclusive-first transaction guards.
