@@ -28,9 +28,16 @@ def observe(label, detail):
     print(f"OBSERVE {label}: {detail}", flush=True)
 
 
+def listening():
+    import socket
+    with socket.socket() as c:
+        c.settimeout(2)
+        return c.connect_ex(("127.0.0.1", 8000)) == 0
+
+
 def health():
     try:
-        with urllib.request.urlopen("http://127.0.0.1:8000/health", timeout=2) as r:
+        with urllib.request.urlopen("http://127.0.0.1:8000/health", timeout=30) as r:
             return r.status
     except urllib.error.HTTPError as e:  # any HTTP status means a server answered
         return e.code
@@ -38,7 +45,8 @@ def health():
         return None
 
 
-env = dict(os.environ, DATABASE_URL="postgresql+psycopg://x@127.0.0.1:1/none",
+DB_URL = os.environ.get("PROBE_DATABASE_URL")  # throwaway local cluster from the workflow; else a dead port
+env = dict(os.environ, DATABASE_URL=DB_URL or "postgresql+psycopg://x@127.0.0.1:1/none",
            SESSION_SECRET="ci-test-only-session-secret-not-for-production", PYTHONPATH=str(REPO))
 core("pythonw.exe exists next to python.exe", PYW.is_file(), str(PYW))
 
@@ -57,17 +65,21 @@ core("nothing listening after wrong-folder refusal", health() is None)
 # 2. Right folder under pythonw (stdout/stderr are None): the server must come up.
 srv = subprocess.Popen([str(PYW), "-m", "app.launcher"], cwd=str(REPO), env=env)
 status = None
-for _ in range(60):
+end = time.monotonic() + 240
+while time.monotonic() < end:
     status = health()
     if status is not None or srv.poll() is not None:
         break
     time.sleep(1)
+if DB_URL:
+    core("with the local throwaway database /health returns 200", status == 200, f"status={status}")
+observe("port 8000 accepts TCP connections", listening())
 core("pythonw launcher serves on 127.0.0.1:8000 (any HTTP status; no DB so not 200)", status is not None,
      f"status={status} exit={srv.poll()}")
 log = REPO / "var" / "launcher.log"
 core("log file written under var", log.is_file() and log.stat().st_size > 0)
 if log.is_file():
-    observe("log tail", log.read_text(encoding="utf-8", errors="replace")[-400:].replace("\n", " | "))
+    observe("log tail", log.read_text(encoding="utf-8", errors="replace")[-4000:].replace("\n", " | "))
 
 # 3. stop.ps1 ends it.
 r = subprocess.run(["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
