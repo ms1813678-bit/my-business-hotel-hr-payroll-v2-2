@@ -1,4 +1,4 @@
-"""One known Windows failure, same migrated CI source, no suite masking.
+"""One fixed G8a Windows failure, same migrated CI source, no suite masking.
 
 Diagnostic only. Uses a fresh uniquely named loopback DB and drops only its
 own database in finally. An unexpected pass is still not domain acceptance.
@@ -9,7 +9,7 @@ import subprocess
 import sys
 from uuid import uuid4
 
-NODE = 'tests/test_a1_department_asof.py::test_work_date_on_or_after_joining_current_department_is_accepted'
+NODE = 'tests/test_g8a_monthly_boundary_oracle.py::test_lower_edge_non_predecessor_sections_render[options0]'
 
 
 def main():
@@ -37,7 +37,7 @@ def main():
         subprocess.run([sys.executable, '-m', 'pytest', NODE, '-x', '--tb=long', '-rf',
                         '-p', 'no:cacheprovider', '--durations=5'], cwd=root,
                        env=env, check=True, timeout=120)
-        print('node_passed_in_isolation diagnostic_only=1 remaining_54_not_resolved=1', flush=True)
+        print('g8a_node_passed_in_isolation diagnostic_only=1 remaining_seven_not_resolved=1 order_context_unknown=1', flush=True)
     except BaseException as exc:
         failure = exc
         raise
