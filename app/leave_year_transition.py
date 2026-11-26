@@ -23,6 +23,14 @@ def _closing_receipt(db, *, employee_id, leave_type_id, source_year, reviewed_on
     carry = db.scalar(select(LeaveCarryAllocation).where(
         LeaveCarryAllocation.employee_id==employee_id, LeaveCarryAllocation.leave_type_id==leave_type_id,
         LeaveCarryAllocation.source_year==source_year))
+    from app.models import LeaveZeroDecision
+    zero=db.scalar(select(LeaveZeroDecision).where(LeaveZeroDecision.employee_id==employee_id,
+        LeaveZeroDecision.leave_type_id==leave_type_id,LeaveZeroDecision.source_year==source_year))
+    if zero is not None:
+        if annual is not None or carry is not None:raise ValueError('Conflicting year closing receipts.')
+        from app.leave_zero_decision import _verify
+        _verify(db,zero)
+        return ['zero',zero.id,zero.source_digest,zero.result_digest]
     if (annual is None)==(carry is None):
         raise ValueError('Exactly one explicit closing receipt per balance category required.')
     if carry is not None:
@@ -140,6 +148,12 @@ def record_year_transition(db, *, operation_id, reviewed_digest, human_confirmed
     return json.loads(row.result_json)
 
 
+def _selection_epoch(db,selection_id):
+    from app.models import LeaveOpeningSelection
+    row=db.get(LeaveOpeningSelection,selection_id,populate_existing=True)
+    return None if row is None else row.restore_epoch
+
+
 def verify_transition_for_month(db, *, employee_id, selection_id, month_start, identity):
     """Verify every intervening checkpoint and original monthly source evidence.
 
@@ -154,6 +168,8 @@ def verify_transition_for_month(db, *, employee_id, selection_id, month_start, i
     from app.leave_opening_receipt import verified_manual_opening
     reviews,policy,policy_digest=read_confirmed_opening_source(db,selection_id=selection_id,**identity)
     opening=verified_manual_opening(db,selection_id=selection_id,**identity)
+    from app.leave_opening_rebind import lineage_ids
+    allowed=lineage_ids(db,selection_id)
     baseline=date.fromisoformat(reviews[0]['effective_start'])
     if baseline.year>=month_start.year:raise ValueError('Earlier baseline required for transition admission.')
     employee=db.get(Employee,employee_id,populate_existing=True)
@@ -167,9 +183,9 @@ def verify_transition_for_month(db, *, employee_id, selection_id, month_start, i
             AuditLog.entity_type=='leave_year_transition',AuditLog.entity_id==row.id)).all()
         if (row.source_digest!=row.result_digest or digest(result)!=row.result_digest
                 or digest(request)!=row.request_digest or request['plan']!=result
-                or request['reviewed_digest']!=row.result_digest or request['expected_epoch']!=identity['expected_epoch']
+                or request['reviewed_digest']!=row.result_digest or request['expected_epoch']!=_selection_epoch(db,result['selection_id'])
                 or result['employee_id']!=employee_id or result['source_year']!=year or result['target_year']!=year+1
-                or row.target_year!=year+1 or result['selection_id']!=selection_id
+                or row.target_year!=year+1 or result['selection_id'] not in allowed
                 or result['new_opening_credit']!='0/1' or result['ledger_delta']!='0/1'
                 or result['new_year_earning_allowed'] is not False or result['operational_spending_allowed'] is not False
                 or len(audits)!=1 or audits[0].actor!=request['actor_username']
@@ -193,7 +209,7 @@ def verify_transition_for_month(db, *, employee_id, selection_id, month_start, i
         if set(expected)!={receipt.id for receipt in receipts}:raise ValueError('Transition source-month coverage changed.')
         for receipt in receipts:
             _verify_receipt(db,receipt)
-            if expected[receipt.id]!=[receipt.source_digest,receipt.result_digest] or receipt.selection_id!=selection_id:
+            if expected[receipt.id]!=[receipt.source_digest,receipt.result_digest] or receipt.selection_id not in allowed:
                 raise ValueError('Transition monthly receipt changed.')
             old=json.loads(receipt.source_json)
             facts=read_workbook_source(db,department_id=employee.department_id,employee_ids=(employee_id,),

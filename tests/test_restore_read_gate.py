@@ -108,7 +108,7 @@ def test_exemption_table_has_no_unknown_entries():
     # state, and a mid-window read of that state is exactly what the gate
     # exists to block (peer finding on bc74a88).
     assert not restore_gate_exempt("GET", "/settings/password")
-    assert len(GATE_EXEMPT_POST_PATTERNS) == 10
+    assert len(GATE_EXEMPT_POST_PATTERNS) == 13
     assert restore_gate_exempt("POST", "/leave/month-review/reconciliation-snapshot")
     assert restore_gate_exempt("POST", "/leave/month-review/reconciliation-draft")
     assert not restore_gate_exempt("POST", "/leave/month-review/reconciliation-draft/x")
@@ -196,3 +196,36 @@ def test_carry_consumption_exemptions_are_exact_posts_only():
         assert not restore_gate_exempt('POST',path+'/extra')
         assert not restore_gate_exempt('POST',path.replace('/1/','/01/'))
         assert not restore_gate_exempt('POST',path.replace('/1/','/0/'))
+
+
+def test_carry_expiry_exemptions_are_only_exact_exclusive_posts():
+    for action in ('review','confirm'):
+        path='/leave/carry-expiry/1/'+action
+        assert restore_gate_exempt('POST',path)
+        for method,changed in [('GET',path),('POST',path+'/extra'),('POST',path+'\n'),
+                ('POST',path.replace('/1/','/01/')),('POST',path.replace('/1/','/0/')),
+                ('POST',path.replace('/1/','/-1/'))]:
+            assert not restore_gate_exempt(method,changed)
+    assert not restore_gate_exempt('GET','/leave/carry-expiry/1')
+
+
+def test_opening_rebind_exemptions_are_only_exact_exclusive_posts():
+    for action in ('review','confirm'):
+        path='/leave/opening-rebind/1/'+action
+        assert restore_gate_exempt('POST',path)
+        for method,changed in [('GET',path),('POST',path+'/extra'),('POST',path+'\n'),
+                ('POST',path.replace('/1/','/01/')),('POST',path.replace('/1/','/0/')),
+                ('POST',path.replace('/1/','/-1/'))]:
+            assert not restore_gate_exempt(method,changed)
+    assert not restore_gate_exempt('GET','/leave/opening-rebind/1')
+
+
+def test_zero_decision_exemptions_are_only_exact_exclusive_posts():
+    for action in ('review','confirm'):
+        path='/leave/zero-decision/1/'+action
+        assert restore_gate_exempt('POST',path)
+        for method,changed in [('GET',path),('POST',path+'/extra'),('POST',path+'\n'),
+                ('POST',path.replace('/1/','/01/')),('POST',path.replace('/1/','/0/')),
+                ('POST',path.replace('/1/','/-1/'))]:
+            assert not restore_gate_exempt(method,changed)
+    assert not restore_gate_exempt('GET','/leave/zero-decision/1')

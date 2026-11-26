@@ -99,7 +99,10 @@ def _usage(db, *, monthly_receipt_id, usage_ledger_id, employee_id, leave_type_i
         raise ValueError('Existing monthly debit and exact register-day code must agree.')
     from app.department_workbook_source import read_workbook_source
     from app.leave_opening_source import _read_verified_opening_source
-    _reviews,_policy,policy_digest=_read_verified_opening_source(db,selection_id=month.selection_id,expected_epoch=identity['expected_epoch'])
+    from app.leave_opening_rebind import current_descendant
+    head=current_descendant(db,month.selection_id,identity['expected_epoch'])
+    if head is None:raise ValueError('Confirmed current-epoch source required.')
+    _reviews,_policy,policy_digest=_read_verified_opening_source(db,selection_id=head,expected_epoch=identity['expected_epoch'])
     employee=db.get(Employee,employee_id,populate_existing=True)
     facts=read_workbook_source(db,department_id=employee.department_id,employee_ids=(employee_id,),
         window_start=date(work_date.year,1,1),month_start=month.month_start,policy_digest=policy_digest,
@@ -134,6 +137,10 @@ def _derive(db, *, grant_kind,grant_id,employee_id,leave_type_id,monthly_receipt
             or type(employee_id) is not int or employee_id<1 or type(leave_type_id) is not int or leave_type_id<1
             or type(work_date) is not date or not isinstance(reason,str) or not 1<=len(reason.strip())<=1000):
         raise ValueError('Explicit grant, employee, type, work date and bounded reason required.')
+    from app.models import LeaveCarryExpiry
+    if db.scalar(select(LeaveCarryExpiry.id).where(LeaveCarryExpiry.grant_kind==grant_kind,
+            LeaveCarryExpiry.grant_id==grant_id)):
+        raise ValueError('Grant has a recorded expiry exclusion; no later attribution allowed.')
     amount=as_fraction(quantity)
     if not 0<amount<=1:raise ValueError('Explicit positive exact attribution no greater than one register day required.')
     grant=_grant(db,grant_kind=grant_kind,grant_id=grant_id,employee_id=employee_id,leave_type_id=leave_type_id,work_date=work_date,identity=identity)
@@ -249,7 +256,16 @@ def refuse_unresolved_expired_carry_cash(db, *, employee_id,leave_type_id,evalua
                 raise ValueError('Expired carry consumption evidence changed.')
             consumed+=Fraction(row.quantity_canonical)
         if consumed>amount:raise ValueError('Expired grant consumption exceeds grant proof.')
-        if consumed<amount:
+        from app.models import LeaveCarryExpiry
+        expiry=db.scalar(select(LeaveCarryExpiry).where(LeaveCarryExpiry.grant_kind==kind,LeaveCarryExpiry.grant_id==grant_id))
+        excluded=Fraction()
+        if expiry is not None:
+            from app.leave_carry_expiry import verify_expiry_receipt
+            result=verify_expiry_receipt(db,expiry)
+            if result['plan']['grant']!=grant or Fraction(result['plan']['consumed'])!=consumed:
+                raise ValueError('Expired grant attribution differs from exclusion proof.')
+            excluded=Fraction(expiry.excluded_canonical)
+        if consumed+excluded!=amount:
             raise ValueError('Expired carry remains unresolved; cash requires reviewed expiry or exclusion accounting.')
 
 

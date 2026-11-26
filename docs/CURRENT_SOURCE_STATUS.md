@@ -2,6 +2,12 @@
 
 Instinct, 25 November 2026, 17:07 Africa/Cairo. This page corrects the stale operational index. Historical documents remain available, but their old commit, test and readiness claims are not current acceptance.
 
+## 26 November2026,02:23Cairo, bounded0078-0080 integration
+
+Development schema now0080_restore_epoch_rebind, via0078_leave_zero_decision and0079_leave_carry_expiry. Explicit completed-year W/H zero choice, reviewed carry expiry and current-epoch opening rebind are integrated. No second opening credit, automatic expiry, FIFO or new role authority. Same immutable rebind operation retries require the original actor/reason and a currently valid chain. See [decision notebook](PROJECT_DECISIONS_NOTEBOOK_AR.md) and [partial central working ledger](CENTRAL_EXECUTION_LEDGER_AR.md).
+
+Actual Python3.11/PostgreSQL16 bounded runs:182 financial tests/110.04s;45 HTTP/source/gate tests/89.90s;26 reviewed replay/migration tests/14.37s;22 expiry and independent-zero-HTTP tests/103.10s. These overlap, do not add. Zero-only HTTP6/21.97s. No full-suite or Windows green claim. Year-two net settlement and full restore/account/balance acceptance remain open. Hotel-device trial remains last and outside percentages. Older checkpoints below are history, not the current schema.
+
 ## Exact monthly leave integration, 25 November 2026, 22:05 Africa/Cairo
 
 Current development schema is 0071_leave_month_earning, after 0070 exact amount and published 0069 register receipt. Held attendance0066, journal and native experiments remain unadopted. Exact rational ledger readers, monthly earned/held/released/usage and normal signed HR HTTP review are integrated as a bounded slice. 648 broad leave/workbook tests passed with 2 existing skips; separate named register harness13pass1optionalskip. Independent consumer qualification and source-only financial review accepted their stated scope; actual AR390/EN/ZH images inspected. No full hosted green, Windows parser or hotel-device acceptance. Cross-year carry/correction remains incomplete and fails closed. See [bounded evidence and limits](EXACT_MONTH_LEDGER_1764_CANDIDATE.md). Earlier sections are historical checkpoints, not current schema.

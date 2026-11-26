@@ -59,8 +59,10 @@ def review_completed_year_source(db, *, employee_id, leave_type_id, source_year,
         receipt_months=tuple(r.month_start for r in receipts))
     if not coverage:
         raise ValueError('No earned source-month coverage; separate zero-source review required.')
+    from app.leave_opening_rebind import lineage_ids
+    allowed = lineage_ids(db, selection_id)
     for receipt in receipts:
-        if receipt.selection_id != selection_id:
+        if receipt.selection_id not in allowed:
             raise ValueError('Mixed monthly source selections refuse year close.')
         _verify_receipt(db, receipt)
     live, _ = _derive(db, selection_id=selection_id, month_start=coverage[-1], evaluated_on=reviewed_on,

@@ -5170,3 +5170,12 @@ app.include_router(annual_settlement_router(templates))
 
 from app.leave_carry_consumption_routes import carry_consumption_router
 app.include_router(carry_consumption_router(templates))
+
+from app.leave_carry_expiry_routes import carry_expiry_router
+app.include_router(carry_expiry_router(templates))
+
+from app.leave_opening_rebind_routes import opening_rebind_router
+app.include_router(opening_rebind_router(templates))
+
+from app.leave_zero_decision_routes import zero_decision_router
+app.include_router(zero_decision_router(templates))

@@ -1,0 +1,53 @@
+"""Owner-side ZERO decision review (2ت) - adversarial additions beyond the author's coverage.
+
+Outer harness mirrors the author's tests/test_zero_decision_http_pg.py: fresh migrated
+database per run, inner sequential acceptance body
+(tests/zero_ui_owner_adversarial_acceptance.py). Independent of the author's covered cases
+(happy paths, role 403s, bad-choice mutations, tampered proof, cross-employee confirm,
+exact replay, second-review 400, epoch flip after review, second HR session) - no duplication.
+
+Phases (inner body): forged/cross-salt/oversized/duplicate inputs refuse with nothing
+recorded; GET + review post nothing and reflected markup is escaped (XSS); a second
+distinct proof for one source refuses after the first confirm (no double debit); an
+official-holiday kind with no positive leftover refuses cleanly (no writes, W receipt intact).
+
+Runs on the production-shape worktree (published tip 2967f535 + writer rebind fix overlay
++ author 2ت packet applied): owner harness on Python 3.10 (UTC shim); writer suites run 3.11.
+"""
+import os
+import subprocess
+import sys
+from pathlib import Path
+from uuid import uuid4
+
+import pytest
+from sqlalchemy import create_engine, text
+
+from app.db import engine
+
+
+def test_zero_owner_adversarial_outer(tmp_path):
+    name = 'test_zero_adv_' + uuid4().hex[:12]
+    admin = create_engine(engine.url.set(database='postgres'), isolation_level='AUTOCOMMIT')
+    root = Path(__file__).resolve().parents[1]
+    try:
+        with admin.connect() as c:
+            c.execute(text(f'CREATE DATABASE "{name}"'))
+        env = {**os.environ, 'DATABASE_URL': engine.url.set(database=name).render_as_string(hide_password=False)}
+        for args in [['-m', 'alembic', 'upgrade', 'head'],
+                     ['-m', 'pytest', 'tests/zero_ui_owner_adversarial_acceptance.py',
+                      '-q', '--tb=short', '--junitxml=' + str(tmp_path / 'adv.xml')]]:
+            result = subprocess.run([sys.executable, *args], cwd=root, env=env,
+                                    capture_output=True, text=True, timeout=300)
+            assert result.returncode == 0, result.stdout + result.stderr
+        from xml.etree import ElementTree
+        suites = list(ElementTree.parse(tmp_path / 'adv.xml').getroot().iter('testsuite'))
+        assert suites and sum(int(x.attrib['tests']) for x in suites) == 1
+        assert all(int(x.attrib.get(k, '0')) == 0 for x in suites
+                   for k in ('errors', 'failures', 'skipped'))
+    finally:
+        with admin.connect() as c:
+            c.execute(text('SELECT pg_terminate_backend(pid) FROM pg_stat_activity '
+                           'WHERE datname=:n AND pid<>pg_backend_pid()'), dict(n=name))
+            c.execute(text(f'DROP DATABASE IF EXISTS "{name}"'))
+        admin.dispose()

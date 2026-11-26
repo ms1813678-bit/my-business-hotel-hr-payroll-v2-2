@@ -163,6 +163,9 @@ GATE_EXEMPT_EXACT = {
     ("POST", "/settings/backup/restore"),
 }
 GATE_EXEMPT_POST_PATTERNS = (
+    re.compile(r'/leave/zero-decision/[1-9][0-9]*/(?:review|confirm)'),
+    re.compile(r'/leave/opening-rebind/[1-9][0-9]*/(?:review|confirm)'),
+    re.compile(r'/leave/carry-expiry/[1-9][0-9]*/(?:review|confirm)'),
     re.compile(r'/leave/carry-consumption/[1-9][0-9]*/(?:review|confirm)'),
     re.compile(r'/leave/annual-settlement/[0-9a-f]{64}/(?:review|confirm)'),
     # These POST handlers acquire their own bounded exclusive gate before all source work.

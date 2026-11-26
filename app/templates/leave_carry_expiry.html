@@ -1,0 +1,19 @@
+{% extends 'base.html' %}{% set active_nav='leave' %}
+{% block title %}استبعاد الترحيل المنتهي{% endblock %}
+{% block content %}
+<header class="topbar"><div><h1>استبعاد الترحيل المنتهي</h1><p>{{ employee.code }} · {{ employee.full_name }}</p></div></header>
+<section class="notice"><p>استبعاد صريح بعد نهاية مدة المنحة فقط، دون تصفير تلقائي أو صرف نقدي.</p><p>تحتاج المراجعة إلى كل شهور العمل خلال مدة المنحة وتخصيص كل يوم استعمال مسجل، لمنع خصمه مرتين.</p></section>
+{% macro type_name(kind) %}{% set names={'annual':{'ar':'سنوي','en':'Annual leave','zh':'年假'},'weekly_rest':{'ar':'راحة أسبوعية','en':'Weekly rest','zh':'每周休息'},'official_holiday':{'ar':'عطلة رسمية','en':'Official holiday','zh':'法定假日'}} %}{{ names[kind.code][request.state.language] }}{% endmacro %}
+{% if review or saved %}{% set plan=(review or saved).plan %}
+<section class="notice" id="{{ 'expiry-saved' if saved else 'expiry-review' }}"><h2>{{ 'تم حفظ استبعاد الترحيل' if saved else 'راجع قبل التأكيد' }}</h2>
+<dl class="form-grid"><div><dt>سقف المنحة الأصلي</dt><dd><bdi>{{ plan.grant.ceiling }}</bdi></dd></div><div><dt>الاستعمال المثبت من المنحة</dt><dd><bdi>{{ plan.consumed }}</bdi></dd></div><div><dt>الأيام المستبعدة</dt><dd><bdi>{{ plan.excluded }}</bdi></dd></div><div><dt>التغير في دفتر الرصيد</dt><dd><bdi>{{ plan.proposed_ledger_delta }}</bdi></dd></div></dl>
+{% for g in grants if g.value==grant %}<p>{{ type_name(g.leave_type) }} · {{ g.year }} · <bdi>{{ g.start }}</bdi> / <bdi>{{ g.end }}</bdi></p>{% endfor %}
+<p><span>تاريخ المراجعة</span> · <bdi>{{ plan.evaluated_on }}</bdi></p><p>{{ plan.reason }}</p><p>خصم واحد للأيام غير المستعملة، بلا مبلغ نقدي أو تغيير راتب.</p>
+{% if review %}<form method="post" action="/leave/carry-expiry/{{ employee.id }}/confirm"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="proof" value="{{ proof }}"><label><input type="checkbox" style="width:auto" name="human_confirmed" value="yes" required> أؤكد استبعاد الأيام غير المستعملة وخصمها المعروض</label><button class="primary">حفظ الاستبعاد بعد المراجعة</button></form>{% endif %}
+</section>{% endif %}
+{% if not saved %}<section class="notice"><form method="post" action="/leave/carry-expiry/{{ employee.id }}/review"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><div class="form-grid">
+<label>منحة الترحيل<select name="grant" required><option value="">اختر المنحة</option>{% for g in grants %}<option value="{{ g.value }}" {% if g.value==grant %}selected{% endif %}>{{ type_name(g.leave_type) }} · {{ g.year }} · {{ days(g.amount) }} · {{ g.start }} / {{ g.end }}</option>{% endfor %}</select></label>
+<label>تاريخ المراجعة<input type="date" name="evaluated_on" value="{{ evaluated_on }}" required></label></div>
+<label>سبب المراجعة<textarea name="reason" maxlength="1000" required>{{ reason }}</textarea></label><button class="primary">مراجعة استبعاد الترحيل</button></form>
+{% if not grants %}<p>تحتاج منحة ترحيل موجبة مثبتة انتهت مدتها واكتملت أدلة استعمالها.</p>{% endif %}</section>{% endif %}
+{% endblock %}

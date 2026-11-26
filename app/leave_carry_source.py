@@ -95,6 +95,16 @@ def review_carry_source(db, *, employee_id, leave_type_id, source_year, reviewed
             from app.leave_annual_settlement_store import verify_annual_cash_allocation
             verify_annual_cash_allocation(db, annual, cash)
             proven_ids.add(row.id)
+    for row in selected:
+        if (row.source_operation_key or '').startswith('leave_zero:'):
+            from app.leave_zero_decision import verify_zero_ledger_for_year
+            verify_zero_ledger_for_year(db,row,employee_id=employee_id,leave_type_id=leave_type_id,source_year=source_year)
+            proven_ids.add(row.id)
+    from app.models import LeaveCarryExpiry
+    from app.leave_carry_expiry import verify_expiry_receipt
+    for expiry in db.scalars(select(LeaveCarryExpiry).where(LeaveCarryExpiry.employee_id==employee_id,
+            LeaveCarryExpiry.leave_type_id==leave_type_id)).all():
+        verify_expiry_receipt(db,expiry);proven_ids.add(expiry.ledger_id)
     if any(row.id not in proven_ids for row in selected):
         raise ValueError('Year-tagged ledger lacks verified monthly receipt provenance.')
     values = [(row.id, canonical_amount(ledger_amount(row)), row.transaction_type,

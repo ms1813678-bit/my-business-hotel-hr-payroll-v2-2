@@ -1003,11 +1003,13 @@ class DepartmentWorkbookPreparation(Base):
 class LeaveHistoricalEvidencePreparation(Base):
     """HR historical source proposal only. Never an accepted opening or grant."""
     __tablename__ = 'leave_historical_evidence_preparations'
+    # Same exact source bytes may be re-prepared once per restore epoch; old epoch rows stay immutable.
+    __table_args__ = (Index('uq_leave_historical_proposal_epoch', 'proposal_sha256', __import__('sqlalchemy').text("coalesce(restore_epoch, '')"), unique=True),)
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
     actor_id: Mapped[int] = mapped_column(ForeignKey('admin_accounts.id'), nullable=False)
     source_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
     proposal_json: Mapped[str] = mapped_column(Text, nullable=False)
-    proposal_sha256: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    proposal_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
     restore_epoch: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
@@ -1395,4 +1397,45 @@ class LeaveCarryConsumption(Base):
     request_digest: Mapped[str] = mapped_column(String(64), nullable=False)
     result_json: Mapped[str] = mapped_column(Text, nullable=False)
     result_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+
+
+class LeaveCarryExpiry(Base):
+    __tablename__ = 'leave_carry_expiries'
+    __table_args__ = (UniqueConstraint('grant_kind','grant_id',name='uq_carry_expiry_grant'),
+        CheckConstraint("grant_kind IN ('carry','annual')",name='ck_carry_expiry_kind'))
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    employee_id: Mapped[int] = mapped_column(ForeignKey('employees.id',ondelete='RESTRICT'),nullable=False)
+    leave_type_id: Mapped[int] = mapped_column(ForeignKey('leave_types.id',ondelete='RESTRICT'),nullable=False)
+    grant_kind: Mapped[str] = mapped_column(String(16),nullable=False)
+    grant_id: Mapped[str] = mapped_column(String(64),nullable=False)
+    ledger_id: Mapped[int] = mapped_column(ForeignKey('leave_balance_transactions.id',ondelete='RESTRICT'),nullable=False,unique=True)
+    excluded_canonical: Mapped[str] = mapped_column(Text,nullable=False)
+    source_digest: Mapped[str] = mapped_column(String(64),nullable=False)
+    request_json: Mapped[str] = mapped_column(Text,nullable=False)
+    request_digest: Mapped[str] = mapped_column(String(64),nullable=False)
+    result_json: Mapped[str] = mapped_column(Text,nullable=False)
+    result_digest: Mapped[str] = mapped_column(String(64),nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True),default=utcnow,nullable=False)
+
+
+class LeaveZeroDecision(Base):
+    """HR chose zero (no carry, no cash) for a completed-year weekly-rest/holiday leftover.
+
+    One immutable receipt per employee/type/source year, bound to the exact
+    exclusion debit in the ledger. Never a netting, FIFO or expiry decision.
+    """
+    __tablename__ = 'leave_zero_decisions'
+    __table_args__ = (UniqueConstraint('employee_id', 'leave_type_id', 'source_year', name='uq_leave_zero_source_year'),
+        CheckConstraint('source_year BETWEEN 1 AND 9998', name='ck_leave_zero_scope'))
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    employee_id: Mapped[int] = mapped_column(ForeignKey('employees.id', ondelete='RESTRICT'), nullable=False)
+    leave_type_id: Mapped[int] = mapped_column(ForeignKey('leave_types.id', ondelete='RESTRICT'), nullable=False)
+    source_year: Mapped[int] = mapped_column(Integer, nullable=False)
+    ledger_id: Mapped[int] = mapped_column(ForeignKey('leave_balance_transactions.id', ondelete='RESTRICT'), nullable=False, unique=True)
+    request_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    source_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    result_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    request_json: Mapped[str] = mapped_column(Text, nullable=False)
+    result_json: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)

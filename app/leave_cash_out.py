@@ -169,10 +169,18 @@ def verified_released_balance(db, *, employee_id, leave_type_id, identity):
                 key = f'month_earning:{employee_id}:{receipt.month_start.isoformat()}:A:earned'
                 if key not in ledger_keys:
                     held += Fraction(result['held_annual'])
+        from app.leave_zero_decision import verified_zero_ledger_ids
+        zero_ledger_ids=verified_zero_ledger_ids(db,employee_id)
         cash_ledger_ids = set()
         for receipt in db.scalars(select(LeaveCashOut).where(LeaveCashOut.employee_id == employee_id)).all():
             _verify_cash_receipt(db, receipt)
             cash_ledger_ids.add(receipt.ledger_id)
+        from app.models import LeaveCarryExpiry
+        from app.leave_carry_expiry import verify_expiry_receipt
+        expiry_ids=set()
+        for expiry in db.scalars(select(LeaveCarryExpiry).where(LeaveCarryExpiry.employee_id==employee_id,
+                LeaveCarryExpiry.leave_type_id==leave_type_id)).all():
+            verify_expiry_receipt(db,expiry);expiry_ids.add(expiry.ledger_id)
         audits = db.scalars(select(AuditLog).where(AuditLog.entity_type == 'employee_leave_balance',
             AuditLog.entity_id == f'{employee_id}:{leave_type_id}')).all()
         running = Fraction()
@@ -188,9 +196,13 @@ def verified_released_balance(db, *, employee_id, leave_type_id, identity):
             elif key is not None and key.startswith('month_earning:'):
                 if row.id not in month_ledger_ids:
                     raise ValueError('Monthly ledger is not verified released source.')
+            elif key is not None and key.startswith('leave_zero:'):
+                if row.id not in zero_ledger_ids:raise ValueError('Zero exclusion ledger is not verified.')
             elif key is not None and key.startswith('leave_cashout:'):
                 if row.id not in cash_ledger_ids:
                     raise ValueError('Prior cash-out ledger is not verified.')
+            elif key is not None and key.startswith('leave_carry_expiry:'):
+                if row.id not in expiry_ids:raise ValueError('Grant exclusion ledger is not verified.')
             elif key is None and row.transaction_type in ('leave_use', 'leave_reversal') and row.leave_record_id is not None:
                 record = db.get(LeaveRecord, row.leave_record_id, populate_existing=True)
                 expected_status = 'confirmed' if row.transaction_type == 'leave_use' else 'cancelled'

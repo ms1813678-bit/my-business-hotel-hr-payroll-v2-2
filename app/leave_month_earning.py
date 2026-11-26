@@ -164,6 +164,13 @@ def _derive(db,*,selection_id,month_start,evaluated_on,current_insurance_years,a
     for cash_receipt in db.scalars(select(LeaveCashOut).where(LeaveCashOut.employee_id==employee_id)).all():
         _verify_cash_receipt(db,cash_receipt)
         known_ledger.add(cash_receipt.ledger_id)
+    from app.leave_zero_decision import verified_zero_ledger_ids
+    known_ledger.update(verified_zero_ledger_ids(db,employee_id))
+    from app.models import LeaveCarryExpiry
+    from app.leave_carry_expiry import verify_expiry_receipt
+    for expiry in db.scalars(select(LeaveCarryExpiry).where(LeaveCarryExpiry.employee_id==employee_id)).all():
+        verify_expiry_receipt(db,expiry)
+        known_ledger.add(expiry.ledger_id)
     for row in ledger:
         if row.id not in known_ledger:
             raise ValueError('Existing unrelated ledger requires separate reviewed reconciliation.')
@@ -183,7 +190,9 @@ def _derive(db,*,selection_id,month_start,evaluated_on,current_insurance_years,a
         expected_month=date(expected_month.year+int(expected_month.month==12),expected_month.month%12+1,1)
     if {r.month_start for r in previous if r.month_start.year==month_start.year and r.month_start<month_start}!=set(prior_months):
         raise ValueError('Post source months sequentially from explicit baseline; no omitted prior month.')
-    if any(r.selection_id!=selection_id for r in previous):raise ValueError('Monthly baseline changed; reviewed correction required.')
+    from app.leave_opening_rebind import lineage_ids
+    allowed=lineage_ids(db,selection_id)
+    if any(r.selection_id not in allowed for r in previous):raise ValueError('Monthly baseline changed; reviewed correction required.')
     payload={'employee_id': employee_id,'selection_id': selection_id,'month_start': month_start.isoformat(),'evaluated_on': evaluated_on.isoformat(),
         'baseline': baseline.isoformat(),'source': facts.digest,'opening': verified['apply_sha256'],'earning_binding': _earning_binding(source,month_start),
         'tier': tiers.tiers[employee_id,month_start],'age_evaluation_dates': sorted((m.isoformat(),d.isoformat()) for m,d in age_evaluation_dates.items()),

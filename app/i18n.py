@@ -5044,3 +5044,63 @@ EN['عطلة رسمية']='Official holiday'
 ZH['عطلة رسمية']='法定假日'
 EN['سنوي']='Annual leave'
 ZH['سنوي']='年假'
+
+
+for _ar,_en,_zh in [
+('استبعاد الترحيل المنتهي','Exclude expired carry','排除已到期结转'),
+('استبعاد صريح بعد نهاية مدة المنحة فقط، دون تصفير تلقائي أو صرف نقدي.','Explicit exclusion only after the grant window ends. No automatic erasure or cash payment.','仅在额度期限结束后明确排除。不自动清零或支付现金。'),
+('تحتاج المراجعة إلى كل شهور العمل خلال مدة المنحة وتخصيص كل يوم استعمال مسجل، لمنع خصمه مرتين.','Review requires every employed month in the grant window and allocation of every recorded usage day to prevent a double debit.','审核需要额度期限内所有在职月份及每个已记录使用日的分配，以防重复扣减。'),
+('تم حفظ استبعاد الترحيل','Carry exclusion saved','结转排除已保存'),
+('سقف المنحة الأصلي','Original grant ceiling','原始额度上限'),
+('الاستعمال المثبت من المنحة','Verified grant usage','已验证额度使用'),
+('الأيام المستبعدة','Excluded days','排除天数'),
+('التغير في دفتر الرصيد','Balance ledger change','余额账簿变动'),
+('خصم واحد للأيام غير المستعملة، بلا مبلغ نقدي أو تغيير راتب.','One debit for unused days, without cash or payroll changes.','未用天数仅扣减一次，不涉及现金或工资变更。'),
+('أؤكد استبعاد الأيام غير المستعملة وخصمها المعروض','I confirm the exclusion of unused days and the debit shown','我确认排除未用天数及所示扣减'),
+('حفظ الاستبعاد بعد المراجعة','Save exclusion after review','审核后保存排除'),
+('مراجعة استبعاد الترحيل','Review carry exclusion','审核结转排除'),
+('تحتاج منحة ترحيل موجبة مثبتة انتهت مدتها واكتملت أدلة استعمالها.','A verified positive expired carry grant with complete usage evidence is required.','需要已验证的正额到期结转额度及完整使用证据。'),
+('تعذر استبعاد الترحيل المنتهي. راجع اكتمال الشهور وتخصيص كل الاستعمالات والمصدر والجلسة؛ لم يسجل خصم جديد.','Carry exclusion refused. Check monthly coverage, all usage allocations, source and session. No new debit was saved.','结转排除被拒绝。请检查月份覆盖、所有使用分配、来源和会话。未保存新扣减。'),
+]:
+    EN[_ar]=_en
+    ZH[_ar]=_zh
+
+
+for _ar,_en,_zh in [
+('إعادة ربط المصدر بعد الاستعادة','Rebind source after restore','恢复后重新关联来源'),
+('اربط مصدرًا مؤكدًا جديدًا بالمصدر المؤرشف بعد الاستعادة، بنفس الموظف والأرصدة وتاريخ البداية والسياسة.','Link a fresh confirmed source to its archived source after restore, with the same employee, balances, start date and policy.','恢复后，将新确认来源关联到归档来源，员工、余额、起始日期和规则必须相同。'),
+('لا رصيد افتتاحي ثانٍ، ولا تغيير في بيانات الحسابات أو كلمات المرور أو سجلات المصدر القديمة.','No second opening credit and no changes to accounts, passwords or old source records.','不重复增加期初余额，不更改账户、密码或旧来源记录。'),
+('المصدر المؤرشف','Archived source','归档来源'),
+('المصدر المؤكد الجديد','Fresh confirmed source','新确认来源'),
+('تاريخ بداية الرصيد','Balance start date','余额起始日期'),
+('تغير دفتر الرصيد: صفر. محفوظ في سجل المراجعة فقط.','Balance ledger change: zero. Recorded in the audit log only.','余额账簿变动为零。仅记录在审计日志中。'),
+('أؤكد تطابق المصدرين دون إضافة رصيد جديد','I confirm matching sources without a new balance credit','我确认来源匹配，不增加新余额'),
+('حفظ إعادة الربط بعد المراجعة','Save rebind after review','审核后保存重新关联'),
+('تم حفظ إعادة ربط المصدر','Source rebind saved','来源重新关联已保存'),
+('اختر المصدر','Choose a source','选择来源'),
+('مراجعة إعادة ربط المصدر','Review source rebind','审核来源重新关联'),
+('تحتاج مصدرًا مؤرشفًا مطبقًا ومصدرًا جديدًا مؤكدًا في دورة الاستعادة الحالية.','An applied archived source and a fresh confirmed source in the current restore epoch are required.','需要已应用的归档来源和当前恢复周期中新确认的来源。'),
+('تعذرت إعادة ربط المصدر. راجع مطابقة الأرصدة وتاريخ البداية والسياسة والجلسة؛ لم يضف رصيد جديد.','Source rebind refused. Check matching balances, start date, policy and session. No new balance was credited.','来源重新关联被拒绝。请检查余额、起始日期、规则和会话是否匹配。未增加新余额。'),
+]:
+    EN[_ar]=_en
+    ZH[_ar]=_zh
+
+# ADDITIVE: append after the carry-expiry translation loop in app/i18n.py
+for _ar,_en,_zh in [
+('تصفير رصيد الراحة والعطلة','Zero weekly rest and holiday balance','清零每周休息和假日余额'),
+('قرار صريح من الموارد البشرية لموظف واحد: تصفير المتبقي الموجب من الراحة الأسبوعية أو العطلة الرسمية لسنة مكتملة بدل ترحيله.','Explicit HR decision for one employee: zero the positive leftover weekly rest or official holiday of a completed year instead of carrying it.','人事为单个员工的明确决定:对已完成年度剩余的正数每周休息或法定假日清零,而不是结转。'),
+('التصفير لا يدفع نقدًا. الصرف النقدي اليدوي لأي نوع يبقى منفصلًا. الرصيد السالب لا يُمحى ولا يصفّر.','Zeroing pays no cash. Manual cash-out of any type stays separate. A negative balance is never erased or zeroed.','清零不支付现金。任何类型的手动现金兑付仍然独立。负余额不会被抹除或清零。'),
+('تم حفظ قرار التصفير','Zero decision saved','清零决定已保存'),
+('الأيام المصفرة','Days zeroed','清零天数'),
+('المبلغ النقدي','Cash amount','现金金额'),
+('خصم واحد للأيام المصفرة، بلا مبلغ نقدي أو تغيير راتب.','One debit for the zeroed days, with no cash amount or salary change.','对清零天数只扣一次,不产生现金金额或薪资变动。'),
+('أؤكد تصفير الأيام المعروضة وعدم ترحيلها','I confirm zeroing the days shown and not carrying them','我确认清零所示天数且不结转'),
+('حفظ التصفير بعد المراجعة','Save zero decision after review','审核后保存清零'),
+('النوع والسنة المكتملة','Type and completed year','类型和已完成年度'),
+('اختر النوع والسنة','Choose type and year','选择类型和年度'),
+('مراجعة التصفير','Review zeroing','审核清零'),
+('تحتاج سنة مكتملة بمصدر رصيد مثبت.','A completed year with a confirmed balance source is required.','需要有已确认余额来源的已完成年度。'),
+('تعذر حفظ قرار التصفير. راجع مصدر السنة والخصومات اللاحقة والجلسة؛ لم يسجل خصم جديد.','Zero decision refused. Check the year source, later debits and session; no new debit was recorded.','清零被拒绝。请检查年度来源、后续扣减和会话;未记录新的扣减。'),
+]:
+    EN[_ar]=_en
+    ZH[_ar]=_zh

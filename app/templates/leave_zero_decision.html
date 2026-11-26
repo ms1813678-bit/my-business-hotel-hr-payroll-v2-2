@@ -1,0 +1,19 @@
+{% extends 'base.html' %}{% set active_nav='leave' %}
+{% block title %}تصفير رصيد الراحة والعطلة{% endblock %}
+{% block content %}
+<header class="topbar"><div><h1>تصفير رصيد الراحة والعطلة</h1><p>{{ employee.code }} · {{ employee.full_name }}</p></div></header>
+<section class="notice"><p>قرار صريح من الموارد البشرية لموظف واحد: تصفير المتبقي الموجب من الراحة الأسبوعية أو العطلة الرسمية لسنة مكتملة بدل ترحيله.</p><p>التصفير لا يدفع نقدًا. الصرف النقدي اليدوي لأي نوع يبقى منفصلًا. الرصيد السالب لا يُمحى ولا يصفّر.</p></section>
+{% macro type_name(kind) %}{% set names={'weekly_rest':{'ar':'راحة أسبوعية','en':'Weekly rest','zh':'每周休息'},'official_holiday':{'ar':'عطلة رسمية','en':'Official holiday','zh':'法定假日'}} %}{{ names[kind.code][request.state.language] }}{% endmacro %}
+{% if review or saved %}{% set plan=review.plan if review else saved %}
+<section class="notice" id="{{ 'zero-saved' if saved else 'zero-review' }}"><h2>{{ 'تم حفظ قرار التصفير' if saved else 'راجع قبل التأكيد' }}</h2>
+<dl class="form-grid"><div><dt>الأيام المصفرة</dt><dd><bdi>{{ plan.zeroed_amount }}</bdi> · <bdi>{{ days(plan.zeroed_amount) }}</bdi></dd></div><div><dt>التغير في دفتر الرصيد</dt><dd><bdi>{{ plan.ledger_delta }}</bdi></dd></div><div><dt>المبلغ النقدي</dt><dd><bdi>{{ plan.cash_amount }}</bdi></dd></div></dl>
+<p>{{ type_name(choices|selectattr('value','equalto',plan.leave_type_id|string+':'+plan.source_year|string)|map(attribute='kind')|first) }} · {{ plan.source_year }}</p>
+<p><span>تاريخ المراجعة</span> · <bdi>{{ plan.reviewed_on }}</bdi></p><p>{{ plan.reason }}</p><p>خصم واحد للأيام المصفرة، بلا مبلغ نقدي أو تغيير راتب.</p>
+{% if review %}<form method="post" action="/leave/zero-decision/{{ employee.id }}/confirm"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="proof" value="{{ proof }}"><label><input type="checkbox" style="width:auto" name="human_confirmed" value="yes" required> أؤكد تصفير الأيام المعروضة وعدم ترحيلها</label><button class="primary">حفظ التصفير بعد المراجعة</button></form>{% endif %}
+</section>{% endif %}
+{% if not saved %}<section class="notice"><form method="post" action="/leave/zero-decision/{{ employee.id }}/review"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><div class="form-grid">
+<label>النوع والسنة المكتملة<select name="choice" required><option value="">اختر النوع والسنة</option>{% for c in choices %}<option value="{{ c.value }}" {% if c.value==choice %}selected{% endif %}>{{ type_name(c.kind) }} · {{ c.year }}</option>{% endfor %}</select></label>
+<label>تاريخ المراجعة<input type="date" name="reviewed_on" value="{{ reviewed_on }}" required></label></div>
+<label>سبب المراجعة<textarea name="reason" maxlength="1000" required>{{ reason }}</textarea></label><button class="primary">مراجعة التصفير</button></form>
+{% if not choices %}<p>تحتاج سنة مكتملة بمصدر رصيد مثبت.</p>{% endif %}</section>{% endif %}
+{% endblock %}

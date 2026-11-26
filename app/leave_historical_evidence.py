@@ -104,10 +104,13 @@ def prepare_historical_evidence(db, *, source_bytes, source_label, facts,
         'requires_human_review': True, 'applied': False}, ensure_ascii=False, sort_keys=True, separators=(',', ':'))
     proposal_hash = sha256(proposal.encode()).hexdigest()
     db.execute(text('LOCK TABLE leave_historical_evidence_preparations IN SHARE ROW EXCLUSIVE MODE'))
+    epoch = read_restore_epoch(db)
     row = db.scalar(select(LeaveHistoricalEvidencePreparation).where(
-        LeaveHistoricalEvidencePreparation.proposal_sha256 == proposal_hash))
+        LeaveHistoricalEvidencePreparation.proposal_sha256 == proposal_hash,
+        LeaveHistoricalEvidencePreparation.restore_epoch.is_(None) if epoch is None
+        else LeaveHistoricalEvidencePreparation.restore_epoch == epoch))
     if row is not None:
-        if row.restore_epoch != read_restore_epoch(db) or row.proposal_json != proposal:
+        if row.proposal_json != proposal:
             raise ValueError('Historical proposal integrity or restore epoch mismatch.')
         return row
     row = LeaveHistoricalEvidencePreparation(id=secrets.token_hex(32), actor_id=actor_id,

@@ -286,6 +286,15 @@ def _verify_recorded_source(db, *, result, employee_id, leave_type_id):
             raise ValueError('Carry source monthly binding changed.')
         verified = _verify_receipt(db, receipt)
         proven.update(item['id'] for item in verified['ledger'])
+    from app.models import LeaveCarryExpiry
+    from app.leave_carry_expiry import verify_expiry_receipt
+    for ledger_id in selected:
+        key=rows[ledger_id][3] or ''
+        if key.startswith('leave_carry_expiry:'):
+            receipt=db.get(LeaveCarryExpiry,key.split(':',1)[1],populate_existing=True)
+            verify_expiry_receipt(db,receipt)
+            if receipt.ledger_id!=ledger_id:raise ValueError('Carry exclusion source ledger changed.')
+            proven.add(ledger_id)
     if any(item not in proven for item in selected):
         raise ValueError('Carry source lacks verified monthly receipt provenance.')
     verified_months = completed['verified_months']

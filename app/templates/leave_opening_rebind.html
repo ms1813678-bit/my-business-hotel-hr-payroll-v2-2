@@ -1,0 +1,19 @@
+{% extends 'base.html' %}{% set active_nav='leave' %}
+{% block title %}إعادة ربط المصدر بعد الاستعادة{% endblock %}
+{% block content %}
+<header class="topbar"><div><h1>إعادة ربط المصدر بعد الاستعادة</h1><p>{{ employee.code }} · {{ employee.full_name }}</p></div></header>
+<section class="notice"><p>اربط مصدرًا مؤكدًا جديدًا بالمصدر المؤرشف بعد الاستعادة، بنفس الموظف والأرصدة وتاريخ البداية والسياسة.</p><p>لا رصيد افتتاحي ثانٍ، ولا تغيير في بيانات الحسابات أو كلمات المرور أو سجلات المصدر القديمة.</p></section>
+{% if review %}{% set plan=review.plan %}<section class="notice" id="rebind-review"><h2>راجع قبل التأكيد</h2><dl class="form-grid">
+<div><dt>المصدر المؤرشف</dt><dd><bdi class="source-id">{{ plan.old_selection_id }}</bdi></dd></div><div><dt>المصدر المؤكد الجديد</dt><dd><bdi class="source-id">{{ plan.new_selection_id }}</bdi></dd></div>
+<div><dt>تاريخ بداية الرصيد</dt><dd><bdi>{{ plan.effective_start }}</bdi></dd></div>
+{% for code,name in [('A','سنوي'),('W','راحة أسبوعية'),('H','عطلة رسمية')] %}<div><dt>{{ name }}</dt><dd><bdi>{{ plan.amounts[code] }}</bdi></dd></div>{% endfor %}</dl>
+<p>{{ reason }}</p><p>تغير دفتر الرصيد: صفر. محفوظ في سجل المراجعة فقط.</p>
+<form method="post" action="/leave/opening-rebind/{{ employee.id }}/confirm"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="proof" value="{{ proof }}"><label><input type="checkbox" style="width:auto" name="human_confirmed" value="yes" required> أؤكد تطابق المصدرين دون إضافة رصيد جديد</label><button class="primary">حفظ إعادة الربط بعد المراجعة</button></form></section>{% endif %}
+{% if saved %}<section class="notice" id="rebind-saved"><h2>تم حفظ إعادة ربط المصدر</h2><p>تغير دفتر الرصيد: صفر. محفوظ في سجل المراجعة فقط.</p><p>{{ reason }}</p></section>{% else %}
+<section class="notice"><form method="post" action="/leave/opening-rebind/{{ employee.id }}/review"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><div class="form-grid">
+<label>المصدر المؤرشف<select name="old_selection" required><option value="">اختر المصدر</option>{% for source in old_sources %}<option value="{{ source.id }}" {% if source.id==old_selection %}selected{% endif %}>{{ source.created_at }} · {{ source.id[:12] }}</option>{% endfor %}</select></label>
+<label>المصدر المؤكد الجديد<select name="new_selection" required><option value="">اختر المصدر</option>{% for source in current_sources %}<option value="{{ source.id }}" {% if source.id==new_selection %}selected{% endif %}>{{ source.created_at }} · {{ source.id[:12] }}</option>{% endfor %}</select></label></div>
+<label>سبب المراجعة<textarea name="reason" required maxlength="1000">{{ reason }}</textarea></label><button class="primary">مراجعة إعادة ربط المصدر</button></form>
+{% if not old_sources or not current_sources %}<p>تحتاج مصدرًا مؤرشفًا مطبقًا ومصدرًا جديدًا مؤكدًا في دورة الاستعادة الحالية.</p>{% endif %}</section>{% endif %}
+<style>.source-id{overflow-wrap:anywhere;word-break:break-all;font-size:.85em}</style>
+{% endblock %}

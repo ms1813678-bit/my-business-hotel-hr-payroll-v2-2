@@ -25,9 +25,13 @@ def _fail():
     raise ValueError('Manual opening receipt does not verify against ledger and audit evidence.')
 
 
-def verified_manual_opening(db, *, selection_id, **identity):
-    """Return {'selection_id','employee_id','apply_sha256','ledger_codes':{id: code},'amounts'} or raise."""
-    if not isinstance(selection_id, str) or not HEX64.match(selection_id) or set(identity) != set(IDENTITY_KEYS):
+def _verify_apply_core(db, selection_id):
+    """Epoch-free proof of the ORIGINAL apply: audit receipt + ledger rows + per-category audits.
+
+    Does not read the source rows. The caller binds the source (current-epoch read, or the
+    rebind lineage). Returns the verified facts.
+    """
+    if not isinstance(selection_id, str) or not HEX64.match(selection_id):
         _fail()
     with db.no_autoflush:
         receipts = db.scalars(select(AuditLog).where(AuditLog.action == RECEIPT_ACTION,
@@ -101,14 +105,62 @@ def verified_manual_opening(db, *, selection_id, **identity):
             got[audit.entity_id] = True
         if set(got) != set(expected):
             _fail()
-    from app.leave_opening_source import read_confirmed_opening_source
-    reviews, _policy, digest = read_confirmed_opening_source(db, selection_id=selection_id, **identity)
-    if (digest != body['source_sha256'] or {r['employee_id'] for r in reviews} != {body['employee_id']}
-            or {r['code']: Decimal(r['days']) for r in reviews} != amounts):
-        _fail()
-    return {'selection_id': selection_id, 'employee_id': body['employee_id'],
+    return {'selection_id': selection_id, 'employee_id': body['employee_id'], 'source_sha256': body['source_sha256'],
             'apply_sha256': body['apply_sha256'], 'ledger_codes': {v: k for k, v in by_code.items()},
             'amounts': amounts}
+
+
+def verify_rebind_chain(db, chain, bodies, root_core, *, final_current):
+    """Each rebind keeps employee, amounts and original apply digest; epochs link in order.
+
+    final_current: (reviews, digest, epoch) of the head selection read in the current epoch, or None
+    when only the archived links are checked (used while planning a new rebind).
+    """
+    from app.models import LeaveOpeningSelection
+    for index, body in enumerate(bodies):
+        sel = db.get(LeaveOpeningSelection, chain[index], populate_existing=True)
+        old = db.get(LeaveOpeningSelection, body['old_selection_id'], populate_existing=True)
+        if (sel is None or old is None or sel.restore_epoch != body['new_epoch'] or old.restore_epoch != body['old_epoch']
+                or sel.employee_id != root_core['employee_id'] or old.employee_id != root_core['employee_id']
+                or body['employee_id'] != root_core['employee_id']
+                or body['old_apply_sha256'] != root_core['apply_sha256']
+                or {c: Decimal(v) for c, v in body['amounts'].items()} != root_core['amounts']
+                or (index == len(bodies) - 1 and body['old_selection_id'] != root_core['selection_id'])
+                or (index > 0 and bodies[index - 1]['old_epoch'] != body['new_epoch'])):
+            _fail()
+    if final_current is not None and bodies:
+        reviews, digest = final_current
+        head = bodies[0]
+        if (digest != head['new_source_sha256'] or {r['employee_id'] for r in reviews} != {root_core['employee_id']}
+                or {r['code']: Decimal(r['days']) for r in reviews} != root_core['amounts']
+                or {r['effective_start'] for r in reviews} != {head['effective_start']}):
+            _fail()
+
+
+def verified_manual_opening(db, *, selection_id, **identity):
+    """Return {'selection_id','employee_id','apply_sha256','ledger_codes':{id: code},'amounts'} or raise.
+
+    A current-epoch selection verifies either directly (it carries the apply receipt) or through an
+    immutable rebind lineage back to the original apply receipt; the original ledger is the only credit.
+    """
+    if not isinstance(selection_id, str) or not HEX64.match(selection_id) or set(identity) != set(IDENTITY_KEYS):
+        _fail()
+    from app.leave_opening_rebind import lineage
+    from app.leave_opening_source import read_confirmed_opening_source
+    try:
+        chain, bodies = lineage(db, selection_id)
+    except ValueError:
+        _fail()
+    core = _verify_apply_core(db, chain[-1])
+    reviews, _policy, digest = read_confirmed_opening_source(db, selection_id=selection_id, **identity)
+    if not bodies:
+        if (digest != core['source_sha256'] or {r['employee_id'] for r in reviews} != {core['employee_id']}
+                or {r['code']: Decimal(r['days']) for r in reviews} != core['amounts']):
+            _fail()
+    else:
+        verify_rebind_chain(db, chain, bodies, core, final_current=(reviews, digest))
+    return {'selection_id': selection_id, 'root_selection_id': chain[-1], 'employee_id': core['employee_id'],
+            'apply_sha256': core['apply_sha256'], 'ledger_codes': core['ledger_codes'], 'amounts': core['amounts']}
 
 
 def verified_receipt_ledger_ids(db, *, ledger_rows, selection_ids, **identity):
@@ -131,7 +183,11 @@ def verified_receipt_ledger_ids(db, *, ledger_rows, selection_ids, **identity):
         selection = match.group(1)
         if selection not in verified:
             try:
-                verified[selection] = verified_manual_opening(db, selection_id=selection, **identity)
+                # After a restore the key still names the ORIGINAL applied selection; verify the
+                # current-epoch selection rebound from it (itself when it is already current).
+                from app.leave_opening_rebind import current_descendant
+                head = current_descendant(db, selection, identity['expected_epoch'])
+                verified[selection] = None if head is None else verified_manual_opening(db, selection_id=head, **identity)
             except ValueError:
                 verified[selection] = None
         receipt = verified[selection]

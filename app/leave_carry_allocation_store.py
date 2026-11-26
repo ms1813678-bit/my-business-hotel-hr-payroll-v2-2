@@ -22,6 +22,11 @@ def _derive(db, *, available_from, available_through, reason, source_selection):
     amount = source['amount']
     if not isinstance(reason, str) or not 1 <= len(reason.strip()) <= 1000:
         raise ValueError('Explicit bounded carry reason required.')
+    from app.models import LeaveZeroDecision
+    if db.scalar(select(LeaveZeroDecision.id).where(LeaveZeroDecision.employee_id == source_selection['employee_id'],
+            LeaveZeroDecision.leave_type_id == source_selection['leave_type_id'],
+            LeaveZeroDecision.source_year == source_selection['source_year'])):
+        raise ValueError('Source year already zeroed; carry and zero are exclusive.')
     if kind == 'annual' and amount > 0:
         raise ValueError('Positive annual uses the separate source-bound cash and carry settlement service.')
     if amount > 0:
@@ -41,7 +46,7 @@ def _derive(db, *, available_from, available_through, reason, source_selection):
 
 
 def _allocation_locks(db):
-    db.execute(text('LOCK TABLE leave_carry_allocations IN SHARE ROW EXCLUSIVE MODE'))
+    db.execute(text('LOCK TABLE leave_carry_allocations,leave_zero_decisions IN SHARE ROW EXCLUSIVE MODE'))
 
 
 @bounded_workbook_operation
