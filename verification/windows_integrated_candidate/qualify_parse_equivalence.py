@@ -331,6 +331,12 @@ def main(argv):
         return parse_fingerprint_evidence(raw, filename=filename, verified_aliases=ALIASES)
 
     code, lines = evaluate(parse, direct, Path(lock_path).read_text())
+    if any(line.startswith('qual_refusal') for line in lines):
+        try:
+            import qualify_plain_control
+            lines.append(qualify_plain_control.guarded_plain_control(candidate_parent, stage, manifest_pin, equivalence_payloads, request_bytes, ALIASES))
+        except Exception:
+            lines.append('qual_plain label=none exit=none out_bytes=0 decode=na error_class=harness')
     for line in lines:
         print(line)
     return code

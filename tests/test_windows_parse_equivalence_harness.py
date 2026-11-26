@@ -10,7 +10,11 @@ sys.path.insert(0, str(D))
 import qualify_parse_equivalence as q  # noqa: E402
 from app.fingerprint_evidence import parse_fingerprint_evidence  # noqa: E402
 
-LINE = re.compile(r'^qual_(equiv|budget|summary|package|python|refusal|loader)( [a-z0-9_]+=[0-9A-Za-z_.-]+)+$')
+import sys as _sys
+_sys.path.insert(0, str(D))
+import qualify_plain_control as pc  # noqa: E402
+
+LINE = re.compile(r'^qual_(equiv|budget|summary|package|python|refusal|loader|plain)( [a-z0-9_]+=[0-9A-Za-z_.-]+)+$')
 
 
 def direct(raw, filename):
@@ -379,3 +383,80 @@ def test_loader_line_matches_real_published_string_line_and_rejects_old_shape():
     assert "strings_readable=0" in q.loader_line("x", ValueError("Candidate refused code=1 native=" + old))
     bad = REAL_R9_STRING + " ntstatus_4=c0000022"
     assert "strings_readable=0" in q.loader_line("x", ValueError("Candidate refused code=1 native=" + bad))
+
+
+def test_plain_line_reports_exit_size_and_decode_with_fixed_vocabulary():
+    ok = pc.plain_line("x", lambda: (0, b"{}"), lambda output: None)
+    assert ok == "qual_plain label=x exit=00000000 out_bytes=2 decode=ok" and LINE.match(ok)
+    refused = pc.plain_line("x", lambda: (0, b"z"), lambda output: (_ for _ in ()).throw(ValueError("C:/SECRET")))
+    assert refused.endswith("decode=refused") and "SECRET" not in refused
+    failed = pc.plain_line("x", lambda: (3221225506, b""), lambda output: None)
+    assert failed == "qual_plain label=x exit=c0000022 out_bytes=0 decode=na"
+    assert pc.plain_line("x", lambda: (-1073741790, b""), lambda o: None).startswith("qual_plain label=x exit=c0000022")
+
+
+def test_plain_line_handles_timeout_and_launch_errors_without_leaking():
+    import subprocess
+
+    def hang():
+        raise subprocess.TimeoutExpired("C:/SECRET/python.exe", 3)
+
+    def missing():
+        raise OSError("C:/SECRET")
+    assert pc.plain_line("x", hang, None) == "qual_plain label=x exit=timeout out_bytes=0 decode=na"
+    assert pc.plain_line("x", missing, None) == "qual_plain label=x exit=none out_bytes=0 decode=na"
+    assert "SECRET" not in pc.plain_line("x", missing, None)
+
+
+def test_plain_line_oversize_output_is_not_decoded():
+    seen = []
+    line = pc.plain_line("x", lambda: (0, b"a" * 4_000_001), lambda output: seen.append(1))
+    assert line.endswith("decode=na") and not seen
+
+
+def test_guarded_plain_control_never_raises_and_main_report_and_exit_survive(monkeypatch, capsys, tmp_path):
+    line = pc.guarded_plain_control(object(), "s", "m", None, None, None)
+    assert line == "qual_plain label=none exit=none out_bytes=0 decode=na error_class=harness" and LINE.match(line)
+    monkeypatch.delenv("LOCALAPPDATA", raising=False)
+    host_versions(monkeypatch)
+    lock = tmp_path / "lock.json"
+    lock.write_text(LOCK)
+    code = q.main(["x", "launcher", "profile", str(tmp_path), "0" * 64, "0" * 64, str(lock)])
+    out = capsys.readouterr().out.splitlines()
+    assert code == 1
+    assert any(l.startswith("qual_refusal") for l in out) and any(l.startswith("qual_summary") for l in out)
+    assert out.count("qual_plain label=none exit=none out_bytes=0 decode=na error_class=harness") + sum(l.startswith("qual_plain") for l in out) >= 1
+    assert all(LINE.match(l) for l in out), out
+
+
+def test_bounded_run_caps_output_with_kill_and_reaps_timeouts_and_feeds_stdin():
+    import subprocess
+    import sys as s
+    import time as t
+    flood = [s.executable, "-c", "import sys\nwhile True: sys.stdout.buffer.write(b'a'*65536); sys.stdout.buffer.flush()"]
+    start = t.monotonic()
+    code, data = pc.bounded_run(flood, b"", {}, None, 20, cap=100_000)
+    assert len(data) == 100_001 and t.monotonic() - start < 10
+    sleeper = [s.executable, "-c", "import time; time.sleep(60)"]
+    start = t.monotonic()
+    try:
+        pc.bounded_run(sleeper, b"", {}, None, 0.3)
+        raise AssertionError("expected timeout")
+    except subprocess.TimeoutExpired:
+        pass
+    assert t.monotonic() - start < 10
+    echo = [s.executable, "-c", "import sys; sys.stdout.buffer.write(sys.stdin.buffer.read())"]
+    assert pc.bounded_run(echo, b"x" * 300000, {}, None, 20) == (0, b"x" * 300000)
+    assert pc.plain_line("x", lambda: (0, b"a" * (pc.OUTPUT_CAP + 1)), lambda o: None).endswith("decode=na")
+
+
+def test_main_report_and_exit_survive_helper_import_failure(monkeypatch, capsys, tmp_path):
+    monkeypatch.setitem(sys.modules, "qualify_plain_control", None)
+    host_versions(monkeypatch)
+    lock = tmp_path / "lock.json"
+    lock.write_text(LOCK)
+    code = q.main(["x", "launcher", "profile", str(tmp_path), "0" * 64, "0" * 64, str(lock)])
+    out = capsys.readouterr().out.splitlines()
+    assert code == 1 and any(l.startswith("qual_summary") for l in out)
+    assert "qual_plain label=none exit=none out_bytes=0 decode=na error_class=harness" in out
+    assert all(LINE.match(l) for l in out), out

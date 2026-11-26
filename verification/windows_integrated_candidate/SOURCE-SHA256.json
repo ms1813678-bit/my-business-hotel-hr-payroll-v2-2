@@ -23,5 +23,6 @@
   "verification/windows_integrated_candidate/run_probe.py": "174c9dade159e9a39a122e7965848b66d83ff4c7dd057b3b9c53d80ee4175f3a",
   "verification/windows_integrated_candidate/probe_ctl.c": "a91f0338804aac1fcf2f48ee6c7a308d629e147fe08d4d293fb44432ad9693fd",
   "verification/windows_integrated_candidate/probe_tls_ctl.c": "abfb1162675236acf5a999af1e63dff255770656a00a8eaeebb9cb814583534c",
-  "verification/windows_integrated_candidate/qualify_parse_equivalence.py": "549995af62b31e7672c63f3bf5e669b58bcaf24a4e5c6fafe6b4a65a5684b985"
+  "verification/windows_integrated_candidate/qualify_parse_equivalence.py": "c4d109d2be27ec6ec90e6cc67550404c326298e016eca5342e2585f95669c85b",
+  "verification/windows_integrated_candidate/qualify_plain_control.py": "ea4ac8f05a0713580258eeea748e7f36b9cd860e2f500a7c93726179edb95720"
 }
