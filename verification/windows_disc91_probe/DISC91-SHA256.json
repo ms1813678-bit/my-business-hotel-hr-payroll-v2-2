@@ -1,0 +1,6 @@
+{
+ "verification/windows_disc91_probe/disc91_probe.c": "61d5d0cb68486770acc1922e772fdae5b7f338fc35cce77c5ee6fdb4eadb5c66",
+ "verification/windows_disc91_probe/decode_disc91.py": "1e37c01b369cd58bd9372e505614984e640154620ebb9cf5b9199efc4bc7afc2",
+ "verification/windows_disc91_probe/stage_disc91.py": "0f2efbf8f5e7e49b859bc0347a2bf5858769938e9f425e50f6e7091f75770e1c",
+ "verification/windows_disc91_probe/pe_patch.py": "877c5ae17b57e3ac512469da6aaa24c25c6a7b88a75ea18122a15dd6bc50c361"
+}
