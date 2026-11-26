@@ -1,3 +1,9 @@
+## 2026-11-26, Instinct: Windows parser stays off (owner decision) and year-2 composition test
+
+- Record the final dependency-probe result (commit d6d922a, run 45777908685, job 139765972747): compile ok, all 7 top-level loads ok, python314.dll loaded last failed with GetLastError 5. The cause inside python314.dll load is not named. Diagnostic only, no acceptance.
+- Record the owner decision (option A): the Windows operational parser stays off and fails closed; parsing runs on the Linux/other path. No loosening of any protection, no further probes. No code change: the posix-only gate and its fail-closed tests are unchanged.
+- Add tests/test_l8_year2_composition.py: year-2 net, recorded completed-year v1, carry expiry, annual cash settlement and post-cash v2 compose exactly. Test only, no app change. Independent review ran it once on PostgreSQL 16 (py3.10 shim) and passed. It does not pin the cap branch when the net exceeds half the entitlement.
+
 ## 2026-11-26, Instinct: bounded dependency probe observation (final instrument)
 
 - Record the startup-probe result (commit afb04d7, run 45776968973, job 139762852947): exit 0x200147F8. Step 1, a full LoadLibraryExW(python314.dll) with import resolution and DllMain under the container, failed with GetLastError 5. Steps 2 and 3 follow from it. BCryptGenRandom, reads of python314.zip, python314._pth and candidate_worker.py, and the three std handle types all succeeded. The failing dependency is not named. Diagnostic only, no acceptance.
