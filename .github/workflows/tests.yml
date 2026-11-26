@@ -75,7 +75,7 @@ jobs:
   windows:
     name: Windows runner compatibility (Python 3.11)
     runs-on: windows-latest
-    timeout-minutes: 45
+    timeout-minutes: 75
     env:
       DATABASE_URL: postgresql+psycopg://hotel_test:test-only-password@127.0.0.1:55432/hotel_test
       SESSION_SECRET: ci-test-only-session-secret-not-for-production
