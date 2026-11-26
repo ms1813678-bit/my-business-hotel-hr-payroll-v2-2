@@ -1,7 +1,11 @@
-## 2026-11-26, Instinct: Windows parser stays off (owner decision) and year-2 composition test
+## 2026-11-26, Instinct: bounded forwarder probe packet (design by the independent reviewer)
+
+- One bounded investigation of the python314.dll denial: runner-side read-only dumpbin text parsing to list forwarded-to system DLLs (depth 3, cap 20, fixed order), then a kernel32-only probe image that does full-resolution loads of each target and two full-path loads of python314.dll with different search flags. The parse is guarded by pinned per-DLL named-import counts and the export header name count, and refuses before launch on any difference. Interpretation rules are fixed in the decoder before the run. One launched run, no rerun, no ETW, no system file copied, nothing in System32 or the registry written. Portable tests only, MSVC and Windows unverified.
+
+## 2026-11-26, Instinct: final probe result, option A and year-2 composition test
 
 - Record the final dependency-probe result (commit d6d922a, run 45777908685, job 139765972747): compile ok, all 7 top-level loads ok, python314.dll loaded last failed with GetLastError 5. The cause inside python314.dll load is not named. Diagnostic only, no acceptance.
-- Record the owner decision (option A): the Windows operational parser stays off and fails closed; parsing runs on the Linux/other path. No loosening of any protection, no further probes. No code change: the posix-only gate and its fail-closed tests are unchanged.
+- Record the decisions separately from facts: at 10:01 the owner said to pick the safest option, and A was chosen (Windows operational parser stays off and fails closed, parsing on the Linux/other path); at 10:09 the owner said no other device exists and the laptop must read alone; at 10:11 the owner approved ONE further bounded experiment. No loosening of any protection. No code change: the posix-only gate and its fail-closed tests are unchanged.
 - Add tests/test_l8_year2_composition.py: year-2 net, recorded completed-year v1, carry expiry, annual cash settlement and post-cash v2 compose exactly. Test only, no app change. Independent review ran it once on PostgreSQL 16 (py3.10 shim) and passed. It does not pin the cap branch when the net exceeds half the entitlement.
 
 ## 2026-11-26, Instinct: bounded dependency probe observation (final instrument)
