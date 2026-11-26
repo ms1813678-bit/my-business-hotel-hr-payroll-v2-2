@@ -1,0 +1,6 @@
+{
+ "verification/windows_disc90_probe/disc90_probe.c": "04f512c0b3a7bcddbf60841fa4ea3c6df63ef333ee617424b8d4c8d450cbb880",
+ "verification/windows_disc90_probe/decode_disc90.py": "f95ceecd9d5e3e13928d87ee209f70d29b0547c31a6a0eb1727f417671f2e6fc",
+ "verification/windows_disc90_probe/stage_disc90.py": "9e1de5a42a0a5a5caf05742c18f96d2fa76267d9b7642bc31af8925afce18e85",
+ "verification/windows_disc90_probe/pe_imports.py": "3e51051e8f7f13d407e8dd830f6a93887a3de209233d6d94ae75b721f1505363"
+}
