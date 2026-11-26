@@ -3,8 +3,8 @@
 finally). Real app routes + real services + real PG locks/triggers.
 Oracle (salary 6000, approved financial reward 300, paid advance 1000, approved
 sanction 200): net 5100.00. Characterization only; no policy claim.
-Requires a local PG on 127.0.0.1 reachable as G4_PG_ADMIN_URL (default
-postgresql+psycopg://postgres@127.0.0.1:5433/postgres)."""
+Uses the configured local DATABASE_URL server (postgres admin database), or an
+explicit G4_PG_ADMIN_URL. No personal port default."""
 import os, re, subprocess, sys, uuid
 from datetime import date, datetime
 from decimal import Decimal as D
@@ -14,11 +14,12 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, select, text, update
 from sqlalchemy.orm import sessionmaker
 
-ADMIN_URL = os.environ.get("G4_PG_ADMIN_URL", "postgresql+psycopg://postgres@127.0.0.1:5433/postgres")
+from sqlalchemy.engine import make_url as _make_url
+ADMIN_URL = (_make_url(os.environ["G4_PG_ADMIN_URL"]) if os.environ.get("G4_PG_ADMIN_URL")
+             else _make_url(os.environ["DATABASE_URL"]).set(database="postgres"))
 
 # Local-only guard: this module CREATEs and DROPs databases, so it refuses any
 # admin URL that is not on this computer (CI or a typo cannot touch an external DB).
-from sqlalchemy.engine import make_url as _make_url
 _host = _make_url(ADMIN_URL).host
 if _host not in ("127.0.0.1", "localhost", "::1"):
     pytest.skip("G4_PG_ADMIN_URL must point at a local PostgreSQL (127.0.0.1/localhost/::1)",
@@ -33,7 +34,7 @@ def pgapp(monkeypatch):
         c.execute(text(f'CREATE DATABASE "{name}" ENCODING UTF8 TEMPLATE template0'))
     engine = None
     try:
-        url = ADMIN_URL.rsplit("/", 1)[0] + "/" + name
+        url = ADMIN_URL.set(database=name).render_as_string(hide_password=False)
         env = dict(os.environ, DATABASE_URL=url)
         subprocess.run([sys.executable, "-m", "scripts.initialize_database"], env=env, check=True,
                        capture_output=True)

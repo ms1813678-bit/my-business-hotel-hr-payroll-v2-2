@@ -41,7 +41,7 @@ MODIFIER_ONLY_SETS = [{10}, {11}, {10, 11}]
 
 
 @pytest.fixture()
-def empty_client():
+def empty_client(monkeypatch):
     """HTTP client over an EMPTY database (no seed): boundary behavior must
     not depend on data presence."""
     engine = create_engine(
@@ -56,8 +56,7 @@ def empty_client():
 
     app.dependency_overrides[get_db] = override_get_db
     import app.main as main_mod
-    monkey_factory = factory
-    main_mod.SessionLocal = monkey_factory
+    monkeypatch.setattr(main_mod, "SessionLocal", factory)
     client = TestClient(app, raise_server_exceptions=False)
 
     def as_role(role: str):
@@ -68,10 +67,13 @@ def empty_client():
         app.dependency_overrides[get_current_admin] = lambda: account
         return client
 
-    yield as_role
-    app.dependency_overrides.clear()
-    Base.metadata.drop_all(bind=engine)
-    engine.dispose()
+    try:
+        yield as_role
+    finally:
+        client.close()
+        app.dependency_overrides.clear()
+        Base.metadata.drop_all(bind=engine)
+        engine.dispose()
 
 
 def _get(client, month, options):
