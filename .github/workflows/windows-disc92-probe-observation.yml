@@ -1,0 +1,137 @@
+name: Diagnostic disc92 probe observation only
+on:
+  push:
+    branches: [ui-overhaul]
+    paths:
+      - .github/workflows/windows-disc92-probe-observation.yml
+      - verification/windows_disc92_probe/**
+permissions:
+  contents: read
+jobs:
+  candidate:
+    runs-on: windows-2022
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Compile unchanged launcher and observe diagnostic disc92 probe
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $owned=Join-Path $env:RUNNER_TEMP ('hony-disc92-observe-'+$env:GITHUB_RUN_ID+'-'+$env:GITHUB_RUN_ATTEMPT)
+          if(Test-Path $owned){throw 'Fresh owned root required'}
+          $root=Join-Path $pwd 'verification/windows_integrated_candidate'
+          # Retention lasts only for this disposable hosted VM, not persistent storage.
+          $safeCleanup=$true
+          $ownedIdentity=$null
+          $markerOwner=$env:GITHUB_RUN_ID+'-'+$env:GITHUB_RUN_ATTEMPT
+          $diag=Join-Path $pwd 'verification/windows_entry_marker'
+          try {
+            $manifest=Get-Content "$root/SOURCE-SHA256.json" -Raw|ConvertFrom-Json -AsHashtable
+            $productPins=Get-Content "$root/PRODUCT-SHA256.json" -Raw|ConvertFrom-Json -AsHashtable
+            foreach($path in $productPins.Keys){$manifest[$path]=$productPins[$path]}
+            $nativeDiag=Join-Path $pwd 'verification/windows_nodebug_diagnostic'
+            $diag=Join-Path $pwd 'verification/windows_entry_marker'
+            $diagPins=Get-Content "$diag/OBSERVATION-SHA256.json" -Raw|ConvertFrom-Json -AsHashtable
+            foreach($path in $diagPins.Keys){$manifest[$path]=$diagPins[$path]}
+            $probeDir=Join-Path $pwd 'verification/windows_disc92_probe'
+            $probePins=Get-Content "$probeDir/DISC92-SHA256.json" -Raw|ConvertFrom-Json -AsHashtable
+            foreach($path in $probePins.Keys){$manifest[$path]=$probePins[$path]}
+            foreach($path in $manifest.Keys){
+              $psi=[Diagnostics.ProcessStartInfo]::new();$psi.FileName='git';$psi.UseShellExecute=$false;$psi.RedirectStandardOutput=$true
+              $psi.ArgumentList.Add('cat-file');$psi.ArgumentList.Add('blob');$psi.ArgumentList.Add('HEAD:'+$path)
+              $proc=[Diagnostics.Process]::Start($psi);$stream=[IO.File]::Open((Join-Path $pwd $path),[IO.FileMode]::Create,[IO.FileAccess]::Write)
+              try{$proc.StandardOutput.BaseStream.CopyTo($stream)}finally{$stream.Dispose()}
+              $proc.WaitForExit();if($proc.ExitCode -ne 0){throw 'Committed blob read failed'}
+              if((Get-FileHash $path -Algorithm SHA256).Hash.ToLower() -ne $manifest[$path]){throw 'Committed source hash mismatch'}
+            }
+            $ownedIdentity=(& py -3.11 -B "$diag/owner_guard.py" create --root $owned --owner $markerOwner).Trim()
+            if($LASTEXITCODE -ne 0 -or $ownedIdentity -notmatch '^[0-9]+:[0-9]+$'){throw 'Owned root identity unavailable; retain'}
+            Write-Output ('ActualOS='+[Environment]::OSVersion.VersionString)
+            $vs=(& "${env:ProgramFiles(x86)}/Microsoft Visual Studio/Installer/vswhere.exe" -latest -property installationPath)
+            if(-not $vs){throw 'Installed MSVC missing'}
+            Import-Module (Join-Path $vs 'Common7/Tools/Microsoft.VisualStudio.DevShell.dll')
+            Enter-VsDevShell -VsInstallPath $vs -SkipAutomaticLocation -DevCmdArguments '-arch=x64 -host_arch=x64'
+            $launcher=Join-Path $owned 'candidate.exe'
+            & cl.exe /nologo /std:c11 /W4 /WX /guard:cf /GS /DUNICODE /D_UNICODE "/I$root" "$nativeDiag/launcher_nodebug_diag.c" "/Fe:$launcher" userenv.lib advapi32.lib /link /DYNAMICBASE /NXCOMPAT
+            if($LASTEXITCODE -ne 0){throw 'Native candidate compile failed'}
+            $watchdog=Join-Path $owned 'outer-watchdog.exe'
+            & cl.exe /nologo /std:c11 /W4 /WX /guard:cf /GS /DUNICODE /D_UNICODE "$nativeDiag/outer_watchdog.c" "/Fo$owned/outer-watchdog.obj" "/Fe:$watchdog" /link /DYNAMICBASE /NXCOMPAT
+            if($LASTEXITCODE -ne 0){throw 'Watchdog compile failed'}
+            & py -3.11 "$root/acquire_locked.py" --lock "$root/ACQUISITION-LOCK.json" --destination "$owned/acquired"
+            if($LASTEXITCODE -ne 0){throw 'Locked acquisition failed'}
+            foreach($name in @('python.exe','python314.dll')){
+              $sig=Get-AuthenticodeSignature -LiteralPath "$owned/acquired/runtime/$name"
+              Write-Output ($name+' signatureStatus='+$sig.Status+' signer='+$sig.SignerCertificate.Subject)
+              if($sig.Status -ne 'Valid'){throw 'Runtime signature verification failed'}
+            }
+            $python=Join-Path $owned 'acquired/runtime/python.exe'
+            # Signature/version checks above and below apply to the acquired ORIGINAL python.exe only.
+            & $python -I -B -c 'import sys;print(sys.version);sys.exit(0 if sys.version_info[:3]==(3,14,10) else 1)'
+            if($LASTEXITCODE -ne 0){throw 'Pinned runtime startup/version failed'}
+            $packages=@{openpyxl="$owned/acquired/packages/openpyxl";xlrd="$owned/acquired/packages/xlrd";et_xmlfile="$owned/acquired/packages/et_xmlfile"}|ConvertTo-Json
+            [IO.File]::WriteAllText("$owned/packages.json",$packages)
+            $substitute=Join-Path $owned 'probe.exe'
+            & cl.exe /nologo /W4 /WX /GS- /Gy "$probeDir/disc92_probe.c" "/Fo$owned/disc92_probe.obj" "/Fe:$substitute" /link /NODEFAULTLIB /ENTRY:mainCRTStartup /SUBSYSTEM:CONSOLE /DYNAMICBASE /NXCOMPAT kernel32.lib
+            if($LASTEXITCODE -ne 0){throw 'Dependency probe compile failed'}
+            $substitutePin=(Get-FileHash -LiteralPath $substitute -Algorithm SHA256).Hash.ToLower()
+            Write-Output ('diag_disc92_probe python_exe_replaced_in_derived_runtime_only=1 four_pinned_patched_copies_of_python314_dll_added=1 probe_sha256='+$substitutePin+' original_python_signature_checks_do_not_cover_probe=1 negative_inconclusive=1 diagnostic_only=1 security_acceptance=NOT_ESTABLISHED')
+            $pin=(& py -3.11 -B "$probeDir/stage_disc92.py" --probe-source "$probeDir/disc92_probe.c" --source $root --owned $owned --owner ($env:GITHUB_RUN_ID+'-'+$env:GITHUB_RUN_ATTEMPT) --runtime "$owned/acquired/runtime" --substitute $substitute --substitute-pin $substitutePin --product $pwd --packages-json "$owned/packages.json" --destination "$owned/staged").Trim()
+            if($LASTEXITCODE -ne 0 -or $pin -notmatch '^[0-9a-f]{64}$'){throw 'Private runtime staging failed'}
+            $owner=(Get-Content "$owned/staged/CANDIDATE-OWNER.json" -Raw|ConvertFrom-Json).owner
+            if(-not (Test-Path "$owned/staged/runtime/python314.dll")){throw 'Locked version stem mismatch'}
+            $launcherPin=(Get-FileHash -LiteralPath $launcher -Algorithm SHA256).Hash.ToLower()
+            $watchdogPin=(Get-FileHash -LiteralPath $watchdog -Algorithm SHA256).Hash.ToLower()
+            Write-Output ('diagnostic_launcher_sha256='+$launcherPin+' watchdog_sha256='+$watchdogPin)
+            $tokens=$null;$parseErrors=$null
+            [void][Management.Automation.Language.Parser]::ParseFile((Join-Path $diag 'qualify_diagnostic.ps1'),[ref]$tokens,[ref]$parseErrors)
+            if($parseErrors.Count -ne 0){throw 'Diagnostic profile script parse refused before profile creation'}
+            # Fresh child PowerShell makes exit125 observable without exiting this owner.
+            # Retain the entire owned root if launch/exit is unknown. Never infer from stderr.
+            $safeCleanup=$false
+            $runStart=Get-Date
+            & pwsh -NoProfile -File "$diag/qualify_diagnostic.ps1" -Launcher $launcher -Stage "$owned/staged" -ManifestPin $pin -Owner $owner -ProductRoot $pwd -TrustedPython (py -3.11 -c 'import sys;print(sys.executable)') -Watchdog $watchdog -WatchdogPin $watchdogPin -LauncherPin $launcherPin | Tee-Object -Variable qualifyLines
+            $diagnosticExit=$LASTEXITCODE
+            $exitMatch=[regex]::Match(($qualifyLines -join "`n"),'process_exit=([0-9]{1,10})')
+            if($exitMatch.Success){& py -3.11 -B "$probeDir/decode_disc92.py" --exit $exitMatch.Groups[1].Value}
+            else{Write-Output 'disc92_decode_skipped capture_process_exit_absent=1'}
+            $runEnd=Get-Date
+            # Read-only look at Windows event logs for the run window only. No settings change, and the result
+            # path is not touched. At most 15 ASCII lines in all, message cut at 160 characters.
+            try {
+              $eventLogs=[Collections.Generic.List[string]]::new()
+              foreach($fixed in @('Microsoft-Windows-CodeIntegrity/Operational','Microsoft-Windows-Windows Defender/Operational','Microsoft-Windows-AppLocker/EXE and DLL')){$eventLogs.Add($fixed)}
+              try{foreach($info in @(Get-WinEvent -ListLog 'Microsoft-Windows-Security-Mitigations/*' -ErrorAction Stop)){$eventLogs.Add($info.LogName)}}catch{Write-Output 'disc92_events log=Security-Mitigations list=unavailable'}
+              $printed=0
+              foreach($logName in $eventLogs){
+                $short=($logName -replace '[^\x20-\x7E]','?')
+                try{
+                  $found=@(Get-WinEvent -FilterHashtable @{LogName=$logName;StartTime=$runStart.AddSeconds(-2);EndTime=$runEnd.AddSeconds(2)} -ErrorAction Stop)
+                  Write-Output ('disc92_events log='+$short+' count='+$found.Count)
+                  foreach($ev in $found){
+                    if($printed -ge 15){break}
+                    $text=([string]$ev.Message) -replace '[\r\n]+',' ' -replace '[^\x20-\x7E]','?'
+                    if($text.Length -gt 160){$text=$text.Substring(0,160)}
+                    Write-Output ('disc92_event log='+$short+' id='+$ev.Id+' level='+$ev.Level+' msg='+$text)
+                    $printed++
+                  }
+                }catch{Write-Output ('disc92_events log='+$short+' count=0 note=none_or_unavailable')}
+              }
+              Write-Output ('disc92_events_done printed='+$printed+' max=15 read_only=1 diagnostic_only=1')
+            }catch{Write-Output 'disc92_events_step_failed no_effect_on_exit_handling=1'}
+            Write-Output ('diag_nodebug_child_exit code='+$(if($null -eq $diagnosticExit){'missing'}else{[string]$diagnosticExit})+' not_acceptance=1')
+            if($diagnosticExit -in @(0,122,123,124,126)){$safeCleanup=$true}
+            else{throw 'Diagnostic safety failure or unknown exit; owned stage retained'}
+            Write-Output ('diag_nodebug_workflow exit='+$diagnosticExit+' not_acceptance=1 debugger_only_cause=NOT_ESTABLISHED')
+            if($diagnosticExit -ne 0){throw 'Disc92 observation refused by parser contract as expected; inspect captured child status, not acceptance'}
+          } finally {
+            if(-not $safeCleanup){throw 'Stage retention required; cleanup not confirmed'}
+            if(Test-Path $owned){
+              if(-not $ownedIdentity){throw 'Owned identity unknown; retain'}
+              & py -3.11 -B "$diag/owner_guard.py" cleanup --root $owned --owner $markerOwner --identity $ownedIdentity
+              if($LASTEXITCODE -ne 0){throw 'Owned identity/cleanup refusal; retained'}
+            }
+            if(Test-Path $owned){throw 'Owned integrated root cleanup failed'}
+            Write-Output 'Owned integrated root absence verified.'
+          }

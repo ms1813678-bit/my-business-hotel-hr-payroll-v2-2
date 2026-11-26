@@ -1,0 +1,6 @@
+{
+ "verification/windows_disc92_probe/disc92_probe.c": "73ff957fb6f9738ceaa469aababf46cd5b0f16e8b506833ae53a61ee99182fbc",
+ "verification/windows_disc92_probe/decode_disc92.py": "b216b5217b8c62a6d1b91a33755cffdf027874b3a4697a842e42cbb35e44581c",
+ "verification/windows_disc92_probe/stage_disc92.py": "c462ca95234bfa581d16a396fff9b73d075c85f6cd8bc6e921b2f08c41aa0deb",
+ "verification/windows_disc92_probe/pe_patch92.py": "49a84bdde5a94f759c0c59129db753a4e59cc37b6486f785638e6b77da6eb033"
+}
