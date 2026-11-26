@@ -10,7 +10,7 @@ sys.path.insert(0, str(D))
 import qualify_parse_equivalence as q  # noqa: E402
 from app.fingerprint_evidence import parse_fingerprint_evidence  # noqa: E402
 
-LINE = re.compile(r'^qual_(equiv|budget|summary|package|python|refusal)( [a-z0-9_]+=[0-9A-Za-z_.-]+)+$')
+LINE = re.compile(r'^qual_(equiv|budget|summary|package|python|refusal|loader)( [a-z0-9_]+=[0-9A-Za-z_.-]+)+$')
 
 
 def direct(raw, filename):
@@ -310,3 +310,72 @@ def test_every_launcher_stage_is_in_the_allowlist():
     stages = set(_re.findall(r'stage="([a-z_]+)"', source))
     assert stages and stages <= q.REFUSAL_STAGES
     assert q.REFUSAL_STAGES - stages == set()
+
+
+LOADER_NATIVE = ("CANDIDATE_CREATED pid=7932 suspended=1\nloader_debug_event kind=3 ordinal=1\nloader_debug_event kind=6 ordinal=2\n"
+                 "loader_debug_event kind=6 ordinal=3\nloader_debug_event kind=8 ordinal=4\n"
+                 "loader_debug_string readable=1 fixed_image_bits=2 bounded_bytes=57 unicode=0 clamped=0 raw_discarded=1 keyword_bits=2 ldr_prefix=0 ntstatus_0=c0000022 ntstatus_1=c0000005\n"
+                 "loader_debug_event kind=7 ordinal=5\nloader_debug_exception code=c0000022 first_chance=0\n"
+                 "loader_debug_exit code=c0000022\nCANDIDATE_REFUSAL stage=duplex_wait error=121 child=3221225506\n")
+
+
+def test_loader_line_counts_events_without_naming_or_attributing_any_module():
+    line = q.loader_line("x", ValueError("Candidate refused code=1 native=" + LOADER_NATIVE))
+    assert line == ("qual_loader label=x native=present events=5 last_ordinal=5 load_dll=2 unload_dll=1 debug_string_events=1 "
+                    "exception_events=1 first_exception=c0000022 strings_readable=1 strings_unreadable=0 "
+                    "first_string_ntstatus=c0000022 debug_exit=c0000022 stderr_near_cap=0")
+    assert LINE.match(line)
+    assert "python" not in line and "module" not in line and "mapped" not in line and "unloaded" not in line
+
+
+def test_loader_line_missing_and_hostile_input_is_counts_of_zero_not_a_claim():
+    empty = q.loader_line("x", ValueError("Invalid parser result."))
+    assert empty == ("qual_loader label=x native=absent events=0 last_ordinal=0 load_dll=0 unload_dll=0 debug_string_events=0 "
+                     "exception_events=0 first_exception=none strings_readable=0 strings_unreadable=0 "
+                     "first_string_ntstatus=none debug_exit=none stderr_near_cap=0")
+    hostile = ("Candidate refused code=1 native=loader_debug_event kind=7 ordinal=1 extra\n"
+               "loader_debug_string readable=1 fixed_image_bits=2 bounded_bytes=5 unicode=0 clamped=0 raw_discarded=1 C:/Users/SECRET\n"
+               "loader_debug_string readable=1 fixed_image_bits=2 bounded_bytes=5 unicode=0 clamped=0 raw_discarded=1 ntstatus_0=zzzzzzzz\n"
+               "loader_debug_exit code=zzzzzzzz\nloader_debug_exception code=c000002 first_chance=1\nqual_summary all_green=1")
+    out = q.loader_line("x", ValueError(hostile))
+    assert "SECRET" not in out and "all_green" not in out
+    assert "native=present events=0" in out and "unload_dll=0" in out and "strings_readable=0" in out
+    assert "first_exception=none" in out and "debug_exit=none" in out
+
+
+def test_loader_line_flags_possible_truncation_and_reads_unreadable_strings():
+    big = "Candidate refused code=1 native=" + "loader_debug_event kind=6 ordinal=1\n" * 500
+    assert q.loader_line("x", ValueError(big)).endswith("stderr_near_cap=1")
+    un = "Candidate refused code=1 native=loader_debug_string readable=0 declared_bytes=9 received_bytes=0 unicode=0 no_localization_claim=1"
+    assert "strings_unreadable=1" in q.loader_line("x", ValueError(un))
+
+
+def test_loader_line_printed_once_after_first_refusal(monkeypatch):
+    host_versions(monkeypatch)
+
+    def refuse(request):
+        raise ValueError("Candidate refused code=1 native=" + LOADER_NATIVE)
+    code, lines = q.evaluate(refuse, direct, LOCK)
+    loader = [l for l in lines if l.startswith("qual_loader")]
+    assert len(loader) == 1 and loader[0].startswith("qual_loader label=csv_duplicates_unknown ")
+    assert lines.index(loader[0]) == lines.index(next(l for l in lines if l.startswith("qual_refusal"))) + 1
+    assert code == 1 and all(LINE.match(l) for l in lines)
+
+
+def test_loader_line_states_when_native_text_is_absent_or_over_budget():
+    assert "native=budget_exceeded events=0" in q.loader_line("x", ValueError("Native diagnostic budget exceeded"))
+    assert "native=absent events=0" in q.loader_line("x", ValueError("Candidate refused code=1"))
+
+
+REAL_R9_STRING = "loader_debug_string readable=1 fixed_image_bits=0 bounded_bytes=57 unicode=0 clamped=0 raw_discarded=1 keyword_bits=2 ldr_prefix=0"
+
+
+def test_loader_line_matches_real_published_string_line_and_rejects_old_shape():
+    real = q.loader_line("x", ValueError("Candidate refused code=1 native=" + REAL_R9_STRING))
+    assert "strings_readable=1" in real and "first_string_ntstatus=none" in real
+    withnt = q.loader_line("x", ValueError("Candidate refused code=1 native=" + REAL_R9_STRING + " ntstatus_0=c0000022"))
+    assert "strings_readable=1" in withnt and "first_string_ntstatus=c0000022" in withnt
+    old = REAL_R9_STRING.replace(" keyword_bits=2 ldr_prefix=0", "")
+    assert "strings_readable=0" in q.loader_line("x", ValueError("Candidate refused code=1 native=" + old))
+    bad = REAL_R9_STRING + " ntstatus_4=c0000022"
+    assert "strings_readable=0" in q.loader_line("x", ValueError("Candidate refused code=1 native=" + bad))

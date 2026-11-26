@@ -157,6 +157,65 @@ def refusal_line(label, error):
         label, code.group(1) if code else 'none', stage, os_error, child, created)
 
 
+EXCEPTION_LINE = re.compile(r'^loader_debug_exception code=([0-9a-f]{8}) first_chance=([01])$')
+STRING_READABLE = re.compile(r'^loader_debug_string readable=1 fixed_image_bits=[0-9]{1,10} bounded_bytes=[0-9]{1,10} unicode=[01] clamped=[01] raw_discarded=1 keyword_bits=[0-9]{1,10} ldr_prefix=[01]((?: ntstatus_[0-3]=[0-9a-f]{8}){0,4})$')
+STRING_UNREADABLE = re.compile(r'^loader_debug_string readable=0 declared_bytes=[0-9]{1,10} received_bytes=[0-9]{1,10} unicode=[01] no_localization_claim=1$')
+EXIT_LINE = re.compile(r'^loader_debug_exit code=([0-9a-f]{8})$')
+EVENT_LINE = re.compile(r'^loader_debug_event kind=([0-9]{1,2}) ordinal=([0-9]{1,6})$')
+STDERR_CAP_NEAR = 15000
+
+
+def loader_line(label, error):
+    """One fixed-vocabulary qual_loader line from loader_debug lines the launcher already prints.
+
+    The launcher's debug events carry NO module identity: they are counts and ordinals only. So this
+    line never names or attributes a DLL. It reports how many debugger events of each kind were
+    captured, the first exception code, the first ntstatus_N value inside any readable debug string
+    (a value the child printed, not a proven cause), and the debugger exit code. A kind count of 0
+    means "not captured" (stderr is bounded and may be truncated: stderr_near_cap=1), not "did not
+    happen". Only strictly matched whole lines count; everything else is ignored. No raw text.
+    """
+    text = str(error)
+    native = text.split(' native=', 1)[1] if ' native=' in text else ''
+    native_state = ('budget_exceeded' if 'Native diagnostic budget exceeded' in text
+                    else 'present' if ' native=' in text else 'absent')
+    kinds = {'1': 0, '6': 0, '7': 0, '8': 0}
+    events = last_ordinal = exceptions = readable = unreadable = 0
+    first_exception = exit_code = first_ntstatus = 'none'
+    for line in native.splitlines():
+        found = EVENT_LINE.match(line)
+        if found:
+            events += 1
+            last_ordinal = int(found.group(2))
+            if found.group(1) in kinds:
+                kinds[found.group(1)] += 1
+            continue
+        found = EXCEPTION_LINE.match(line)
+        if found:
+            exceptions += 1
+            if first_exception == 'none':
+                first_exception = found.group(1)
+            continue
+        found = STRING_READABLE.match(line)
+        if found:
+            readable += 1
+            values = re.findall(r'=([0-9a-f]{8})', found.group(1))
+            if values and first_ntstatus == 'none':
+                first_ntstatus = values[0]
+            continue
+        if STRING_UNREADABLE.match(line):
+            unreadable += 1
+            continue
+        found = EXIT_LINE.match(line)
+        if found:
+            exit_code = found.group(1)
+    return ('qual_loader label=%s native=%s events=%d last_ordinal=%d load_dll=%d unload_dll=%d debug_string_events=%d '
+            'exception_events=%d first_exception=%s strings_readable=%d strings_unreadable=%d '
+            'first_string_ntstatus=%s debug_exit=%s stderr_near_cap=%d' % (
+                label, native_state, events, last_ordinal, kinds['6'], kinds['7'], kinds['8'], exceptions, first_exception,
+                readable, unreadable, first_ntstatus, exit_code, int(len(native) >= STDERR_CAP_NEAR)))
+
+
 HEADROOM_LABEL = 'csv_near_output_limit'
 EXPECTED_BUDGET = {'nonzero_exit': {'refused_nonzero'}, 'oversize_output': {'refused_nonzero', 'output_budget'}}
 
@@ -182,6 +241,8 @@ def run(parse, direct, clock=time.perf_counter):
             category = classify(exc)
             state = category if category.startswith('refused_') else 'refused_' + category
             refusals.append(refusal_line(label, exc))
+            if len(refusals) == 1:
+                refusals.append(loader_line(label, exc))
         wall_ms = int((clock() - start) * 1000)
         if label == HEADROOM_LABEL:
             headroom = headroom and state == 'equal'
