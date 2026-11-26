@@ -11,7 +11,7 @@ Source SHA 778196c. New tests only, no core change.
 Note: a code comment in `leave_annual_settlement_source.py` says the owner's examples retain the full entitlement / 2 basis. That is a claim inside the repository, not verified owner evidence. Tests pin the code behaviour only.
 
 ## Owner questions
-1. SETTLED (owner, relayed 10:36): the sick-leave year is the calendar year, 1 January to 31 December. The 2ز helper is not wired yet.
+1. Answered by Mo in WhatsApp voice 2026-11-26 10:36:04 EET (wamid ...QTVEREI2RjRCREMxMDlEMEM5M0VDQzY1Q0E4MTczRDEA): counted from 1 January to 31 December (calendar year). The 2ز helper is not wired yet.
 2. What should `sick_alert_thresholds` (90, 180) do? Stored but unused.
 3. Is "old monthly overtime" meant to stay once daily overtime is required for a run, or be retired?
 4. Is a performance bonus cap or score intended? None exists.

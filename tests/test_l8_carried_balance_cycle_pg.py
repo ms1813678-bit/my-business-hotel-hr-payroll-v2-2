@@ -4,7 +4,7 @@ a 2025 weekly-rest carry grant is partly used in 2026 (attribution 9/7); cash-ou
 unresolved; the explicit expiry is refused until the remaining in-window usage is attributed (the first real block of
 the cycle, pinned, no writes); a manual adjustment moves the balance by exactly its amount. Ledger, receipts and
 attribution agree at every step. Fixed clock 2027-01-15, py3.10 shim, not 3.11. Values are exact
-fractions of days from a synthetic employee. No new rule: owner rules are no netting, no FIFO, manual cash-out any time."""
+fractions of days from a synthetic employee. No new rule: characterizes current behavior (no netting, no FIFO, manual cash-out any time), not an owner decision."""
 from datetime import date
 from decimal import Decimal
 from fractions import Fraction
