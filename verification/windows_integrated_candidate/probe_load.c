@@ -25,12 +25,27 @@ static DWORD put_number(char *dst, DWORD at, DWORD value) {
   return at;
 }
 
-static void report(const char *label, HMODULE module, DWORD error) {
+typedef LONG (NTAPI *last_status_fn)(void);
+
+/* Resolved once in wmain BEFORE any measured load, so no lookup runs between a failed load and the reads.
+   Capture order after a failed load: GetLastError first, then this cached pointer. Thread last status is a label, not a root cause. */
+static last_status_fn nt_status_fn;
+static void resolve_nt_status(void) {
+  HMODULE ntdll = GetModuleHandleW(L"ntdll.dll");
+  if (ntdll) nt_status_fn = (last_status_fn)GetProcAddress(ntdll, "RtlGetLastNtStatus");
+}
+
+static void report(const char *label, HMODULE module, DWORD error, DWORD status, int have_status) {
   char line[128];
   DWORD at = put(line, 0, "probe_load label=");
   at = put(line, at, label);
   at = put(line, at, module ? " ok=1 error=0" : " ok=0 error=");
-  if (!module) at = put_number(line, at, error);
+  if (!module) {
+    at = put_number(line, at, error);
+    at = put(line, at, " nt=");
+    for (int shift = 28; shift >= 0; shift -= 4) line[at++] = "0123456789abcdef"[(status >> shift) & 15];
+    at = put(line, at, have_status ? " ntavail=1" : " ntavail=0");
+  }
   line[at++] = '\n';
   emit(line, at);
 }
@@ -39,7 +54,8 @@ static void try_system(const char *label, const wchar_t *name) {
   SetLastError(0);
   HMODULE module = LoadLibraryExW(name, NULL, LOAD_LIBRARY_SEARCH_SYSTEM32);
   DWORD error = module ? 0 : GetLastError();
-  report(label, module, error);
+  DWORD status = (!module && nt_status_fn) ? (DWORD)nt_status_fn() : 0;
+  report(label, module, error, status, nt_status_fn != NULL);
   if (module) (void)FreeLibrary(module);
 }
 
@@ -55,13 +71,15 @@ static void try_staged(const char *label, const wchar_t *directory, const wchar_
   SetLastError(0);
   HMODULE module = LoadLibraryExW(path, NULL, flags);
   DWORD error = module ? 0 : GetLastError();
-  report(label, module, error);
+  DWORD status = (!module && nt_status_fn) ? (DWORD)nt_status_fn() : 0;
+  report(label, module, error, status, nt_status_fn != NULL);
   if (module && !keep) (void)FreeLibrary(module);
 }
 
 int wmain(void) {
   wchar_t self[MAX_PATH + 1] = {0};
   DWORD length = GetModuleFileNameW(NULL, self, MAX_PATH);
+  resolve_nt_status();
   emit("probe_start ok=1\n", 17);
   if (!length || length >= MAX_PATH) {
     emit("probe_self ok=0\n", 16);

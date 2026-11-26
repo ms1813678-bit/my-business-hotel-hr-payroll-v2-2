@@ -1,4 +1,4 @@
-param([Parameter(Mandatory=$true)][string]$Launcher,[Parameter(Mandatory=$true)][string]$Stage,[Parameter(Mandatory=$true)][string]$ManifestPin,[Parameter(Mandatory=$true)][string]$Request,[Parameter(Mandatory=$true)][string]$TrustedPython,[Parameter(Mandatory=$true)][string]$Owner,[Parameter(Mandatory=$true)][string]$ProductRoot,[switch]$Probe)
+param([Parameter(Mandatory=$true)][string]$Launcher,[Parameter(Mandatory=$true)][string]$Stage,[Parameter(Mandatory=$true)][string]$ManifestPin,[Parameter(Mandatory=$true)][string]$Request,[Parameter(Mandatory=$true)][string]$TrustedPython,[Parameter(Mandatory=$true)][string]$Owner,[Parameter(Mandatory=$true)][string]$ProductRoot,[switch]$Probe,[switch]$Harness,[string]$HarnessLock,[string]$HarnessPackagePaths)
 # Disposable CI qualification only. Not installation, network acceptance or hotel execution.
 $ErrorActionPreference='Stop'
 if($env:GITHUB_ACTIONS -ne 'true'){throw 'Disposable CI only'}
@@ -7,6 +7,7 @@ $tempRoot=(Resolve-Path -LiteralPath $env:RUNNER_TEMP).Path.TrimEnd('\')+'\'
 if(-not $Stage.StartsWith($tempRoot,[StringComparison]::OrdinalIgnoreCase) -or -not (Test-Path (Join-Path $Stage 'CANDIDATE-OWNER.json'))){throw 'Only owned runner temporary stage allowed'}
 $ownerRecord=Get-Content (Join-Path $Stage 'CANDIDATE-OWNER.json') -Raw|ConvertFrom-Json
 if($ownerRecord.owner -ne $Owner -or $ownerRecord.state -ne 'staged-not-accepted'){throw 'Stage ownership mismatch'}
+if($Probe -and $Harness){throw 'Conflicting qualification modes'}
 $primaryError=$null
 $profile='Hony.Parser.'+[guid]::NewGuid().ToString('N')
 Add-Type @'
@@ -55,6 +56,17 @@ try {
   # Diagnostic only: same ACLs, profile, job and token; the child is the kernel32-only loader probe.
   & $TrustedPython -I "$PSScriptRoot/run_probe.py" --launcher $Launcher --profile $profile --stage $Stage --manifest-pin $ManifestPin --launcher-pin $launcherHash
   if($LASTEXITCODE -ne 0){throw 'Loader isolation probe driver refused'}
+ } elseif($Harness){
+  # Package check (basis trusted_host_vendor_vs_lock) reads vendor-path metadata via PYTHONPATH below on the trusted host, not an independent host pip version.
+  # Parse-equivalence harness inside this same profile/ACL/stage lifecycle, before the finally teardown. Exit gates every check.
+  if(-not $HarnessLock -or -not $HarnessPackagePaths){throw 'Harness lock and package paths required'}
+  $savedPath=$env:PYTHONPATH
+  try {
+   $env:PYTHONPATH=$ProductRoot+';'+$HarnessPackagePaths
+   & $TrustedPython -B "$PSScriptRoot/qualify_parse_equivalence.py" $Launcher $profile $Stage $ManifestPin $launcherHash $HarnessLock
+   $harnessExit=$LASTEXITCODE
+  } finally {$env:PYTHONPATH=$savedPath}
+  if($harnessExit -ne 0){throw 'Parse equivalence harness refused'}
  } else {
  & $TrustedPython -I "$PSScriptRoot/run_request.py" --product-root $ProductRoot --launcher $Launcher --profile $profile --stage $Stage --manifest-pin $ManifestPin --launcher-pin $launcherHash --request $Request
  if($LASTEXITCODE -ne 0){throw 'Contained real parser qualification refused'}

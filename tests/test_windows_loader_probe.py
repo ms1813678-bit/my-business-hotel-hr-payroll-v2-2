@@ -191,3 +191,62 @@ def test_each_probe_compile_checks_its_own_exit_immediately():
     for i, line in enumerate(lines):
         if "& cl.exe" in line:
             assert "$LASTEXITCODE -ne 0" in lines[i + 1]
+
+
+def _body(src, name):
+    start = src.index("static void %s(" % name)
+    return src[start:src.index("\n}\n", start)]
+
+
+def _ordering_ok(src):
+    """Oracle: pointer resolved once before the first measured load; Win32 error read first, then cached thread NT status after each load."""
+    try:
+        wmain = src[src.index("int wmain(void)"):]
+        if not (wmain.index("resolve_nt_status();") < wmain.index("try_system(") < wmain.index("try_staged(")):
+            return False
+        for name in ("try_system", "try_staged"):
+            body = _body(src, name)
+            if "GetModuleHandleW" in body or "GetProcAddress" in body:
+                return False
+            lines = [l.strip() for l in body.splitlines()]
+            load = next(i for i, l in enumerate(lines) if "= LoadLibraryExW(" in l)
+            if not lines[load + 1].startswith("DWORD error = module ? 0 : GetLastError();"):
+                return False
+            if not lines[load + 2].startswith("DWORD status = (!module && nt_status_fn) ? (DWORD)nt_status_fn() : 0;"):
+                return False
+        return True
+    except (ValueError, StopIteration, IndexError):
+        return False
+
+
+def test_failed_loads_report_numeric_nt_status_with_fixed_vocabulary():
+    assert 'RtlGetLastNtStatus' in PROBE and '" nt="' in PROBE
+    assert PROBE.count("RtlGetLastNtStatus") == 1 and "last_nt_status" not in PROBE
+    assert _driver().CHILD_LINE.match("probe_load label=python314 ok=0 error=5 nt=c0000022 ntavail=1")
+    assert _driver().CHILD_LINE.match("probe_load label=python314 ok=0 error=5 nt=00000000 ntavail=0")
+    assert '" ntavail=1" : " ntavail=0"' in PROBE
+
+
+def test_nt_status_is_resolved_before_any_measured_load_and_read_immediately():
+    assert _ordering_ok(PROBE)
+    assert PROBE.count("resolve_nt_status();") == 1 and PROBE.count("resolve_nt_status(void)") == 1
+    resolver = _body(PROBE, "resolve_nt_status")
+    assert "GetModuleHandleW" in resolver and "GetProcAddress" in resolver
+    for name in ("try_system", "try_staged"):
+        lines = [l.strip() for l in _body(PROBE, name).splitlines()]
+        load = next(i for i, l in enumerate(lines) if "= LoadLibraryExW(" in l)
+        assert "report(label, module, error, status, nt_status_fn != NULL);" in lines[load + 3]
+
+
+def test_ordering_oracle_rejects_late_or_interleaved_lookup():
+    assert not _ordering_ok(PROBE.replace("  resolve_nt_status();\n", "", 1))
+    late = PROBE.replace("(!module && nt_status_fn) ? (DWORD)nt_status_fn() : 0;",
+                         "(!module && (resolve_nt_status(), nt_status_fn)) ? (DWORD)nt_status_fn() : 0;", 1)
+    assert not _ordering_ok(late)
+    inter = PROBE.replace("  DWORD status = (!module", "  (void)GetModuleHandleW(L\"ntdll.dll\");\n  DWORD status = (!module", 1)
+    assert not _ordering_ok(inter)
+    moved = PROBE.replace("  resolve_nt_status();\n", "", 1).replace("  try_system(\"ucrtbase\"", "  resolve_nt_status();\n  try_system(\"ucrtbase\"", 1)
+    swapped = PROBE.replace("  DWORD error = module ? 0 : GetLastError();\n  DWORD status = (!module && nt_status_fn) ? (DWORD)nt_status_fn() : 0;\n",
+                            "  DWORD status = (!module && nt_status_fn) ? (DWORD)nt_status_fn() : 0;\n  DWORD error = module ? 0 : GetLastError();\n")
+    assert swapped != PROBE and not _ordering_ok(swapped)
+    assert _ordering_ok(moved)  # any call before the first measured load is acceptable

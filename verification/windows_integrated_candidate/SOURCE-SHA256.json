@@ -5,7 +5,7 @@
   "verification/windows_integrated_candidate/candidate_parent.py": "ba3687dc22ab808b7dcf642dc9e9f42f592cea33314d8cb964e7940e386a687f",
   "verification/windows_integrated_candidate/candidate_worker.py": "d99eac2c3dafd854fd3a3e2fca7b91049cf3ef7fb19ce0656de6e5b311d0e4fa",
   "verification/windows_integrated_candidate/launcher.c": "48943a44b1d5ae58bd323805ceef934bb1c844c4e3c6b05ec4ac9d27979d8d7e",
-  "verification/windows_integrated_candidate/qualify_runtime.ps1": "ee3a0244c2e5e374c548785eaae880795457c2cba2bce5c19ed8d1cabef7047a",
+  "verification/windows_integrated_candidate/qualify_runtime.ps1": "c07f71f7a453a0cd39f7834fac9867a441fccc9270f9bf780c81be43cf7a4641",
   "verification/windows_integrated_candidate/request-xls.json": "5fa6c91986ebcc975ca084c269928ad00a5b606a8a2afe55b1cf46ccd72b9e57",
   "verification/windows_integrated_candidate/request-xlsx.json": "0e410113b04e111b4dac796efcde3f802ea30a56634c2ba77e58ecaf02e802ca",
   "verification/windows_integrated_candidate/run_request.py": "75ec22b92fce82e40194e6c11ec5e1a3df4315e46cf5789c787bbe79a1f62344",
@@ -19,8 +19,9 @@
   "verification/windows_integrated_candidate/real_open_diagnostics.h": "9cc2cc1e610a3cc384b8a82693d532b9f3aa0f07151e1bf0a461c64c23eac531",
   "verification/windows_integrated_candidate/loader_debug.h": "9f4debba9fae4d4d5fb00152b82d41ac2ac33a9447a77ef0945490036f07bcb7",
   "verification/windows_integrated_candidate/loader_flag.ps1": "24ff2466cb4be414f663c120170c0e5f5fa659c402d28707fbc886bcd5885b96",
-  "verification/windows_integrated_candidate/probe_load.c": "9519e184baac99952812db5a0530be4e41672314a1bb62f32200cac9e7d513e1",
+  "verification/windows_integrated_candidate/probe_load.c": "8be4c444b635f95568516c619b1635b001c07bb3935b147507c27c8e154b4c3f",
   "verification/windows_integrated_candidate/run_probe.py": "174c9dade159e9a39a122e7965848b66d83ff4c7dd057b3b9c53d80ee4175f3a",
   "verification/windows_integrated_candidate/probe_ctl.c": "a91f0338804aac1fcf2f48ee6c7a308d629e147fe08d4d293fb44432ad9693fd",
-  "verification/windows_integrated_candidate/probe_tls_ctl.c": "abfb1162675236acf5a999af1e63dff255770656a00a8eaeebb9cb814583534c"
+  "verification/windows_integrated_candidate/probe_tls_ctl.c": "abfb1162675236acf5a999af1e63dff255770656a00a8eaeebb9cb814583534c",
+  "verification/windows_integrated_candidate/qualify_parse_equivalence.py": "51e3f4e0a55139f6ba54edb3a13de3914e7adb4dfb0ccc9d2fb0451ac27f93a5"
 }
