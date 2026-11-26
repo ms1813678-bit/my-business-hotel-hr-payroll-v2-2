@@ -115,8 +115,19 @@ def persist_attendance_import(db, *, file_bytes: bytes, filename: str, parsed: d
         row_count=len(events),
         issue_count=len(issues),
     )
-    db.add(batch)
-    db.flush()
+    # Contain the SHA duplicate race without rolling back caller-owned work.
+    # Only this named PostgreSQL unique constraint means duplicate source.
+    try:
+        with db.begin_nested():
+            db.add(batch)
+            db.flush()
+    except IntegrityError as exc:
+        original = exc.orig
+        if (getattr(original, 'sqlstate', None) == '23505'
+                and getattr(getattr(original, 'diag', None), 'constraint_name', None)
+                == 'uq_attendance_import_source_hash'):
+            raise ValueError('attendance_source_file_already_imported') from exc
+        raise
 
     month = db.scalar(
         select(AttendanceMonth).where(
