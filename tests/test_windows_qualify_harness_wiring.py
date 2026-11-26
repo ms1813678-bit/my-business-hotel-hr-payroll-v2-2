@@ -65,7 +65,10 @@ def test_workflow_runs_harness_before_the_known_workload_loop_so_an_old_throw_ca
     assert 'permissions:\n  contents: read' in WF
     assert _wf_order_ok(WF)
     seg = WF[WF.index("QUALIFY_HARNESS=parse-equivalence"):WF.index("foreach($suffix")]
-    assert "ACQUISITION-LOCK.json" in seg and "acquired/packages" in seg
+    assert "ACQUISITION-LOCK.json" in seg
+    # acquire_locked extracts every wheel into the SHARED acquired/packages parent; only that parent may be on the path
+    assert '$pkgPaths="$owned/acquired/packages"' in seg
+    assert "acquired/packages/" not in seg and "ForEach-Object" not in seg
     assert "try" not in seg and "catch" not in seg and "-ErrorAction" not in seg  # nothing swallows a failure
 
 
@@ -77,3 +80,43 @@ def test_reachability_oracle_rejects_harness_after_the_loop():
     close = after.index("            }\n            }\n            Write-Output 'Contained")
     moved = after[:close] + "            }\n" + block.rstrip("\n") + "\n" + after[close + len("            }\n"):]
     assert not _wf_order_ok(moved)
+
+
+def _fixture(tmp_path):
+    """Wheel-like layout exactly as acquire_locked extracts it: all wheels side by side under one packages dir."""
+    packages = tmp_path / "packages"
+    for name, version in (("openpyxl", "3.1.5"), ("xlrd", "2.0.2"), ("et_xmlfile", "2.0.0")):
+        (packages / name).mkdir(parents=True)
+        (packages / name / "__init__.py").write_text("")
+        dist = packages / ("%s-%s.dist-info" % (name, version))
+        dist.mkdir()
+        (dist / "METADATA").write_text("Metadata-Version: 2.1\nName: %s\nVersion: %s\n" % (name, version))
+    (packages / "openpyxl" / "xml").mkdir()  # openpyxl.xml, the real wheel's subpackage
+    (packages / "openpyxl" / "xml" / "__init__.py").write_text("")
+    return packages
+
+
+def _run(path, code):
+    import os
+    import subprocess
+    import sys
+    env = dict(os.environ, PYTHONPATH=str(path))
+    return subprocess.run([sys.executable, "-B", "-c", code], env=env, capture_output=True, text=True)
+
+
+def test_shared_parent_path_keeps_stdlib_xml_and_resolves_vendor_metadata(tmp_path):
+    packages = _fixture(tmp_path)
+    code = ("import xml.etree.ElementTree as E, importlib.metadata as m, openpyxl, sys;"
+            "print(E.__file__);print(m.version('openpyxl'), m.version('xlrd'), m.version('et_xmlfile'));print(openpyxl.__file__)")
+    done = _run(packages, code)
+    assert done.returncode == 0, done.stderr
+    stdlib_file, versions, origin = done.stdout.split("\n")[:3]
+    assert str(packages) not in stdlib_file  # xml.etree is the stdlib one
+    assert versions == "3.1.5 2.0.2 2.0.0"
+    assert origin.startswith(str(packages))  # metadata and import come from the vendor parent
+
+
+def test_per_package_dirs_shadow_stdlib_xml_reproducing_the_hosted_failure(tmp_path):
+    packages = _fixture(tmp_path)
+    done = _run(packages / "openpyxl", "import xml.etree.ElementTree")
+    assert done.returncode != 0 and "No module named 'xml.etree'" in done.stderr

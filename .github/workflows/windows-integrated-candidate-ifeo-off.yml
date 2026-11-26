@@ -65,7 +65,7 @@ jobs:
             . (Join-Path $root 'loader_flag.ps1')
             & {
             Write-Output 'QUALIFY_HARNESS=parse-equivalence'
-            $pkgPaths=(@('openpyxl','xlrd','et_xmlfile')|ForEach-Object{"$owned/acquired/packages/$_"}) -join ';'
+            $pkgPaths="$owned/acquired/packages"
             & "$root/qualify_runtime.ps1" -Harness -HarnessLock "$root/ACQUISITION-LOCK.json" -HarnessPackagePaths $pkgPaths -Launcher $launcher -Stage "$owned/staged" -ManifestPin $pin -Request "$root/request-xlsx.json" -Owner $owner -ProductRoot $pwd -TrustedPython (py -3.11 -c 'import sys;print(sys.executable)')
             foreach($suffix in @('xls','xlsx')){
               Write-Output ('QUALIFY_FORMAT='+$suffix)
