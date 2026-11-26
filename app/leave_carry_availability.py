@@ -373,7 +373,10 @@ def _read_verified_carry_availability(db, *, allocation_id,employee_id,leave_typ
     kind = db.get(LeaveType, leave_type_id, populate_existing=True)
     if employee is None or kind is None or not kind.active or not kind.tracks_balance:
         raise ValueError('Existing active balance-tracking employee/type required.')
-    inner = _verify_recorded_source(db, result=result, employee_id=employee_id, leave_type_id=leave_type_id)
+    if 'version' in result['source'] and result['source']['version'] != 'year2-recorded-v1':
+        raise ValueError('Carry consumer recorded source version is not admitted.')
+    from app.leave_recorded_source_versions import verify_versioned_recorded_source
+    inner = verify_versioned_recorded_source(db, result=result, employee_id=employee_id, leave_type_id=leave_type_id)
     if inner['leave_type_code'] != kind.code:
         raise ValueError('Carry source type identity changed.')
     amount = _recorded_amount(result['carried_amount'], 'carried amount')

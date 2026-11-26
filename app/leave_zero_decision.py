@@ -15,7 +15,6 @@ from fractions import Fraction
 from sqlalchemy import select, text
 
 from app.department_workbook_guard import bounded_workbook_operation
-from app.leave_completed_year_source import review_completed_year_source
 from app.leave_exact_amount import as_fraction, canonical_amount, ledger_amount, storage_amount
 from app.leave_month_earning import _locks, canonical, digest
 from app.models import AuditLog, LeaveBalanceTransaction, LeaveCarryAllocation, LeaveZeroDecision
@@ -42,8 +41,9 @@ def _derive(db, *, source_selection, reason):
     _check_selection(source_selection, reason)
     if not isinstance(reason, str) or not 1 <= len(reason.strip()) <= 1000:
         raise ValueError('Explicit bounded zero reason required.')
-    source = review_completed_year_source(db, **source_selection)
-    kind = source['source']['source']['leave_type_code']
+    from app.leave_recorded_year_view import review_later_year_source
+    source = review_later_year_source(db, **source_selection)
+    kind = source['view']['metadata_completed']['source']['leave_type_code']
     if kind not in ZERO_KINDS:
         raise ValueError('Zero decision applies only to weekly rest and official holiday leftovers.')
     amount = as_fraction(source['amount'])
@@ -110,6 +110,18 @@ def _verify(db, row):
             or audits[0].old_value != row.source_digest or audits[0].new_value != row.result_json
             or audits[0].reason != result['reason']):
         raise ValueError('Zero decision audit evidence changed.')
+    # Later-year sources carry prior-grant attribution in their full v1 proof.
+    # The legacy receipt contract is unchanged; never re-derive either source.
+    if 'version' in result['source']:
+        if result['source']['version'] != 'year2-recorded-v1':
+            raise ValueError('Zero consumer recorded source version is not admitted.')
+        from app.leave_recorded_year_view import read_verified_recorded_year_view
+        view = read_verified_recorded_year_view(db,
+            result=dict(source=result['source'], source_digest=result['source_digest'], source_year=row.source_year,
+                        carried_amount=result['zeroed_amount'], held_annual=result['source']['held_annual']),
+            employee_id=row.employee_id, leave_type_id=row.leave_type_id)
+        if view['full_net'] != Fraction(result['zeroed_amount']):
+            raise ValueError('Zero recorded source amount changed.')
     return result
 
 

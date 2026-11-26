@@ -11,15 +11,15 @@ import re
 from sqlalchemy import select, text
 
 from app.department_workbook_guard import bounded_workbook_operation
-from app.leave_completed_year_source import review_completed_year_source
 from app.leave_month_earning import _locks, canonical, digest
 from app.leave_exact_amount import canonical_amount
 from app.models import AuditLog, LeaveCarryAllocation
 
 
 def _derive(db, *, available_from, available_through, reason, source_selection):
-    source = review_completed_year_source(db, **source_selection)
-    kind = source['source']['source']['leave_type_code']
+    from app.leave_recorded_year_view import review_later_year_source
+    source = review_later_year_source(db, **source_selection)
+    kind = source['view']['metadata_completed']['source']['leave_type_code']
     amount = source['amount']
     if not isinstance(reason, str) or not 1 <= len(reason.strip()) <= 1000:
         raise ValueError('Explicit bounded carry reason required.')
@@ -116,7 +116,8 @@ def record_carry_allocation(db, *, operation_id, reviewed_digest, human_confirme
                     or payload['available_through'] != (available_through.isoformat() if available_through else None)
                     or payload['reason'] != reason.strip()):
                 raise ValueError('Carry allocation identity or evidence changed.')
-            from app.leave_carry_availability import _verify_recorded_source, verify_allocation_evidence
+            from app.leave_recorded_source_versions import verify_versioned_recorded_source
+            from app.leave_carry_availability import verify_allocation_evidence
             audits = db.scalars(select(AuditLog).where(AuditLog.action == 'leave_carry_allocated',
                 AuditLog.entity_type == 'leave_carry_allocation', AuditLog.entity_id == previous.id)).all()
             verify_allocation_evidence(row_id=previous.id, row_employee_id=previous.employee_id,
@@ -127,7 +128,9 @@ def record_carry_allocation(db, *, operation_id, reviewed_digest, human_confirme
                 audits=[(a.actor, a.old_value, a.new_value, a.reason) for a in audits],
                 original_actor_username=actor.username)
             _verify(db, previous, payload, request)
-            _verify_recorded_source(db, result=payload, employee_id=previous.employee_id,
+            if 'version' in payload['source'] and payload['source']['version'] != 'year2-recorded-v1':
+                raise ValueError('Carry consumer recorded source version is not admitted.')
+            verify_versioned_recorded_source(db, result=payload, employee_id=previous.employee_id,
                 leave_type_id=previous.leave_type_id)
             return payload
     payload = _derive(db, source_selection=source_selection, available_from=available_from,
