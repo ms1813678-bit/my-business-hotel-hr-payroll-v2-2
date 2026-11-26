@@ -2,6 +2,7 @@
 approval record). Oct normal (5100.00). Nov: installment 7000 on basic 6000 => net 0.00, carried_out 1000.00.
 Dec: carried_in 1000.00 shown as its own deduction => net 5000.00. Reopening Nov while Dec exists is refused.
 Real PG, py3.11."""
+import shutil
 from datetime import date
 from decimal import Decimal as D
 
@@ -38,6 +39,7 @@ def test_excess_deduction_gives_zero_net_and_carries_to_next_month(pgapp):
     _step(c, dec_id, tok, "approve", "close")
 
 
+@pytest.mark.skipif(shutil.which("pdftotext") is None, reason="UNRAN: pdftotext (poppler) not installed on this runner")
 def test_carry_is_a_separate_line_on_the_next_payslip(pgapp):
     import subprocess, tempfile
     from app.models import PayrollItem
