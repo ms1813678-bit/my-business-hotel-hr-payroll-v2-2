@@ -8,3 +8,4 @@ verification/windows_entry_marker/** -text
 verification/windows_substitute_exit77/** -text
 verification/windows_loader_probe/** -text
 verification/windows_startup_probe/** -text
+verification/windows_dependency_probe/** -text

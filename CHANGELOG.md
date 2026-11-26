@@ -1,3 +1,9 @@
+## 2026-11-26, Instinct: bounded dependency probe observation (final instrument)
+
+- Record the startup-probe result (commit afb04d7, run 45776968973, job 139762852947): exit 0x200147F8. Step 1, a full LoadLibraryExW(python314.dll) with import resolution and DllMain under the container, failed with GetLastError 5. Steps 2 and 3 follow from it. BCryptGenRandom, reads of python314.zip, python314._pth and candidate_worker.py, and the three std handle types all succeeded. The failing dependency is not named. Diagnostic only, no acceptance.
+- Add one independently reviewed final probe: kernel32-only full-resolution LoadLibraryExW plus FreeLibrary of each direct dependency of python314.dll (version, ws2_32, advapi32, vcruntime140, api-ms-win-crt-runtime, api-ms-win-core-path, the other 11 crt API sets), then python314.dll last. Interpretation rules are fixed in the decoder. Security settings, AAP opt-out, account lock and System32 ACLs unchanged. No ETW, no staging of system DLLs. Portable tests only (45 passed), MSVC and Windows unverified.
+- One observation, then no further instrument. The next step is an owner architecture decision with options.
+
 ## 2026-11-26, Instinct: bounded startup probe observation
 
 - Record the loader probe: 9 of 9 first-level Python dependencies map in the container (exit 0x200001FF), so a file-read denial at that level is not what stops them. Python startup itself remains unproven.
