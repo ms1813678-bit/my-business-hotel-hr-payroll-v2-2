@@ -110,7 +110,13 @@ def _derive(db, *, grant_kind,grant_id,employee_id,leave_type_id,evaluated_on,re
         raise ValueError('Unallocated register usage could already consume this grant; reviewed source allocation required before expiry exclusion.')
     # No unrelated late debit may secretly have spent this grant. Monthly
     # usage is accounted above; another historical or legacy debit is not FIFO.
-    saved_source=saved['plan']['annual']['source']['source'] if grant_kind=='annual' else saved['source']['source']
+    recorded_source=saved['plan']['annual']['source'] if grant_kind=='annual' else saved['source']
+    if recorded_source.get('version') == 'year2-recorded-v1':
+        saved_source=recorded_source['own']['source']
+    elif 'version' in recorded_source:
+        raise ValueError('Unsupported grant recorded source version.')
+    else:
+        saved_source=recorded_source['source']
     proven={entry[0] for entry in saved_source['rows']}
     if grant_kind=='annual' and row.cash_out_id:
         from app.models import LeaveCashOut

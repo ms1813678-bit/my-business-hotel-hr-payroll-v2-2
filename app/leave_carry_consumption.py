@@ -280,7 +280,13 @@ def _refuse_unallocated_later_cash(db, *, grant_kind,grant_id,employee_id,leave_
     model=LeaveAnnualSettlement if grant_kind=='annual' else LeaveCarryAllocation
     row=db.get(model,grant_id,populate_existing=True)
     saved=json.loads(row.result_json)
-    source=saved['plan']['annual']['source']['source'] if grant_kind=='annual' else saved['source']['source']
+    recorded_source=saved['plan']['annual']['source'] if grant_kind=='annual' else saved['source']
+    if recorded_source.get('version') == 'year2-recorded-v1':
+        source=recorded_source['own']['source']
+    elif 'version' in recorded_source:
+        raise ValueError('Unsupported grant recorded source version.')
+    else:
+        source=recorded_source['source']
     source_ids={entry[0] for entry in source['rows']}
     from app.leave_cash_out import _verify_cash_receipt
     for cash in db.scalars(select(LeaveCashOut).where(LeaveCashOut.employee_id==employee_id,LeaveCashOut.leave_type_id==leave_type_id)).all():
