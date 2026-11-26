@@ -28,7 +28,7 @@ def test_all_current_refusal_stages_are_captured_exactly():
  OUTER+b'CANDIDATE_REFUSAL stage=job error=5 child=0 trailing=1\n',
  OUTER+b'CANDIDATE_CLEANUP complete=1 workload=returned security_acceptance=NOT_ESTABLISHED\n'*2,
  b'x'*66561,OUTER+b'\xff',b'no summary',OUTER.replace(b'child_exit=1',b'child_exit=4294967296'),
-])
+], ids=['duplicate-outer','bad-stage','overflow-error','trailing-field','duplicate-cleanup','oversize','nonascii','missing-summary','overflow-child'])
 def test_malformed_duplicate_oversize_untrusted_fields_reject(raw):
     fields=c.diagnostic_fields(raw)
     assert fields['capture']=='rejected' and fields['outer_child']=='none'

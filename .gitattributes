@@ -3,3 +3,4 @@ verification/windows_integrated_candidate/** -text
 app/attendance_import.py -text
 app/fingerprint_bounded_parse.py -text
 app/fingerprint_evidence.py -text
+verification/windows_nodebug_diagnostic/** -text

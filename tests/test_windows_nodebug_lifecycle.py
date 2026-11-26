@@ -73,7 +73,11 @@ def test_manifest_exact_sources():
     import json,hashlib
     pins=json.loads((DIAG/'OBSERVATION-SHA256.json').read_text())
     assert set(pins)=={'verification/windows_nodebug_diagnostic/'+f for f in ('launcher_nodebug_diag.c','outer_watchdog.c','diagnostic_caller.py','run_diagnostic.py','qualify_diagnostic.ps1')} | {'verification/windows_integrated_candidate/'+f for f in ('token_checks.h','startup_diagnostics.h','real_open_diagnostics.h')}
-    assert all(hashlib.sha256((ROOT/p).read_bytes()).hexdigest()==h for p,h in pins.items() if (ROOT/p).exists())
+    for path,expected in pins.items():
+        target=ROOT/path
+        assert target.is_file(), f'Missing pinned source: {path}'
+        actual=hashlib.sha256(target.read_bytes()).hexdigest()
+        assert actual==expected, f'Pinned source mismatch: {path} expected={expected} actual={actual}'
 
 
 @pytest.mark.parametrize('exit_code,expected',[(0,'returned'),(122,'refused'),(123,'output_refused'),(124,'timeout'),(126,'unavailable'),(125,'unsafe'),(1,'unsafe'),(-1073741510,'unsafe')])
@@ -224,3 +228,31 @@ def test_cli_import_failure_is_reported_with_no_raw_details(tmp_path):
     assert run.returncode==125
     assert 'diag_nodebug_failure stage=cli_import kind=module_missing launch_began=0 native_exit=none' in run.stdout
     assert 'SECRET' not in run.stdout and str(tmp_path) not in run.stdout
+
+
+def test_diagnostic_pinned_inputs_are_byte_exact_on_checkout():
+    import subprocess
+    paths=['verification/windows_nodebug_diagnostic/'+name for name in
+           ('launcher_nodebug_diag.c','outer_watchdog.c','diagnostic_caller.py','run_diagnostic.py','qualify_diagnostic.ps1')]
+    raw=subprocess.check_output(['git','-C',str(ROOT),'check-attr','-z','text','--',*paths])
+    fields=raw.decode().split('\0')[:-1]
+    assert len(fields)==3*len(paths)
+    assert fields[::3]==paths and set(fields[1::3])=={'text'} and set(fields[2::3])=={'unset'}
+
+
+def test_manifest_check_refuses_missing_and_changed_source(monkeypatch,tmp_path):
+    import json
+    pins=json.loads((DIAG/'OBSERVATION-SHA256.json').read_text())
+    import shutil
+    for path in pins:
+        target=tmp_path/path;target.parent.mkdir(parents=True,exist_ok=True)
+        shutil.copyfile(ROOT/path,target)
+    monkeypatch.setitem(test_manifest_exact_sources.__globals__,'ROOT',tmp_path)
+    test_manifest_exact_sources()
+    path=next(iter(pins));target=tmp_path/path;original=target.read_bytes()
+    target.write_bytes(original+b' ')
+    with pytest.raises(AssertionError,match='Pinned source mismatch'):
+        test_manifest_exact_sources()
+    target.unlink()
+    with pytest.raises(AssertionError,match='Missing pinned source'):
+        test_manifest_exact_sources()
