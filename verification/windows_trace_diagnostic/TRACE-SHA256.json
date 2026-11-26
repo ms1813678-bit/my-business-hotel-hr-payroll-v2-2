@@ -1,0 +1,4 @@
+{
+ "verification/windows_trace_diagnostic/trace_control.ps1": "d682d2efd047e18a34ccc43228de8cc033a08a5be4b70a4fa0acdd9e30c5a592",
+ "verification/windows_trace_diagnostic/analyze_trace.py": "273a61368611373179544658f372dac80bbe72d601c27747437934061065e746"
+}

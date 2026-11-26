@@ -10,3 +10,4 @@ verification/windows_loader_probe/** -text
 verification/windows_startup_probe/** -text
 verification/windows_dependency_probe/** -text
 verification/windows_forwarder_probe/** -text
+verification/windows_trace_diagnostic/** -text
