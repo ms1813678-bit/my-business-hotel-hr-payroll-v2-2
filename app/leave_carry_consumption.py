@@ -56,8 +56,8 @@ def _grant(db, *, grant_kind, grant_id, employee_id, leave_type_id, work_date, i
         reviewed_on=work_date,identity=identity)
     result=json.loads(row.result_json);plan=result['plan'];annual=plan['annual']
     # Verify the pre-cash source on its named rows, not today's enlarged ledger.
-    from app.leave_carry_availability import _verify_recorded_source
-    _verify_recorded_source(db,result=dict(source=annual['source'],source_digest=annual['source_digest'],
+    from app.leave_recorded_source_versions import verify_versioned_recorded_source
+    verify_versioned_recorded_source(db,result=dict(source=annual['source'],source_digest=annual['source_digest'],
         carried_amount=annual['released_remaining'],held_annual=annual['held_remaining'],source_year=row.source_year),
         employee_id=employee_id,leave_type_id=leave_type_id)
     ceiling=Fraction(annual['carried_days'])
@@ -68,7 +68,8 @@ def _grant(db, *, grant_kind, grant_id, employee_id, leave_type_id, work_date, i
     if not start<=work_date<=end:raise ValueError('Annual grant unavailable on selected work date.')
     # Held amounts must have their real retroactive release credit, never merely
     # an opening balance or a calendar advancing past the first complete month.
-    for receipt_id,amount in annual['source']['source']['held_annual']:
+    annual_completed = annual['source']['own'] if annual['source'].get('version') == 'year2-recorded-v1' else annual['source']
+    for receipt_id,amount in annual_completed['source']['held_annual']:
         receipt=db.get(LeaveMonthEarning,receipt_id,populate_existing=True)
         key=f'month_earning:{employee_id}:{receipt.month_start.isoformat()}:A:earned'
         release=db.scalar(select(LeaveBalanceTransaction).where(LeaveBalanceTransaction.source_operation_key==key))

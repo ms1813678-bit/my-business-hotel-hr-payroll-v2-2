@@ -335,10 +335,9 @@ def test_year2_net_annual_category_with_annual_grant_attribution(prior_year, mon
 
 
 @pytest.mark.parametrize('prior_year', [{'hire_date': FULL, 'used_annual': 6}], indirect=True)
-@pytest.mark.parametrize('service', ['annual', 'zero', 'carry', 'transition'])
+@pytest.mark.parametrize('service', ['zero', 'carry', 'transition'])
 def test_year2_net_source_is_not_accepted_by_year_closing_services(prior_year, monkeypatch, service):
-    """Boundary: a fully receipted, verified year-2 net must still not open any closing service for 2026."""
-    from app.leave_annual_settlement_store import review_annual_settlement_apply
+    """Boundary: annual has its own qualified consumer; zero/carry/transition stay guarded."""
     db, args = zero_year(prior_year, monkeypatch)
     assert review_year2_net_source(db, **args)['source_verified']          # the read-only source itself is fine
     kinds = prior_year[2]
@@ -347,9 +346,6 @@ def test_year2_net_source_is_not_accepted_by_year_closing_services(prior_year, m
     count = db.scalar(select(func.count()).select_from(LeaveBalanceTransaction))
     message = 'separately reviewed year transition'
     with pytest.raises(ValueError, match=message):
-        if service == 'annual':
-            review_annual_settlement_apply(db, source_selection=sel('A'), full_annual_entitlement=21,
-                payroll_item_id=None, available_from=None, available_through=None, reason='Synthetic year 2')
         if service == 'zero':
             review_zero_decision(db, source_selection=sel('W'), reason='Synthetic year 2')
         if service == 'carry':

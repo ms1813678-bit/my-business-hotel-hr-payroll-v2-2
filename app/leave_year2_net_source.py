@@ -144,5 +144,10 @@ def review_year2_net_source(db, *, employee_id, leave_type_id, source_year, sele
         verified_months=[(r.id, r.source_digest, r.result_digest) for r in receipts], live_final_source=digest(live),
         all_time_balance=canonical_amount(exact_sum(ledger_amount(r) for r in all_rows)),
         reviewed_on=reviewed_on.isoformat())
-    return dict(source=payload, source_digest=digest(payload), amount=net, own_rows_amount=own_amount,
+    parts = dict(carry_payload=own['source'], opening_digest=opening_digest, opening_apply=opening['apply_sha256'],
+        current_tiers=sorted((m.isoformat(), t) for (i, m), t in tiers.tiers.items()),
+        covered_months=[m.isoformat() for m in coverage],
+        verified_months=[[r.id, r.source_digest, r.result_digest] for r in receipts],
+        live_final_source=digest(live), held_annual=held)
+    return dict(source=payload, source_digest=digest(payload), amount=net, own_rows_amount=own_amount, completed_parts=parts,
         attributed=attributed, source_verified=True, posting_allowed=False, unresolved=())

@@ -51,6 +51,10 @@ def _verify_plan_rule(db, annual, row):
     """Recompute the owner's annual rule from the recorded plan's own source facts; a forged carry/cash fails."""
     from app.leave_annual_settlement import annual_settlement_split
     from app.models import Employee
+    from app.leave_recorded_source_versions import verify_versioned_recorded_source
+    verify_versioned_recorded_source(db, result=dict(source=annual['source'], source_digest=annual['source_digest'],
+        source_year=row.source_year, carried_amount=annual['released_remaining'], held_annual=annual['held_remaining']),
+        employee_id=row.employee_id, leave_type_id=row.leave_type_id)
     employee = db.get(Employee, row.employee_id, populate_existing=True)
     split = annual_settlement_split(full_annual_entitlement=annual['full_annual_entitlement'],
         remaining=Fraction(annual['remaining']), hire_date=employee.hire_date, source_year=row.source_year,

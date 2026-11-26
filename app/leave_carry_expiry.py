@@ -179,7 +179,7 @@ def verify_expiry_receipt(db, row):
             or digest(json.loads(grant.request_json))!=grant.request_digest
             or digest(json.loads(grant.result_json))!=grant.result_digest):
         raise ValueError('Recorded exclusion grant changed.')
-    from app.leave_carry_availability import _verify_recorded_source
+    from app.leave_recorded_source_versions import verify_versioned_recorded_source
     saved_grant=json.loads(grant.result_json)
     source_result=saved_grant
     if row.grant_kind=='annual':
@@ -188,7 +188,7 @@ def verify_expiry_receipt(db, row):
             carried_amount=annual['released_remaining'],held_annual=annual['held_remaining'],source_year=grant.source_year)
         from app.leave_annual_settlement_store import _verify_plan_rule
         _verify_plan_rule(db,annual,grant)
-    _verify_recorded_source(db,result=source_result,employee_id=row.employee_id,leave_type_id=row.leave_type_id)
+    verify_versioned_recorded_source(db,result=source_result,employee_id=row.employee_id,leave_type_id=row.leave_type_id)
     grant_action='leave_annual_settled' if row.grant_kind=='annual' else 'leave_carry_allocated'
     grant_entity='leave_annual_settlement' if row.grant_kind=='annual' else 'leave_carry_allocation'
     grant_audits=db.scalars(select(AuditLog).where(AuditLog.action==grant_action,

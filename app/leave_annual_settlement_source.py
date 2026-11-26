@@ -18,11 +18,30 @@ from app.models import Employee
 def review_annual_settlement(db, *, source_selection, full_annual_entitlement, other_half_action):
     if db.new or db.dirty or db.deleted:
         raise ValueError('Clean annual settlement review required.')
-    source = review_completed_year_source(db, **source_selection)
-    if source['source']['source']['leave_type_code'] != 'annual':
+    # Annual-only dispatch, not a change to current earning or the old
+    # completed-year API. The current verified opening determines its scope.
+    from app.leave_opening_source import read_confirmed_opening_source
+    from datetime import date
+    identity = {k: source_selection[k] for k in ('actor_id','session_id','session_version','expected_epoch')}
+    reviews, _policy, _opening_digest = read_confirmed_opening_source(db,
+        selection_id=source_selection['selection_id'], **identity)
+    baselines = {date.fromisoformat(row['effective_start']) for row in reviews}
+    if len(baselines) != 1:
+        raise ValueError('One explicit opening baseline required.')
+    baseline = baselines.pop()
+    if type(source_selection['source_year']) is int and baseline.year < source_selection['source_year']:
+        from app.leave_year2_recorded_source import build_year2_recorded_source
+        built = build_year2_recorded_source(db, **source_selection)
+        source = dict(source=built['stored']['source'], source_digest=built['stored']['source_digest'],
+            amount=built['amount'], held_annual=built['held_annual'])
+        completed = source['source']['own']
+    else:
+        source = review_completed_year_source(db, **source_selection)
+        completed = source['source']
+    if completed['source']['leave_type_code'] != 'annual':
         raise ValueError('Annual settlement requires the actual annual leave type.')
-    covered = set(source['source']['covered_months'])
-    earned_tiers = {tier for month, tier in source['source']['current_tiers'] if month in covered}
+    covered = set(completed['covered_months'])
+    earned_tiers = {tier for month, tier in completed['current_tiers'] if month in covered}
     if len(earned_tiers) != 1 or type(full_annual_entitlement) is not int or earned_tiers != {full_annual_entitlement}:
         raise ValueError('Full annual entitlement must match one unambiguous verified earned-year tier.')
     employee = db.get(Employee, source_selection['employee_id'], populate_existing=True)
