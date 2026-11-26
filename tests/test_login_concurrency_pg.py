@@ -13,7 +13,7 @@ from app import main
 from app.db import engine as configured
 from app.models import AdminAccount,AuditLog,SystemSetting,AdminSession
 from app.security import hash_password
-from app.login_security import LOCKOUT_DURATION,lockout_remaining
+from app.login_security import LOCKOUT_DURATION,login_key,lockout_remaining
 
 PASSWORD='Synthetic-Login-Qualification-1698!'
 
@@ -43,11 +43,11 @@ def _prepare(client):
 def _post(client,token,password='Wrong-synthetic-password-1698!'):
     return client.post('/login',data={'username':'synthetic-admin','password':password,'csrf_token':token},follow_redirects=False)
 
-@pytest.mark.parametrize('existing_failures',[0,1])
+@pytest.mark.parametrize('existing_failures',[1,2])
 def test_actual_http_failures_serialize_before_auth_and_lock_once(pg_login,monkeypatch,existing_failures):
     factory,engine=pg_login
     if existing_failures:
-        with factory.begin() as db:db.add(SystemSetting(key='login_security',value=json.dumps({'failed_attempts':existing_failures,'locked_until':None}),updated_by='test'))
+        with factory.begin() as db:db.add(SystemSetting(key=login_key('synthetic-admin'),value=json.dumps({'failed_attempts':existing_failures,'locked_until':None}),updated_by='test'))
     entered=threading.Event();release=threading.Event();second_gate=threading.Event();pids=[];guard=threading.Lock();calls=[]
     original_auth=main.authenticate;original_gate=main.acquire_credential_write_lock
     def gate(db,*args,**kwargs):
@@ -80,20 +80,20 @@ def test_actual_http_failures_serialize_before_auth_and_lock_once(pg_login,monke
                 assert len(calls)==1 and not b.done()
             finally:release.set()
             responses=[a.result(timeout=10),b.result(timeout=10)]
-        assert [r.status_code for r in responses]==([401,429] if not existing_failures else [429,429])
-        assert len(calls)==(2 if not existing_failures else 1)
+        assert [r.status_code for r in responses]==([401,429] if existing_failures==1 else [429,429])
+        assert len(calls)==(2 if existing_failures==1 else 1)
         with factory() as db:
-            state=json.loads(db.get(SystemSetting,'login_security').value)
-            assert state['failed_attempts']==2
+            state=json.loads(db.get(SystemSetting,login_key('synthetic-admin')).value)
+            assert state['failed_attempts']==3
             assert db.scalar(select(func.count(AuditLog.id)).where(AuditLog.action=='login_lockout'))==1
             assert db.scalar(select(func.count(AdminSession.id)))==0
             until=datetime.fromisoformat(state['locked_until'])
-            assert timedelta(hours=1,minutes=59)<until-datetime.now(timezone.utc)<=LOCKOUT_DURATION
+            assert timedelta(minutes=59)<until-datetime.now(timezone.utc)<=LOCKOUT_DURATION
             # New sessions observe persisted lockout, not a Python-process counter.
-            assert lockout_remaining(db) is not None
+            assert lockout_remaining(db,'synthetic-admin') is not None
         blocked=_post(one,tokens[0],PASSWORD)
-        assert blocked.status_code==429 and '120' in blocked.text
+        assert blocked.status_code==429 and '60' in blocked.text
         with factory() as db:
-            assert json.loads(db.get(SystemSetting,'login_security').value)==state
+            assert json.loads(db.get(SystemSetting,login_key('synthetic-admin')).value)==state
             assert db.scalar(select(func.count(AuditLog.id)).where(AuditLog.action=='login_lockout'))==1
     finally:release.set();one.close();two.close()

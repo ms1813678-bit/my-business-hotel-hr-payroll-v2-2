@@ -187,15 +187,19 @@ def test_recovery_has_own_throttle_independent_of_login_lockout(client):
     extract_codes(generate_codes(client))
     client.post("/logout", data={"csrf_token": "x"}, follow_redirects=False)
 
-    # engage the login lockout (2 failed logins); recovery must stay open
-    for _ in range(2):
+    # engage the per-account login lockout (3 failed logins); recovery must stay open
+    for _ in range(3):
         client.post(
             "/login",
             data={"username": "guard-admin", "password": "wrong",
                   "csrf_token": csrf(client.get("/login"))},
         )
-    locked_login = client.get("/login")
-    assert "إيقاف الدخول" in locked_login.text
+    locked_login = client.post(
+        "/login",
+        data={"username": "guard-admin", "password": ADMIN_PW,
+              "csrf_token": csrf(client.get("/login"))},
+    )
+    assert locked_login.status_code == 429
     recover_page = client.get("/login/recover")
     assert recover_page.status_code == 200
     assert "إيقاف الاستعادة" not in recover_page.text

@@ -10,8 +10,7 @@ Grounding (read from source at 778196c, route access, NOT a confirmed sync-discl
   _ATTENDANCE_SAFE_FIELDS: name, code, department, nationality, hire date). National id, passport,
   salary, phone, address and birth date are not in that set.
 - departments, leave_types, leave_records: require_leave_read / require_attendance_read = all three roles.
-Model of project notebook clause C5 (characterization, not authority): data a role may not see never goes to its device. Whether route
-read access is the right copy rule for each column is an owner question, listed in OWNER_QUESTIONS.
+Model of project notebook clause C5 (characterization, not authority): data a role may not see never goes to its device. The finance and assistant answers are recorded below the column sets (source: Mo's voice note).
 """
 from __future__ import annotations
 
@@ -25,7 +24,7 @@ _EMPLOYEE_ALL = frozenset({
     "fingerprint_id", "department_id", "position", "hire_date", "birth_date", "prior_insurance_years",
     "probation_start_date", "probation_end_date", "status", "basic_salary", "daily_hours", "created_at",
 })
-_EMPLOYEE_ASSISTANT = frozenset({"code", "full_name", "department_id", "nationality", "hire_date"})
+_EMPLOYEE_ASSISTANT = frozenset({"code", "full_name", "department_id", "nationality", "hire_date", "status", "branch_name"})
 _DEPARTMENT = frozenset({"name", "active"})
 _LEAVE_TYPE = frozenset({"code", "name_ar", "name_en", "name_zh", "is_paid", "tracks_balance", "active"})
 _LEAVE_RECORD = frozenset({
@@ -47,14 +46,22 @@ DENIED_ALL = {
     ("employees", "photo_path"): "local filesystem path; the photo file is not a synced object here",
 }
 
-OWNER_QUESTIONS = (
-    "Route read access is used as the copy rule. Confirm finance may receive national_id, passport_number, "
-    "phone, address and birth_date on its device.",
-    "Assistant employee columns are the attendance-safe report set only; employee status is not included. "
-    "Confirm whether the assistant device needs employee status or branch.",
-    "Assistant receives leave reason, cancellation_reason and the created/confirmed/cancelled actor names "
-    "because it can read leave routes. Confirm.",
-)
+# Source: Mo's voice note, 2026-11-26 19:12:40 EET (WhatsApp wamid ...QTVBNjVDRERBMTRGRUJEOERBMkI1NzBGNjVGOTk3MEUA).
+# Mo said: the finance device may see national id, passport, phone, address and birth date (already in _EMPLOYEE_ALL);
+# the assistant device may see employee status (added above, "status") and the branch; the assistant device may see
+# leave reason, cancellation reason and the actor names (already in _LEAVE_RECORD).
+# Branch: decided by the parent on 2026-11-26 (technical design under Mo's answer): the assistant device receives
+# the branch NAME only, as the derived read-only column "branch_name" (branches.name via employees.branch_id).
+# The numeric branch_id stays denied (no stable UID for branches) and no Branch sync entity is added.
+DERIVED_COLUMNS = {
+    ("employees", "branch_name"): "branches.name looked up through employees.branch_id; the id itself is never sent",
+}
+
+
+def derive_branch_name(branch):
+    """Branch name for the derived column: the name of a Branch row, or None when the employee has no branch."""
+    name = getattr(branch, "name", None)
+    return name if isinstance(name, str) and name else None
 
 
 def visible_columns(entity, role):

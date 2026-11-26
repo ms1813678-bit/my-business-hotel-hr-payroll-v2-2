@@ -803,6 +803,10 @@ def _capture_security_state(db) -> dict:
         setting = db.get(SystemSetting, key)
         if setting is not None:
             settings_state[key] = setting.value
+    # Per-account login counters (one row per account name) carry over like the old single counter.
+    from app.login_security import LOGIN_KEY_PREFIX
+    for setting in db.scalars(select(SystemSetting).where(SystemSetting.key.like(LOGIN_KEY_PREFIX + "%"))).all():
+        settings_state[setting.key] = setting.value
     return {"accounts": accounts, "codes": codes, "settings": settings_state}
 
 
@@ -860,6 +864,11 @@ def _reapply_security_state(db, snapshot: dict, *, actor: str) -> None:
             created_at=row["created_at"],
             used_at=row["used_at"],
         ))
+    # The archive's per-account login counters must not revive: only the pre-restore ones stay.
+    from app.login_security import LOGIN_KEY_PREFIX
+    for stale in db.scalars(select(SystemSetting).where(SystemSetting.key.like(LOGIN_KEY_PREFIX + "%"))).all():
+        db.delete(stale)
+    db.flush()
     for key, value in snapshot["settings"].items():
         db.merge(SystemSetting(key=key, value=value, updated_by=actor))
 

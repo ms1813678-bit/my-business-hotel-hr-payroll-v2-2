@@ -60,6 +60,7 @@ from app.login_security import (
     record_failed_reauth,
     clear_reauth_attempts,
     recovery_lockout_remaining,
+    is_real_account,
     lockout_remaining,
     record_failed_attempt,
     send_login_alert,
@@ -662,12 +663,9 @@ def login_page(request: Request):
         "csrf_token": get_csrf_token(request),
     }
     with SessionLocal() as db:
-        remaining = lockout_remaining(db)
+        # The lock is per account name, so the page (no name yet) cannot show it; the sign-in
+        # attempt itself returns the locked message for that name.
         context["backup_passphrase_required"] = _post_restore_passphrase_armed(db)
-    if remaining is not None:
-        context["error"] = "تم إيقاف الدخول مؤقتًا بعد كثرة المحاولات غير الصحيحة. حاول مرة أخرى بعد"
-        context["lockout_minutes"] = max(1, math.ceil(remaining.total_seconds() / 60))
-        context["lockout_unit"] = "دقيقة."
     return templates.TemplateResponse(
         request=request, name="login.html",
         context=context,
@@ -686,7 +684,7 @@ def login(request: Request, username: str = Form(...), password: str = Form(...)
         # Exclude restores: credentials are verified and sessions written only
         # before a restore snapshot or after its finalization, never mid-swap.
         acquire_credential_write_lock(db)
-        remaining = lockout_remaining(db)
+        remaining = lockout_remaining(db, username)
         if remaining is not None:
             minutes = max(1, math.ceil(remaining.total_seconds() / 60))
             return templates.TemplateResponse(
@@ -701,14 +699,16 @@ def login(request: Request, username: str = Form(...), password: str = Form(...)
             )
         admin = authenticate(db, username.strip(), password)
         if admin is None:
-            engaged = record_failed_attempt(db, actor="login")
-            if engaged:
+            engaged = record_failed_attempt(db, username, actor="login")
+            # Owner alerts only for real accounts: the guesser sees the same HTTP answer either way.
+            if engaged and is_real_account(db, username):
                 send_login_alert("login_lockout", username.strip(), failed_attempts=FAILED_ATTEMPTS_LIMIT)
                 send_telegram_login_event(
                     "login_lockout", username.strip(),
                     failed_attempts=FAILED_ATTEMPTS_LIMIT, locked_minutes=LOCKOUT_MINUTES,
                     app_name=settings.app_name,
                 )
+            if engaged:
                 return templates.TemplateResponse(
                     request=request, name="login.html",
                     context={
@@ -758,7 +758,7 @@ def login(request: Request, username: str = Form(...), password: str = Form(...)
                 entity_id=admin.username,
                 reason="Backup passphrase presented at first post-restore sign-in.",
             ))
-        clear_attempts(db, actor="login")
+        clear_attempts(db, username, actor="login")
         staged_token = request.session.get("security_roster_stage")
         if isinstance(staged_token, str):
             _clear_staged_security_roster(staged_token, request)

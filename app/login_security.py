@@ -1,8 +1,12 @@
-"""Brute-force protection for the single-admin login and login event alerts.
+"""Brute-force protection for the login and login event alerts.
 
-Failed attempts are counted in the ``system_settings`` table so the lockout
-survives application restarts. After ``FAILED_ATTEMPTS_LIMIT`` consecutive
-failures the login is locked for ``LOCKOUT_DURATION``. When a webhook URL is
+Failed attempts are counted per account name in the ``system_settings`` table
+(one row per name, key ``login_security:<hash of the name>``) so the lockout
+survives application restarts and one account's failures never lock another.
+Names that do not exist are counted and locked exactly like real ones, so a guesser cannot tell
+them apart. Storage is bounded instead: every write purges rows idle for longer than the lock window
+and keeps at most ``MAX_COUNTER_ROWS`` rows (oldest unlocked rows go first). After ``FAILED_ATTEMPTS_LIMIT`` consecutive
+failures of one name the login for that name is locked for ``LOCKOUT_DURATION``. When a webhook URL is
 configured (``LOGIN_ALERT_WEBHOOK_URL``), lockout and successful-login events
 are POSTed to it as JSON so an external service can forward them (for example
 to the owner's WhatsApp); sending is best-effort and never blocks or breaks
@@ -10,6 +14,7 @@ authentication.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import urllib.request
 from datetime import datetime, timedelta, timezone
@@ -18,12 +23,23 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.models import AuditLog, SystemSetting
+from sqlalchemy import func
+from app.models import AdminAccount, AuditLog, SystemSetting
 
-FAILED_ATTEMPTS_LIMIT = 2
-LOCKOUT_DURATION = timedelta(hours=2)
+FAILED_ATTEMPTS_LIMIT = 3
+LOCKOUT_DURATION = timedelta(hours=1)
 LOCKOUT_MINUTES = int(LOCKOUT_DURATION.total_seconds() // 60)
-_SETTING_KEY = "login_security"
+_SETTING_KEY = "login_security"  # legacy single (global) counter row; no longer read or written
+LOGIN_KEY_PREFIX = _SETTING_KEY + ":"
+_NAME_LIMIT = 100
+
+
+def login_key(username: str) -> str:
+    """Per-account counter key. Case-insensitive and whitespace-trimmed so changing case or
+    padding cannot start a fresh counter; capped so an attacker cannot grow the key space with
+    long strings; hashed so the key is fixed-size and holds no raw name."""
+    name = str(username or "").strip().casefold()[:_NAME_LIMIT]
+    return LOGIN_KEY_PREFIX + hashlib.sha256(name.encode("utf-8")).hexdigest()[:32]
 _WEBHOOK_TIMEOUT_SECONDS = 3
 
 
@@ -55,7 +71,7 @@ def _read_state(db: Session, key: str = _SETTING_KEY, *, for_update: bool = Fals
     except (json.JSONDecodeError, TypeError):
         return {"failed_attempts": 0, "locked_until": None}
     failed = data.get("failed_attempts") or 0
-    return {"failed_attempts": int(failed), "locked_until": data.get("locked_until")}
+    return {"failed_attempts": int(failed), "locked_until": data.get("locked_until"), "seen": data.get("seen")}
 
 
 def _write_state(db: Session, state: dict, actor: str, key: str = _SETTING_KEY) -> None:
@@ -67,10 +83,10 @@ def _write_state(db: Session, state: dict, actor: str, key: str = _SETTING_KEY) 
     setting.updated_by = actor
 
 
-def lockout_remaining(db: Session, *, now: datetime | None = None) -> timedelta | None:
-    """Return the remaining lockout time, or None when login attempts are allowed."""
+def lockout_remaining(db: Session, username: str, *, now: datetime | None = None) -> timedelta | None:
+    """Return the remaining lockout time for this account name, or None when attempts are allowed."""
     now = now or _now()
-    raw = _read_state(db)["locked_until"]
+    raw = _read_state(db, login_key(username))["locked_until"]
     if not raw:
         return None
     try:
@@ -83,32 +99,107 @@ def lockout_remaining(db: Session, *, now: datetime | None = None) -> timedelta 
     return remaining if remaining.total_seconds() > 0 else None
 
 
-def record_failed_attempt(db: Session, *, actor: str = "system", now: datetime | None = None) -> bool:
-    """Count one failed login. Returns True exactly when this attempt engages the lockout."""
+def is_real_account(db: Session, username: str) -> bool:
+    """True when the name matches an account (same strip/casefold normalization as the counter key).
+    Used only for internal records (audit row, owner alerts), never to change the HTTP response."""
+    name = str(username or "").strip().casefold()[:_NAME_LIMIT]
+    if not name:
+        return False
+    return db.query(AdminAccount.id).filter(func.lower(AdminAccount.username) == name).first() is not None
+
+
+def _lock_expired(state: dict, now: datetime) -> bool:
+    raw = state.get("locked_until")
+    if not raw:
+        return False
+    try:
+        until = datetime.fromisoformat(raw)
+    except (ValueError, TypeError):
+        return True
+    if until.tzinfo is None:
+        until = until.replace(tzinfo=timezone.utc)
+    return until <= now
+
+
+MAX_COUNTER_ROWS = 5000
+
+
+def _parse_ts(raw) -> datetime | None:
+    try:
+        value = datetime.fromisoformat(raw)
+    except (ValueError, TypeError):
+        return None
+    return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+
+
+def _prune_counters(db: Session, now: datetime, *, keep: str) -> None:
+    """Bound the per-name counter rows. Rows with an active lock are never dropped; the rest are dropped
+    when idle for longer than the lock window, then oldest-first while the total exceeds the cap."""
+    rows = db.query(SystemSetting).filter(SystemSetting.key.like(LOGIN_KEY_PREFIX + "%")).all()
+    unlocked = []
+    for row in rows:
+        if row.key == keep:
+            continue
+        try:
+            data = json.loads(row.value)
+        except (json.JSONDecodeError, TypeError):
+            data = {}
+        until = _parse_ts(data.get("locked_until")) if isinstance(data, dict) else None
+        if until is not None and until > now:
+            continue
+        seen = (_parse_ts(data.get("seen")) if isinstance(data, dict) else None) or datetime.min.replace(tzinfo=timezone.utc)
+        unlocked.append((seen, row))
+    kept = len(rows) - len(unlocked)
+    unlocked.sort(key=lambda item: item[0])
+    for seen, row in list(unlocked):
+        if now - seen > LOCKOUT_DURATION:
+            db.delete(row)
+            unlocked.remove((seen, row))
+    kept += len(unlocked)
+    for seen, row in unlocked:
+        if kept <= MAX_COUNTER_ROWS:
+            break
+        db.delete(row)
+        kept -= 1
+
+
+def record_failed_attempt(db: Session, username: str, *, actor: str = "system", now: datetime | None = None) -> bool:
+    """Count one failed login for this account name. Returns True exactly when it engages the lockout.
+
+    Known and unknown names are treated identically. A counter whose lock has already expired starts again from zero,
+    so after the lock the user gets a full set of fresh attempts."""
     now = now or _now()
-    state = _read_state(db)
+    key = login_key(username)
+    state = _read_state(db, key)
+    if _lock_expired(state, now):
+        state = {"failed_attempts": 0, "locked_until": None}
     state["failed_attempts"] += 1
     engaged = False
     if state["failed_attempts"] >= FAILED_ATTEMPTS_LIMIT:
         state["locked_until"] = (now + LOCKOUT_DURATION).isoformat()
         engaged = True
-        db.add(AuditLog(
-            actor=actor,
-            action="login_lockout",
-            entity_type="admin_account",
-            entity_id="admin",
-            reason=f"{state['failed_attempts']} failed login attempts",
-        ))
-    _write_state(db, state, actor)
+        if is_real_account(db, username):
+            db.add(AuditLog(
+                actor=actor,
+                action="login_lockout",
+                entity_type="admin_account",
+                entity_id=str(username or "").strip()[:_NAME_LIMIT] or "unknown",
+                reason=f"{state['failed_attempts']} failed login attempts",
+            ))
+    state["seen"] = now.isoformat()
+    _write_state(db, state, actor, key)
+    db.flush()
+    _prune_counters(db, now, keep=key)
     db.commit()
     return engaged
 
 
-def clear_attempts(db: Session, *, actor: str = "system") -> None:
-    """Reset the failure counter after a successful login."""
-    state = _read_state(db)
+def clear_attempts(db: Session, username: str, *, actor: str = "system") -> None:
+    """Reset this account name's failure counter after its successful login."""
+    key = login_key(username)
+    state = _read_state(db, key)
     if state["failed_attempts"] or state["locked_until"]:
-        _write_state(db, {"failed_attempts": 0, "locked_until": None}, actor)
+        _write_state(db, {"failed_attempts": 0, "locked_until": None}, actor, key)
         db.commit()
 
 

@@ -1,0 +1,28 @@
+name: Windows launch guard probe (synthetic folders only)
+on:
+  push:
+    branches: [ui-overhaul]
+    paths:
+      - '.github/workflows/windows-launch-guard-probe.yml'
+      - 'verification/launch_guard_windows/**'
+      - 'app/launch_guard.py'
+permissions:
+  contents: read
+jobs:
+  launch-guard:
+    runs-on: windows-2025
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          architecture: 'x64'
+      - name: Launch guard on real Windows paths
+        shell: pwsh
+        run: |
+          if($env:OS -ne 'Windows_NT'){throw 'not a Windows runner'}
+          python verification/launch_guard_windows/probe.py
+          if($LASTEXITCODE -ne 0){throw 'launch guard probe reported failures'}

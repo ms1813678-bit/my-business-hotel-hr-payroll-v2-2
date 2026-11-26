@@ -10,3 +10,7 @@ Counterfactual: disable only the route advisory gate in the timing wrapper. Both
 
 
 Final shared-tree selection:37passed0skipped4warnings11.75s on Python3.11.18/PostgreSQL16.2 READ COMMITTED. Two new fullymigratedPG HTTP cases and existing login/auth/recovery-proof/Telegram-reauth/restore-lock tests. Independent static review verified test and three product hashes against cabb5c9, without rerunning the selection. Counterfactual gate removal was an uncommitted local experimental test-wrapper change; both tests failed the wait assertion, not an executed lost-update or all-schedule bypass proof. Product main.py/login_security.py/restore_lock.py are unchanged. Disposable login schemas verified absent after completion.
+
+## Amendment 2026-11-26 (source: Mo voice note 19:12:40 EET, WhatsApp wamid ...QTVBNjVDRERBMTRGRUJEOERBMkI1NzBGNjVGOTk3MEUA)
+
+The lock is now per account name (3 failed attempts = 1 hour), replacing the global counter and the two-attempt/two-hour rule described above. The text above is the historical record of the earlier global behavior and its test shape, not the current policy. The concurrency tests now use the per-account counter key, a 60-minute lock, and expect 401+429 (one persisted failure) or 429+429 (two) for the same two-request shapes.

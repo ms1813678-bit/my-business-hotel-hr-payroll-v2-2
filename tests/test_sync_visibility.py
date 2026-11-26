@@ -7,7 +7,7 @@ from app.sync_uid import ENTITIES, OUT_OF_SCOPE_REFS
 
 PRIVATE_FOR_ASSISTANT = {
     "national_id", "passport_number", "basic_salary", "phone", "address", "birth_date", "fingerprint_id",
-    "prior_insurance_years", "probation_start_date", "probation_end_date", "daily_hours", "status", "position",
+    "prior_insurance_years", "probation_start_date", "probation_end_date", "daily_hours", "position",
 }
 
 
@@ -20,6 +20,7 @@ def test_every_entity_is_covered_and_every_real_column_is_classified():
     for entity, model in ENTITIES.items():
         columns = {c.name for c in model.__table__.c} - {"id", "sync_uid"}
         readable = set().union(*(sv.READABLE[entity][role] for role in sv.ROLES))
+        readable -= {column for (name, column) in sv.DERIVED_COLUMNS if name == entity}
         denied = {column for (name, column) in sv.DENIED_ALL if name == entity}
         assert columns == readable | denied, (entity, sorted(columns ^ (readable | denied)))
         assert not readable & denied
@@ -29,7 +30,7 @@ def test_readable_names_are_real_non_identity_columns_and_not_out_of_scope_refs(
     for entity, model in ENTITIES.items():
         real = {c.name for c in model.__table__.c}
         for role in sv.ROLES:
-            cols = sv.READABLE[entity][role]
+            cols = sv.READABLE[entity][role] - {c for (n, c) in sv.DERIVED_COLUMNS if n == entity}
             assert cols <= real and not cols & {"id", "sync_uid"}
             assert not cols & set(OUT_OF_SCOPE_REFS.get(entity, {}))
 
@@ -44,7 +45,8 @@ def test_assistant_employee_columns_equal_the_report_attendance_safe_fields():
     column_for = {"emp_name": "full_name", "emp_code": "code", "emp_department": "department_id",
                   "emp_nationality": "nationality", "emp_hire_date": "hire_date"}
     derived = {column_for[key] for key in _ATTENDANCE_SAFE_FIELDS if key.startswith("emp_")}
-    assert derived == set(sv.visible_columns("employees", ROLE_ASSISTANT))
+    # Mo's answer (voice note 2026-11-26 19:12:40): the assistant device also gets employee status.
+    assert derived | {"status", "branch_name"} == set(sv.visible_columns("employees", ROLE_ASSISTANT))
     assert "emp_id_proof" not in _ATTENDANCE_SAFE_FIELDS
 
 
@@ -75,3 +77,35 @@ def test_project_drops_id_uid_unknown_and_denied_keys():
 
 def test_mutating_a_returned_set_cannot_widen_access():
     assert isinstance(sv.visible_columns("employees", ROLE_ASSISTANT), frozenset)
+
+
+def test_finance_device_gets_identity_and_contact_columns():
+    cols = sv.visible_columns("employees", ROLE_FINANCE)
+    assert {"national_id", "passport_number", "phone", "address", "birth_date"} <= cols
+
+
+def test_assistant_device_gets_employee_status_but_not_pay_or_identity():
+    cols = sv.visible_columns("employees", ROLE_ASSISTANT)
+    assert "status" in cols
+    assert not cols & {"basic_salary", "national_id", "passport_number", "phone", "address", "birth_date"}
+
+
+def test_assistant_device_gets_leave_reasons_and_actor_names():
+    cols = sv.visible_columns("leave_records", ROLE_ASSISTANT)
+    assert {"reason", "cancellation_reason", "created_by", "confirmed_by", "cancelled_by"} <= cols
+
+
+def test_assistant_gets_branch_name_only_never_the_branch_id():
+    cols = sv.visible_columns("employees", ROLE_ASSISTANT)
+    assert "branch_name" in cols and "branch_id" not in cols
+    assert ("employees", "branch_name") in sv.DERIVED_COLUMNS and ("employees", "branch_id") in sv.DENIED_ALL
+    assert "branch_name" not in sv.visible_columns("employees", ROLE_FINANCE) | sv.visible_columns("employees", ROLE_SYSTEM_ADMIN)
+    out = sv.project("employees", ROLE_ASSISTANT, {"branch_id": 7, "branch_name": "Maadi", "status": "active", "id": 1})
+    assert out == {"branch_name": "Maadi", "status": "active"}
+
+
+def test_derive_branch_name():
+    class B:
+        name = "Maadi"
+    assert sv.derive_branch_name(B()) == "Maadi"
+    assert sv.derive_branch_name(None) is None

@@ -205,3 +205,20 @@ def test_control_without_session_delete_sessions_survive(tmp_path, monkeypatch):
     run_finalize(build_live_case(), tmp_path)
     with SessionLocal() as db:
         assert len(db.scalars(select(M.AdminSession)).all()) == 1
+
+
+def test_per_account_login_counters_carry_over_and_archive_ones_do_not_revive(tmp_path):
+    with SessionLocal.begin() as db:
+        acct(db, "admin", "system_admin", "H_NEW")
+        db.add(M.SystemSetting(key="login_security:live", value='{"failed_attempts": 2, "locked_until": null}', updated_by="sys"))
+    with SessionLocal() as db:
+        snap = BW._capture_security_state(db)
+    assert snap["settings"]["login_security:live"].startswith('{"failed_attempts": 2')
+    wipe_security()
+    with SessionLocal.begin() as db:
+        acct(db, "admin", "system_admin", "H_OLD")
+        db.add(M.SystemSetting(key="login_security:archive", value='{"failed_attempts": 3, "locked_until": "2999-01-01T00:00:00+00:00"}', updated_by="sys"))
+    run_finalize(snap, tmp_path)
+    with SessionLocal() as db:
+        assert db.get(M.SystemSetting, "login_security:live").value.startswith('{"failed_attempts": 2')
+        assert db.get(M.SystemSetting, "login_security:archive") is None
