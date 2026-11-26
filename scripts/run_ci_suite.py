@@ -52,6 +52,8 @@ WINDOWS_SECONDS_8E1={
 }
 DEFAULT_SECONDS=2
 CHUNKS=3
+LINUX_CHUNKS=5
+LINUX_TIMING_FILE=Path(__file__).with_name("ci_linux_seconds.json")
 
 
 def chunks(files,count=CHUNKS):
@@ -68,6 +70,45 @@ def chunks(files,count=CHUNKS):
     if any(not group for group in out) or [f for group in out for f in group]!=files:
         raise RuntimeError('Every test file must run exactly once in a non-empty chunk.')
     return out
+
+
+def linux_chunks(files):
+    """Minimax contiguous Linux-only planning weights, not a runtime guarantee.
+
+    Current tracked inventory is the input, never the timing-map membership.
+    Unknown future files receive a conservative planning default, not omission.
+    The database/migration lifecycle remains outside process partitioning.
+    """
+    import json
+    files=list(files)
+    profile=json.loads(LINUX_TIMING_FILE.read_text())
+    weights=[profile['seconds'].get(f,30) for f in files]
+    if any(type(w) is not int or w<=0 for w in weights):
+        raise RuntimeError('Positive integral Linux planning seconds required.')
+    count=LINUX_CHUNKS
+    if len(files)<count:
+        raise RuntimeError('Non-empty Linux sessions required.')
+    prefix=[0]
+    for w in weights:prefix.append(prefix[-1]+w)
+    best=[[float('inf')]*(len(files)+1) for _ in range(count+1)]
+    best[0][0]=0;previous={}
+    for c in range(1,count+1):
+        for j in range(c,len(files)+1):
+            value,i=min((max(best[c-1][i],prefix[j]-prefix[i]),i) for i in range(c-1,j))
+            best[c][j]=value;previous[c,j]=i
+    groups=[];j=len(files)
+    for c in range(count,0,-1):
+        i=previous[c,j];groups.append(files[i:j]);j=i
+    groups.reverse()
+    if any(not group for group in groups) or [f for group in groups for f in group]!=files:
+        raise RuntimeError('Every test file must run exactly once in a non-empty chunk.')
+    return groups
+
+
+def session_groups(files):
+    # Windows retains its existing weights, chunk count and splitting algorithm.
+    if len(files)<CHUNKS*10:return [files]
+    return linux_chunks(files) if sys.platform.startswith('linux') else chunks(files)
 
 
 def assignments(root):
@@ -107,7 +148,7 @@ def main():
             env=dict(os.environ,DATABASE_URL=url.set(database=name).render_as_string(hide_password=False))
             print(f'Full migrated CI shard {name}: {len(files)} test files',flush=True)
             subprocess.run([sys.executable,'-m','scripts.initialize_database'],cwd=root,env=env,check=True,timeout=120)
-            groups=chunks(files) if len(files)>=CHUNKS*10 else [files]
+            groups=session_groups(files)
             for number,group in enumerate(groups,1):
                 print(f'  session {number}/{len(groups)}: {len(group)} test files',flush=True)
                 try:

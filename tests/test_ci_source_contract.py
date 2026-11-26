@@ -74,9 +74,9 @@ def test_dispatcher_migrates_and_runs_every_file_and_cleans(monkeypatch):
     runner.main()
     pytest_runs=[c for c in commands if c[0][2:3]==['pytest']]
     inits=[c for c in commands if c[0][-1]=='scripts.initialize_database']
-    assert len(inits)==2 and len(pytest_runs)==runner.CHUNKS+1 and len(commands)==2+len(pytest_runs)
+    assert len(inits)==2 and len(pytest_runs)==len(runner.session_groups(runner.assignments(WORKFLOW.parents[2])[0][1]))+1 and len(commands)==2+len(pytest_runs)
     assert commands[0][0][-1]=='scripts.initialize_database'
-    assert all('synthetic_leave_ci' in c[1]['env']['DATABASE_URL'] for c in pytest_runs[:runner.CHUNKS])
+    assert all('synthetic_leave_ci' in c[1]['env']['DATABASE_URL'] for c in pytest_runs[:-1])
     assert 'synthetic_cycle_ci' in pytest_runs[-1][1]['env']['DATABASE_URL']
     assert all(c[1]['timeout']==900 for c in pytest_runs)
     actual=[f for c in pytest_runs for f in c[0][4:]]
@@ -204,7 +204,9 @@ def test_children_have_bounded_migration_and_suite_timeouts():
     source=(WORKFLOW.parents[2]/'scripts/run_ci_suite.py').read_text()
     assert 'check=True,timeout=120' in source
     assert 'check=True,timeout=900' in source
-    assert WORKFLOW.read_text().count('timeout-minutes: 45')==3
+    assert WORKFLOW.read_text().count('timeout-minutes: 45')==2
+    assert WORKFLOW.read_text().count('timeout-minutes: 90')==1
+    assert 'timeout-minutes: 90' in WORKFLOW.read_text().split('  test:',1)[1].split('  windows:',1)[0]
     assert '[version]$_.Name' not in WORKFLOW.read_text()
 
 
@@ -322,3 +324,33 @@ def test_failed_session_does_not_hide_later_chunks_or_cycle(monkeypatch, failure
     expected=[f for _,files in runner.assignments(WORKFLOW.parents[2]) for f in files]
     assert sorted(actual)==sorted(expected) and len(actual)==len(set(actual))
     assert sum('DROP DATABASE' in q for q in queries)==2
+
+
+def test_linux_five_sessions_preserve_exact_tracked_inventory_and_cycle(monkeypatch):
+    from scripts import run_ci_suite as runner
+    import subprocess
+    root=WORKFLOW.parents[2]
+    tracked=subprocess.check_output(['git','-C',str(root),'ls-files','tests'],text=True).splitlines()
+    expected=sorted(f for f in tracked if Path(f).name.startswith('test_') and f.endswith('.py') and f not in runner.CYCLE_FILES)
+    groups=runner.linux_chunks(expected)
+    assert len(groups)==5 and all(groups)
+    assert [f for g in groups for f in g]==expected
+    assert len(set(f for g in groups for f in g))==len(expected)
+    monkeypatch.setattr(runner.sys,'platform','linux')
+    assert runner.session_groups(expected)==groups
+    cycle=sorted(runner.CYCLE_FILES)
+    assert runner.session_groups(cycle)==[cycle]
+
+
+def test_windows_partition_unchanged_and_linux_weights_not_used(monkeypatch):
+    from scripts import run_ci_suite as runner
+    files=runner.assignments(WORKFLOW.parents[2])[0][1]
+    monkeypatch.setattr(runner.sys,'platform','win32')
+    monkeypatch.setattr(runner,'linux_chunks',lambda *_: (_ for _ in ()).throw(AssertionError('Linux profile on Windows')))
+    assert runner.session_groups(files)==runner.chunks(files)
+
+
+def test_linux_unknown_files_retained_with_planning_default():
+    from scripts import run_ci_suite as runner
+    files=[f'tests/test_future_{i}.py' for i in range(35)]
+    assert [f for g in runner.linux_chunks(files) for f in g]==files

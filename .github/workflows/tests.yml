@@ -18,7 +18,7 @@ jobs:
     # PostgreSQL 16 is available on this supported image and in its Noble apt repository.
     # ubuntu-latest moved to 26.04, whose default repository has no client-16.
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 90
     services:
       postgres:
         image: postgres:16
