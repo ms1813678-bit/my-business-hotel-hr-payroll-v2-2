@@ -67,6 +67,14 @@ jobs:
           test "$(command -v pg_restore)" = /usr/lib/postgresql/16/bin/pg_restore
           pg_dump --version | grep -E 'PostgreSQL\) 16\.'
           pg_restore --version | grep -E 'PostgreSQL\) 16\.'
+      - name: Install poppler-utils (pdftotext) for payslip PDF text checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install --yes poppler-utils
+          command -v pdftotext
+          pdftotext -v 2>&1 | head -1
       - name: Apply full PostgreSQL migration chain
         run: python -m scripts.initialize_database
       - name: Run complete test suite
