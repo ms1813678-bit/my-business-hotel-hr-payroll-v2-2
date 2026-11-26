@@ -1,0 +1,10 @@
+{
+  "verification/windows_nodebug_diagnostic/launcher_nodebug_diag.c": "3cef6ce5e01b36368ab55c6bbd75f300aaa6c5fd4937a6a34ce652659c18b84c",
+  "verification/windows_nodebug_diagnostic/outer_watchdog.c": "8d555beb58d1fd7546ad64fafdba4f6c1ce8f523bd643bd177f9c49cbee172ca",
+  "verification/windows_nodebug_diagnostic/diagnostic_caller.py": "5d6ff7372c0c49a10b1ef2db1249bd6a4346e0c739b4cd6f8257d479db0cffb7",
+  "verification/windows_nodebug_diagnostic/run_diagnostic.py": "2644a6f7174450a1864b5de05c8e6c325bb67620f7a0c7e34029cc895575fcea",
+  "verification/windows_nodebug_diagnostic/qualify_diagnostic.ps1": "89bdc231979bcf376fec2cac18b22cedcc1498e87105c81438c59020bcc30284",
+  "verification/windows_integrated_candidate/token_checks.h": "7912cabd55604d49b4e57b351324aa7e4a6fd9eb4237bd112dcfd8cf884d8d05",
+  "verification/windows_integrated_candidate/startup_diagnostics.h": "957770421786e79ee640bd6b55fc6477394cc12d0793a169c6e0d793adbf9857",
+  "verification/windows_integrated_candidate/real_open_diagnostics.h": "9cc2cc1e610a3cc384b8a82693d532b9f3aa0f07151e1bf0a461c64c23eac531"
+}
