@@ -268,9 +268,11 @@ class RestoreReadGateMiddleware:
                 await _send_gate_unavailable(send)
                 return
         _gate_active += 1
-        connection = open_direct_connection(autocommit=False)
+        connection = None
         acquired = False
         try:
+            # Opened inside the try: a failed connect must still release the gate slot (fail closed, error propagates).
+            connection = open_direct_connection(autocommit=False)
             # Phase 2: cancellable try-lock loop on the shared gate.
             while True:
                 def _try_lock():
@@ -301,8 +303,11 @@ class RestoreReadGateMiddleware:
                 finally:
                     connection.close()
 
-            await run_in_threadpool(_release)
-            _gate_active -= 1
+            try:
+                if connection is not None:
+                    await run_in_threadpool(_release)
+            finally:
+                _gate_active -= 1
 
 
 @contextmanager

@@ -111,14 +111,24 @@ if ($LASTEXITCODE -ne 0) {
 
 $Desktop = [Environment]::GetFolderPath("Desktop")
 $ShortcutPath = Join-Path $Desktop "M.Y. Business Hotel HR.lnk"
-$Launcher = Join-Path $ProjectRoot "scripts\windows\start.ps1"
 $Shell = New-Object -ComObject WScript.Shell
+$Icon = Join-Path $ProjectRoot "app\static\hony.ico"
+# One desktop icon: the launcher (folder check, Arabic refusal, no console window).
 $Shortcut = $Shell.CreateShortcut($ShortcutPath)
-$Shortcut.TargetPath = (Get-Command powershell.exe).Source
-$Shortcut.Arguments = ('-NoProfile -ExecutionPolicy Bypass -File "' + $Launcher + '"')
+$Shortcut.TargetPath = $VenvPython.Replace("python.exe", "pythonw.exe")
+$Shortcut.Arguments = "-m app.launcher"
 $Shortcut.WorkingDirectory = $ProjectRoot
+$Shortcut.IconLocation = $Icon
 $Shortcut.Description = "Start the local M.Y. Business Hotel HR application"
 $Shortcut.Save()
+# Stop control (name in Arabic built from code points so the file encoding cannot break it).
+$StopName = -join ([char[]](0x0625, 0x064A, 0x0642, 0x0627, 0x0641, 0x0020, 0x0627, 0x0644, 0x0628, 0x0631, 0x0646, 0x0627, 0x0645, 0x062C))
+$Stop = $Shell.CreateShortcut((Join-Path $Desktop ($StopName + ".lnk")))
+$Stop.TargetPath = (Get-Command powershell.exe).Source
+$Stop.Arguments = ('-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "' + (Join-Path $ProjectRoot "scripts\windows\stop.ps1") + '"')
+$Stop.WorkingDirectory = $ProjectRoot
+$Stop.IconLocation = $Icon
+$Stop.Save()
 
 Write-Host "HR reports are generated manually by the administrator; no report schedule is registered."
 Write-Host "Setup completed. Start the application from the desktop shortcut." -ForegroundColor Green

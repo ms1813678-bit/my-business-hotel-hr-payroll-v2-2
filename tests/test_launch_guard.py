@@ -98,11 +98,11 @@ def test_default_install_root_is_the_real_repo_root_and_real_cwd_is_checked():
     assert lg.check_launch_context(root, root, {"DATABASE_URL": "x"}).ok
 
 
-def test_never_reads_env_contents_and_is_not_imported_by_the_app(tmp_path):
+def test_never_reads_env_contents_and_only_the_launcher_imports_it(tmp_path):
     src = Path(lg.__file__).read_text(encoding="utf-8")
     assert "read_text" not in src and "open(" not in src
     for path in Path(lg.__file__).parent.glob("*.py"):
-        if path.name == "launch_guard.py":
+        if path.name in ("launch_guard.py", "launcher.py"):
             continue
         tree = ast.parse(path.read_text(encoding="utf-8"))
         for node in ast.walk(tree):

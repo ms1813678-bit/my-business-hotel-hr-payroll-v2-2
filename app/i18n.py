@@ -5150,3 +5150,20 @@ for _ar,_en,_zh in [
 ]:
     EN[_ar]=_en
     ZH[_ar]=_zh
+
+# ADDITIVE: reward category labels (staff actions page).
+for _ar,_en,_zh in [
+('مكافأة أداء متميز','Outstanding performance reward','杰出表现奖励'),
+('مكافأة حضور والتزام','Attendance and commitment reward','出勤与敬业奖励'),
+('مكافأة إشغال/مبيعات','Occupancy / sales reward','入住率/销售奖励'),
+('موظف الشهر','Employee of the month','月度最佳员工'),
+('خدمة ضيف متميزة','Outstanding guest service','杰出宾客服务'),
+('عمل إضافي استثنائي أو طوارئ','Exceptional or emergency overtime','特殊或紧急加班'),
+('موسم أو عيد','Season or holiday reward','节令或节日奖励'),
+('اقتراح تحسين أو توفير تكلفة','Improvement or cost-saving suggestion','改进或节约成本建议'),
+('بدل أو مكافأة تدريب وتطوير','Training and development allowance or reward','培训与发展津贴或奖励'),
+('هدية عينية أو قسيمة شراء','In-kind gift or voucher','实物礼品或购物券'),
+('خطاب شكر في الملف','Thank-you letter in file','归档感谢信'),
+]:
+    EN[_ar]=_en
+    ZH[_ar]=_zh

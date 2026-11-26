@@ -32,11 +32,23 @@
           <h3>🎖 مكافأة</h3>
           <p class="muted small">تقدير أو مبلغ إضافي للموظف</p>
           <div class="chip-row">
-            <button type="button" class="action-chip" data-kind="reward" data-category="commendation" data-financial="0">إشادة</button>
-            <button type="button" class="action-chip" data-kind="reward" data-category="certificate" data-financial="0">شهادة تقدير</button>
-            <button type="button" class="action-chip" data-kind="reward" data-category="promotion_recommendation" data-financial="0">توصية بالترقية</button>
             <button type="button" class="action-chip" data-kind="reward" data-category="financial_reward" data-financial="1">مكافأة مالية</button>
-            <button type="button" class="action-chip" data-kind="reward" data-category="custom" data-financial="0">نوع مخصص</button>
+            <button type="button" class="action-chip" data-kind="reward" data-category="reward_outstanding_performance" data-financial="1">مكافأة أداء متميز</button>
+            <button type="button" class="action-chip" data-kind="reward" data-category="reward_attendance_commitment" data-financial="1">مكافأة حضور والتزام</button>
+            <button type="button" class="action-chip" data-kind="reward" data-category="reward_occupancy_sales" data-financial="1">مكافأة إشغال/مبيعات</button>
+            <button type="button" class="action-chip" data-kind="reward" data-category="reward_employee_of_month" data-financial="1">موظف الشهر</button>
+            <button type="button" class="action-chip" data-kind="reward" data-category="reward_guest_service" data-financial="1">خدمة ضيف متميزة</button>
+            <button type="button" class="action-chip" data-kind="reward" data-category="reward_exceptional_overtime" data-financial="1">عمل إضافي استثنائي أو طوارئ</button>
+            <button type="button" class="action-chip" data-kind="reward" data-category="reward_season_holiday" data-financial="1">موسم أو عيد</button>
+            <button type="button" class="action-chip" data-kind="reward" data-category="reward_service_years" data-financial="1">سنوات الخدمة</button>
+            <button type="button" class="action-chip" data-kind="reward" data-category="reward_suggestion_savings" data-financial="1">اقتراح تحسين أو توفير تكلفة</button>
+            <button type="button" class="action-chip" data-kind="reward" data-category="reward_training_allowance" data-financial="1">بدل أو مكافأة تدريب وتطوير</button>
+            <button type="button" class="action-chip" data-kind="reward" data-category="gift_voucher" data-financial="0" data-optional="1">هدية عينية أو قسيمة شراء</button>
+            <button type="button" class="action-chip" data-kind="reward" data-category="certificate" data-financial="0">شهادة تقدير</button>
+            <button type="button" class="action-chip" data-kind="reward" data-category="commendation" data-financial="0">إشادة</button>
+            <button type="button" class="action-chip" data-kind="reward" data-category="thank_letter" data-financial="0">خطاب شكر في الملف</button>
+            <button type="button" class="action-chip" data-kind="reward" data-category="promotion_recommendation" data-financial="0">توصية بالترقية</button>
+            <button type="button" class="action-chip" data-kind="reward" data-category="custom" data-financial="0" data-optional="1">نوع مخصص</button>
           </div>
         </div>
         <div class="action-kind-card" data-kind="sanction">
@@ -48,7 +60,7 @@
             <button type="button" class="action-chip" data-kind="sanction" data-category="final_warning" data-financial="0">إنذار نهائي</button>
             <button type="button" class="action-chip" data-kind="sanction" data-category="suspension" data-financial="0">إيقاف عن العمل</button>
             <button type="button" class="action-chip" data-kind="sanction" data-category="salary_deduction" data-financial="1">خصم من الراتب</button>
-            <button type="button" class="action-chip" data-kind="sanction" data-category="custom" data-financial="0">نوع مخصص</button>
+            <button type="button" class="action-chip" data-kind="sanction" data-category="custom" data-financial="0" data-optional="1">نوع مخصص</button>
           </div>
         </div>
       </div>
@@ -70,8 +82,20 @@
             </optgroup>
             <optgroup label="المكافآت">
               <option value="financial_reward">مكافأة مالية</option>
+              <option value="reward_outstanding_performance">مكافأة أداء متميز</option>
+              <option value="reward_attendance_commitment">مكافأة حضور والتزام</option>
+              <option value="reward_occupancy_sales">مكافأة إشغال/مبيعات</option>
+              <option value="reward_employee_of_month">موظف الشهر</option>
+              <option value="reward_guest_service">خدمة ضيف متميزة</option>
+              <option value="reward_exceptional_overtime">عمل إضافي استثنائي أو طوارئ</option>
+              <option value="reward_season_holiday">موسم أو عيد</option>
+              <option value="reward_service_years">سنوات الخدمة</option>
+              <option value="reward_suggestion_savings">اقتراح تحسين أو توفير تكلفة</option>
+              <option value="reward_training_allowance">بدل أو مكافأة تدريب وتطوير</option>
+              <option value="gift_voucher">هدية عينية أو قسيمة شراء</option>
               <option value="certificate">شهادة تقدير</option>
               <option value="commendation">إشادة</option>
+              <option value="thank_letter">خطاب شكر في الملف</option>
               <option value="promotion_recommendation">توصية بالترقية</option>
             </optgroup>
             <option value="custom">نوع مخصص</option>
@@ -151,7 +175,7 @@
       kindSel.value = chip.dataset.kind;
       catSel.value = chip.dataset.category;
       var financial = chip.dataset.financial === '1';
-      var custom = chip.dataset.category === 'custom';
+      var custom = chip.dataset.optional === '1';
       syncFin(financial, custom);
       title.textContent = chip.textContent;
       // Subtitles live in hidden translated spans so non-Arabic UI languages
@@ -163,7 +187,7 @@
       detail.hidden = false;
     });
     finBox.addEventListener('change', function () {
-      if (catSel.value === 'custom') {
+      if (catSel.value === 'custom' || catSel.value === 'gift_voucher') {
         finFields.forEach(function (f) {
           f.hidden = !finBox.checked;
           f.querySelectorAll('input').forEach(function (inp) { inp.disabled = !finBox.checked; });

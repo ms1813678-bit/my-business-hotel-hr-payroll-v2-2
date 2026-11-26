@@ -1,0 +1,32 @@
+name: Windows launcher probe (synthetic, no real data)
+on:
+  push:
+    branches: [ui-overhaul]
+    paths:
+      - '.github/workflows/windows-launcher-probe.yml'
+      - 'verification/launcher_windows/**'
+      - 'app/launcher.py'
+      - 'scripts/windows/stop.ps1'
+permissions:
+  contents: read
+jobs:
+  launcher:
+    runs-on: windows-2025
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          architecture: 'x64'
+      - name: Install dependencies (disposable runner)
+        shell: pwsh
+        run: python -m pip install .
+      - name: Launcher under pythonw, wrong folder, stop script
+        shell: pwsh
+        run: |
+          if($env:OS -ne 'Windows_NT'){throw 'not a Windows runner'}
+          python verification/launcher_windows/probe.py
+          if($LASTEXITCODE -ne 0){throw 'launcher probe reported failures'}

@@ -138,3 +138,45 @@ def test_granted_lock_serves_and_releases(gate_env, monkeypatch):
     assert sent[0]["status"] == 200
     assert conn.closed and conn.rolled_back
     assert restore_lock._gate_active == 0
+
+
+def test_failed_connect_releases_slot_and_gate_keeps_working(gate_env, monkeypatch):
+    """A DB that is down at connect time must not leak gate slots (16 leaks would 503 everything)."""
+    attempts = {"n": 0}
+
+    def failing(autocommit=False):
+        attempts["n"] += 1
+        raise RuntimeError("database down")
+
+    monkeypatch.setattr(restore_lock, "open_direct_connection", failing)
+
+    async def receive():
+        await asyncio.Event().wait()  # pragma: no cover
+
+    async def send(message):  # pragma: no cover - the error propagates, nothing is sent
+        raise AssertionError("no response expected from the gate on a connect error")
+
+    async def downstream(scope, receive, send):  # pragma: no cover
+        raise AssertionError("downstream must not run when the gate cannot connect")
+
+    for _ in range(restore_lock.GATE_MAX_WAITERS + 1):
+        with pytest.raises(RuntimeError):  # fail closed: still an error, not an open gate
+            asyncio.run(restore_lock.RestoreReadGateMiddleware(downstream)(_scope(), receive, send))
+        assert restore_lock._gate_active == 0
+    assert attempts["n"] == restore_lock.GATE_MAX_WAITERS + 1
+
+    conn = _FakeConnection(granted=True)
+    monkeypatch.setattr(restore_lock, "open_direct_connection", lambda autocommit=False: conn)
+    sent, served = [], []
+
+    async def send_ok(message):
+        sent.append(message)
+
+    async def downstream_ok(scope, receive, send):
+        served.append(True)
+        await send({"type": "http.response.start", "status": 200, "headers": []})
+        await send({"type": "http.response.body", "body": b"ok"})
+
+    asyncio.run(restore_lock.RestoreReadGateMiddleware(downstream_ok)(_scope(), receive, send_ok))
+    assert served == [True] and sent[0]["status"] == 200
+    assert conn.closed and restore_lock._gate_active == 0

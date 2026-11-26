@@ -12,10 +12,26 @@ SANCTION_CATEGORIES = {
     "verbal_notice", "first_warning", "final_warning",
     "salary_deduction", "suspension", "custom",
 }
-REWARD_CATEGORIES = {
-    "financial_reward", "certificate", "commendation",
+# Reward types from the 19-item list relayed via Main (comment is not an approval record); 13 leave-day
+# reward and 18 real promotion/raise are deliberately NOT reward categories. Types 1-11 always carry money into payroll.
+FINANCIAL_REWARD_CATEGORIES = {
+    "financial_reward",
+    "reward_outstanding_performance",
+    "reward_attendance_commitment",
+    "reward_occupancy_sales",
+    "reward_employee_of_month",
+    "reward_guest_service",
+    "reward_exceptional_overtime",
+    "reward_season_holiday",
+    "reward_service_years",
+    "reward_suggestion_savings",
+    "reward_training_allowance"
+}
+NONFINANCIAL_REWARD_CATEGORIES = {
+    "gift_voucher", "certificate", "commendation", "thank_letter",
     "promotion_recommendation", "custom",
 }
+REWARD_CATEGORIES = FINANCIAL_REWARD_CATEGORIES | NONFINANCIAL_REWARD_CATEGORIES
 
 CATEGORY_LABELS_AR = {
     "verbal_notice": "تنبيه شفهي",
@@ -24,6 +40,18 @@ CATEGORY_LABELS_AR = {
     "salary_deduction": "خصم من الراتب",
     "suspension": "إيقاف عن العمل",
     "financial_reward": "مكافأة مالية",
+    "reward_outstanding_performance": "مكافأة أداء متميز",
+    "reward_attendance_commitment": "مكافأة حضور والتزام",
+    "reward_occupancy_sales": "مكافأة إشغال/مبيعات",
+    "reward_employee_of_month": "موظف الشهر",
+    "reward_guest_service": "خدمة ضيف متميزة",
+    "reward_exceptional_overtime": "عمل إضافي استثنائي أو طوارئ",
+    "reward_season_holiday": "موسم أو عيد",
+    "reward_service_years": "سنوات الخدمة",
+    "reward_suggestion_savings": "اقتراح تحسين أو توفير تكلفة",
+    "reward_training_allowance": "بدل أو مكافأة تدريب وتطوير",
+    "gift_voucher": "هدية عينية أو قسيمة شراء",
+    "thank_letter": "خطاب شكر في الملف",
     "certificate": "شهادة تقدير",
     "commendation": "إشادة",
     "promotion_recommendation": "توصية بالترقية",
@@ -58,7 +86,7 @@ def create_staff_action(
         raise ValueError("The employee is not active.")
     if category == "salary_deduction" and not is_financial:
         raise ValueError("A salary deduction must have a financial amount.")
-    if category == "financial_reward" and not is_financial:
+    if category in FINANCIAL_REWARD_CATEGORIES and not is_financial:
         raise ValueError("A financial reward must have a financial amount.")
     if is_financial:
         if amount is None or payroll_month is None:

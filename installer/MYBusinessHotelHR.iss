@@ -41,7 +41,9 @@ Source: "{#SourceRoot}\README.md"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#SourceRoot}\USER_GUIDE.md"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
-Name: "{group}\{#AppName}"; Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\scripts\windows\start.ps1"""; WorkingDir: "{app}"
+; Start menu only. The desktop icons (start and stop) are created by setup.ps1, so there is one set.
+Name: "{group}\{#AppName}"; Filename: "{app}\.venv\Scripts\pythonw.exe"; Parameters: "-m app.launcher"; WorkingDir: "{app}"; IconFilename: "{app}\app\static\hony.ico"
+Name: "{group}\Stop {#AppName}"; Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File ""{app}\scripts\windows\stop.ps1"""; WorkingDir: "{app}"; IconFilename: "{app}\app\static\hony.ico"
 
 [Run]
 Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\scripts\windows\setup.ps1"""; Description: "Configure Python, PostgreSQL, the local database, and the first administrator"; Flags: waituntilterminated

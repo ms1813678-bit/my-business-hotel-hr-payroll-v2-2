@@ -179,8 +179,13 @@ def test_paid_item_cannot_be_edited_after_reopen(db):
 
 # ---- named reward / sanction types (current source values, no policy claim) ----
 def test_reward_category_values_current_source():
-    assert sa.REWARD_CATEGORIES == {"financial_reward", "certificate", "commendation",
-                                    "promotion_recommendation", "custom"}
+    assert sa.REWARD_CATEGORIES == {
+        "financial_reward", "reward_outstanding_performance", "reward_attendance_commitment",
+        "reward_occupancy_sales", "reward_employee_of_month", "reward_guest_service",
+        "reward_exceptional_overtime", "reward_season_holiday", "reward_service_years",
+        "reward_suggestion_savings", "reward_training_allowance",
+        "gift_voucher", "certificate", "commendation", "thank_letter",
+        "promotion_recommendation", "custom"}
     assert sa.SANCTION_CATEGORIES == {"verbal_notice", "first_warning", "final_warning",
                                       "salary_deduction", "suspension", "custom"}
 
