@@ -3,8 +3,8 @@
 finally). Real app routes + real services + real PG locks/triggers.
 Oracle (salary 6000, approved financial reward 300, paid advance 1000, approved
 sanction 200): net 5100.00. Characterization only; no policy claim.
-Requires a local PG on 127.0.0.1 reachable as G4_PG_ADMIN_URL (default
-postgresql+psycopg://postgres@127.0.0.1:5433/postgres)."""
+Uses the configured local DATABASE_URL server (postgres admin database), or an
+explicit G4_PG_ADMIN_URL. No personal port default."""
 import os, re, subprocess, sys, uuid
 from datetime import date, datetime
 from decimal import Decimal as D
@@ -14,11 +14,12 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, select, text, update
 from sqlalchemy.orm import sessionmaker
 
-ADMIN_URL = os.environ.get("G4_PG_ADMIN_URL", "postgresql+psycopg://postgres@127.0.0.1:5433/postgres")
+from sqlalchemy.engine import make_url as _make_url
+ADMIN_URL = (_make_url(os.environ["G4_PG_ADMIN_URL"]) if os.environ.get("G4_PG_ADMIN_URL")
+             else _make_url(os.environ["DATABASE_URL"]).set(database="postgres"))
 
 # Local-only guard: this module CREATEs and DROPs databases, so it refuses any
 # admin URL that is not on this computer (CI or a typo cannot touch an external DB).
-from sqlalchemy.engine import make_url as _make_url
 _host = _make_url(ADMIN_URL).host
 if _host not in ("127.0.0.1", "localhost", "::1"):
     pytest.skip("G4_PG_ADMIN_URL must point at a local PostgreSQL (127.0.0.1/localhost/::1)",
@@ -31,65 +32,69 @@ def pgapp(monkeypatch):
     admin = create_engine(ADMIN_URL, isolation_level="AUTOCOMMIT")
     with admin.connect() as c:
         c.execute(text(f'CREATE DATABASE "{name}" ENCODING UTF8 TEMPLATE template0'))
-    url = ADMIN_URL.rsplit("/", 1)[0] + "/" + name
-    env = dict(os.environ, DATABASE_URL=url)
-    subprocess.run([sys.executable, "-m", "scripts.initialize_database"], env=env, check=True,
-                   capture_output=True)
-    engine = create_engine(url)
-    factory = sessionmaker(bind=engine, autoflush=False, autocommit=False)
-    from app.db import get_db
-    from app.main import app
-    from app.models import (AdminAccount, AdvanceInstallment, AdvanceRequest, AttendanceImportBatch,
-                            AttendanceMonth, Department, Employee,
-                            EmployeeServicePeriod, StaffAction)
-    from app.security import hash_password
-    ps, pe = date(2026, 10, 1), date(2026, 10, 31)
-    now = datetime.utcnow()
-    with factory() as db:
-        db.add_all([AdminAccount(username="pg-admin", password_hash=hash_password("Payroll-Test-Password-123!"),
-                                 active=True)])
-        dep = Department(name="PG Dept", active=True); db.add(dep); db.flush()
-        emp = Employee(code="MY-PG-0001", full_name="PG Employee", department_id=dep.id,
-                       position="p", hire_date=ps, status="active", basic_salary=D("6000.00"),
-                       daily_hours=D("8"))
-        db.add(emp); db.flush()
-        db.add(EmployeeServicePeriod(employee_id=emp.id, start_date=ps, end_date=None,
-                                     start_reason="synthetic"))
-        b = [AttendanceImportBatch(source_type=t, period_start=ps, period_end=pe,
-                                   original_filename=f"{t}.xlsx", file_sha256=ch * 64,
-                                   uploaded_by="pg-admin", status="approved", row_count=1,
-                                   issue_count=0) for t, ch in (("program_report", "a"), ("fingerprint", "b"))]
-        db.add_all(b); db.flush()
-        db.add(AttendanceMonth(period_start=ps, period_end=pe, program_import_batch_id=b[0].id,
-                               fingerprint_import_batch_id=b[1].id, status="approved",
-                               created_by="pg-admin", approved_by="pg-admin", approved_at=now,
-                               approval_reason="synthetic"))
-        adv = AdvanceRequest(employee_id=emp.id, request_date=date(2026, 9, 16), payroll_month=ps,
-                             amount=D("1000.00"), salary_basis=D("6000.00"), reason="r", status="paid",
-                             created_by="pg-admin", paid_by="pg-admin", paid_at=now)
-        db.add(adv); db.flush()
-        db.add(AdvanceInstallment(advance_request_id=adv.id, installment_number=1, amount=D("1000.00"),
-                                  payroll_month=ps, scheduled_payment_date=date(2026, 11, 5),
-                                  status="scheduled", created_at=now))
-        for kind, cat, amt in (("reward", "financial_reward", "300.00"), ("sanction", "salary_deduction", "200.00")):
-            db.add(StaffAction(employee_id=emp.id, kind=kind, category=cat, title=cat, is_financial=True,
-                               amount=D(amt), payroll_month=ps, reason="r", status="approved",
-                               created_by="pg-admin", approved_by="pg-admin", approved_at=now,
-                               acknowledgement_status="pending"))
-        db.commit()
-
-    def override():
-        with factory() as db:
-            yield db
-    app.dependency_overrides[get_db] = override
-    monkeypatch.setattr("app.main.SessionLocal", factory)
+    engine = None
     try:
-        with TestClient(app) as client:
-            client.factory = factory
-            yield client
+        url = ADMIN_URL.set(database=name).render_as_string(hide_password=False)
+        env = dict(os.environ, DATABASE_URL=url)
+        subprocess.run([sys.executable, "-m", "scripts.initialize_database"], env=env, check=True,
+                       capture_output=True)
+        engine = create_engine(url)
+        factory = sessionmaker(bind=engine, autoflush=False, autocommit=False)
+        from app.db import get_db
+        from app.main import app
+        from app.models import (AdminAccount, AdvanceInstallment, AdvanceRequest, AttendanceImportBatch,
+                                AttendanceMonth, Department, Employee,
+                                EmployeeServicePeriod, StaffAction)
+        from app.security import hash_password
+        ps, pe = date(2026, 10, 1), date(2026, 10, 31)
+        now = datetime.utcnow()
+        with factory() as db:
+            db.add_all([AdminAccount(username="pg-admin", password_hash=hash_password("Payroll-Test-Password-123!"),
+                                     active=True)])
+            dep = Department(name="PG Dept", active=True); db.add(dep); db.flush()
+            emp = Employee(code="MY-PG-0001", full_name="PG Employee", department_id=dep.id,
+                           position="p", hire_date=ps, status="active", basic_salary=D("6000.00"),
+                           daily_hours=D("8"))
+            db.add(emp); db.flush()
+            db.add(EmployeeServicePeriod(employee_id=emp.id, start_date=ps, end_date=None,
+                                         start_reason="synthetic"))
+            b = [AttendanceImportBatch(source_type=t, period_start=ps, period_end=pe,
+                                       original_filename=f"{t}.xlsx", file_sha256=ch * 64,
+                                       uploaded_by="pg-admin", status="approved", row_count=1,
+                                       issue_count=0) for t, ch in (("program_report", "a"), ("fingerprint", "b"))]
+            db.add_all(b); db.flush()
+            db.add(AttendanceMonth(period_start=ps, period_end=pe, program_import_batch_id=b[0].id,
+                                   fingerprint_import_batch_id=b[1].id, status="approved",
+                                   created_by="pg-admin", approved_by="pg-admin", approved_at=now,
+                                   approval_reason="synthetic"))
+            adv = AdvanceRequest(employee_id=emp.id, request_date=date(2026, 9, 16), payroll_month=ps,
+                                 amount=D("1000.00"), salary_basis=D("6000.00"), reason="r", status="paid",
+                                 created_by="pg-admin", paid_by="pg-admin", paid_at=now)
+            db.add(adv); db.flush()
+            db.add(AdvanceInstallment(advance_request_id=adv.id, installment_number=1, amount=D("1000.00"),
+                                      payroll_month=ps, scheduled_payment_date=date(2026, 11, 5),
+                                      status="scheduled", created_at=now))
+            for kind, cat, amt in (("reward", "financial_reward", "300.00"), ("sanction", "salary_deduction", "200.00")):
+                db.add(StaffAction(employee_id=emp.id, kind=kind, category=cat, title=cat, is_financial=True,
+                                   amount=D(amt), payroll_month=ps, reason="r", status="approved",
+                                   created_by="pg-admin", approved_by="pg-admin", approved_at=now,
+                                   acknowledgement_status="pending"))
+            db.commit()
+
+        def override():
+            with factory() as db:
+                yield db
+        app.dependency_overrides[get_db] = override
+        monkeypatch.setattr("app.main.SessionLocal", factory)
+        try:
+            with TestClient(app) as client:
+                client.factory = factory
+                yield client
+        finally:
+            app.dependency_overrides.clear()
     finally:
-        app.dependency_overrides.clear()
-        engine.dispose()
+        if engine is not None:
+            engine.dispose()
         with admin.connect() as c:
             c.execute(text(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)'))
         admin.dispose()
