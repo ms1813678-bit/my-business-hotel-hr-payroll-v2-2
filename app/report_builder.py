@@ -432,6 +432,11 @@ def _sum_items(items: list[PayrollItem], attribute: str) -> Decimal:
     return sum((getattr(item, attribute) for item in items), Decimal(0))
 
 
+def list_sep(language: str) -> str:
+    """Language-pure list separator: Arabic comma only in Arabic."""
+    return {"en": ", ", "zh": "\u3001"}.get(language, "\u060c ")
+
+
 def _L(text, language: str):
     """Translate an authored Arabic string for exports; data passes through unchanged."""
     if not isinstance(text, str) or not text or language == "ar":
@@ -443,6 +448,9 @@ def _L(text, language: str):
     for source in sorted(table, key=len, reverse=True):
         if source.endswith(":") and text.startswith(source + " "):
             return table[source] + text[len(source):]
+    if text.startswith("باسبور ") and "باسبور" in table:
+        # _id_proof() cell for foreign staff: authored prefix + passport number (data).
+        return table["باسبور"] + text[len("باسبور"):]
     if " — " in text:
         return " — ".join(_L(part, language) for part in text.split(" — "))
     out = text
@@ -459,7 +467,7 @@ def _warning_text_ar(warning, language: str = "ar") -> str:
     if isinstance(warning, str):
         return _L(warning, language)
     if warning.get("kind") == "no_payroll":
-        return f"{warning['count']} {_L('موظف بدون راتب مسجل في الفترة:', language)} {warning['details']}"
+        return f"{warning['count']} {_L('موظف بدون راتب مسجل في الفترة:', language)} {str(warning['details']).replace(chr(0x60c) + ' ', list_sep(language))}"
     if warning.get("kind") == "unreviewed_days":
         return f"{warning['count']} {_L('يوم حضور غير محسوم في الفترة لا يدخل في أيام العمل.', language)}"
     return f"{warning['count']} {_L('يوم حضور بانتظار المراجعة؛ أيام الغياب والتأخير تُحسب من مسيرات الرواتب المعتمدة فقط.', language)}"
@@ -1829,7 +1837,7 @@ def build_monthly_pdf(db: Session, month_start: date, options: set[int], languag
     story = [
         Paragraph(cell_(f"{L('التقرير الشهري')} — {month_label_text}"), title_style),
         Paragraph(cell_(f"{L('الفترة:')} {month_start.strftime('%d/%m/%Y')} {L('إلى')} {month_end.strftime('%d/%m/%Y')}"), meta_style),
-        Paragraph(cell_(f"{L('الأقسام المختارة:')} " + "، ".join(L(MONTHLY_OPTION_LABELS[o]) for o in sorted(options) if o in MONTHLY_OPTION_LABELS)), meta_style),
+        Paragraph(cell_(f"{L('الأقسام المختارة:')} " + list_sep(language).join(L(MONTHLY_OPTION_LABELS[o]) for o in sorted(options) if o in MONTHLY_OPTION_LABELS)), meta_style),
         Spacer(1, 4 * mm),
     ]
     compare = 10 in options

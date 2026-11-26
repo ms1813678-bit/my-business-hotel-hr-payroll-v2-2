@@ -1,0 +1,575 @@
+{
+ "GET /": [
+  "get_current_admin"
+ ],
+ "GET /advances": [
+  "require_payroll_access"
+ ],
+ "GET /ai": [
+  "require_system_admin"
+ ],
+ "GET /attendance/import": [
+  "require_attendance_read"
+ ],
+ "GET /attendance/import/{batch_id}/download": [
+  "require_attendance_read"
+ ],
+ "GET /attendance/import/{batch_id}/issues": [
+  "require_attendance_read"
+ ],
+ "GET /attendance/months": [
+  "require_attendance_read"
+ ],
+ "GET /attendance/reconcile": [
+  "require_attendance_read"
+ ],
+ "GET /attendance/review": [
+  "require_attendance_read"
+ ],
+ "GET /attendance/shift-evidence/{comparison_id}/{employee_id}": [
+  "require_system_admin"
+ ],
+ "GET /employees": [
+  "require_employee_read"
+ ],
+ "GET /employees/{employee_id}/photo": [
+  "require_employee_read"
+ ],
+ "GET /health": [],
+ "GET /language/{language}": [],
+ "GET /leave": [
+  "require_leave_read"
+ ],
+ "GET /leave/annual-settlement/{selection_id}": [
+  "require_system_admin"
+ ],
+ "GET /leave/balance-explanation": [
+  "require_system_admin"
+ ],
+ "GET /leave/carry-consumption/{employee_id}": [
+  "require_attendance_write"
+ ],
+ "GET /leave/carry-expiry/{employee_id}": [
+  "require_system_admin"
+ ],
+ "GET /leave/cash-out/{employee_id}": [
+  "require_system_admin"
+ ],
+ "GET /leave/departments": [
+  "require_system_admin"
+ ],
+ "GET /leave/month-review": [
+  "require_system_admin"
+ ],
+ "GET /leave/month-review/earning/{comparison_id}/{employee_id}": [
+  "require_system_admin"
+ ],
+ "GET /leave/month-review/reconciliation-approval/{receipt_id}": [
+  "require_system_admin"
+ ],
+ "GET /leave/month-review/reconciliation-receipt/{receipt_id}": [
+  "require_system_admin"
+ ],
+ "GET /leave/month-review/reconciliation/{comparison_id}/{employee_id}": [
+  "require_system_admin"
+ ],
+ "GET /leave/opening": [
+  "require_system_admin"
+ ],
+ "GET /leave/opening-rebind/{employee_id}": [
+  "require_system_admin"
+ ],
+ "GET /leave/opening/groups/{group_id}": [
+  "require_system_admin"
+ ],
+ "GET /leave/payroll-day-handoff": [
+  "require_payroll_access"
+ ],
+ "GET /leave/policies": [
+  "require_system_admin"
+ ],
+ "GET /leave/policies/impact": [
+  "require_system_admin"
+ ],
+ "GET /leave/workbench": [
+  "require_leave_read"
+ ],
+ "GET /leave/zero-decision/{employee_id}": [
+  "require_system_admin"
+ ],
+ "GET /login": [],
+ "GET /login/recover": [],
+ "GET /overtime/review": [
+  "require_payroll_access"
+ ],
+ "GET /payroll": [
+  "require_payroll_access"
+ ],
+ "GET /payroll/items/{item_id}/basis-preview": [
+  "require_system_admin"
+ ],
+ "GET /payroll/items/{item_id}/overtime-day-preview": [
+  "require_system_admin"
+ ],
+ "GET /payroll/items/{item_id}/overtime-days": [
+  "require_payroll_access"
+ ],
+ "GET /payroll/runs/{run_id}": [
+  "require_payroll_access"
+ ],
+ "GET /payroll/runs/{run_id}/items/{item_id}/payslip.pdf": [
+  "require_payroll_access"
+ ],
+ "GET /reports": [
+  "get_current_admin"
+ ],
+ "GET /reports/export.pdf": [
+  "get_current_admin"
+ ],
+ "GET /reports/export.xlsx": [
+  "get_current_admin"
+ ],
+ "GET /reports/files/{filename}": [
+  "get_current_admin"
+ ],
+ "GET /reports/monthly.pdf": [
+  "get_current_admin"
+ ],
+ "GET /reports/view": [
+  "get_current_admin"
+ ],
+ "GET /security-roster": [
+  "require_attendance_read"
+ ],
+ "GET /settings": [
+  "get_current_admin"
+ ],
+ "GET /settings/accounts": [
+  "require_system_admin"
+ ],
+ "GET /settings/audit": [
+  "require_system_admin"
+ ],
+ "GET /settings/backup": [
+  "require_system_admin"
+ ],
+ "GET /settings/password": [
+  "get_current_admin"
+ ],
+ "GET /staff-actions": [
+  "require_payroll_access"
+ ],
+ "POST /advances": [
+  "csrf_protect",
+  "require_payroll_access"
+ ],
+ "POST /advances/{request_id}/approve": [
+  "csrf_protect",
+  "require_payroll_access"
+ ],
+ "POST /advances/{request_id}/paid": [
+  "csrf_protect",
+  "require_payroll_access"
+ ],
+ "POST /advances/{request_id}/reject": [
+  "csrf_protect",
+  "require_payroll_access"
+ ],
+ "POST /ai": [
+  "csrf_protect",
+  "require_system_admin"
+ ],
+ "POST /ai/approve": [
+  "csrf_protect",
+  "require_system_admin"
+ ],
+ "POST /ai/reject": [
+  "csrf_protect",
+  "require_system_admin"
+ ],
+ "POST /ai/review": [
+  "csrf_protect",
+  "require_system_admin"
+ ],
+ "POST /attendance/approve-all-matching": [
+  "csrf_protect",
+  "require_attendance_write"
+ ],
+ "POST /attendance/import": [
+  "csrf_protect",
+  "require_attendance_write"
+ ],
+ "POST /attendance/import/{batch_id}/issues/{issue_id}/resolve": [
+  "csrf_protect",
+  "require_attendance_write"
+ ],
+ "POST /attendance/manual": [
+  "csrf_protect",
+  "require_attendance_write"
+ ],
+ "POST /attendance/months/{month_id}/approve": [
+  "csrf_protect",
+  "require_attendance_write"
+ ],
+ "POST /attendance/reconcile": [
+  "csrf_protect",
+  "require_attendance_write"
+ ],
+ "POST /attendance/shift-evidence/{comparison_id}/{employee_id}": [
+  "csrf_protect",
+  "require_system_admin"
+ ],
+ "POST /attendance/shift-evidence/{comparison_id}/{employee_id}/confirm": [
+  "csrf_protect",
+  "require_system_admin"
+ ],
+ "POST /attendance/shift-evidence/{comparison_id}/{employee_id}/review": [
+  "csrf_protect",
+  "require_system_admin"
+ ],
+ "POST /attendance/{record_id}/approve": [
+  "csrf_protect",
+  "require_attendance_write"
+ ],
+ "POST /branches": [
+  "csrf_protect",
+  "require_system_admin"
+ ],
+ "POST /branches/{branch_id}/edit": [
+  "csrf_protect",
+  "require_system_admin"
+ ],
+ "POST /departments": [
+  "csrf_protect",
+  "require_system_admin"
+ ],
+ "POST /departments/{department_id}/edit": [
+  "csrf_protect",
+  "require_system_admin"
+ ],
+ "POST /employee-data-change-requests/{request_id}/review": [
+  "csrf_protect",
+  "require_system_admin"
+ ],
+ "POST /employees": [
+  "csrf_protect",
+  "require_system_admin"
+ ],
+ "POST /employees/{employee_id}/archive": [
+  "csrf_protect",
+  "require_system_admin"
+ ],
+ "POST /employees/{employee_id}/data-change-requests": [
+  "csrf_protect",
+  "require_system_admin"
+ ],
+ "POST /employees/{employee_id}/edit": [
+  "csrf_protect",
+  "require_system_admin"
+ ],
+ "POST /employees/{employee_id}/rehire": [
+  "csrf_protect",
+  "require_system_admin"
+ ],
+ "POST /employees/{employee_id}/transfer": [
+  "csrf_protect",
+  "require_system_admin"
+ ],
+ "POST /leave/annual-settlement/{selection_id}/confirm": [
+  "csrf_protect",
+  "require_system_admin"
+ ],
+ "POST /leave/annual-settlement/{selection_id}/review": [
+  "csrf_protect",
+  "require_system_admin"
+ ],
+ "POST /leave/balance-explanation": [
+  "csrf_protect",
+  "require_system_admin"
+ ],
+ "POST /leave/balances": [
+  "csrf_protect",
+  "require_attendance_write"
+ ],
+ "POST /leave/carry-consumption/{employee_id}/confirm": [
+  "csrf_protect",
+  "require_attendance_write"
+ ],
+ "POST /leave/carry-consumption/{employee_id}/review": [
+  "csrf_protect",
+  "require_attendance_write"
+ ],
+ "POST /leave/carry-expiry/{employee_id}/confirm": [
+  "csrf_protect",
+  "require_system_admin"
+ ],
+ "POST /leave/carry-expiry/{employee_id}/review": [
+  "csrf_protect",
+  "require_system_admin"
+ ],
+ "POST /leave/cash-out/{employee_id}/confirm": [
+  "csrf_protect",
+  "require_system_admin"
+ ],
+ "POST /leave/cash-out/{employee_id}/review": [
+  "csrf_protect",
+  "require_system_admin"
+ ],
+ "POST /leave/departments/compare": [
+  "csrf_protect",
+  "require_system_admin"
+ ],
+ "POST /leave/departments/export": [
+  "csrf_protect",
+  "require_system_admin"
+ ],
+ "POST /leave/departments/return": [
+  "csrf_protect",
+  "require_system_admin"
+ ],
+ "POST /leave/month-review/earning/{comparison_id}/{employee_id}/confirm": [
+  "csrf_protect",
+  "require_system_admin"
+ ],
+ "POST /leave/month-review/earning/{comparison_id}/{employee_id}/review": [
+  "csrf_protect",
+  "require_system_admin"
+ ],
+ "POST /leave/month-review/reconciliation-approve": [
+  "csrf_protect",
+  "require_system_admin"
+ ],
+ "POST /leave/month-review/reconciliation-draft": [
+  "csrf_protect",
+  "require_system_admin"
+ ],
+ "POST /leave/month-review/reconciliation-record": [
+  "csrf_protect",
+  "require_system_admin"
+ ],
+ "POST /leave/month-review/reconciliation-snapshot": [
+  "csrf_protect",
+  "require_system_admin"
+ ],
+ "POST /leave/month-review/register-confirm": [
+  "csrf_protect",
+  "require_system_admin"
+ ],
+ "POST /leave/month-review/register-review": [
+  "csrf_protect",
+  "require_system_admin"
+ ],
+ "POST /leave/opening-rebind/{employee_id}/confirm": [
+  "csrf_protect",
+  "require_system_admin"
+ ],
+ "POST /leave/opening-rebind/{employee_id}/review": [
+  "csrf_protect",
+  "require_system_admin"
+ ],
+ "POST /leave/opening/confirm-source": [
+  "csrf_protect",
+  "require_system_admin"
+ ],
+ "POST /leave/opening/policy-defaults": [
+  "csrf_protect",
+  "require_system_admin"
+ ],
+ "POST /leave/opening/review": [
+  "csrf_protect",
+  "require_system_admin"
+ ],
+ "POST /leave/policies/confirm": [
+  "csrf_protect",
+  "require_system_admin"
+ ],
+ "POST /leave/policies/impact": [
+  "csrf_protect",
+  "require_system_admin"
+ ],
+ "POST /leave/policies/preview": [
+  "csrf_protect",
+  "require_system_admin"
+ ],
+ "POST /leave/records": [
+  "csrf_protect",
+  "require_attendance_write"
+ ],
+ "POST /leave/records/{record_id}/cancel": [
+  "csrf_protect",
+  "require_attendance_write"
+ ],
+ "POST /leave/records/{record_id}/confirm": [
+  "csrf_protect",
+  "require_attendance_write"
+ ],
+ "POST /leave/types": [
+  "csrf_protect",
+  "require_attendance_write"
+ ],
+ "POST /leave/zero-decision/{employee_id}/confirm": [
+  "csrf_protect",
+  "require_system_admin"
+ ],
+ "POST /leave/zero-decision/{employee_id}/review": [
+  "csrf_protect",
+  "require_system_admin"
+ ],
+ "POST /login": [
+  "csrf_protect"
+ ],
+ "POST /login/recover": [
+  "csrf_protect"
+ ],
+ "POST /logout": [
+  "csrf_protect"
+ ],
+ "POST /payroll": [
+  "csrf_protect",
+  "require_payroll_access"
+ ],
+ "POST /payroll/items/{item_id}/absence-leave-review": [
+  "csrf_protect",
+  "require_payroll_access"
+ ],
+ "POST /payroll/items/{item_id}/basis-preview": [
+  "csrf_protect",
+  "require_system_admin"
+ ],
+ "POST /payroll/items/{item_id}/overtime-approve": [
+  "csrf_protect",
+  "require_payroll_access"
+ ],
+ "POST /payroll/items/{item_id}/overtime-day-preview": [
+  "csrf_protect",
+  "require_system_admin"
+ ],
+ "POST /payroll/items/{item_id}/overtime-days/confirm": [
+  "csrf_protect",
+  "require_payroll_access"
+ ],
+ "POST /payroll/items/{item_id}/overtime-days/monthly": [
+  "csrf_protect",
+  "require_payroll_access"
+ ],
+ "POST /payroll/items/{item_id}/overtime-days/review": [
+  "csrf_protect",
+  "require_payroll_access"
+ ],
+ "POST /payroll/items/{item_id}/payments": [
+  "csrf_protect",
+  "require_payroll_access"
+ ],
+ "POST /payroll/items/{item_id}/update": [
+  "csrf_protect",
+  "require_payroll_access"
+ ],
+ "POST /payroll/payments/{payment_id}/correct": [
+  "csrf_protect",
+  "require_payroll_access"
+ ],
+ "POST /payroll/runs/{run_id}/approve": [
+  "csrf_protect",
+  "require_payroll_access"
+ ],
+ "POST /payroll/runs/{run_id}/close": [
+  "csrf_protect",
+  "require_payroll_access"
+ ],
+ "POST /payroll/runs/{run_id}/reopen": [
+  "csrf_protect",
+  "require_payroll_access"
+ ],
+ "POST /reports/presets": [
+  "csrf_protect",
+  "get_current_admin"
+ ],
+ "POST /reports/presets/{preset_id}/delete": [
+  "csrf_protect",
+  "get_current_admin"
+ ],
+ "POST /security-roster/confirm": [
+  "csrf_protect",
+  "require_attendance_write"
+ ],
+ "POST /security-roster/preview": [
+  "csrf_protect",
+  "require_attendance_write"
+ ],
+ "POST /settings/accounts": [
+  "csrf_protect",
+  "require_system_admin"
+ ],
+ "POST /settings/accounts/recovery-codes": [
+  "csrf_protect",
+  "require_system_admin"
+ ],
+ "POST /settings/accounts/sessions/{session_id}/end": [
+  "csrf_protect",
+  "require_system_admin"
+ ],
+ "POST /settings/accounts/{account_id}/activate": [
+  "csrf_protect",
+  "require_system_admin"
+ ],
+ "POST /settings/accounts/{account_id}/deactivate": [
+  "csrf_protect",
+  "require_system_admin"
+ ],
+ "POST /settings/accounts/{account_id}/reset-password": [
+  "csrf_protect",
+  "require_system_admin"
+ ],
+ "POST /settings/backup/create": [
+  "csrf_protect",
+  "require_system_admin"
+ ],
+ "POST /settings/backup/passphrase": [
+  "csrf_protect",
+  "require_system_admin"
+ ],
+ "POST /settings/backup/restore": [
+  "csrf_protect",
+  "require_system_admin"
+ ],
+ "POST /settings/backup/root": [
+  "csrf_protect",
+  "require_system_admin"
+ ],
+ "POST /settings/password": [
+  "csrf_protect",
+  "get_current_admin"
+ ],
+ "POST /settings/telegram": [
+  "csrf_protect",
+  "require_system_admin"
+ ],
+ "POST /settings/telegram/bind-confirm": [
+  "csrf_protect",
+  "require_system_admin"
+ ],
+ "POST /settings/telegram/bind-link": [
+  "csrf_protect",
+  "require_system_admin"
+ ],
+ "POST /settings/telegram/test": [
+  "csrf_protect",
+  "require_system_admin"
+ ],
+ "POST /staff-actions": [
+  "csrf_protect",
+  "require_payroll_access"
+ ],
+ "POST /staff-actions/{action_id}/acknowledgement": [
+  "csrf_protect",
+  "require_payroll_access"
+ ],
+ "POST /staff-actions/{action_id}/approve": [
+  "csrf_protect",
+  "require_payroll_access"
+ ],
+ "POST /staff-actions/{action_id}/cancel": [
+  "csrf_protect",
+  "require_payroll_access"
+ ]
+}

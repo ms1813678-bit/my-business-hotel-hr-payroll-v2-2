@@ -5104,3 +5104,40 @@ for _ar,_en,_zh in [
 ]:
     EN[_ar]=_en
     ZH[_ar]=_zh
+
+# Language-purity gaps found by a render/template check: exact template text nodes
+# that stayed Arabic in EN and ZH. Wording reuses the catalog's existing terms.
+for _ar, _en, _zh in [
+    ('(جلستك الحالية)', '(your current session)', '（您当前的会话）'),
+    ('. إنشاء رموز جديدة يبطل كل الرموز السابقة.', '. Generating new codes invalidates all previous codes.', '。生成新代码将使所有旧代码失效。'),
+    ('· اطلاع فقط', '· View only', '· 仅查看'),
+    ('استعادة كلمة المرور — نظام الموارد البشرية', 'Password Recovery — HR System', '找回密码 — 人力资源系统'),
+    ('اسم المستخدم:', 'Username:', '用户名：'),
+    ('اضغط أي سطر لفتح التفاصيل والإجراءات.', 'Click any row to open its details and actions.', '点击任意一行可打开详情和操作。'),
+    ('الحساب', 'Account', '账户'),
+    ('الصرف', 'Payment', '支付'),
+    ('تغيرت بيانات الحسابات أثناء تنفيذ الإجراء (ربما بعد استرجاع نسخة احتياطية). راجع القائمة وأعد المحاولة.',
+     'Account data changed while the action was running (possibly after a backup restore). Review the list and try again.',
+     '操作执行期间账户数据发生了变化（可能是在恢复备份之后）。请查看列表后重试。'),
+    ('تغيرت صلاحية حسابك أثناء تنفيذ الإجراء. سجل الدخول من جديد وأعد المحاولة.',
+     'Your account permission changed while the action was running. Sign in again and retry.',
+     '操作执行期间您的账户权限发生了变化。请重新登录后重试。'),
+    ('رجع من نسخة قديمة — يُفعَّل فقط بإعادة تعيين كلمة مرور جديدة من الأسفل.',
+     'Returned from an old backup — it is activated only by resetting a new password below.',
+     '随旧备份恢复而回——只有在下方重置新密码后才会启用。'),
+    ('هذا الحساب رجع من نسخة احتياطية قديمة وكلمة مروره القديمة غير موثوقة. لا يمكن تفعيله كما هو: اضغط «إعادة تعيين كلمة المرور» بجانبه، وسيُفعَّل تلقائيًا بكلمة المرور الجديدة.',
+     'This account returned from an old backup and its old password is not trusted. It cannot be activated as is: press "Reset password" next to it, and it will be activated automatically with the new password.',
+     '该账户随旧备份恢复而回，其旧密码不可信，无法直接启用：请点击其旁边的“重置密码”，系统将自动使用新密码启用。'),
+    ('هذا الحساب كان مقفولًا بعد رجوعه من نسخة قديمة؛ أُعيد تفعيله الآن بكلمة المرور الجديدة وأُبطلت القديمة نهائيًا.',
+     'This account was locked after returning from an old backup; it is now reactivated with the new password and the old one is permanently invalidated.',
+     '该账户在随旧备份恢复后被锁定；现已使用新密码重新启用，旧密码已被永久作废。'),
+    ('يحتاج إعادة تعيين كلمة مرور', 'Needs a password reset', '需要重置密码'),
+    ('خيارات غير متاحة لصلاحية حسابك:', 'Options not available for your account role:', '您的账户权限无法使用以下选项：'),
+    ('القيمة المدخلة في الرقم القومي مستخدمة لموظف آخر.', 'The national ID entered is already used by another employee.', '所填国民身份证号已被其他员工使用。'),
+    ('القيمة المدخلة في رقم البصمة مستخدمة لموظف آخر.', 'The fingerprint number entered is already used by another employee.', '所填指纹编号已被其他员工使用。'),
+    ('القيمة المدخلة في رقم الباسبور مستخدمة لموظف آخر.', 'The passport number entered is already used by another employee.', '所填护照号码已被其他员工使用。'),
+    ('وقت استخراج التقرير', 'Report generated at', '报告生成时间'),
+    ('باسبور', 'Passport', '护照'),
+]:
+    EN[_ar] = _en
+    ZH[_ar] = _zh

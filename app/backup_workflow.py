@@ -63,6 +63,12 @@ def _fsync_directory(path: Path) -> None:
         os.close(dir_fd)
 
 
+def _fsync_file(path: Path) -> None:
+    """Flush a finished file's bytes to disk. A failure is an error, never ignored."""
+    with open(path, "r+b") as stream:
+        os.fsync(stream.fileno())
+
+
 def _atomic_write_json(path: Path, payload: dict) -> None:
     """Write JSON durably: fsync'd temp file, atomic replace, directory fsync.
 
@@ -551,7 +557,11 @@ def create_backup(db: Session, backup_type: str, actor: str) -> BackupRun:
                 temporary_archive = encrypted_archive
             archive_hash = sha256_file(temporary_archive)
             archive_size = temporary_archive.stat().st_size
+            # Power-loss safety: the archive bytes reach disk before the name is published,
+            # and the directory entry is flushed after, before any success record exists.
+            _fsync_file(temporary_archive)
             os.replace(temporary_archive, archive_path)
+            _fsync_directory(archive_dir)
         # Verify the exact persisted archive before recording a successful run.
         verify_backup_archive(archive_path, archive_hash, data_key)
         if data_key:

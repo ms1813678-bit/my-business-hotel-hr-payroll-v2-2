@@ -18,7 +18,7 @@
 
 {% if result.warnings %}
 <div class="warn-box">
-  {% for warning in result.warnings %}<div>⚠ {% if warning.kind == 'no_payroll' %}{{ warning.count }} <span>موظف بدون راتب مسجل في الفترة:</span> {{ warning.details }}{% elif warning.kind == 'unreviewed_days' %}{{ warning.count }} <span>يوم حضور غير محسوم في الفترة لا يدخل في أيام العمل.</span>{% else %}{{ warning.count }} <span>يوم حضور بانتظار المراجعة؛ أيام الغياب والتأخير تُحسب من مسيرات الرواتب المعتمدة فقط.</span>{% endif %}</div>{% endfor %}
+  {% for warning in result.warnings %}<div>⚠ {% if warning.kind == 'no_payroll' %}{{ warning.count }} <span>موظف بدون راتب مسجل في الفترة:</span> {{ warning.details|replace('، ', warning_sep) }}{% elif warning.kind == 'unreviewed_days' %}{{ warning.count }} <span>يوم حضور غير محسوم في الفترة لا يدخل في أيام العمل.</span>{% else %}{{ warning.count }} <span>يوم حضور بانتظار المراجعة؛ أيام الغياب والتأخير تُحسب من مسيرات الرواتب المعتمدة فقط.</span>{% endif %}</div>{% endfor %}
 </div>
 {% endif %}
 

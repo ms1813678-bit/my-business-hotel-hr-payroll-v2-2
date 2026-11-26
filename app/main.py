@@ -303,6 +303,7 @@ app.add_middleware(RestoreReadGateMiddleware)
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 templates = Jinja2Templates(directory="app/templates")
 
+from app.report_builder import list_sep
 from app.report_builder import _fmt_number as _report_fmt_number
 
 templates.env.filters["fmtnum"] = _report_fmt_number
@@ -3295,6 +3296,7 @@ def view_hr_report(
         name="report_view.html",
         context={
             "result": result,
+            "warning_sep": list_sep(request.state.language),
             "query_string": request.url.query,
             "breakdown_defs": PAYROLL_BREAKDOWN_DEFS,
             "paper": report_paper_content(result),
@@ -3506,8 +3508,8 @@ def reports_monthly_pdf(
     if rejected:
         # Never silently drop options: a partial report with unannounced
         # omissions misleads. Name what the role cannot see and refuse.
-        names = "، ".join(sorted(MONTHLY_OPTION_LABELS[o] for o in rejected if o in MONTHLY_OPTION_LABELS))
-        raise HTTPException(status_code=403, detail=f"خيارات غير متاحة لصلاحية حسابك: {names}")
+        names = list_sep(request.state.language).join(sorted(_translate_text(MONTHLY_OPTION_LABELS[o], request.state.language) for o in rejected if o in MONTHLY_OPTION_LABELS))
+        raise HTTPException(status_code=403, detail=f"{_translate_text('خيارات غير متاحة لصلاحية حسابك:', request.state.language)} {names}")
     options = requested
     data_options = options - {10, 11}
     if not data_options:
@@ -4703,6 +4705,9 @@ def employees_page(
         )
 
 
+_DUPLICATE_FIELD_AR = {"national_id": "الرقم القومي", "fingerprint_id": "رقم البصمة", "passport_number": "رقم الباسبور"}
+
+
 @app.post("/employees", dependencies=[Depends(csrf_protect)])
 def create_employee(
     request: Request,
@@ -4755,7 +4760,7 @@ def create_employee(
             if value is not None and db.scalar(
                 select(Employee.id).where(getattr(Employee, field_name) == value).limit(1)
             ) is not None:
-                raise HTTPException(status_code=409, detail=f"القيمة المدخلة في {field_name} مستخدمة لموظف آخر.")
+                raise HTTPException(status_code=409, detail=f"القيمة المدخلة في {_DUPLICATE_FIELD_AR[field_name]} مستخدمة لموظف آخر.")
         photo_path = _store_employee_photo(photo)
         employee = Employee(
             code=allocate_employee_code(db), full_name=full_name,
@@ -4872,7 +4877,7 @@ def edit_employee(
                 ).limit(1)
             )
             if duplicate is not None:
-                raise HTTPException(status_code=409, detail=f"القيمة المدخلة في {field_name} مستخدمة لموظف آخر.")
+                raise HTTPException(status_code=409, detail=f"القيمة المدخلة في {_DUPLICATE_FIELD_AR[field_name]} مستخدمة لموظف آخر.")
 
         changes = []
         for field_name, new_value in normalized.items():
