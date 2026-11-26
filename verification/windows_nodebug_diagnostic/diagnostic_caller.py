@@ -78,6 +78,50 @@ def held_binary(path, pin):
             raise CleanupUnconfirmed('Diagnostic executable hold cleanup unconfirmed')
 
 
+REFUSAL_STAGES=frozenset(('arguments','attributes','create_suspended','derive_profile','duplex_wait','environment','hold_image','job','pipes','read_input','resume_nodebug','start_feeder','start_reader','startup_fixed_real_open','startup_readonly_diagnostics','verify_before_resume'))
+
+
+def diagnostic_fields(raw):
+    """Untrusted text facts only. Never cleanup authority; no raw text output."""
+    import re
+    empty=dict(capture='rejected',outer_child='none',refusal_stage='none',
+               refusal_error='none',worker_child='none',inner_cleanup='none',candidate_created='none',resume_prior='none',resume_failed='none',resume_error='none')
+    if type(raw) is not bytes or len(raw)>66_560:return empty
+    try:text=raw.decode('ascii',errors='strict')
+    except UnicodeError:return empty
+    patterns={
+      'outer':re.compile(r'diag_nodebug_outer status=(returned|refused|output_refused|timeout|cleanup_unconfirmed|unavailable) child_exit=([0-9]{1,10}) cleanup_confirmed=([01]) straggler_before_terminate=(-1|0|1) not_acceptance=1'),
+      'refusal':re.compile(r'CANDIDATE_REFUSAL stage=([a-z_]{1,48}) error=([0-9]{1,10}) child=([0-9]{1,10})'),
+      'created':re.compile(r'CANDIDATE_CREATED pid=([0-9]{1,10}) suspended=1'),
+      'resume':re.compile(r'diag_nodebug_resume prior_suspend_count=([0-9]{1,10}) api_failed=([01]) api_error=([0-9]{1,10}) pre_resume_token_job_verified=1 debugger_attached=0 held_create_event_guarantee=absent'),
+      'cleanup':re.compile(r'CANDIDATE_CLEANUP complete=([01]) workload=(returned|refused) security_acceptance=NOT_ESTABLISHED'),
+    }
+    prefixes={'outer':'diag_nodebug_outer','refusal':'CANDIDATE_REFUSAL','cleanup':'CANDIDATE_CLEANUP','created':'CANDIDATE_CREATED','resume':'diag_nodebug_resume'}
+    found={}
+    for line in text.splitlines():
+        for key,prefix in prefixes.items():
+            if not line.startswith(prefix):continue
+            match=patterns[key].fullmatch(line)
+            if key in found or match is None:return empty
+            found[key]=match.groups()
+    if 'outer' not in found:return empty
+    if int(found['outer'][1])>4294967295:return empty
+    result=dict(empty,capture='parsed',outer_child=found['outer'][1])
+    if 'refusal' in found:
+        stage,error,child=found['refusal']
+        if stage not in REFUSAL_STAGES or max(int(error),int(child))>4294967295:return empty
+        result.update(refusal_stage=stage,refusal_error=error,worker_child=child)
+    if 'cleanup' in found:result['inner_cleanup']=found['cleanup'][0]
+    if 'created' in found:
+        if int(found['created'][0])>4294967295:return empty
+        result['candidate_created']='1'  # pid deliberately discarded
+    if 'resume' in found:
+        prior,failed,error=found['resume']
+        if max(int(prior),int(error))>4294967295:return empty
+        result.update(resume_prior=prior,resume_failed=failed,resume_error=error)
+    return result
+
+
 def observe_once(*, watchdog, watchdog_pin, launcher, launcher_pin, profile,
                  staged_root, manifest_pin, decoder, progress=None):
     """Must run only inside the existing owned profile/verified-RX-stage lifecycle.
@@ -154,6 +198,10 @@ def observe_once(*, watchdog, watchdog_pin, launcher, launcher_pin, profile,
             # wait completed, release Python's process handle deterministically.
             child.__exit__(None, None, None)
             mark('watchdog_exit',result)
+            diagnostic.seek(0)
+            facts=diagnostic_fields(diagnostic.read(66_561))
+            # Trusted wait result controls cleanup. Parsed capture never does.
+            print('diag_nodebug_capture '+' '.join(key+'='+value for key,value in facts.items())+' not_acceptance=1',flush=True)
             status = EXIT_STATUS.get(result)
             if status is None or result == 125:
                 raise CleanupUnconfirmed('Watchdog tree cleanup unconfirmed')

@@ -1,7 +1,7 @@
 {
   "verification/windows_nodebug_diagnostic/launcher_nodebug_diag.c": "3cef6ce5e01b36368ab55c6bbd75f300aaa6c5fd4937a6a34ce652659c18b84c",
   "verification/windows_nodebug_diagnostic/outer_watchdog.c": "8d555beb58d1fd7546ad64fafdba4f6c1ce8f523bd643bd177f9c49cbee172ca",
-  "verification/windows_nodebug_diagnostic/diagnostic_caller.py": "1d0367553303b6be75d9ecc7c61b98585babe413cce694ea9ae78ec37ba49fca",
+  "verification/windows_nodebug_diagnostic/diagnostic_caller.py": "edc38a6c44ba90d4975a9833b84f940a90ec4cf28d15b45535b29a3434b9a03d",
   "verification/windows_nodebug_diagnostic/run_diagnostic.py": "7e48245f3aa32d026cc798b3a847c8d56e3ef85b1559a25930636aaf99b3bbad",
   "verification/windows_nodebug_diagnostic/qualify_diagnostic.ps1": "bcd80bf25b3e797d9e0f59a4b51e7cd944c305b4fd39000ec88d66dae8356915",
   "verification/windows_integrated_candidate/token_checks.h": "7912cabd55604d49b4e57b351324aa7e4a6fd9eb4237bd112dcfd8cf884d8d05",
