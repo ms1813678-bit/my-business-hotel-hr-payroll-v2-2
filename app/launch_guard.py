@@ -45,10 +45,20 @@ def default_install_root() -> Path:
     return Path(__file__).resolve().parent.parent
 
 
+def _strip_extended_prefix(path: str) -> str:
+    """Drop the Windows extended-length prefix so ``\\\\?\\C:\\x`` compares equal to ``C:\\x``."""
+    if path.startswith("\\\\?\\UNC\\"):
+        return "\\\\" + path[8:]
+    if path.startswith("\\\\?\\") or path.startswith("\\\\.\\"):
+        return path[4:]
+    return path
+
+
 def _same_folder(a: str | os.PathLike, b: str | os.PathLike) -> bool:
     """Equal after resolving links and relative parts; case-insensitive on Windows drives."""
     ra, rb = os.path.realpath(os.fspath(a)), os.path.realpath(os.fspath(b))
     if os.name == "nt" or ntpath.splitdrive(ra)[0]:
+        ra, rb = _strip_extended_prefix(ra), _strip_extended_prefix(rb)
         ra, rb = ntpath.normcase(ra), ntpath.normcase(rb)
     return ra == rb
 

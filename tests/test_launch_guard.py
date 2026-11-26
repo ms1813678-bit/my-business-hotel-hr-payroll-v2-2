@@ -142,3 +142,20 @@ def test_getcwd_value_error_is_refused(tmp_path, monkeypatch):
     root = make_root(tmp_path)
     monkeypatch.setattr(lg.os, "getcwd", lambda: (_ for _ in ()).throw(ValueError("bad")))
     assert lg.check_launch_context(root, None, {}).code == lg.CODE_WRONG_CWD
+
+
+def test_strip_extended_prefix_forms():
+    assert lg._strip_extended_prefix("\\\\?\\C:\\HotelHR") == "C:\\HotelHR"
+    assert lg._strip_extended_prefix("\\\\?\\UNC\\srv\\share\\x") == "\\\\srv\\share\\x"
+    assert lg._strip_extended_prefix("\\\\.\\C:\\HotelHR") == "C:\\HotelHR"
+    assert lg._strip_extended_prefix("C:\\HotelHR") == "C:\\HotelHR"
+    assert lg._strip_extended_prefix("/home/x") == "/home/x"
+
+
+def test_extended_prefix_path_is_the_same_folder_as_plain_path(monkeypatch):
+    import ntpath
+    monkeypatch.setattr(lg.os, "name", "nt")
+    monkeypatch.setattr(lg.os.path, "realpath", lambda p: ntpath.normpath(str(p)))
+    assert lg._same_folder("\\\\?\\C:\\HotelHR", "c:\\hotelhr")
+    assert lg._same_folder("\\\\?\\UNC\\srv\\share\\HotelHR", "\\\\SRV\\share\\hotelhr")
+    assert not lg._same_folder("\\\\?\\C:\\HotelHR2", "C:\\HotelHR")
