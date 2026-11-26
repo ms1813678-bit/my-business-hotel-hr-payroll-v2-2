@@ -1,0 +1,52 @@
+name: No-debug diagnostic compile only
+on:
+  push:
+    branches: [ui-overhaul]
+    paths:
+      - .github/workflows/windows-nodebug-compile.yml
+      - verification/windows_nodebug_diagnostic/**
+permissions:
+  contents: read
+jobs:
+  compile-only:
+    runs-on: windows-2022
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Verify reviewed sources and compile without executing diagnostic
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $root=Join-Path $pwd 'verification/windows_nodebug_diagnostic'
+          $owned=Join-Path $env:RUNNER_TEMP ('hony-nodebug-compile-'+$env:GITHUB_RUN_ID+'-'+$env:GITHUB_RUN_ATTEMPT)
+          if(Test-Path $owned){throw 'Fresh owned compile directory required'}
+          try {
+            New-Item -ItemType Directory $owned | Write-Output
+            $pins=Get-Content "$root/COMPILE-SHA256.json" -Raw|ConvertFrom-Json -AsHashtable
+            $expected=@('verification/windows_nodebug_diagnostic/launcher_nodebug_diag.c','verification/windows_integrated_candidate/token_checks.h','verification/windows_integrated_candidate/startup_diagnostics.h','verification/windows_integrated_candidate/real_open_diagnostics.h')
+            if($pins.Count -ne 4){throw 'Exact compile source inventory required'}
+            foreach($path in $expected){
+              if(-not $pins.ContainsKey($path) -or $pins[$path] -cnotmatch '^[0-9a-f]{64}$'){throw 'Compile source pin missing'}
+              $psi=[Diagnostics.ProcessStartInfo]::new();$psi.FileName='git';$psi.UseShellExecute=$false;$psi.RedirectStandardOutput=$true
+              $psi.ArgumentList.Add('cat-file');$psi.ArgumentList.Add('blob');$psi.ArgumentList.Add('HEAD:'+$path)
+              $proc=[Diagnostics.Process]::Start($psi);$stream=[IO.File]::Open((Join-Path $pwd $path),[IO.FileMode]::Create,[IO.FileAccess]::Write)
+              try{$proc.StandardOutput.BaseStream.CopyTo($stream)}finally{$stream.Dispose()}
+              $proc.WaitForExit();if($proc.ExitCode -ne 0){throw 'Committed compile blob unavailable'}
+              if((Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLower() -cne $pins[$path]){throw 'Compile source hash mismatch'}
+            }
+            $vs=(& "${env:ProgramFiles(x86)}/Microsoft Visual Studio/Installer/vswhere.exe" -latest -property installationPath)
+            if(-not $vs){throw 'Installed MSVC missing'}
+            Import-Module (Join-Path $vs 'Common7/Tools/Microsoft.VisualStudio.DevShell.dll')
+            Enter-VsDevShell -VsInstallPath $vs -SkipAutomaticLocation -DevCmdArguments '-arch=x64 -host_arch=x64'
+            $binary=Join-Path $owned 'nodebug-diagnostic.exe'
+            & cl.exe /nologo /std:c11 /W4 /WX /guard:cf /GS /DUNICODE /D_UNICODE "/I$pwd/verification/windows_integrated_candidate" "$root/launcher_nodebug_diag.c" "/Fo$owned/nodebug-diagnostic.obj" "/Fe:$binary" userenv.lib advapi32.lib /link /DYNAMICBASE /NXCOMPAT
+            if($LASTEXITCODE -ne 0){throw 'Diagnostic compile failed'}
+            Write-Output ('diagnostic_compile_sha256='+(Get-FileHash -LiteralPath $binary -Algorithm SHA256).Hash.ToLower())
+            Write-Output 'diagnostic_compile_only=1 diagnostic_executed=0 security_acceptance=NOT_ESTABLISHED'
+          } finally {
+            if(Test-Path $owned){Remove-Item -LiteralPath $owned -Recurse -Force}
+            if(Test-Path $owned){throw 'Owned compile directory cleanup failed'}
+            Write-Output 'Owned compile directory absence verified.'
+          }
