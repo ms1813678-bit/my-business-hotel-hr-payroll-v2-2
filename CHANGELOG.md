@@ -1,3 +1,8 @@
+## 2026-11-26, Instinct: bounded startup probe observation
+
+- Record the loader probe: 9 of 9 first-level Python dependencies map in the container (exit 0x200001FF), so a file-read denial at that level is not what stops them. Python startup itself remains unproven.
+- Add one independently reviewed startup probe: kernel32-only image that loads python314.dll with imports and DllMain, calls only Py_GetVersion, BCryptGenRandom, reads three stage files and checks std handles, returning a step mask and first failing step in the exit code. Security settings unchanged, no ETW. Portable tests only (47 passed); MSVC and Windows unverified. One observation, then stop.
+
 ## 2026-11-26, Instinct: bounded loader probe observation
 
 - Record the substitute exit77 positive: a kernel32-only image starts and exits 77 through the same launcher/AppContainer path, so the earlier 0xC0000022 is tied to Python startup, cause not located.

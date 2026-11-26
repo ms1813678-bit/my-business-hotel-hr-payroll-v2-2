@@ -1,0 +1,4 @@
+{
+  "verification/windows_startup_probe/startup_probe.c": "db945939fcb1165a2f89fe0674df8e57c6da149985c589998e2ee402400a04f2",
+  "verification/windows_startup_probe/decode_startup.py": "933f07ddd5860d478ebb8c021853b0a90e7ea81d3cef1799e987663de05c712b"
+}
