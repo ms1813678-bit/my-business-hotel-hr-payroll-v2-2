@@ -1,0 +1,129 @@
+name: Bounded Windows attendance failure diagnostic
+
+on:
+  push:
+    branches:
+      - ui-overhaul
+    paths:
+      - .github/workflows/windows-attendance-first-failure.yml
+      - scripts/windows_first_attendance_failure.py
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnostic:
+    name: First Windows attendance failure traceback (Python 3.11)
+    runs-on: windows-latest
+    timeout-minutes: 12
+    env:
+      DATABASE_URL: postgresql+psycopg://hotel_test:test-only-password@127.0.0.1:55432/hotel_test
+      SESSION_SECRET: ci-test-only-session-secret-not-for-production
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install project and development dependencies
+        run: python -m pip install -e ".[dev]"
+      - name: Parse Windows PowerShell scripts
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $scriptFiles = @(Get-ChildItem -Path "scripts/windows" -Filter "*.ps1" -File -Recurse)
+          if ($scriptFiles.Count -eq 0) {
+            throw "No Windows PowerShell scripts were found."
+          }
+          foreach ($scriptFile in $scriptFiles) {
+            $tokens = $null
+            $parseErrors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile(
+              $scriptFile.FullName,
+              [ref]$tokens,
+              [ref]$parseErrors
+            ) | Out-Null
+            if ($parseErrors.Count -gt 0) {
+              $messages = $parseErrors | ForEach-Object { $_.Message }
+              throw ("PowerShell syntax errors in {0}: {1}" -f $scriptFile.Name, ($messages -join "; "))
+            }
+            Write-Host ("PowerShell syntax OK: {0}" -f $scriptFile.Name)
+          }
+      - name: Initialize isolated Windows PostgreSQL cluster
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $pgRoot = Join-Path $env:ProgramFiles "PostgreSQL"
+          if (-not (Test-Path -LiteralPath $pgRoot -PathType Container)) {
+            throw "Runner PostgreSQL installation directory is missing; migrated tests cannot run."
+          }
+          $installations = @(Get-ChildItem -LiteralPath $pgRoot -Directory |
+            Where-Object { Test-Path (Join-Path $_.FullName "bin\initdb.exe") } |
+            Where-Object { $_.Name -match '^[0-9]+$' } |
+            Sort-Object { [int]$_.Name } -Descending)
+          if ($installations.Count -eq 0) {
+            throw "Runner PostgreSQL binaries are missing; full migrated tests are required."
+          }
+          $pgBin = Join-Path $installations[0].FullName "bin"
+          $cluster = Join-Path $env:RUNNER_TEMP "hony-ci-postgres"
+          $passwordFile = Join-Path $env:RUNNER_TEMP "hony-ci-postgres-password.txt"
+          if (Test-Path $cluster) { throw "Refusing to reuse an existing CI cluster." }
+          # Own this fresh leaf before initdb so partial initialization can be
+          # identified and removed without touching any pre-existing cluster.
+          $ownerFile = Join-Path $env:RUNNER_TEMP "hony-ci-postgres-owner.txt"
+          if (Test-Path $ownerFile) { throw "Refusing stale CI ownership marker." }
+          $owner = "$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT"
+          [IO.File]::WriteAllText($ownerFile, $owner, [Text.UTF8Encoding]::new($false))
+          "HONY_CI_PG_OWNER=$owner" >> $env:GITHUB_ENV
+          "HONY_CI_PG_BIN=$pgBin" >> $env:GITHUB_ENV
+          "$pgBin" >> $env:GITHUB_PATH
+          "HONY_CI_PG_DATA=$cluster" >> $env:GITHUB_ENV
+          try {
+            [IO.File]::WriteAllText($passwordFile, "test-only-password", [Text.UTF8Encoding]::new($false))
+            & "$pgBin\initdb.exe" -D $cluster -U hotel_test --encoding=UTF8 --locale=C --auth=scram-sha-256 --pwfile=$passwordFile
+            if ($LASTEXITCODE -ne 0) { throw "initdb failed." }
+          } finally {
+            Remove-Item -LiteralPath $passwordFile -Force -ErrorAction SilentlyContinue
+          }
+          & "$pgBin\pg_ctl.exe" -D $cluster -l "$env:RUNNER_TEMP\hony-ci-postgres.log" -o "-h 127.0.0.1 -p 55432" -w start
+          if ($LASTEXITCODE -ne 0) { throw "PostgreSQL startup failed." }
+          $env:PGPASSWORD = "test-only-password"
+          & "$pgBin\createdb.exe" -h 127.0.0.1 -p 55432 -U hotel_test hotel_test
+          if ($LASTEXITCODE -ne 0) { throw "CI database creation failed." }
+      - name: Apply full Windows PostgreSQL migration chain
+        run: python -m scripts.initialize_database
+      - name: Run one known failing attendance node on fresh migrated database
+        run: python -m scripts.windows_first_attendance_failure
+      - name: Stop isolated Windows PostgreSQL cluster
+        if: always()
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          if ($env:HONY_CI_PG_BIN -and $env:HONY_CI_PG_DATA) {
+            $expected = [IO.Path]::GetFullPath((Join-Path $env:RUNNER_TEMP "hony-ci-postgres"))
+            $actual = [IO.Path]::GetFullPath($env:HONY_CI_PG_DATA)
+            $ownerFile = Join-Path $env:RUNNER_TEMP "hony-ci-postgres-owner.txt"
+            if ($actual -ne $expected -or -not (Test-Path -LiteralPath $ownerFile -PathType Leaf)) {
+              throw "Refusing cleanup outside verified fresh CI leaf."
+            }
+            $owner = [IO.File]::ReadAllText($ownerFile)
+            if ($owner -ne $env:HONY_CI_PG_OWNER -or $owner -ne "$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT") {
+              throw "CI cleanup ownership mismatch."
+            }
+            & "$env:HONY_CI_PG_BIN\pg_ctl.exe" -D $env:HONY_CI_PG_DATA status
+            $status = $LASTEXITCODE
+            if ($status -eq 0) {
+              & "$env:HONY_CI_PG_BIN\pg_ctl.exe" -D $env:HONY_CI_PG_DATA -m fast -w stop
+              if ($LASTEXITCODE -ne 0) { throw "CI PostgreSQL cleanup failed; cluster retained for diagnosis." }
+            } elseif ($status -ne 3) {
+              throw "CI PostgreSQL state uncertain; cluster retained for diagnosis."
+            }
+            if (Test-Path -LiteralPath $env:HONY_CI_PG_DATA) {
+              Remove-Item -LiteralPath $env:HONY_CI_PG_DATA -Recurse -Force
+            }
+            Remove-Item -LiteralPath $ownerFile -Force
+          }
+          exit 0
+
