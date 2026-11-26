@@ -1,0 +1,91 @@
+{
+  "manifest_version": 1,
+  "status": "PROTOTYPE. Not approved. Reported (untested, unverified) laptop facts: Windows 10 Pro, Python 3.11.9; build and bitness unknown.",
+  "reported_laptop_python": "3.11.9",
+  "items": {
+    "windows": {
+      "required": "Windows 10 or 11, 64-bit (finding only; Windows 10 support ended 2025-10-14 per Microsoft)",
+      "rule": {
+        "major": 10,
+        "arch": "64-bit"
+      },
+      "download": null,
+      "support_note_url": "https://support.microsoft.com/en-us/windows/deployment/updates-lifecycle/windows-10-support-has-ended-on-october-14-2025"
+    },
+    "python": {
+      "required": "CPython 3.11.x, 64-bit, with venv and ensurepip; real interpreter (not the Microsoft Store alias)",
+      "rule": {
+        "minor": "3.11",
+        "bits": 64,
+        "needs": [
+          "venv",
+          "ensurepip"
+        ]
+      },
+      "why_minor": "Hashed lock file exists only for cp311 (and cp313, not approved). Project tested on 3.11.",
+      "download": {
+        "name": "Python 3.11.9 Windows installer (64-bit)",
+        "official_page": "https://www.python.org/downloads/release/python-3119/",
+        "official_file_url": "https://www.python.org/ftp/python/3.11.9/python-3.11.9-amd64.exe",
+        "size_bytes_listed": 26216840,
+        "md5_published_by_python_org": "e8dcd502e34932eebcaf1be056d5cbcd",
+        "sha256": null,
+        "signatures_published": [
+          "python-3.11.9-amd64.exe.asc",
+          "python-3.11.9-amd64.exe.sig",
+          "python-3.11.9-amd64.exe.sigstore"
+        ],
+        "hash_status": "BLOCKED_NO_OFFICIAL_SHA256",
+        "blocker": "python.org publishes only MD5 (weak) plus GPG/Sigstore signatures for this file. No official SHA-256 exists on the release page or the ftp index. A SHA-256 must not be invented. A preparer must verify the signature and then record a locally computed SHA-256, under a separate approval. Not done here; nothing was downloaded.",
+        "free": true,
+        "known_limits": "3.11.9 is the last 3.11 release with a Windows installer; no later security fixes are available as installers."
+      }
+    },
+    "database": {
+      "required": "A database program on this PC identified as PostgreSQL 16.x (finding only). Any other or unidentified database-like program stays unknown; existing software is not permission to use it, to add a second one, or to start a service.",
+      "rule": {
+        "major": 16
+      },
+      "download": {
+        "name": "PostgreSQL 16.16-2 Windows x64 installer (EDB)",
+        "official_page": "https://www.postgresql.org/download/windows/",
+        "vendor_page": "https://www.enterprisedb.com/downloads/postgres-postgresql-downloads",
+        "official_file_url": null,
+        "sha256_sidecar_url_observed": "https://get.enterprisedb.com/postgresql/postgresql-16.16-2-windows-x64.exe.sha256",
+        "sha256": "dd526f2d32c9acc1cb54dee8d7265e7b8e12519934731201df13eb0c2c58e128",
+        "hash_status": "OBSERVED_FROM_PUBLISHER_HOST_NOT_INDEPENDENTLY_VERIFIED",
+        "blocker": "The sidecar was read (text only) from get.enterprisedb.com, the same host as the installer, so it detects corruption, not a compromised host. The installer file URL, file size and the vendor page's own 'Checksum for Windows' link target were not confirmed by me. A GitHub comment attributed to EDB staff describes signing and checksums; its author is unverified and nothing here relies on it. A second independent confirmation is needed before this value is treated as a pin. The version is also an owner decision (laptop PostgreSQL state is unknown).",
+        "free": true
+      }
+    },
+    "wheels": {
+      "required": "Offline dependency folder: 44 wheels, every one listed in wheels.sha256, hash-matching, and present in the lock file (requirements-win-cp311.lock.txt)",
+      "rule": {
+        "count": 44,
+        "sha_file": "wheels.sha256",
+        "lock_file": "option_b/requirements-win-cp311.lock.txt"
+      },
+      "download": {
+        "name": "Python dependency wheels (win_amd64, cp311)",
+        "source": "https://pypi.org/ (via make_wheelhouse.sh on a preparer machine, never on the laptop)",
+        "pinned_by": "option_b/requirements-win-cp311.lock.txt (== versions with sha256 hashes; pip --require-hashes)",
+        "hash_status": "PINNED_BY_LOCK_FILE_PYPI_HASHES",
+        "blocker": "The hashes are the ones PyPI served when the lock was made. They detect corruption and swaps after that point; they are not an independent publisher signature."
+      }
+    },
+    "source": {
+      "required": "Project source of the reviewed commit 0bc929d (app/main.py present)",
+      "rule": {
+        "main_py": "app/app/main.py",
+        "archive_sha256": "4e02e79f8c4c81a572800a5cc9004d9dedb24468a84f54116324fd3cd8d33ac2"
+      },
+      "download": null
+    }
+  },
+  "approved_exact_versions": {
+    "python": [],
+    "database": [],
+    "_note": "Empty on purpose: approval of any version is an owner decision. A version that meets the rule is only a finding."
+  },
+  "reported_database_installed": true
+}
