@@ -240,16 +240,23 @@ def _evidence_time_tokens(value):
         raise ValueError('fingerprint_evidence_scan_limit')
     if not raw: return [], False
     pattern=re.compile(r'(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?')
-    tokens=[]; invalid=False; position=0
+    tokens=[]; invalid=False; position=0; joined_before=False
     while position<len(raw):
         if raw[position].isspace() or raw[position] in ',;|':
-            position+=1; continue
+            position+=1; joined_before=False; continue
         match=pattern.match(raw,position)
         if match is not None:
             tokens.append(time.fromisoformat(match.group()))
+            has_seconds=match.group().count(':')==2
             position=match.end()
-            if position<len(raw) and raw[position].isdigit():
-                invalid=True  # Adjacent tokens retained, but ambiguous source remains visible.
+            # Adjacent fixed-width HH:MM tokens split in exactly one way, so they are readable evidence (the raw text
+            # and every occurrence are kept; nothing is decided here). A joined token carrying seconds is ambiguous
+            # (HH:MM:SS against joined HH:MM), on either side of the join, and stays visible as unreadable.
+            if position<len(raw) and raw[position].isdigit() and has_seconds:
+                invalid=True
+            if has_seconds and joined_before:
+                invalid=True
+            joined_before=position<len(raw) and raw[position].isdigit() and not has_seconds
         else:
             invalid=True
             # Preserve valid separated tokens without reinterpreting a suffix

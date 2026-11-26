@@ -52,7 +52,7 @@ def test_0078_0079_downgrade(populated):
             c.execute(text(f'CREATE DATABASE "{name}"'))
         url = engine.url.set(database=name)
         env = {**os.environ, 'DATABASE_URL': url.render_as_string(hide_password=False)}
-        assert alembic(env, 'upgrade', 'head').returncode == 0
+        assert alembic(env, 'upgrade', '0080_restore_epoch_rebind').returncode == 0
         eng = create_engine(url)
         if populated is None:   # compatible empty path: 0080 -> 0077 -> head
             d = alembic(env, 'downgrade', '-3'); assert d.returncode == 0, d.stdout + d.stderr
@@ -60,7 +60,7 @@ def test_0078_0079_downgrade(populated):
                 t = [x for (x,) in c.execute(text("SELECT tablename FROM pg_tables WHERE schemaname='public'")).all()]
                 assert 'leave_zero_decisions' not in t and 'leave_carry_expiries' not in t
                 assert not c.execute(text("SELECT 1 FROM pg_proc WHERE proname IN ('prevent_leave_zero_mutation','prevent_carry_expiry_mutation')")).all()
-            u = alembic(env, 'upgrade', 'head'); assert u.returncode == 0, u.stdout + u.stderr
+            u = alembic(env, 'upgrade', '0080_restore_epoch_rebind'); assert u.returncode == 0, u.stdout + u.stderr
             return
         with eng.begin() as c:
             populate(c, populated[0])

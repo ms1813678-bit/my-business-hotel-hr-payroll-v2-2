@@ -5141,3 +5141,12 @@ for _ar, _en, _zh in [
 ]:
     EN[_ar] = _en
     ZH[_ar] = _zh
+
+
+# ADDITIVE: payslip lines for the leave cash-out and the carried deduction.
+for _ar,_en,_zh in [
+('بدل رصيد الإجازات','Leave balance cash-out','假期余额兑现'),
+('مرحّل من الشهر السابق','Carried from previous month','上月结转'),
+]:
+    EN[_ar]=_en
+    ZH[_ar]=_zh

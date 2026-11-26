@@ -31,10 +31,10 @@ def test_downgrade_refuses_same_proposal_in_two_epochs_and_changes_nothing(epoch
             c.execute(text(f'CREATE DATABASE "{name}"'))
         url = engine.url.set(database=name)
         env = {**os.environ, 'DATABASE_URL': url.render_as_string(hide_password=False)}
-        up = alembic(env, 'upgrade', 'head'); assert up.returncode == 0, up.stdout + up.stderr
+        up = alembic(env, 'upgrade', '0080_restore_epoch_rebind'); assert up.returncode == 0, up.stdout + up.stderr
         # empty table: one-step downgrade and re-upgrade work (legacy compatible, no rows to retain)
         d0 = alembic(env, 'downgrade', '0079_leave_carry_expiry'); assert d0.returncode == 0, d0.stdout + d0.stderr
-        u0 = alembic(env, 'upgrade', 'head'); assert u0.returncode == 0, u0.stdout + u0.stderr
+        u0 = alembic(env, 'upgrade', '0080_restore_epoch_rebind'); assert u0.returncode == 0, u0.stdout + u0.stderr
         eng = create_engine(url)
         with eng.begin() as c:
             c.execute(text("INSERT INTO admin_accounts (username,password_hash,role,active) VALUES ('mig-a','x','system_admin',true)"))
@@ -62,7 +62,7 @@ def test_downgrade_refuses_same_proposal_in_two_epochs_and_changes_nothing(epoch
         with eng.connect() as c:
             assert c.execute(text(f'SELECT count(*) FROM {TBL}')).scalar_one() == 2
             assert any('proposal_sha256_key' in n for (n,) in c.execute(text("SELECT conname FROM pg_constraint WHERE conrelid=CAST(:t AS regclass)"), {'t': TBL}).all())
-        up2 = alembic(env, 'upgrade', 'head'); assert up2.returncode == 0, up2.stdout + up2.stderr
+        up2 = alembic(env, 'upgrade', '0080_restore_epoch_rebind'); assert up2.returncode == 0, up2.stdout + up2.stderr
         eng.dispose()
     finally:
         with admin.connect() as c:

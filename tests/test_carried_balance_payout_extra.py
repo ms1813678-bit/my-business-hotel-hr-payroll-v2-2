@@ -103,7 +103,7 @@ def test_carried_opening_then_adjustment_then_payout_uses_adjusted_balance(histo
     add_balance_entry(db, employee_id=emp.id, leave_type=kind, transaction_type='adjustment',
                       days_delta=Decimal('-1.5'), reason='Synthetic adjustment', actor='synthetic-workbook-store')
     assert leave_balance(db, emp.id, kind.id) == Decimal('3.5')
-    _run, item = payroll(db, emp, basic='3000.00', performance='300.00', status='approved')
+    _run, item = payroll(db, emp, basic='3000.00', performance='300.00', status='draft')
     _r, result = cash(db, auth, emp, kind.id, item, Decimal('3.5'))
     assert result['cash_egp'] == '385.00'   # 3300/30 * 3.5
     assert leave_balance(db, emp.id, kind.id) == 0

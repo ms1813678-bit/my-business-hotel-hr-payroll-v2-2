@@ -80,7 +80,10 @@ _ITEM_FIELDS = [
     "taxes",
     "other_deductions",
     "advance_deduction",
+    "carried_in_deduction",
+    "carried_out_amount",
     "staff_reward_amount",
+    "leave_cash_amount",
     "staff_sanction_amount",
     "other_bonus",
     "net_pay",
@@ -163,6 +166,7 @@ def simulate_run_adjustment(
             try:
                 recompute_payroll_item(hypothetical, run)
                 new_net = hypothetical.net_pay
+                carried_after = hypothetical.carried_out_amount
                 feasible = True
                 reason = None
             except ValueError as exc:
@@ -175,6 +179,7 @@ def simulate_run_adjustment(
                 else:
                     reason = "engine"
                 new_net = None
+                carried_after = None
                 feasible = False
                 infeasible += 1
             rows.append(
@@ -188,6 +193,7 @@ def simulate_run_adjustment(
                     "net_before": str(baseline.net_pay),
                     "net_after": str(new_net) if feasible else None,
                     "net_delta": str(money(new_net - baseline.net_pay)) if feasible else None,
+                    "carried_out_after": str(carried_after) if feasible else None,
                     "feasible": feasible,
                     "infeasible_reason": reason,
                 }

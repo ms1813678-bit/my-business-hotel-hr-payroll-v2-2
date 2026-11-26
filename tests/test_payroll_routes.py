@@ -259,17 +259,17 @@ def test_payroll_uses_compensation_effective_at_month_start(payroll_client):
         assert item.lateness_deduction == Decimal("18.75")
 
 
-def test_payroll_blocks_mid_month_salary_or_hours_change_until_policy_is_defined(payroll_client):
+def test_payroll_blocks_mid_month_hours_change_until_policy_is_defined(payroll_client):
     client = payroll_client
     login(client)
     with client.test_session_factory.begin() as db:
         employee = db.get(Employee, client.test_employee_id)
-        employee.basic_salary = Decimal("12000.00")
+        employee.daily_hours = Decimal("9")
         db.add(EmployeeChange(
-            employee_id=employee.id, field_name="basic_salary",
-            old_value="9000.00", new_value="12000.00",
+            employee_id=employee.id, field_name="daily_hours",
+            old_value="8", new_value="9",
             effective_date=date(2026, 10, 16),
-            reason="Mid-month salary change requires explicit proration policy",
+            reason="Mid-month hours change has no recorded policy",
         ))
 
     token = csrf(client.get("/payroll"))

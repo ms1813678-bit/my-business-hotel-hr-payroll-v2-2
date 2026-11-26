@@ -29,7 +29,7 @@ def test_every_balance_tracked_type_cashes_exactly_and_payroll_rows_stay_untouch
     htype = db.get(LeaveType, kinds['H'])
     add_balance_entry(db, employee_id=e.id, leave_type=htype, transaction_type='adjustment', days_delta=Decimal(2),
                       reason='Synthetic holiday adjustment', actor='synthetic-workbook-store')
-    _run, item = payroll(db, e, basic='3000.00', performance='600.00', status='closed')
+    _run, item = payroll(db, e, basic='3000.00', performance='600.00', status='draft')
     frozen = item_state(item)
     h_before = leave_balance(db, e.id, kinds['H'])
     # weekly 4/7 (released credit) and holiday 3/2 of 2: different types, same payroll item
@@ -48,7 +48,7 @@ def test_other_bonus_is_excluded_and_future_date_is_refused_but_a_past_date_is_a
     db, e, kinds, args = monthly
     post(db, args(date(2026, 2, 1), date(2026, 2, 28)))
     auth = auth_of(args)
-    _run, item = payroll(db, e, basic='3000.00', performance='600.00', status='approved')
+    _run, item = payroll(db, e, basic='3000.00', performance='600.00', status='draft')
     item.other_bonus = Decimal('5000.00')
     db.flush()
     from app.leave_cash_out import review_cash_out

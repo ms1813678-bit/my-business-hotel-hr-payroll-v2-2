@@ -28,7 +28,7 @@ def item(**kw):
         overtime_daily_digest=None, other_bonus=D("100"), staff_reward_amount=D("300"),
         absence_days=D("2"), absence_deduction=D("0"), lateness_deduction=D("50"),
         insurance_share=D("300"), taxes=D("100"), other_deductions=D("25"),
-        advance_deduction=D("1500"), staff_sanction_amount=D("200"), net_pay=D("0"))
+        advance_deduction=D("1500"), staff_sanction_amount=D("200"), net_pay=D("0"), carried_in_deduction=D("0"), carried_out_amount=D("0"))
     base.update(kw)
     return NS(**base)
 
@@ -82,11 +82,11 @@ def test_overtime_ledger_amount_is_not_overwritten():
     assert it.overtime_amount == D("99.99")
 
 
-def test_deductions_above_earnings_raise_not_clamp():
-    # GAP (policy not recorded): the run refuses instead of carrying a shortfall.
+def test_deductions_above_earnings_hold_net_at_zero_and_carry_the_excess():
+    # Carry design relayed via Main (not an approval record): net never below zero, excess carried out.
     it = item(advance_deduction=D("9000"))
-    with pytest.raises(ValueError, match="deductions exceed earnings"):
-        recompute_payroll_item(it, NOV)
+    recompute_payroll_item(it, NOV)
+    assert it.net_pay == D("0.00") and it.carried_out_amount > 0
 
 
 def test_net_exactly_zero_is_allowed():
@@ -98,7 +98,7 @@ def test_net_exactly_zero_is_allowed():
     assert it.net_pay == D("0.00")
 
 
-# ---- 4ب: current advance implementation (DB, SQLite stand-in) -----------------
+# ---- 4ب: advances against the 25% rule (DB, sqlite stand-in) -----------------
 @pytest.fixture
 def db(monkeypatch):
     class FakeDate(date):
@@ -182,8 +182,10 @@ def test_idempotent_submission_key_returns_same_request(db):
                           reason="r", advance_type="regular", actor="hr", submission_key=k)
 
 
-def test_current_installment_type_exists_and_is_not_capped(db):
-    """Characterize current installment handling only. Numeric terms and exemptions are not owner policy proof."""
+def test_gap_installment_type_exists_and_is_not_capped(db):
+    """SEMANTIC GAP for owner: code still has an 'installment' advance type
+    (1..36 installments, no 25% cap). Recorded owner wording is only 'advance from
+    the month salary'. This pins the behavior; it does not claim policy."""
     r = mk(db, "5000", kind="installment")         # > 25% of 6000, accepted
     aw.approve_advance(db, r, "hr", installment_count=4)
     from sqlalchemy import select

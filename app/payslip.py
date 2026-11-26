@@ -100,6 +100,7 @@ def build_payslip_pdf(run, item, payment_totals, generated_at, language: str = "
         ("مكافأة إشغال", item.occupancy_bonus),
         ("مكافآت أخرى", item.other_bonus),
         ("مكافآت الإجراءات", item.staff_reward_amount),
+        ("بدل رصيد الإجازات", item.leave_cash_amount),
     ]:
         if not _zero(amount):
             earnings.append((L(label), amount))
@@ -121,6 +122,7 @@ def build_payslip_pdf(run, item, payment_totals, generated_at, language: str = "
         ("خصومات أخرى", item.other_deductions),
         ("خصم السلف", item.advance_deduction),
         ("خصم الجزاءات", item.staff_sanction_amount),
+        ("مرحّل من الشهر السابق", item.carried_in_deduction),
     ]:
         if not _zero(amount):
             deductions.append((L(label), amount))

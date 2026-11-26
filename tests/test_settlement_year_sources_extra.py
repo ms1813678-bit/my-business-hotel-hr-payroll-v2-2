@@ -168,7 +168,8 @@ def _item(**kw):
                 occupancy_bonus=Decimal('0'), other_bonus=Decimal('0'), staff_reward_amount=Decimal('0'),
                 absence_days=Decimal('0'), absence_deduction=Decimal('0'), lateness_deduction=Decimal('0'),
                 insurance_share=Decimal('0'), taxes=Decimal('0'), other_deductions=Decimal('0'),
-                advance_deduction=Decimal('0'), staff_sanction_amount=Decimal('0'), net_pay=None, employee_id=1)
+                advance_deduction=Decimal('0'), carried_in_deduction=Decimal('0'), carried_out_amount=Decimal('0'),
+                staff_sanction_amount=Decimal('0'), net_pay=None, employee_id=1)
     base.update(kw)
     return SimpleNamespace(**base)
 

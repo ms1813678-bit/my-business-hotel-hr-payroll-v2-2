@@ -67,7 +67,7 @@ def _audit(db: Session, *, actor: str, action: str, entity_type: str, entity_id:
     ))
 
 
-def _active_days(periods: list[EmployeeServicePeriod], start: date, end: date) -> int:
+def _active_day_set(periods: list[EmployeeServicePeriod], start: date, end: date) -> set:
     days = set()
     for period in periods:
         period_start = max(start, period.start_date)
@@ -76,7 +76,45 @@ def _active_days(periods: list[EmployeeServicePeriod], start: date, end: date) -
             continue
         for offset in range((period_end - period_start).days + 1):
             days.add(period_start.fromordinal(period_start.toordinal() + offset))
-    return len(days)
+    return days
+
+
+def expected_base_salary(db: Session, employee_id: int, snapshot_basic: Decimal, changes: list, start: date, end: date) -> Decimal:
+    """Base salary the item should carry for the month (service-period days, basic changes prorated by day)."""
+    periods = db.scalars(
+        select(EmployeeServicePeriod).where(
+            EmployeeServicePeriod.employee_id == employee_id,
+            EmployeeServicePeriod.start_date <= end,
+            or_(EmployeeServicePeriod.end_date.is_(None), EmployeeServicePeriod.end_date >= start),
+        ).order_by(EmployeeServicePeriod.start_date)
+    ).all()
+    days_in_month = monthrange(start.year, start.month)[1]
+    basic_changes = [c for c in changes if c.field_name == "basic_salary" and start < c.effective_date <= end]
+    active = _active_day_set(periods, start, end)
+    if basic_changes:
+        return _prorated_base_by_calendar_days(snapshot_basic, basic_changes, active, start, days_in_month)
+    return money(snapshot_basic * Decimal(len(active)) / Decimal(days_in_month))
+
+
+def _active_days(periods: list[EmployeeServicePeriod], start: date, end: date) -> int:
+    return len(_active_day_set(periods, start, end))
+
+
+def _prorated_base_by_calendar_days(
+    snapshot_basic: Decimal, basic_changes: list, active_days: set, start: date, days_in_month: int
+) -> Decimal:
+    """Base salary when basic_salary changes inside the month: each active calendar day is paid at the
+    rate in force on that day, then divided by the days of the month (same divisor as an unchanged month).
+    Prorate a mid-month salary change by calendar days (design relayed via Main; not an approval record)."""
+    ordered = sorted(basic_changes, key=lambda c: (c.effective_date, c.id))
+    total = Decimal("0")
+    for day in active_days:
+        rate = snapshot_basic
+        for change in ordered:
+            if change.effective_date <= day:
+                rate = _coerce_employee_history_value("basic_salary", change.new_value)
+        total += rate
+    return money(total / Decimal(days_in_month))
 
 
 def _coerce_employee_history_value(field_name: str, value):
@@ -284,6 +322,7 @@ def recompute_payroll_item(item: PayrollItem, run: PayrollRun) -> None:
         + Decimal(item.overtime_amount)
         + Decimal(item.other_bonus)
         + Decimal(item.staff_reward_amount)
+        + Decimal(getattr(item, 'leave_cash_amount', 0) or 0)
     )
     deductions = (
         Decimal(item.absence_deduction)
@@ -293,13 +332,39 @@ def recompute_payroll_item(item: PayrollItem, run: PayrollRun) -> None:
         + Decimal(item.other_deductions)
         + Decimal(item.advance_deduction)
         + Decimal(item.staff_sanction_amount)
+        + Decimal(item.carried_in_deduction or 0)
     )
     net = money(gross - deductions)
     if net < 0:
-        raise ValueError(
-            f"Payroll deductions exceed earnings for employee #{item.employee_id}."
-        )
+        # Net pay never goes below zero; the excess is carried to the employee's next month as a separate
+        # deduction line (design relayed via Main; this comment is not an approval record).
+        item.carried_out_amount = -net
+        net = Decimal("0.00")
+    else:
+        item.carried_out_amount = Decimal("0.00")
     item.net_pay = net
+
+
+def _carry_in_for(db: Session, employee_id: int, start: date) -> Decimal:
+    """Excess deductions the same employee's most recent earlier item could not absorb (net held at zero)."""
+    carried = db.scalar(
+        select(PayrollItem.carried_out_amount)
+        .join(PayrollRun, PayrollRun.id == PayrollItem.payroll_run_id)
+        .where(PayrollItem.employee_id == employee_id, PayrollRun.period_start < start)
+        .order_by(PayrollRun.period_start.desc())
+        .limit(1)
+    )
+    return money(Decimal(str(carried or 0)))
+
+
+def _later_item(db: Session, item: PayrollItem, run: PayrollRun):
+    return db.scalar(
+        select(PayrollItem)
+        .join(PayrollRun, PayrollRun.id == PayrollItem.payroll_run_id)
+        .where(PayrollItem.employee_id == item.employee_id, PayrollRun.period_start > run.period_start)
+        .order_by(PayrollRun.period_start)
+        .limit(1)
+    )
 
 
 def create_payroll_run(db: Session, *, year: int, month: int, actor: str) -> PayrollRun:
@@ -322,6 +387,13 @@ def create_payroll_run(db: Session, *, year: int, month: int, actor: str) -> Pay
     )
     if existing is not None:
         raise ValueError("A payroll run already exists for this month.")
+    # A later month cannot be
+    # created while an earlier month's run is still open (draft, approved or reopened).
+    earlier_open = db.scalar(
+        select(PayrollRun.id).where(PayrollRun.period_start < start, PayrollRun.status != "closed").limit(1)
+    )
+    if earlier_open is not None:
+        raise ValueError("An earlier payroll run is still open; close it before creating a later month.")
 
     service_periods = db.scalars(
         select(EmployeeServicePeriod).where(
@@ -383,25 +455,31 @@ def create_payroll_run(db: Session, *, year: int, month: int, actor: str) -> Pay
         if employee is None:
             continue
         employee_snapshot, employee_changes = _employee_snapshot_on_date(db, employee, start)
+        mid_period_changes = [
+            change for change in employee_changes
+            if change.field_name in {"basic_salary", "daily_hours"}
+            and start < change.effective_date <= end
+        ]
         mid_period_compensation_change = next(
-            (
-                change for change in employee_changes
-                if change.field_name in {"basic_salary", "daily_hours"}
-                and start < change.effective_date <= end
-            ),
-            None,
+            (change for change in mid_period_changes if change.field_name == "daily_hours"), None
         )
         if mid_period_compensation_change is not None:
             raise ValueError(
                 f"Employee #{employee.id} has a {mid_period_compensation_change.field_name} "
                 f"change effective on {mid_period_compensation_change.effective_date}. "
-                "Payroll is blocked because mid-month compensation proration requires an "
-                "explicit HR policy; no salary rate was guessed."
+                "Payroll is blocked because mid-month daily-hours changes have no recorded "
+                "HR policy; no rate was guessed."
             )
+        mid_period_basic_changes = [c for c in mid_period_changes if c.field_name == "basic_salary"]
         salary_basis = Decimal(employee_snapshot["basic_salary"])
         daily_hours = Decimal(employee_snapshot["daily_hours"])
         payable_days = _active_days(periods, start, end)
-        base_salary = money(salary_basis * Decimal(payable_days) / Decimal(days_in_month))
+        if mid_period_basic_changes:
+            base_salary = _prorated_base_by_calendar_days(
+                salary_basis, mid_period_basic_changes, _active_day_set(periods, start, end), start, days_in_month
+            )
+        else:
+            base_salary = money(salary_basis * Decimal(payable_days) / Decimal(days_in_month))
         attendance_records = db.scalars(
             select(AttendanceDailyRecord).where(
                 AttendanceDailyRecord.employee_id == employee_id,
@@ -434,6 +512,7 @@ def create_payroll_run(db: Session, *, year: int, month: int, actor: str) -> Pay
             advance_deduction=money(advances_by_employee.get(employee_id, Decimal("0.00"))),
             staff_reward_amount=money(rewards_by_employee.get(employee_id, Decimal("0.00"))),
             staff_sanction_amount=money(sanctions_by_employee.get(employee_id, Decimal("0.00"))),
+            carried_in_deduction=_carry_in_for(db, employee_id, start),
             net_pay=Decimal("0.00"),
         )
         db.add(payroll_item)
@@ -528,6 +607,14 @@ def update_payroll_item(
     )
 
 
+def _sync_leave_cash_amount(db: Session, item: PayrollItem) -> None:
+    """Owner rule (Mo, Nov 26): leave cash is its own payslip line, added to net in the month
+    of the payroll item the verified cash-out receipts point to. One receipt table, read once."""
+    from app.leave_cash_payroll_view import verified_cash_liabilities
+    total = Decimal(verified_cash_liabilities(db, payroll_item_id=item.id)['total_cash_egp'])
+    item.leave_cash_amount = money(total)
+
+
 def approve_payroll_run(db: Session, run: PayrollRun, actor: str) -> None:
     if run.status not in {"draft", "reopened"}:
         raise ValueError("Only a draft or reopened payroll run can be approved.")
@@ -562,7 +649,14 @@ def approve_payroll_run(db: Session, run: PayrollRun, actor: str) -> None:
         if run.overtime_daily_required or item.overtime_daily_digest is not None:
             from app.overtime_day_award import verify_monthly_snapshot
             verify_monthly_snapshot(db,item)
+        _sync_leave_cash_amount(db, item)
         recompute_payroll_item(item, run)
+        later = _later_item(db, item, run)
+        if later is not None and money(Decimal(later.carried_in_deduction or 0)) != money(Decimal(item.carried_out_amount or 0)):
+            raise ValueError(
+                f"Carried deduction changed for employee #{item.employee_id} but a later month already exists; "
+                "the later month must be recreated first."
+            )
     old = run.status
     run.status = "approved"
     run.approved_by = actor
@@ -692,6 +786,12 @@ def reopen_payroll_run(db: Session, run: PayrollRun, actor: str, reason: str) ->
         raise ValueError("Only a closed payroll run can be reopened.")
     if not reason.strip():
         raise ValueError("A reason is required to reopen payroll.")
+    # Defense in depth: approve_payroll_run also refuses a changed carry once a later month exists.
+    for it in db.scalars(select(PayrollItem).where(PayrollItem.payroll_run_id == run.id)).all():
+        if Decimal(it.carried_out_amount or 0) > 0 and _later_item(db, it, run) is not None:
+            raise ValueError(
+                "This month carries deductions into a later month that already exists; it cannot be reopened."
+            )
     _reverse_advance_installments_for_run(db, run, actor)
     run.status = "reopened"
     run.overtime_daily_required=True

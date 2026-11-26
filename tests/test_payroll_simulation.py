@@ -90,23 +90,19 @@ def test_set_mode_replaces_value(factory):
         assert result["rows"][0]["net_delta"] == "700.00"
 
 
-def test_infeasible_is_reported_never_clamped(factory):
+def test_excess_deductions_hold_net_at_zero_and_report_the_carry(factory):
+    # Carry design relayed via Main (not an approval record): net never below zero, the excess is carried.
     with factory.begin() as db:
         run = db.scalar(select(PayrollRun))
         result = simulate_run_adjustment(
             db, run.id, field="other_deductions", mode="add", value="99999.00"
         )
-        assert result["infeasible_items"] == 2
+        assert result["infeasible_items"] == 0 and result["totals_complete"] is True
         for row in result["rows"]:
-            assert row["feasible"] is False
-            assert row["net_after"] is None
-            assert row["net_delta"] is None
-        # totals are withheld as incomplete, never a misleading partial sum
-        assert result["totals_complete"] is False
-        assert result["total_net_after"] is None
-        assert result["total_net_delta"] is None
-        assert result["total_net_before"] == "12300.00"
-        assert all(row["infeasible_reason"] == "net_negative" for row in result["rows"])
+            assert row["feasible"] is True
+            assert row["net_after"] == "0.00"
+            assert Decimal(row["carried_out_after"]) > 0
+        assert result["total_net_after"] == "0.00"
 
 
 def test_employee_scope_limits_the_comparison(factory):
@@ -253,13 +249,12 @@ def test_absence_beyond_month_bounds_reports_the_accurate_reason(factory):
     assert result["total_net_delta"] is None
 
 
-def test_negative_net_reports_its_own_reason(factory):
+def test_huge_deduction_is_feasible_with_carry(factory):
     with factory.begin() as db:
         result = simulate_run_adjustment(
             db, _run_id(db), field="taxes", mode="set", value="999999")
-    assert result["infeasible_items"] == len(result["rows"]) > 0
-    assert all(row["infeasible_reason"] == "net_negative" for row in result["rows"])
-    assert result["totals_complete"] is False
+    assert result["infeasible_items"] == 0 and len(result["rows"]) > 0
+    assert all(Decimal(row["carried_out_after"]) > 0 for row in result["rows"])
 
 
 def test_helper_never_autoflushes_dirty_session_state(factory):

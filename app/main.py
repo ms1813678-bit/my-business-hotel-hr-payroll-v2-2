@@ -78,7 +78,7 @@ from app.telegram_alerts import (
 from app.security import _MIN_PASSWORD_LENGTH, hash_password, verify_password
 from app.employee_codes import allocate_employee_code
 from app.leave_workflow import add_balance_entry, cancel_leave, confirm_leave, leave_balance
-from app.advance_workflow import approve_advance, create_advance, mark_advance_paid, reject_advance
+from app.advance_workflow import advance_cap_basis, payroll_month_for_advance, approve_advance, create_advance, mark_advance_paid, reject_advance
 from app.models import AdvanceInstallment, CAIRO_TZ
 from app.ai_error_display import safe_failure_message
 from app.ai_errors import LocalizedValueError
@@ -2381,7 +2381,7 @@ def advances_page(request: Request, page: int = 1, tab: str = "pending", admin: 
                 (Decimal(item.amount) for item in employee_requests),
                 Decimal("0.00"),
             )
-            cap = Decimal(employee.basic_salary) * Decimal("0.25")
+            cap = (advance_cap_basis(db, employee.id, payroll_month_for_advance(date.today()), Decimal(str(employee.basic_salary))) * Decimal("0.25")).quantize(Decimal("0.01"))
             advance_summary[employee.id] = {
                 "latest": employee_requests[0] if employee_requests else None,
                 "total": total,
@@ -2394,7 +2394,7 @@ def advances_page(request: Request, page: int = 1, tab: str = "pending", admin: 
             }
         for employee in employees:
             if advance_summary.get(employee.id) is None:
-                default_limit = Decimal(str(employee.basic_salary)) * Decimal("0.25")
+                default_limit = (advance_cap_basis(db, employee.id, payroll_month_for_advance(date.today()), Decimal(str(employee.basic_salary))) * Decimal("0.25")).quantize(Decimal("0.01"))
                 advance_summary[employee.id] = {
                     "latest": None,
                     "total": Decimal("0.00"),
@@ -2712,6 +2712,7 @@ def payroll_run_page(
                 + Decimal(item.overtime_amount)
                 + Decimal(item.other_bonus)
                 + Decimal(item.staff_reward_amount)
+                + Decimal(item.leave_cash_amount or 0)
             )
             deductions = (
                 Decimal(item.absence_deduction)
@@ -2721,6 +2722,7 @@ def payroll_run_page(
                 + Decimal(item.other_deductions)
                 + Decimal(item.advance_deduction)
                 + Decimal(item.staff_sanction_amount)
+                + Decimal(item.carried_in_deduction or 0)
             )
             financials[item.id] = {"gross": gross, "deductions": deductions}
         payments = db.scalars(
@@ -2738,7 +2740,7 @@ def payroll_run_page(
         # Protection 2: warn when the item snapshot no longer matches the
         # employee's effective compensation for the period (entered after the
         # draft was created), or when a mid-period change now exists.
-        from app.payroll_workflow import _employee_snapshot_on_date
+        from app.payroll_workflow import _employee_snapshot_on_date, expected_base_salary
         stale_codes = []
         if run.status in {"draft", "reopened"}:
             for item in items:
@@ -2754,9 +2756,18 @@ def payroll_run_page(
                     Decimal(snapshot["basic_salary"]) != Decimal(item.salary_basis)
                     or Decimal(snapshot["daily_hours"]) != Decimal(item.daily_hours)
                     or any(
-                        change.field_name in {"basic_salary", "daily_hours"}
+                        change.field_name == "daily_hours"
                         and run.period_start < change.effective_date <= run.period_end
                         for change in changes
+                    )
+                    or (
+                        any(change.field_name == "basic_salary"
+                            and run.period_start < change.effective_date <= run.period_end
+                            for change in changes)
+                        and expected_base_salary(
+                            db, item.employee_id, Decimal(snapshot["basic_salary"]), changes,
+                            run.period_start, run.period_end,
+                        ) != Decimal(item.base_salary)
                     )
                 ):
                     stale_codes.append(item.employee_code_snapshot)
@@ -2952,23 +2963,33 @@ def reopen_payroll_run_route(
     return RedirectResponse(f"/payroll/runs/{run_id}", status_code=303)
 
 
+def _posted_form_fields(request: Request) -> frozenset:
+    """Names present in the posted form, so absent fields keep their stored values.
+    FastAPI has already parsed the form for the Form() parameters and Starlette caches it on the
+    request; reading the cache avoids an extra route dependency."""
+    form = getattr(request, "_form", None)
+    return frozenset(form.keys()) if form is not None else frozenset()
+
+
 @app.post("/payroll/items/{item_id}/update", dependencies=[Depends(csrf_protect)])
 def update_payroll_item_route(
     item_id: int,
-    attendance_bonus: Decimal = Form(Decimal("0")),
-    performance_bonus: Decimal = Form(Decimal("0")),
-    occupancy_bonus: Decimal = Form(Decimal("0")),
+    request: Request,
+    attendance_bonus: Decimal | None = Form(None),
+    performance_bonus: Decimal | None = Form(None),
+    occupancy_bonus: Decimal | None = Form(None),
     overtime_hours: Decimal | None = Form(None),
-    other_bonus: Decimal = Form(Decimal("0")),
-    absence_days: Decimal = Form(Decimal("0")),
-    lateness_deduction: Decimal = Form(Decimal("0")),
-    insurance_share: Decimal = Form(Decimal("0")),
-    taxes: Decimal = Form(Decimal("0")),
-    other_deductions: Decimal = Form(Decimal("0")),
-    note: str = Form(""),
+    other_bonus: Decimal | None = Form(None),
+    absence_days: Decimal | None = Form(None),
+    lateness_deduction: Decimal | None = Form(None),
+    insurance_share: Decimal | None = Form(None),
+    taxes: Decimal | None = Form(None),
+    other_deductions: Decimal | None = Form(None),
+    note: str | None = Form(None),
     admin: AdminAccount = Depends(require_payroll_access),
 ):
     run_id = None
+    posted_fields = _posted_form_fields(request)
     try:
         with SessionLocal.begin() as db:
             from app.overtime_day_award import monthly_lock_scope
@@ -2983,17 +3004,20 @@ def update_payroll_item_route(
                 db,
                 item,
                 {
-                    "attendance_bonus": attendance_bonus,
-                    "performance_bonus": performance_bonus,
-                    "occupancy_bonus": occupancy_bonus,
+                    **{key: (value if value is not None else Decimal("0"))
+                       for key, value in {
+                           "attendance_bonus": attendance_bonus,
+                           "performance_bonus": performance_bonus,
+                           "occupancy_bonus": occupancy_bonus,
+                           "other_bonus": other_bonus,
+                           "absence_days": absence_days,
+                           "lateness_deduction": lateness_deduction,
+                           "insurance_share": insurance_share,
+                           "taxes": taxes,
+                           "other_deductions": other_deductions,
+                       }.items() if key in posted_fields},
                     **({"overtime_hours": overtime_hours} if overtime_hours is not None else {}),
-                    "other_bonus": other_bonus,
-                    "absence_days": absence_days,
-                    "lateness_deduction": lateness_deduction,
-                    "insurance_share": insurance_share,
-                    "taxes": taxes,
-                    "other_deductions": other_deductions,
-                    "note": note,
+                    **({"note": note or ""} if "note" in posted_fields else {}),
                 },
                 admin.username,
             )

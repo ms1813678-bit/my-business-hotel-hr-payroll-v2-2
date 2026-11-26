@@ -802,6 +802,7 @@ class PayrollItem(Base):
             "AND staff_reward_amount >= 0 AND staff_sanction_amount >= 0 AND net_pay >= 0",
             name="ck_payroll_items_nonnegative_amounts",
         ),
+        CheckConstraint("carried_in_deduction >= 0 AND carried_out_amount >= 0", name="ck_payroll_items_carry_nonnegative"),
     )
     id: Mapped[int] = mapped_column(primary_key=True)
     payroll_run_id: Mapped[int] = mapped_column(
@@ -839,6 +840,9 @@ class PayrollItem(Base):
     advance_deduction: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=0, nullable=False)
     staff_reward_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=0, nullable=False)
     staff_sanction_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=0, nullable=False)
+    leave_cash_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=0, server_default='0', nullable=False)
+    carried_in_deduction: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=0, server_default="0", nullable=False)
+    carried_out_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=0, server_default="0", nullable=False)
     net_pay: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=0, nullable=False)
     absence_leave_reviewed: Mapped[bool] = mapped_column(
         Boolean, default=False, server_default="false", nullable=False
@@ -1438,4 +1442,27 @@ class LeaveZeroDecision(Base):
     result_digest: Mapped[str] = mapped_column(String(64), nullable=False)
     request_json: Mapped[str] = mapped_column(Text, nullable=False)
     result_json: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+
+
+class LeaveMonthCorrection(Base):
+    """Immutable receipt of one reviewed correction of a posted leave month: reversal rows plus
+    replacement rows in the ledger; the original month receipt and its ledger rows are never edited."""
+    __tablename__ = 'leave_month_corrections'
+    __table_args__ = (UniqueConstraint('original_receipt_id', 'sequence', name='uq_leave_month_correction_seq'),
+        CheckConstraint('sequence >= 1', name='ck_leave_month_correction_seq'))
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    employee_id: Mapped[int] = mapped_column(ForeignKey('employees.id', ondelete='RESTRICT'), nullable=False)
+    month_start: Mapped[date] = mapped_column(Date, nullable=False)
+    original_receipt_id: Mapped[str] = mapped_column(String(64), nullable=False)  # no FK: keeps the receipt table's own TRUNCATE guard message
+    sequence: Mapped[int] = mapped_column(Integer, nullable=False)
+    actor_id: Mapped[int] = mapped_column(ForeignKey('admin_accounts.id', ondelete='RESTRICT'), nullable=False)
+    session_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    session_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    restore_epoch: Mapped[str | None] = mapped_column(String(128))
+    source_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    request_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    plan_json: Mapped[str] = mapped_column(Text, nullable=False)
+    result_json: Mapped[str] = mapped_column(Text, nullable=False)
+    result_digest: Mapped[str] = mapped_column(String(64), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)

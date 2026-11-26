@@ -7,6 +7,9 @@ reopen are three separate POST routes, each CSRF-protected and gated by
 require_payroll_access; reopen takes a required reason. No second confirmation
 factor (password/typed phrase) exists beyond CSRF: pinned as a question, not a bug.
 """
+import datetime as _dt
+if not hasattr(_dt, "UTC"):          # py3.10 shim; production is 3.11
+    _dt.UTC = _dt.timezone.utc
 from datetime import date
 from decimal import Decimal as D
 

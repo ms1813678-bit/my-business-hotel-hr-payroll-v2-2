@@ -18,6 +18,10 @@ from app.payroll_workflow import AbsenceLeaveConflictError
 
 # key (exact message or code) -> (ar, en, zh). None means "the key itself" in that language.
 _REASONS: dict[str, tuple] = {
+    "This month carries deductions into a later month that already exists; it cannot be reopened.": (
+        "هذا الشهر يرحّل خصومات إلى شهر لاحق موجود بالفعل؛ لا يمكن إعادة فتحه.",
+        "This month carries deductions into a later month that already exists; it cannot be reopened.",
+        "本月的扣款已结转到已存在的后续月份，无法重新打开。"),
     # ---- leave balances ----
     "Malformed opening receipt evidence.": ("تعذر التحقق من إثبات الرصيد الافتتاحي؛ لم يتم تسجيل التغيير.", "Opening receipt evidence could not be verified; no change was recorded.", "无法验证期初余额凭据；未记录变更。"),
     "Manual balance changes must be opening or adjustment; carry and settlement require their reviewed workflow.": (

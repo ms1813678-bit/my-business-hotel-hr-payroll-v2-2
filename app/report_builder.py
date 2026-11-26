@@ -377,6 +377,7 @@ def _item_earnings(item: PayrollItem) -> Decimal:
         + item.overtime_amount
         + item.other_bonus
         + item.staff_reward_amount
+        + item.leave_cash_amount
     )
 
 
@@ -388,6 +389,7 @@ def _item_deductions(item: PayrollItem, *, include_advances: bool = True) -> Dec
         + item.taxes
         + item.other_deductions
         + item.staff_sanction_amount
+        + item.carried_in_deduction
     )
     if include_advances:
         total += item.advance_deduction
@@ -585,7 +587,7 @@ def _build_payroll_result(db: Session, selection: ReportSelection, start: date, 
         row["pay_allowances"] = sum(
             (
                 item.attendance_bonus + item.performance_bonus + item.occupancy_bonus
-                + item.overtime_amount + item.other_bonus + item.staff_reward_amount
+                + item.overtime_amount + item.other_bonus + item.staff_reward_amount + item.leave_cash_amount
                 for item in employee_items
             ),
             Decimal(0),

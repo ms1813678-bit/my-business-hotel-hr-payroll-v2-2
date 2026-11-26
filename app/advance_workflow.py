@@ -5,7 +5,7 @@ from decimal import Decimal
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.models import utcnow, AdvanceInstallment, AdvanceRequest, AuditLog, Employee
+from app.models import utcnow, AdvanceInstallment, AdvanceRequest, AuditLog, Employee, PayrollItem, PayrollRun
 
 
 RESERVING_STATUSES = ("pending", "approved", "paid")
@@ -37,6 +37,19 @@ def reserved_amount(db: Session, employee_id: int, payroll_month: date, exclude_
         statement = statement.where(AdvanceRequest.id != exclude_id)
     value = db.scalar(statement)
     return Decimal(str(value or 0)).quantize(Decimal("0.01"))
+
+
+def advance_cap_basis(db: Session, employee_id: int, payroll_month: date, basic_salary: Decimal) -> Decimal:
+    """Base of the regular-advance limit: basic salary plus that payroll month's performance bonus when
+    the month's payroll item already exists, otherwise basic salary only (design relayed via Main; this
+    docstring is not an approval record). Never invents a bonus: no item means no bonus."""
+    bonus = db.scalar(
+        select(PayrollItem.performance_bonus)
+        .join(PayrollRun, PayrollRun.id == PayrollItem.payroll_run_id)
+        .where(PayrollItem.employee_id == employee_id, PayrollRun.period_start == payroll_month)
+        .limit(1)
+    )
+    return Decimal(str(basic_salary)) + Decimal(str(bonus or 0))
 
 
 def _audit(db: Session, *, actor: str, action: str, request: AdvanceRequest, old: str, new: str, reason: str) -> None:
@@ -109,7 +122,7 @@ def create_advance(
 
     payroll_month = payroll_month_for_advance(request_date)
     if advance_type == "regular":
-        cap = (salary * Decimal("0.25")).quantize(Decimal("0.01"))
+        cap = (advance_cap_basis(db, employee_id, payroll_month, salary) * Decimal("0.25")).quantize(Decimal("0.01"))
         already_reserved = reserved_amount(db, employee_id, payroll_month)
         if already_reserved + amount > cap:
             raise ValueError(
@@ -190,7 +203,7 @@ def approve_advance(db: Session, request: AdvanceRequest, actor: str, installmen
     if employee is None or employee.status != "active":
         raise ValueError("The employee is not active.")
     if request.advance_type == "regular":
-        cap = (Decimal(request.salary_basis) * Decimal("0.25")).quantize(Decimal("0.01"))
+        cap = (advance_cap_basis(db, request.employee_id, request.payroll_month, Decimal(request.salary_basis)) * Decimal("0.25")).quantize(Decimal("0.01"))
         already_reserved = reserved_amount(
             db, request.employee_id, request.payroll_month, exclude_id=request.id
         )

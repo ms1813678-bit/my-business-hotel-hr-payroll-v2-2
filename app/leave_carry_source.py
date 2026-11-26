@@ -77,6 +77,8 @@ def review_carry_source(db, *, employee_id, leave_type_id, source_year, reviewed
             key = f'month_earning:{employee_id}:{receipt.month_start.isoformat()}:A:earned'
             if key not in ledger_keys:
                 held.append((receipt.id, canonical_amount(Fraction(source['earned']['A']))))
+    from app.leave_month_correction import verified_correction_ledger_ids
+    proven_ids.update(verified_correction_ledger_ids(db, employee_id))
     # Annual settlement cash debits retain their completed earning-source year,
     # independent of the later review/payment date. A manual all-time cash debit
     # has no such allocation proof and cannot be inferred into a carry year.

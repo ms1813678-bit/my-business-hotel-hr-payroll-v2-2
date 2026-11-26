@@ -34,7 +34,7 @@ PROOF_KEYS = {'version', 'employee_id', 'leave_type_id', 'source_year', 'base', 
 ALLOCATION_KEYS = {'kind', 'ledger_id', 'receipt_id', 'amount', 'annual_id', 'source_digest', 'result_digest'}
 _HEX = '[0-9a-f]{64}'
 PREFIX = {'cash': 'leave_cashout:', 'zero': 'leave_zero:'}
-KNOWN_NON_ALLOCATION = ('month_earning:', 'leave_carry_expiry:')
+KNOWN_NON_ALLOCATION = ('month_earning:', 'month_correction:', 'leave_carry_expiry:')
 
 
 def split_allocations(own):

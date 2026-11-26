@@ -500,11 +500,12 @@ def build_payroll_report(question: str) -> dict[str, Any]:
                 "base_salary": str(item.base_salary), "bonuses": str(
                     item.attendance_bonus + item.performance_bonus + item.occupancy_bonus
                     + item.overtime_amount + item.other_bonus + item.staff_reward_amount
+                    + item.leave_cash_amount
                 ),
                 "deductions": str(
                     item.absence_deduction + item.lateness_deduction + item.insurance_share
                     + item.taxes + item.other_deductions + item.advance_deduction
-                    + item.staff_sanction_amount
+                    + item.staff_sanction_amount + item.carried_in_deduction
                 ),
                 "net_pay": str(item.net_pay), "paid": str(paid or 0),
                 "status": run.status,

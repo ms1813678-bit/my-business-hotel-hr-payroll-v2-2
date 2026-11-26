@@ -254,7 +254,7 @@ def build_hr_workbook(
     _write_sheet(
         workbook,
         "Payroll",
-        ["Month", "Pay date", "Run status", "Employee code", "Employee", "Basic", "Base after proration", "Attendance bonus", "Performance bonus", "Occupancy bonus", "Overtime", "Other bonus", "Absence deduction", "Lateness deduction", "Insurance", "Taxes", "Other deductions", "Advance", "Financial reward", "Financial sanction", "Net pay", "Paid", "Remaining"],
+        ["Month", "Pay date", "Run status", "Employee code", "Employee", "Basic", "Base after proration", "Attendance bonus", "Performance bonus", "Occupancy bonus", "Overtime", "Other bonus", "Absence deduction", "Lateness deduction", "Insurance", "Taxes", "Other deductions", "Advance", "Financial reward", "Financial sanction", "Leave cash payout", "Carried in deduction", "Carried out (unabsorbed)", "Net pay", "Paid", "Remaining"],
         [
             (
                 run.period_start,
@@ -277,6 +277,9 @@ def build_hr_workbook(
                 float(item.advance_deduction),
                 float(item.staff_reward_amount),
                 float(item.staff_sanction_amount),
+                float(item.leave_cash_amount),
+                float(item.carried_in_deduction),
+                float(item.carried_out_amount),
                 float(item.net_pay),
                 float(payment_sums.get(item.id, 0)),
                 float(max(0, item.net_pay - payment_sums.get(item.id, 0))),
@@ -411,6 +414,9 @@ _LEGACY_LABELS = {
     "Advance": ("خصم السلفة", "预支扣款"),
     "Financial reward": ("مكافأة مالية", "奖金"),
     "Financial sanction": ("جزاء مالي", "罚款"),
+    "Leave cash payout": ("بدل رصيد الإجازات", "假期余额兑现"),
+    "Carried in deduction": ("مرحّل من الشهر السابق", "上月结转扣款"),
+    "Carried out (unabsorbed)": ("خصم مرحّل للشهر القادم", "结转至下月"),
     "Net pay": ("صافي المرتب", "实发工资"),
     "Paid": ("المصروف", "已发放"),
     "Remaining": ("المتبقي", "剩余"),

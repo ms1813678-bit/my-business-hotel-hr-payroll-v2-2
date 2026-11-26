@@ -440,3 +440,28 @@ def test_duplicate_approval_rejection_and_payment_posts_do_not_duplicate_actions
             )
         ).all()) == 3
 
+
+
+def test_advances_page_limit_uses_same_cap_basis_as_enforcement(advance_client, monkeypatch):
+    """Page limit = 25% of (basic + this month's performance bonus when that month's item exists)."""
+    from datetime import date as _d
+    from decimal import Decimal as _D
+    from app import main as m
+    from app.models import PayrollItem, PayrollRun, Employee
+    client = advance_client
+    login(client)
+    client.get("/advances")
+    with m.SessionLocal() as db:
+        emp = db.scalars(select(Employee)).first()
+        start = _d.today().replace(day=1)
+        run = PayrollRun(period_start=start, period_end=start, pay_date=start, status="draft", created_by="t")
+        db.add(run); db.flush()
+        db.add(PayrollItem(payroll_run_id=run.id, employee_id=emp.id, employee_code_snapshot="X",
+                           employee_name_snapshot="A", department_name_snapshot="d", position_snapshot="p",
+                           salary_basis=emp.basic_salary, base_salary=emp.basic_salary, daily_hours=_D("8"),
+                           performance_bonus=_D("1000"), net_pay=_D("0"), overtime_amount=_D("0")))
+        db.commit()
+        expected = ((_D(str(emp.basic_salary)) + _D("1000")) * _D("0.25")).quantize(_D("0.01"))
+        before = (_D(str(emp.basic_salary)) * _D("0.25")).quantize(_D("0.01"))
+    after = client.get("/advances").text
+    assert f"{expected:.2f}" in after and f"{before:.2f}" not in after.replace(f"{expected:.2f}", "")

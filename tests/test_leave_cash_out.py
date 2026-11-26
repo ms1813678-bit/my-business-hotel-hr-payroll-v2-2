@@ -23,7 +23,7 @@ from tests.test_leave_month_earning import monthly, post  # noqa: F401
 REASON = 'Synthetic reviewed cash-out'
 
 
-def payroll(db, employee, *, basic='3000.00', performance='600.00', status='approved',
+def payroll(db, employee, *, basic='3000.00', performance='600.00', status='draft',
             start=date(2026, 3, 1), end=date(2026, 3, 31)):
     run = PayrollRun(period_start=start, period_end=end, pay_date=end, status=status,
                      created_by='synthetic')

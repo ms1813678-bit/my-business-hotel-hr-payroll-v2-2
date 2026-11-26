@@ -134,9 +134,13 @@ def test_invalid_numeric_matrix_identity_is_attributed_not_crash(monkeypatch,ide
 
 
 
-def test_concatenated_tokens_remain_explicitly_ambiguous():
+def test_exact_joined_hhmm_is_readable_but_seconds_joins_stay_ambiguous():
+    # Technical settlement relayed by Main 2026-11-26 (replaces the earlier "all joins ambiguous" pin): fixed-width
+    # HH:MM joins split one way only; a join involving seconds is ambiguous and stays unreadable.
     tokens,unreadable=_evidence_time_tokens('08:0016:00')
-    assert tokens==[time(8),time(16)] and unreadable
+    assert tokens==[time(8),time(16)] and not unreadable
+    tokens,unreadable=_evidence_time_tokens('08:00:0016:00')
+    assert tokens==[time(8,0,0),time(16)] and unreadable
 
 
 

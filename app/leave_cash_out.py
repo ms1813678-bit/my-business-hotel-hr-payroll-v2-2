@@ -171,6 +171,8 @@ def verified_released_balance(db, *, employee_id, leave_type_id, identity):
                     held += Fraction(result['held_annual'])
         from app.leave_zero_decision import verified_zero_ledger_ids
         zero_ledger_ids=verified_zero_ledger_ids(db,employee_id)
+        from app.leave_month_correction import verified_correction_ledger_ids
+        correction_ledger_ids=verified_correction_ledger_ids(db,employee_id)
         cash_ledger_ids = set()
         for receipt in db.scalars(select(LeaveCashOut).where(LeaveCashOut.employee_id == employee_id)).all():
             _verify_cash_receipt(db, receipt)
@@ -196,6 +198,8 @@ def verified_released_balance(db, *, employee_id, leave_type_id, identity):
             elif key is not None and key.startswith('month_earning:'):
                 if row.id not in month_ledger_ids:
                     raise ValueError('Monthly ledger is not verified released source.')
+            elif key is not None and key.startswith('month_correction:'):
+                if row.id not in correction_ledger_ids:raise ValueError('Month correction ledger is not verified.')
             elif key is not None and key.startswith('leave_zero:'):
                 if row.id not in zero_ledger_ids:raise ValueError('Zero exclusion ledger is not verified.')
             elif key is not None and key.startswith('leave_cashout:'):
@@ -240,6 +244,10 @@ def _basis(db, *, employee, payroll_item_id):
     run = db.get(PayrollRun, item.payroll_run_id, populate_existing=True)
     if run is None or run.status not in ('draft', 'reopened', 'approved', 'closed'):
         raise ValueError('Selected payroll run is not a current source.')
+    if run.status in ('approved', 'closed'):
+        # Owner (Mo, Nov 26): leave cash is a payslip line of the month it is approved in; a new
+        # cash-out cannot land on a payroll item that is already approved or closed.
+        raise ValueError('Leave cash-out needs a draft or reopened payroll item; approved or closed payroll cannot take it.')
     if item.employee_code_snapshot != employee.code:
         raise ValueError('Payroll item identity snapshot does not match the employee.')
     for amount in (item.salary_basis, item.performance_bonus):

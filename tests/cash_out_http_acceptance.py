@@ -54,7 +54,7 @@ def seed():
                           transaction_type='opening', days_delta=Decimal(5),
                           reason='Synthetic cash-out opening', actor=admin.username)
         run = PayrollRun(period_start=date(2026, 3, 1), period_end=date(2026, 3, 31),
-                         pay_date=date(2026, 3, 31), status='approved', created_by='synthetic')
+                         pay_date=date(2026, 3, 31), status='draft', created_by='synthetic')
         db.add(run); db.flush()
         item = PayrollItem(payroll_run_id=run.id, employee_id=employee.id,
                            employee_code_snapshot=employee.code, employee_name_snapshot=employee.full_name,
