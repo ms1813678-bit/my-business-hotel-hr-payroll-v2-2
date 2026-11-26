@@ -92,6 +92,8 @@ def test_substitute_source_is_kernel32_exit77_only():
     code=re.sub(r'/\*.*?\*/','',text,flags=re.S)
     assert re.findall(r'#include\s*<([^>]+)>',code)==['windows.h']
     assert 'ExitProcess(77)' in code
+    # Nothing may follow the no-return call (MSVC C4702 under /WX), and the entry is void (no C4716).
+    assert re.search(r'void\s+mainCRTStartup\(void\)\s*\{\s*ExitProcess\(77\);\s*\}',code) and 'return' not in code
     for banned in ('CreateFile','LoadLibrary','GetProcAddress','Reg','socket','CreateProcess','fopen','malloc','system','Winhttp','Python'):
         assert banned not in code
 

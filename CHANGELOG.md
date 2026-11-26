@@ -1,3 +1,7 @@
+## 2026-11-26, Instinct: fix substitute exit77 compile
+
+- The substitute exit77 job failed at compile (C4702 under /WX) before any launch, so no observation was consumed. Make the entry `void` with no statement after ExitProcess(77). Flags unchanged. One more attempt only.
+
 ## 2026-11-26, Instinct: bounded substitute exit77 diagnostic
 
 - Record the entry77 Windows result: child status 0xC0000022 (not 77), same as the earlier native run; inconclusive, no cause claimed; trusted cleanup and profile/root removal confirmed.
