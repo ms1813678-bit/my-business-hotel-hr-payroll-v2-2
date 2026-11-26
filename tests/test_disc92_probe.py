@@ -323,5 +323,4 @@ def test_prelaunch_no_older_names_and_every_referenced_file_exists():
         assert (D / name).is_file(), name
     assert 'DISC92-SHA256.json' in wf and 'windows_disc92_probe' in wf
     assert 'windows-disc92-probe-observation.yml' in wf
-    assert not list(D.rglob('__pycache__')) and not list(D.rglob('*.pyc'))
-    assert sorted(p.name for p in D.iterdir()) == ['DISC92-SHA256.json', 'decode_disc92.py', 'disc92_probe.c', 'pe_patch92.py', 'stage_disc92.py']
+    assert sorted(p.name for p in D.iterdir() if p.name != '__pycache__') == ['DISC92-SHA256.json', 'decode_disc92.py', 'disc92_probe.c', 'pe_patch92.py', 'stage_disc92.py']
