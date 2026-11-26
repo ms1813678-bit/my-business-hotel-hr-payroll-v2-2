@@ -4,7 +4,7 @@ Port of the stub/SQLite prep tests. Nothing is stubbed: real app.db.SessionLocal
 rollback of restore_backup, the HTTP route, Windows. The archive swap is simulated by rewriting the security rows.
 Safety: no drop_all/create_all. The fixture refuses a non-local DB or non-empty target tables, and after each test
 deletes everything in those tables (recovery_codes, admin_sessions, admin_accounts, system_settings, departments,
-plus the audit_logs/backup_runs rows that finalize itself writes)."""
+backup_runs) and only the audit_logs rows added during the test (ids above the highest pre-existing id)."""
 import json
 from datetime import datetime, timezone
 import pytest
@@ -27,13 +27,21 @@ PASS = "synthetic-passphrase-123"
 def clean_security_tables():
     url = make_url(str(engine.url))
     assert url.host in ("127.0.0.1", "localhost", None), "refusing non-local database"
+    # audit_logs may already hold rows written by other tests in the same CI session. Only the identity and
+    # backup tables must start empty; audit_logs is checked by recording the highest existing id and deleting
+    # only rows above it afterwards (rows that existed before are never deleted).
+    with SessionLocal() as db:
+        audit_floor = db.execute(text("SELECT COALESCE(MAX(id), 0) FROM audit_logs")).scalar()
+    must_be_empty = tuple(t for t in TABLES if t != "audit_logs")
+
     def purge():
         with SessionLocal.begin() as db:
             db.execute(text("SET LOCAL session_replication_role = replica"))  # bypass sole-admin delete trigger
-            for t in TABLES:
+            for t in must_be_empty:
                 db.execute(text(f"DELETE FROM {t}"))
+            db.execute(text("DELETE FROM audit_logs WHERE id > :floor"), {"floor": audit_floor})
     with SessionLocal() as db:
-        busy = {t: db.execute(text(f"SELECT count(*) FROM {t}")).scalar() for t in TABLES}
+        busy = {t: db.execute(text(f"SELECT count(*) FROM {t}")).scalar() for t in must_be_empty}
     assert not any(busy.values()), f"refusing to run: target tables not empty {busy}"
     try:
         yield

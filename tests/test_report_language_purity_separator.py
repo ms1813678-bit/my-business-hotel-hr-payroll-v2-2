@@ -1,5 +1,6 @@
 # ruff: noqa: F811
 """Language purity: list separators in reports must not be the Arabic comma in EN/ZH."""
+import shutil
 import subprocess
 from datetime import date
 from decimal import Decimal
@@ -20,6 +21,7 @@ def _pdf_text(content, tmp_path, name):
     return subprocess.run(["pdftotext", "-layout", str(path), "-"], capture_output=True, text=True).stdout
 
 
+@pytest.mark.skipif(shutil.which("pdftotext") is None, reason="UNRAN: pdftotext (poppler) not installed on this runner")
 @pytest.mark.parametrize("lang,sep", [("en", ", "), ("zh", "\u3001")])
 def test_report_list_separators_are_language_pure(payroll_client, tmp_path, lang, sep):
     c = payroll_client
