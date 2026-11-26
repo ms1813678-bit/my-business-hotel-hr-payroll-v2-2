@@ -73,7 +73,7 @@ from sqlalchemy import select, text
 
 from app.department_workbook_guard import bounded_workbook_operation
 from app.leave_exact_amount import canonical_amount, exact_sum, ledger_amount
-from app.leave_month_earning import _locks, _verify_receipt, canonical, digest
+from app.leave_month_earning import _locks, _verify_receipt, digest
 from app.leave_year_attribution_store import verify_year_attribution
 from app.models import (
     AdminAccount,
@@ -182,7 +182,7 @@ def verify_allocation_evidence(*, row_id, row_employee_id, row_leave_type_id, ro
         result = json.loads(row_result_json)
     except (TypeError, ValueError) as exc:
         raise ValueError('Carry allocation evidence is malformed.') from exc
-    _exact_keys(request, _REQUEST_KEYS, 'request')
+    _exact_keys(request, _REQUEST_KEYS | ({'source_selection'} if isinstance(request, dict) and 'source_selection' in request else set()), 'request')
     _exact_keys(result, _RESULT_KEYS, 'result')
     if digest(request) != row_request_digest or digest(result) != row_result_digest:
         raise ValueError('Carry allocation identity or evidence changed.')
