@@ -56,6 +56,7 @@ try {
  $cleanupConfirmed=$false
  & $TrustedPython -I -B "$PSScriptRoot/run_diagnostic.py" --watchdog $Watchdog --watchdog-pin $WatchdogPin --launcher $Launcher --launcher-pin $LauncherPin --profile $profile --stage $Stage --manifest-pin $ManifestPin --product-root $ProductRoot
  $diagnosticExit=$LASTEXITCODE
+ Write-Output ('diag_nodebug_host_exit code='+$(if($null -eq $diagnosticExit){'missing'}else{[string]$diagnosticExit})+' not_acceptance=1')
  if($diagnosticExit -in @(0,122,123,124,126)){$cleanupConfirmed=$true}
  else{$diagnosticExit=125;throw 'Diagnostic cleanup unconfirmed; retain profile and stage'}
 } catch {

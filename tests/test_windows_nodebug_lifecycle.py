@@ -80,6 +80,10 @@ def test_manifest_exact_sources():
 def test_actual_caller_native_exit_contract(monkeypatch,tmp_path,exit_code,expected):
     import contextlib,os
     caller=load('caller','diagnostic_caller.py')
+    for package in ('et_xmlfile','openpyxl','xlrd'):
+        origin=tmp_path/'runtime/vendor'/package/'__init__.py'
+        origin.parent.mkdir(parents=True,exist_ok=True);origin.write_text('')
+        monkeypatch.setitem(sys.modules,package,types.SimpleNamespace(__file__=str(origin)))
     @contextlib.contextmanager
     def hold(path,*args):yield Path(path)
     monkeypatch.setitem(sys.modules,'runtime_integrity',types.SimpleNamespace(held_tree=hold))
@@ -112,6 +116,10 @@ def test_actual_caller_native_exit_contract(monkeypatch,tmp_path,exit_code,expec
 def test_actual_caller_launch_and_wait_ambiguity_retains(monkeypatch,tmp_path,failure):
     import contextlib,os,subprocess
     caller=load('caller','diagnostic_caller.py')
+    for package in ('et_xmlfile','openpyxl','xlrd'):
+        origin=tmp_path/'runtime/vendor'/package/'__init__.py'
+        origin.parent.mkdir(parents=True,exist_ok=True);origin.write_text('')
+        monkeypatch.setitem(sys.modules,package,types.SimpleNamespace(__file__=str(origin)))
     @contextlib.contextmanager
     def hold(path,*args):yield Path(path)
     monkeypatch.setitem(sys.modules,'runtime_integrity',types.SimpleNamespace(held_tree=hold))
@@ -154,3 +162,65 @@ def test_isolated_cli_explicit_imports_without_ambient_pythonpath(tmp_path):
     if os.name!='nt':
         run=subprocess.run(command,cwd=tmp_path,env={**os.environ,'PYTHONPATH':str(tmp_path/'ignored')},capture_output=True,text=True,timeout=10)
         assert run.returncode==126 and 'status=unavailable' in run.stdout
+
+
+def test_unsafe_native_code_is_logged_before_both_retention_decisions():
+    profile=(DIAG/'qualify_diagnostic.ps1').read_text()
+    assert profile.index('diag_nodebug_host_exit code=')<profile.index('if($diagnosticExit -in')
+    workflow=(ROOT/'.github/workflows/windows-nodebug-observation.yml').read_text()
+    assert workflow.index('diag_nodebug_child_exit code=')<workflow.index('if($diagnosticExit -in')
+    assert 'if($created -and $cleanupConfirmed)' in profile
+    assert workflow.index('if(-not $safeCleanup)')<workflow.index('Remove-Item -LiteralPath $owned')
+
+
+@pytest.mark.parametrize('failure,launch', [('preflight','0'),('popen','unknown'),('wait','1')])
+def test_cli_stage_launch_state_and_no_exception_text(monkeypatch,capsys,failure,launch):
+    class CleanupUnconfirmed(RuntimeError):pass
+    def observe(**kw):
+        kw['progress']('integrity_holds')
+        if failure=='preflight':raise ModuleNotFoundError('SECRET/path')
+        kw['progress']('watchdog_launch')
+        if failure=='popen':raise CleanupUnconfirmed('SECRET/path')
+        kw['progress']('watchdog_started')
+        kw['progress']('watchdog_wait')
+        raise CleanupUnconfirmed('SECRET/path')
+    monkeypatch.setitem(sys.modules,'diagnostic_caller',types.SimpleNamespace(CleanupUnconfirmed=CleanupUnconfirmed,observe_once=observe))
+    monkeypatch.setitem(sys.modules,'app.fingerprint_bounded_parse',types.SimpleNamespace(_decode_worker=lambda *a:None))
+    argv=['run_diagnostic.py']
+    for name in ('watchdog','watchdog-pin','launcher','launcher-pin','profile','stage','manifest-pin','product-root'):argv.extend(['--'+name,str(ROOT)])
+    monkeypatch.setattr(sys,'argv',argv)
+    assert load('cli','run_diagnostic.py').main()==125
+    out=capsys.readouterr().out
+    assert 'launch_began='+launch in out and 'native_exit=none' in out
+    assert 'SECRET' not in out and '/path' not in out
+
+
+def test_vendor_preflight_rejects_ambient_module_before_popen(monkeypatch,tmp_path):
+    import contextlib,os
+    caller=load('caller','diagnostic_caller.py')
+    @contextlib.contextmanager
+    def hold(path,*args):yield Path(path)
+    monkeypatch.setitem(sys.modules,'runtime_integrity',types.SimpleNamespace(held_tree=hold))
+    monkeypatch.setattr(caller,'held_binary',hold)
+    monkeypatch.setattr(caller,'os',types.SimpleNamespace(name='nt',environ={'LOCALAPPDATA':'synthetic','SYSTEMROOT':'synthetic'},fstat=os.fstat))
+    wrong=tmp_path/'ambient/__init__.py';wrong.parent.mkdir();wrong.write_text('')
+    vendor=tmp_path/'runtime/vendor/et_xmlfile';vendor.mkdir(parents=True)
+    monkeypatch.setitem(sys.modules,'et_xmlfile',types.SimpleNamespace(__file__=str(wrong)))
+    def forbidden(*a,**kw):raise AssertionError('Popen forbidden before verified vendor preflight')
+    monkeypatch.setattr(caller.subprocess,'Popen',forbidden)
+    stages=[]
+    with pytest.raises(ValueError,match='vendor origin refused'):
+        caller.observe_once(watchdog=tmp_path/'outer.exe',watchdog_pin='a'*64,
+            launcher=tmp_path/'inner.exe',launcher_pin='b'*64,profile='synthetic',
+            staged_root=tmp_path,manifest_pin='c'*64,decoder=lambda *a:None,progress=lambda stage,code:stages.append(stage))
+    assert stages==['request','integrity_holds','package_preflight']
+
+
+def test_cli_import_failure_is_reported_with_no_raw_details(tmp_path):
+    import subprocess
+    command=[sys.executable,'-I','-S','-B',str(DIAG/'run_diagnostic.py')]
+    for key,value in {'watchdog':'x','watchdog-pin':'a'*64,'launcher':'x','launcher-pin':'b'*64,'profile':'synthetic','stage':tmp_path,'manifest-pin':'c'*64,'product-root':tmp_path/'SECRET_MISSING_ROOT'}.items():command.extend(['--'+key,str(value)])
+    run=subprocess.run(command,cwd=tmp_path,capture_output=True,text=True,timeout=10)
+    assert run.returncode==125
+    assert 'diag_nodebug_failure stage=cli_import kind=module_missing launch_began=0 native_exit=none' in run.stdout
+    assert 'SECRET' not in run.stdout and str(tmp_path) not in run.stdout

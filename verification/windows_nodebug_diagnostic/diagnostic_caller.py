@@ -79,13 +79,16 @@ def held_binary(path, pin):
 
 
 def observe_once(*, watchdog, watchdog_pin, launcher, launcher_pin, profile,
-                 staged_root, manifest_pin, decoder):
+                 staged_root, manifest_pin, decoder, progress=None):
     """Must run only inside the existing owned profile/verified-RX-stage lifecycle.
 
     Both holds and held_tree must outlive the native process and its cleanup.
     Any unknown watchdog exit, launch ambiguity or timeout is safety failure.
     Ordinary known diagnostic refusal does not replace the original harness result.
     """
+    def mark(stage, native_exit=None):
+        if progress is not None:progress(stage, native_exit)
+    mark('request')
     import base64
     from runtime_integrity import held_tree
     request = json.dumps({'payload': base64.b64encode(FIXED_RAW).decode('ascii'),
@@ -93,15 +96,33 @@ def observe_once(*, watchdog, watchdog_pin, launcher, launcher_pin, profile,
                          separators=(',', ':')).encode('ascii')
     if os.name != 'nt':
         return {'status': 'unavailable', 'cleanup_confirmed': True, 'decoded': False}
-    from app.fingerprint_evidence import parse_fingerprint_evidence
-    direct = parse_fingerprint_evidence(FIXED_RAW, filename='synthetic.csv', verified_aliases={'SYN': 1})
-    expected = (direct.period_start, direct.period_end,
-                [dict(v) for v in direct.occurrences], [dict(v) for v in direct.issues])
     if any(key not in os.environ for key in ('LOCALAPPDATA', 'SYSTEMROOT')):
         return {'status': 'unavailable', 'cleanup_confirmed': True, 'decoded': False}
     # These are fresh exclusive, non-append temporary regular files. No pipes.
+    mark('integrity_holds')
     with held_tree(staged_root, manifest_pin) as stage, held_binary(watchdog, watchdog_pin) as outer, held_binary(launcher, launcher_pin) as native:
         runtime = stage / 'runtime'
+        # The verified staged vendor tree, not ambient site-packages, supplies
+        # the direct parser's unconditional openpyxl import even for CSV.
+        mark('package_preflight')
+        import importlib
+        import sys
+        vendor = runtime / 'vendor'
+        before_path = list(sys.path)
+        try:
+            sys.path.insert(0, str(vendor))
+            for name in ('et_xmlfile', 'openpyxl', 'xlrd'):
+                module = importlib.import_module(name)
+                origin = Path(module.__file__).resolve(strict=True)
+                if not origin.is_relative_to((vendor / name).resolve(strict=True)):
+                    raise ValueError('Direct parser vendor origin refused')
+            mark('direct_oracle')
+            from app.fingerprint_evidence import parse_fingerprint_evidence
+            direct = parse_fingerprint_evidence(FIXED_RAW, filename='synthetic.csv', verified_aliases={'SYN': 1})
+            expected = (direct.period_start, direct.period_end,
+                        [dict(v) for v in direct.occurrences], [dict(v) for v in direct.issues])
+        finally:
+            sys.path[:] = before_path
         with tempfile.TemporaryFile() as source, tempfile.TemporaryFile() as output, tempfile.TemporaryFile() as diagnostic:
             source.write(request)
             source.flush()
@@ -109,12 +130,15 @@ def observe_once(*, watchdog, watchdog_pin, launcher, launcher_pin, profile,
             command = [str(outer), str(native), profile, str(runtime / 'python.exe'),
                        str(runtime), str(runtime / 'candidate_worker.py')]
             environment = {key: os.environ[key] for key in ('LOCALAPPDATA', 'SYSTEMROOT')}
+            mark('watchdog_launch')
             try:
                 child = subprocess.Popen(command, stdin=source, stdout=output, stderr=diagnostic,
                                          env=environment, cwd=str(runtime), close_fds=True)
             except OSError as exc:
                 # Popen did not return a handle. Be conservative, do not infer no child.
                 raise CleanupUnconfirmed('Watchdog launch outcome unconfirmed') from exc
+            mark('watchdog_started')
+            mark('watchdog_wait')
             try:
                 result = child.wait(timeout=28)
             except BaseException as exc:
@@ -129,6 +153,7 @@ def observe_once(*, watchdog, watchdog_pin, launcher, launcher_pin, profile,
                 raise CleanupUnconfirmed('Watchdog termination outcome unconfirmed') from exc
             # wait completed, release Python's process handle deterministically.
             child.__exit__(None, None, None)
+            mark('watchdog_exit',result)
             status = EXIT_STATUS.get(result)
             if status is None or result == 125:
                 raise CleanupUnconfirmed('Watchdog tree cleanup unconfirmed')
@@ -140,6 +165,7 @@ def observe_once(*, watchdog, watchdog_pin, launcher, launcher_pin, profile,
                 return {'status': 'output_refused', 'cleanup_confirmed': True, 'decoded': False}
             if result != 0:
                 return {'status': status, 'cleanup_confirmed': True, 'decoded': False}
+            mark('decode')
             output.seek(0)
             raw = output.read(4_000_001)
             try:

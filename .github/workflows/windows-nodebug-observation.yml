@@ -78,6 +78,7 @@ jobs:
             $safeCleanup=$false
             & pwsh -NoProfile -File "$diag/qualify_diagnostic.ps1" -Launcher $launcher -Stage "$owned/staged" -ManifestPin $pin -Owner $owner -ProductRoot $pwd -TrustedPython (py -3.11 -c 'import sys;print(sys.executable)') -Watchdog $watchdog -WatchdogPin $watchdogPin -LauncherPin $launcherPin
             $diagnosticExit=$LASTEXITCODE
+            Write-Output ('diag_nodebug_child_exit code='+$(if($null -eq $diagnosticExit){'missing'}else{[string]$diagnosticExit})+' not_acceptance=1')
             if($diagnosticExit -in @(0,122,123,124,126)){$safeCleanup=$true}
             else{throw 'Diagnostic safety failure or unknown exit; owned stage retained'}
             Write-Output ('diag_nodebug_workflow exit='+$diagnosticExit+' not_acceptance=1 debugger_only_cause=NOT_ESTABLISHED')
