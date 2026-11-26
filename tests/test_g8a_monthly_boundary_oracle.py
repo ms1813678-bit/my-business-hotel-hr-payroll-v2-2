@@ -18,6 +18,10 @@ note:
 - The 400 detail is exactly the user-facing Arabic message; no internal
   (English) arithmetic error leaks into the response.
 """
+from datetime import date
+import re
+from urllib.parse import quote
+
 from fastapi.testclient import TestClient
 import pytest
 from sqlalchemy import create_engine
@@ -113,8 +117,11 @@ def test_lower_edge_non_predecessor_sections_render(empty_client, options):
     assert response.status_code == 200
     assert response.headers["content-type"] == "application/pdf"
     assert response.content.startswith(b"%PDF")
-    # Pinned actual: strftime('%Y-%m') emits the year unpadded at year 1.
-    assert "MY_HR_Monthly_1-01.pdf" in response.headers["content-disposition"]
+    # The route uses the host's strftime, whose year-1 padding differs by OS.
+    expected_name=f"MY_HR_Monthly_{date(1,1,1).strftime('%Y-%m')}.pdf"
+    header=response.headers["content-disposition"]
+    assert header==f"attachment; filename*=UTF-8''{quote(expected_name)}"
+    _assert_lower_edge_pdf_disposition(header)
 
 
 def test_chart_minimum_lower_bound_is_five_months_back(empty_client):
@@ -199,3 +206,26 @@ def test_finance_edge_behavior(empty_client):
     response = _get(client, "0001-01", {7})
     assert response.status_code == 200
     assert response.content.startswith(b"%PDF")
+
+
+def _assert_lower_edge_pdf_disposition(header):
+    """Exact attachment/encoding/name/month, allowing only observed year padding."""
+    assert re.fullmatch(r"attachment; filename\*=UTF-8''MY_HR_Monthly_(?:1|0001)-01\.pdf",header)
+
+
+@pytest.mark.parametrize('year',['1','0001'],ids=['unpadded-posix','padded-windows'])
+def test_lower_edge_filename_observed_platform_oracles(year):
+    _assert_lower_edge_pdf_disposition(f"attachment; filename*=UTF-8''MY_HR_Monthly_{year}-01.pdf")
+
+
+@pytest.mark.parametrize('header',[
+    "attachment; filename*=UTF-8''MY_HR_Monthly_0001-02.pdf",
+    "attachment; filename*=UTF-8''MY_HR_Monthly_0002-01.pdf",
+    "attachment; filename*=UTF-8''MY_HR_Monthly_01-01.pdf",
+    "attachment; filename*=UTF-8''OTHER_0001-01.pdf",
+    "inline; filename*=UTF-8''MY_HR_Monthly_0001-01.pdf",
+    "attachment; filename=MY_HR_Monthly_0001-01.pdf",
+    "attachment; filename*=UTF-8''MY_HR_Monthly_0001-01.pdf.extra",
+],ids=['wrong-month','wrong-year','unobserved-padding','wrong-prefix','inline','missing-encoding','suffix'])
+def test_lower_edge_filename_contract_rejects_mutations(header):
+    with pytest.raises(AssertionError):_assert_lower_edge_pdf_disposition(header)

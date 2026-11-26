@@ -16,7 +16,7 @@ def load():
 
 def test_fixed_scope_and_unchanged_windows_fixture_workflow():
     module=load()
-    assert module.NODE=='tests/test_g8a_monthly_boundary_oracle.py::test_lower_edge_non_predecessor_sections_render[options0]'
+    assert module.NODE=='tests/test_g8a_monthly_boundary_oracle.py::test_lower_edge_non_predecessor_sections_render'
     workflow=(ROOT/'.github/workflows/windows-attendance-first-failure.yml').read_text()
     assert 'timeout-minutes: 12' in workflow and 'runs-on: windows-latest' in workflow
     paths=workflow.split('    paths:',1)[1].split('  workflow_dispatch:',1)[0]
@@ -45,7 +45,7 @@ def test_one_node_migrated_owned_database_cleanup_and_original_outcome(monkeypat
         if args[2:3]==['pytest'] and outcome!='pass':raise failure
     monkeypatch.setattr(module.subprocess,'run',run)
     if outcome=='pass':
-        module.main();assert 'remaining_seven_not_resolved=1 order_context_unknown=1' in capsys.readouterr().out
+        module.main();assert 'adapter_acceptance=NOT_ESTABLISHED hotel_acceptance=NOT_ESTABLISHED' in capsys.readouterr().out
     else:
         with pytest.raises(type(failure)) as caught:module.main()
         assert caught.value is failure
@@ -72,3 +72,12 @@ def test_existing_database_collision_never_runs_or_drops(monkeypatch):
     monkeypatch.setattr(module.subprocess,'run',lambda *a,**k:pytest.fail('collision must not run'))
     with pytest.raises(RuntimeError,match='Fresh diagnostic'):module.main()
     assert not any('CREATE DATABASE' in q or 'DROP DATABASE' in q for q in queries)
+
+
+def test_fixed_function_selects_exactly_seven_parameters():
+    import ast
+    tree=ast.parse((ROOT/'tests/test_g8a_monthly_boundary_oracle.py').read_text())
+    node=next(n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name=='test_lower_edge_non_predecessor_sections_render')
+    decorators=[d for d in node.decorator_list if isinstance(d,ast.Call)]
+    assert len(decorators)==1 and ast.literal_eval(decorators[0].args[0])=='options'
+    assert len(ast.literal_eval(decorators[0].args[1]))==7

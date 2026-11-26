@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   diagnostic:
-    name: Fixed Windows G8a options0 traceback (Python 3.11)
+    name: Windows G8a seven-parameter qualification (Python 3.11)
     runs-on: windows-latest
     timeout-minutes: 12
     env:
@@ -94,7 +94,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "CI database creation failed." }
       - name: Apply full Windows PostgreSQL migration chain
         run: python -m scripts.initialize_database
-      - name: Run one fixed G8a node on fresh migrated database
+      - name: Run one fixed G8a function with seven parameters
         run: python -m scripts.windows_first_attendance_failure
       - name: Stop isolated Windows PostgreSQL cluster
         if: always()
