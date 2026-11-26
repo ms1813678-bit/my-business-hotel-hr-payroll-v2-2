@@ -12,6 +12,7 @@ from hashlib import sha256
 from datetime import datetime
 from io import BytesIO
 import json
+import re
 import sys
 import time
 
@@ -121,6 +122,41 @@ def canonical_candidate(result):
     return (result[0], result[1], [dict(v) for v in result[2]], [dict(v) for v in result[3]])
 
 
+# Stage names the native launcher can print in CANDIDATE_REFUSAL (grounded in launcher.c by a test).
+REFUSAL_STAGES = frozenset(('arguments', 'attributes', 'continue_initial_debug_event', 'create_suspended', 'derive_profile',
+                            'duplex_wait', 'environment', 'hold_image', 'hold_initial_debug_event', 'job', 'pipes', 'read_input',
+                            'resume_before_first_creation_event', 'start_feeder', 'start_reader', 'startup_fixed_real_open',
+                            'startup_readonly_diagnostics', 'verify_after_attach_held_event', 'verify_before_resume'))
+REFUSAL_LINE = re.compile(r'^CANDIDATE_REFUSAL stage=([a-z_]{1,48}) error=([0-9]{1,10}) child=([0-9]{1,10})$')
+CREATED_LINE = re.compile(r'^CANDIDATE_CREATED pid=[0-9]{1,10} suspended=1$')
+CODE_FIELD = re.compile(r'^Candidate refused code=(-?[0-9]{1,10}) native=')
+
+
+def refusal_line(label, error):
+    """One fixed-vocabulary qual_refusal line from a ValueError raised by candidate_parent.
+
+    Only the launcher exit code, an allowlisted CANDIDATE_REFUSAL stage, its numeric error/child
+    and whether the child was created (0/1) are printed. Raw stderr, paths and pids are never shown.
+    An unknown stage prints stage=unparsed; a missing launcher line prints stage=none.
+    """
+    text = str(error)
+    code = CODE_FIELD.match(text)
+    native = text.split(' native=', 1)[1] if ' native=' in text else ''
+    created = 0
+    stage, os_error, child = 'none', 'none', 'none'
+    for line in native.splitlines():
+        if CREATED_LINE.match(line):
+            created = 1
+        found = REFUSAL_LINE.match(line)
+        if found:
+            if found.group(1) in REFUSAL_STAGES:
+                stage, os_error, child = found.groups()
+            else:
+                stage, os_error, child = 'unparsed', 'none', 'none'
+    return 'qual_refusal label=%s launcher_code=%s stage=%s error=%s child=%s created=%d' % (
+        label, code.group(1) if code else 'none', stage, os_error, child, created)
+
+
 HEADROOM_LABEL = 'csv_near_output_limit'
 EXPECTED_BUDGET = {'nonzero_exit': {'refused_nonzero'}, 'oversize_output': {'refused_nonzero', 'output_budget'}}
 
@@ -133,6 +169,7 @@ def run(parse, direct, clock=time.perf_counter):
     reason is a failure, not a recorded curiosity.
     """
     lines = []
+    refusals = []
     contract6 = True
     headroom = True
     for label, filename, raw in equivalence_payloads():
@@ -142,13 +179,16 @@ def run(parse, direct, clock=time.perf_counter):
             actual = parse(request_bytes(raw, filename))
             state = 'equal' if canonical_candidate(actual) == expected else 'DIFFERENT'
         except ValueError as exc:
-            state = 'refused_' + classify(exc)
+            category = classify(exc)
+            state = category if category.startswith('refused_') else 'refused_' + category
+            refusals.append(refusal_line(label, exc))
         wall_ms = int((clock() - start) * 1000)
         if label == HEADROOM_LABEL:
             headroom = headroom and state == 'equal'
         else:
             contract6 = contract6 and state == 'equal'
         lines.append('qual_equiv label=%s result=%s wall_ms=%d' % (label, state, wall_ms))
+    lines.extend(refusals)
     budget_ok = True
     for label, request in failure_requests():
         start = clock()
@@ -157,17 +197,23 @@ def run(parse, direct, clock=time.perf_counter):
             state = 'returned'
         except ValueError as exc:
             state = classify(exc)
+            if label == 'nonzero_exit':
+                lines.append(refusal_line(label, exc))
         wall_ms = int((clock() - start) * 1000)
         budget_ok = budget_ok and state in EXPECTED_BUDGET[label]
-        lines.append('qual_budget label=%s category=%s expected=%d wall_ms=%d' % (label, state, 1 if state in EXPECTED_BUDGET[label] else 0, wall_ms))
-    lines.append('qual_budget label=wall_kill category=not_exercised expected=0 wall_ms=0')
-    return {'contract6_equal': contract6, 'headroom_equal': headroom, 'budget_ok': budget_ok}, lines
+        lines.append('qual_budget label=%s category=%s expected=%d checked=%d wall_ms=%d' % (label, state, 1 if state in EXPECTED_BUDGET[label] else 0, 1 if contract6 else 0, wall_ms))
+    lines.append('qual_budget label=wall_kill category=not_exercised expected=0 checked=0 wall_ms=0')
+    # A budget refusal only means something if valid input was accepted: when the launcher refuses
+    # everything at startup, the bad-input checks prove nothing, so budget_ok is withheld.
+    budget_checked = contract6
+    return {'contract6_equal': contract6, 'headroom_equal': headroom, 'budget_checked': budget_checked,
+            'budget_ok': budget_checked and budget_ok}, lines
 
 
 def summary_line(flags, packages_ok):
     values = dict(flags, packages_ok=packages_ok)
     parts = ' '.join('%s=%d' % (key, 1 if values[key] else 0)
-                     for key in ('contract6_equal', 'headroom_equal', 'budget_ok', 'packages_ok'))
+                     for key in ('contract6_equal', 'headroom_equal', 'budget_checked', 'budget_ok', 'packages_ok'))
     return 'qual_summary %s all_green=%d wall_kill=not_exercised cpu_ms=not_measured package_basis=trusted_host_vendor_vs_lock security_acceptance=NOT_ESTABLISHED' % (
         parts, 1 if all(values.values()) else 0)
 

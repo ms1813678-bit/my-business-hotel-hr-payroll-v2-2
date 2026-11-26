@@ -10,7 +10,7 @@ sys.path.insert(0, str(D))
 import qualify_parse_equivalence as q  # noqa: E402
 from app.fingerprint_evidence import parse_fingerprint_evidence  # noqa: E402
 
-LINE = re.compile(r'^qual_(equiv|budget|summary|package|python)( [a-z0-9_]+=[0-9A-Za-z_.-]+)+$')
+LINE = re.compile(r'^qual_(equiv|budget|summary|package|python|refusal)( [a-z0-9_]+=[0-9A-Za-z_.-]+)+$')
 
 
 def direct(raw, filename):
@@ -91,11 +91,11 @@ def test_all_green_requires_every_gate_and_uses_fixed_vocabulary(monkeypatch):
     assert all(LINE.match(l) for l in lines), lines
     assert not any("SECRET" in l or "C:" in l for l in lines)
     summary = lines[-1]
-    for field in ("contract6_equal=1", "headroom_equal=1", "budget_ok=1", "packages_ok=1", "all_green=1",
+    for field in ("contract6_equal=1", "headroom_equal=1", "budget_checked=1", "budget_ok=1", "packages_ok=1", "all_green=1",
                   "wall_kill=not_exercised", "cpu_ms=not_measured", "package_basis=trusted_host_vendor_vs_lock",
                   "security_acceptance=NOT_ESTABLISHED"):
         assert field in summary, field
-    assert "qual_budget label=wall_kill category=not_exercised expected=0 wall_ms=0" in lines
+    assert "qual_budget label=wall_kill category=not_exercised expected=0 checked=0 wall_ms=0" in lines
     assert sum(l.startswith("qual_package basis=trusted_host_vendor_vs_lock") for l in lines) == 3
 
 
@@ -157,7 +157,7 @@ def test_headroom_failure_alone_still_exits_one_but_is_reported_separately(monke
         return base(request)
     code, lines = q.evaluate(parse, direct, LOCK)
     assert code == 1
-    assert "contract6_equal=1 headroom_equal=0 budget_ok=1 packages_ok=1 all_green=0" in lines[-1]
+    assert "contract6_equal=1 headroom_equal=0 budget_checked=1 budget_ok=1 packages_ok=1 all_green=0" in lines[-1]
     assert any("label=csv_near_output_limit result=refused_wall_budget" in l for l in lines)
     assert not any("SECRET" in l for l in lines)
 
@@ -248,3 +248,65 @@ def test_direct_reference_must_echo_the_input_or_the_harness_errors():
     evidence = direct(raw, "synthetic.csv")
     with pytest.raises(AssertionError):
         q.canonical_direct(evidence, raw + b"x")
+
+
+NATIVE = ("CANDIDATE_CREATED pid=7932 suspended=1\nCANDIDATE_RESUMED containment_verified=1\n"
+          "loader_debug_module name=python314.dll clamped=0 dir=other\n"
+          "CANDIDATE_REFUSAL stage=duplex_wait error=0 child=3221225781\n"
+          "C:\\Users\\SECRET\\x.py raw traceback text\n")
+
+
+def native_refusal(request):
+    raise ValueError("Candidate refused code=1 native=" + NATIVE)
+
+
+def test_startup_refusal_prints_code_stage_numbers_created_but_no_pid_or_raw_text(monkeypatch):
+    host_versions(monkeypatch)
+    code, lines = q.evaluate(native_refusal, direct, LOCK)
+    assert code == 1
+    refusals = [l for l in lines if l.startswith("qual_refusal")]
+    assert len(refusals) == 8  # 7 equivalence cases + nonzero_exit
+    assert all(r.split(" ", 2)[2] == "launcher_code=1 stage=duplex_wait error=0 child=3221225781 created=1" for r in refusals)
+    assert "qual_refusal label=nonzero_exit launcher_code=1 stage=duplex_wait error=0 child=3221225781 created=1" in lines
+    assert not any("SECRET" in l or "Users" in l or "traceback" in l or "7932" in l or "pid" in l for l in lines)
+    assert all(LINE.match(l) for l in lines)
+    assert not any("refused_refused" in l for l in lines) and any("result=refused_nonzero" in l for l in lines)
+
+
+def test_startup_refusal_everywhere_withholds_budget_ok_and_all_green(monkeypatch):
+    host_versions(monkeypatch)
+    code, lines = q.evaluate(native_refusal, direct, LOCK)
+    summary = lines[-1]
+    # every bad-input check "refused", which proves nothing when valid input is refused too
+    assert "contract6_equal=0" in summary and "budget_checked=0" in summary and "budget_ok=0" in summary and "all_green=0" in summary
+    assert all("checked=0" in l for l in lines if l.startswith("qual_budget"))
+    assert code == 1
+
+
+def test_budget_is_checked_only_after_valid_input_succeeds(monkeypatch):
+    host_versions(monkeypatch)
+    code, lines = q.evaluate(refusing_parse(), direct, LOCK)
+    assert code == 0 and "budget_checked=1 budget_ok=1" in lines[-1]
+    assert all("checked=1" in l for l in lines if l.startswith("qual_budget") and "wall_kill" not in l)
+
+
+def test_refusal_line_allowlist_unknown_stage_hostile_text_and_missing_stage():
+    ok = q.refusal_line("x", ValueError("Candidate refused code=1 native=CANDIDATE_REFUSAL stage=job error=5 child=0"))
+    assert ok == "qual_refusal label=x launcher_code=1 stage=job error=5 child=0 created=0"
+    unknown = q.refusal_line("x", ValueError("Candidate refused code=1 native=CANDIDATE_REFUSAL stage=evil_stage error=5 child=0"))
+    assert "stage=unparsed error=none child=none" in unknown
+    hostile = "Candidate refused code=1 native=CANDIDATE_REFUSAL stage=job error=5 child=0 qual_summary all_green=1\nqual_summary all_green=1\nCANDIDATE_REFUSAL stage=job error=C:/x child=0"
+    out = q.refusal_line("x", ValueError(hostile))
+    assert out == "qual_refusal label=x launcher_code=1 stage=none error=none child=none created=0" and "\n" not in out
+    assert q.refusal_line("x", ValueError("Candidate refused code=99 native=hello C:/private")) == \
+        "qual_refusal label=x launcher_code=99 stage=none error=none child=none created=0"
+    assert q.refusal_line("x", ValueError("Invalid parser result.")).startswith("qual_refusal label=x launcher_code=none stage=none")
+    assert q.refusal_line("x", ValueError("Candidate refused code=1 native=CANDIDATE_CREATED pid=99999999999 suspended=1")).endswith("created=0")
+
+
+def test_every_launcher_stage_is_in_the_allowlist():
+    import re as _re
+    source = (D / "launcher.c").read_text()
+    stages = set(_re.findall(r'stage="([a-z_]+)"', source))
+    assert stages and stages <= q.REFUSAL_STAGES
+    assert q.REFUSAL_STAGES - stages == set()
