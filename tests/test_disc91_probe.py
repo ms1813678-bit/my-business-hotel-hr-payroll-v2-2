@@ -244,7 +244,7 @@ def test_probe_source_banned_and_kernel32_only():
 
 
 def test_workflow_equals_disc90_workflow_except_names():
-    a = (ROOT / '.github/workflows/windows-disc90-probe-observation.yml').read_text().replace('disc90', 'disc91').replace('Disc90', 'Disc91')
+    a = (ROOT / '.github/workflows/windows-disc90-probe-observation.yml').read_text().replace('disc90', 'disc91').replace('Disc90', 'Disc91').replace('DISC90', 'DISC91')
     a = a.replace('one_pinned_byte_copy_of_python314_dll_added=1', 'five_pinned_patched_copies_of_python314_dll_added=1')
     assert a == (ROOT / '.github/workflows/windows-disc91-probe-observation.yml').read_text()
     for forbidden in ('Invoke-WebRequest', 'Invoke-RestMethod', 'curl', 'wget', 'Set-ExecutionPolicy', 'Add-MpPreference', 'icacls', 'takeown',
@@ -257,3 +257,13 @@ def test_pins_file_matches_files():
     assert set(pins) == {'verification/windows_disc91_probe/' + n for n in ('disc91_probe.c', 'decode_disc91.py', 'stage_disc91.py', 'pe_patch.py')}
     for path, pin in pins.items():
         assert hashlib.sha256((ROOT / path).read_bytes()).hexdigest() == pin
+
+
+def test_workflow_names_only_files_that_exist_in_the_packet():
+    wf = (ROOT / '.github/workflows/windows-disc91-probe-observation.yml').read_text()
+    assert 'DISC90' not in wf and 'disc90' not in wf and 'windows_disc90' not in wf
+    for name in set(re.findall(r'\$probeDir/([A-Za-z0-9_.-]+)', wf)):
+        assert (D / name).is_file(), name
+    for name in set(re.findall(r'"\$probeDir/([A-Za-z0-9_.-]+)"', wf)):
+        assert (D / name).is_file(), name
+    assert 'DISC91-SHA256.json' in wf

@@ -36,7 +36,7 @@ jobs:
             $diagPins=Get-Content "$diag/OBSERVATION-SHA256.json" -Raw|ConvertFrom-Json -AsHashtable
             foreach($path in $diagPins.Keys){$manifest[$path]=$diagPins[$path]}
             $probeDir=Join-Path $pwd 'verification/windows_disc91_probe'
-            $probePins=Get-Content "$probeDir/DISC90-SHA256.json" -Raw|ConvertFrom-Json -AsHashtable
+            $probePins=Get-Content "$probeDir/DISC91-SHA256.json" -Raw|ConvertFrom-Json -AsHashtable
             foreach($path in $probePins.Keys){$manifest[$path]=$probePins[$path]}
             foreach($path in $manifest.Keys){
               $psi=[Diagnostics.ProcessStartInfo]::new();$psi.FileName='git';$psi.UseShellExecute=$false;$psi.RedirectStandardOutput=$true
