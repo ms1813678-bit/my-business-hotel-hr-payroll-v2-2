@@ -1,4 +1,4 @@
 {
- "verification/windows_trace_diagnostic/trace_control.ps1": "d682d2efd047e18a34ccc43228de8cc033a08a5be4b70a4fa0acdd9e30c5a592",
- "verification/windows_trace_diagnostic/analyze_trace.py": "273a61368611373179544658f372dac80bbe72d601c27747437934061065e746"
+ "verification/windows_trace_diagnostic/trace_control.ps1": "b032cf6d1f13fb63dcf4050bb4e444398012a9b3f9f3efceab6f4f59040f7da8",
+ "verification/windows_trace_diagnostic/analyze_trace.py": "8e25ece6087269d6c2623c2ec3808fdf31031419bda6cef897a1b78636119dde"
 }

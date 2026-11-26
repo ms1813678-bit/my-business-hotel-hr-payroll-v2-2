@@ -40,7 +40,7 @@ def sample_xml(deny=True,irp=True):
 
 def test_xml_layout_selects_only_command_line_token_python_start_not_dcstart():
     a=load();recs=a.records(sample_xml())
-    assert a.pick_pids(recs,TOKEN)==[0x10]
+    assert a.analyze_stream(iter(recs),TOKEN)['children']==[0x10]
     assert a.pid_of(recs[0])==0x10   # ProcessId, not ParentProcessId
 
 
@@ -90,11 +90,8 @@ def test_oversize_and_bad_token_refused_through_cli(tmp_path):
     assert bad.returncode==2 and 'bad_token' in bad.stdout
     miss=subprocess.run([sys.executable,str(D/'analyze_trace.py'),'--dump',str(tmp_path/'none'),'--token',TOKEN],capture_output=True,text=True)
     assert miss.returncode==2 and 'inconclusive=1' in miss.stdout
-    a.MAX_BYTES=100
     big=tmp_path/'big.xml';big.write_text('x'*500)
-    import types
-    sys.argv=['x','--dump',str(big),'--token',TOKEN]
-    assert a.main()==2
+    assert a.main(['--dump',str(big),'--token',TOKEN,'--max-bytes','100'])==2
     with pytest.raises(a.Refused):a.analyze(sample_xml(),TOKEN,deadline=-1)
 
 
@@ -107,12 +104,16 @@ def test_output_line_cap_with_many_denied_events():
 
 def test_control_script_static_guards():
     t=(D/'trace_control.ps1').read_text()
-    assert "logman start $script:TraceSession -p 'Windows Kernel Trace' $script:TraceKeywords -o $File -ets -max $script:TraceMaxMb" in t
-    assert "'(process,thread,img,file,fileio,fileiocompletion,registry)'" in t and "'NT Kernel Logger'" in t and 'TraceMaxMb=64' in t
+    assert "logman start $script:TraceSession -p 'Windows Kernel Trace' $script:TraceKeywords -o $File -ets -nb 64 256 -bs 1024 -max $script:TraceMaxMb" in t
+    assert "'(process,img,fileio,fileiocompletion)'" in t and "'NT Kernel Logger'" in t and 'TraceMaxMb=48' in t
+    for dropped in ('thread','registry','file,'):assert dropped not in t.split('TraceKeywords=')[1].split('\n')[0]
+    assert 'etl_bytes=' in t
     assert t.count('logman stop')==1 and t.index('logman query -ets')<t.index('logman start')
     assert 'already exists' in t and 'IsInRole' in t and "GITHUB_ACTIONS -ne 'true'" in t
     assert 'session_gone' in t and 'still present after stop' in t
-    for banned in ('sc.exe','New-Service','Set-Acl','auditpol','reg.exe','Set-ItemProperty','Invoke-WebRequest','curl','DownloadFile','bcdedit','gflags','Add-Type','icacls','takeown'):assert banned not in t
+    for banned in ('sc.exe','New-Service','Set-Acl','auditpol','reg.exe','Set-ItemProperty','Invoke-WebRequest','curl','DownloadFile','bcdedit','gflags','Add-Type','icacls','takeown','procmon','wpr','xperf'):
+        assert banned not in t
+        assert banned not in (ROOT/'.github/workflows/windows-trace-observation.yml').read_text()
 
 
 def test_pins_and_workflow_order_and_unchanged_flow():
@@ -146,6 +147,97 @@ def test_numeric_start_opcode_selects_child_pid():
     spec=importlib.util.spec_from_file_location('analyze_trace',str(ROOT/'verification/windows_trace_diagnostic/analyze_trace.py'))
     m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
     rec='<Event><Opcode>1</Opcode><Data Name="ProcessId">4242</Data><Data Name="ImageFileName">python.exe TOKENX</Data></Event>'
-    assert m.pick_pids([rec],'tokenx')==[4242]
+    assert m.analyze_stream(iter([m.norm(rec)]),'tokenx')['children']==[4242]
     dc=rec.replace('<Opcode>1</Opcode>','<Opcode>3</Opcode>')
-    assert m.pick_pids([dc],'tokenx')==[]
+    assert m.analyze_stream(iter([m.norm(dc)]),'tokenx')['children']==[]
+
+
+def run_cli(path,*extra):
+    return subprocess.run([sys.executable,str(D/'analyze_trace.py'),'--dump',str(path),'--token',TOKEN,*extra],capture_output=True,text=True)
+
+
+def test_start_split_across_lines_and_after_dcstart_and_opcode_only():
+    a=load()
+    split='<Event xmlns="x">\n<System>\n<Opcode>Start</Opcode>\n</System>\n<EventData>\n<Data Name="ProcessId">0x11</Data>\n<Data Name="ImageFileName">python.exe</Data>\n<Data Name="CommandLine">'+TOKEN+'</Data>\n</EventData>\n</Event>'
+    dc=xml_event('Process DCStart',0x12,'<Data Name="ImageFileName">python.exe</Data><Data Name="CommandLine">'+TOKEN+'</Data>')
+    opc='<Event><System><Opcode>1</Opcode></System><EventData><Data Name="ProcessId">0x13</Data><Data Name="ImageFileName">python.exe</Data><Data Name="CommandLine">'+TOKEN+'</Data></EventData></Event>'
+    r=a.analyze_stream(iter(a.records(xml_dump([dc,split,opc]))),TOKEN)
+    assert r['children']==[0x11,0x13] and r['py_starts']==2 and r['token_records']==2
+
+
+def test_denied_completion_in_other_pid_context_via_irp_and_denied_without_create():
+    a=load()
+    ev=[xml_event('Process Start',0x10,'<Data Name="ImageFileName">python.exe</Data><Data Name="CommandLine">'+TOKEN+'</Data>'),
+        xml_event('FileIO Create',0x10,'<Data Name="IrpPtr">0x77</Data><Data Name="OpenPath">C:\\\\Windows\\\\locked.dll</Data>'),
+        xml_event('FileIO OpEnd',0x4,'<Data Name="IrpPtr">0x77</Data><Data Name="NtStatus">3221225506</Data>'),
+        xml_event('FileIO OpEnd',0x10,'<Data Name="IrpPtr">0x88</Data><Data Name="NtStatus">0xC0000022</Data>')]
+    out=a.analyze(xml_dump(ev),TOKEN)
+    assert 'denied_events=2' in out[0] and 'denied_without_create=1' in out[0]
+    assert any(l.startswith('trace_open') and 'locked.dll' in l for l in out)
+
+
+def test_irp_map_cap_drops_oldest(monkeypatch):
+    a=load();monkeypatch.setattr(a,'IRP_MAP_CAP',5)
+    ev=[xml_event('Process Start',0x10,'<Data Name="ImageFileName">python.exe</Data><Data Name="CommandLine">'+TOKEN+'</Data>')]
+    for i in range(20):ev.append(xml_event('FileIO Create',0x10,'<Data Name="IrpPtr">0x%X</Data><Data Name="OpenPath">p%d</Data>'%(0x100+i,i)))
+    ev.append(xml_event('FileIO OpEnd',0x10,'<Data Name="IrpPtr">0x100</Data><Data Name="NtStatus">0xC0000022</Data>'))
+    r=a.analyze_stream(iter(a.records(xml_dump(ev))),TOKEN)
+    assert r['irp_dropped']==15 and r['denied_total']==1 and r['denied_no_create']==1
+
+
+def test_no_child_prints_python_start_samples_capped_at_ten():
+    a=load()
+    ev=[xml_event('Process Start',0x50+i,'<Data Name="ImageFileName">python.exe</Data><Data Name="CommandLine">other%d</Data>'%i) for i in range(25)]
+    out=a.analyze(xml_dump(ev),TOKEN)
+    assert sum(1 for l in out if l.startswith('trace_python_start'))==10 and 'python_start_records=25' in out[0]
+    assert any('trace_reading 3_no_child_pid' in l for l in out) and all(len(l)<=300+len('trace_python_start ') for l in out if l.startswith('trace_python_start'))
+
+
+def test_oversize_dump_refused_with_size_and_reading_four(tmp_path):
+    d=tmp_path/'big.xml';d.write_text(sample_xml()*5)
+    r=run_cli(d,'--max-bytes','200')
+    assert r.returncode==2 and 'dump over size cap bytes=' in r.stdout and 'reading=4_capture_ok_analysis_refused' in r.stdout and 'no_rerun=1' in r.stdout
+
+
+def test_time_cap_refuses(tmp_path):
+    d=tmp_path/'d.xml';d.write_text(sample_xml())
+    r=run_cli(d,'--max-seconds','-1')
+    assert r.returncode==2 and 'time cap' in r.stdout
+
+
+def test_streaming_large_dump_bounded_memory_and_output(tmp_path):
+    import tracemalloc
+    a=load();d=tmp_path/'huge.xml'
+    pad='<Data Name="OpenPath">'+'x'*400+'</Data>'
+    with open(d,'w') as f:
+        f.write('<Events>\n'+xml_event('Process Start',0x10,'<Data Name="ImageFileName">python.exe</Data><Data Name="CommandLine">'+TOKEN+'</Data>')+'\n')
+        for i in range(60000):
+            f.write(xml_event('FileIO Create',0x10 if i%3==0 else 0x99,'<Data Name="IrpPtr">0x%X</Data>'%i+pad)+'\n')
+        f.write(xml_event('FileIO OpEnd',0x4,'<Data Name="IrpPtr">0x0</Data><Data Name="NtStatus">0xC0000022</Data>')+'\n</Events>\n')
+    assert d.stat().st_size>30_000_000
+    tracemalloc.start()
+    r=a.analyze_stream(iter(a.iter_records(a._text_chunks(str(d),a.MAX_BYTES,None))),TOKEN)
+    peak=tracemalloc.get_traced_memory()[1];tracemalloc.stop()
+    assert r['children']==[0x10] and r['total']==60002 and r['denied_total']==1
+    assert peak<25_000_000,peak
+    out=a.render(r);assert len(out)<=300 and all(len(l)<=420 for l in out)
+
+
+def test_oversized_single_record_is_skipped_not_buffered(tmp_path):
+    a=load()
+    big='<Event><System><Opcode>1</Opcode></System><EventData>'+'y'*(a.MAX_RECORD+10)
+    d=tmp_path/'d.xml';d.write_text('<Events>\n'+big+'\n'+sample_xml())
+    r=run_cli(d);assert r.returncode==0 and 'child_pids=16' in r.stdout
+
+
+def test_utf16_dump_is_read(tmp_path):
+    d=tmp_path/'u16.xml';d.write_bytes(b'\xff\xfe'+sample_xml().encode('utf-16-le'))
+    r=run_cli(d);assert r.returncode==0 and 'child_pids=16' in r.stdout and 'denied_events=1' in r.stdout
+
+
+def test_workflow_new_capture_and_summary_table_and_finally_first_stop():
+    w=(ROOT/'.github/workflows/windows-trace-observation.yml').read_text()
+    assert "-summary" in w and "^(\\||Total)" in w and 'Select-Object -First 120' in w and 'Substring(0,160)' in w and 'WaitForExit(150000)' in w
+    assert 'try{Stop-KernelTrace;$traceStopped=$true}catch' in w
+    fin=w[w.index('} finally {'):]
+    assert fin.index('Stop-KernelTrace')<fin.index('if(-not $safeCleanup)')

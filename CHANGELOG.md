@@ -1,3 +1,7 @@
+## 2026-11-26, Instinct: second bounded ETW trace packet (design by the independent reviewer; Mo's second single run approved by voice 10:42:43)
+
+- Diagnostic only, disposable runner, no downloads, no rerun. Capture narrowed to process, img, fileio, fileiocompletion (thread, file rundown and registry dropped), buffers 64-256 x 1024 KB, cap 48 MB, ETL size printed at stop. The full tracerpt event-count table (max 120 lines of 160 chars) is printed so the dominant providers and lost events are visible. The analyzer is rewritten to stream one record at a time (2 GB and 420 s caps, bounded memory, bounded IRP map) and prints the last 40 image loads, exit records, per-event counts and denied events matched to their open by IrpPtr. Unverified here: logman keyword and buffer options, tracerpt XML field names, runner behavior. A result can still be inconclusive.
+
 ## 2026-11-26, Instinct: tests and isolated modules batch, purity fixes, backup fsync (credited authors; all characterization, none is acceptance)
 
 - Record the first ETW trace result (head a8012a2, run 45784883642, job 139789033950): capture worked (618,091 events processed, 1,955 lost), the child result matched earlier runs, the session was stopped and verified gone, and analysis was refused because the XML dump was over the 400 MB cap. No denied-event reading exists. Cause not established. Inconclusive.

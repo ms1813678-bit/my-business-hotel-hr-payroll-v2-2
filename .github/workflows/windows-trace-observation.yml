@@ -107,7 +107,7 @@ jobs:
               $rpt=Start-Process -FilePath tracerpt.exe -ArgumentList @($etl,'-of','XML','-o',$dump,'-y','-lr','-summary',(Join-Path $owned 'summary.txt')) -PassThru -NoNewWindow
               if(-not $rpt.WaitForExit(150000)){$rpt.Kill();Write-Output 'trace_analysis_failed tracerpt_timeout=1 inconclusive=1'}
               elseif(-not (Test-Path -LiteralPath $dump)){Write-Output 'trace_analysis_failed dump_absent=1 inconclusive=1'}
-              else{if(Test-Path -LiteralPath (Join-Path $owned 'summary.txt')){Get-Content -LiteralPath (Join-Path $owned 'summary.txt') -TotalCount 40}
+              else{if(Test-Path -LiteralPath (Join-Path $owned 'summary.txt')){Get-Content -LiteralPath (Join-Path $owned 'summary.txt') | Where-Object {$_ -match '^(\||Total)'} | Select-Object -First 120 | ForEach-Object {if($_.Length -gt 160){$_.Substring(0,160)}else{$_}}}
                 & py -3.11 -B "$trace/analyze_trace.py" --dump $dump --token (Split-Path -Leaf $owned) --etl-bytes $etlBytes}
             }catch{Write-Output 'trace_analysis_failed exception=1 inconclusive=1'}
             Write-Output ('diag_nodebug_workflow exit='+$diagnosticExit+' not_acceptance=1 debugger_only_cause=NOT_ESTABLISHED')
