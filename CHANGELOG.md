@@ -1,3 +1,8 @@
+## 2026-11-26, Instinct: bounded loader probe observation
+
+- Record the substitute exit77 positive: a kernel32-only image starts and exits 77 through the same launcher/AppContainer path, so the earlier 0xC0000022 is tied to Python startup, cause not located.
+- Add one independently reviewed measured probe: kernel32-only LoadLibraryExW(DONT_RESOLVE) over a dumpbin-computed name list, returning a bitmask exit code. Security settings unchanged, no staging of system DLLs, no ETW. Portable tests only (42 passed), MSVC and Windows unverified. One observation, then stop.
+
 ## 2026-11-26, Instinct: fix substitute exit77 compile
 
 - The substitute exit77 job failed at compile (C4702 under /WX) before any launch, so no observation was consumed. Make the entry `void` with no statement after ExitProcess(77). Flags unchanged. One more attempt only.

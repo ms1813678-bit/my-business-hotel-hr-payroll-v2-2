@@ -1,0 +1,5 @@
+{
+  "verification/windows_loader_probe/probe_template.c": "5ec6fe76bdc04e306e86dbf2024a99cf662f8237a501df883e9ae5df1ddb7cf3",
+  "verification/windows_loader_probe/probe_closure.py": "b8c5c2f921f52cc014d28c6ef7727a12fba5233c217165984aeabdf2cb123c57",
+  "verification/windows_loader_probe/decode_probe.py": "6917ebe483beb8b254dd61cd8af672e2e78f1096fc4bba3e7f1f4eacced870e4"
+}

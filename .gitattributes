@@ -6,3 +6,4 @@ app/fingerprint_evidence.py -text
 verification/windows_nodebug_diagnostic/** -text
 verification/windows_entry_marker/** -text
 verification/windows_substitute_exit77/** -text
+verification/windows_loader_probe/** -text
