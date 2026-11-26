@@ -66,3 +66,27 @@ def review_later_year_source(db, **selection):
                 provenance_ids=frozenset(row[0] for row in metadata['source']['rows']),
                 allocation_ids=frozenset(), posting_allowed=False)
     return dict(source, view=view)
+
+
+def review_transition_year_source(db, **selection):
+    """Completed post-closing source. Baseline keeps the existing live shape.
+
+    Later years explicitly use v2 so their own verified cash/zero exclusions
+    are included once. This function is ONLY for a year-transition checkpoint.
+    """
+    from datetime import date
+    from app.leave_opening_source import read_confirmed_opening_source
+    identity = {k: selection[k] for k in ('actor_id', 'session_id', 'session_version', 'expected_epoch')}
+    reviews, _policy, _digest = read_confirmed_opening_source(db, selection_id=selection['selection_id'], **identity)
+    years = {date.fromisoformat(row['effective_start']).year for row in reviews}
+    if len(years) != 1:
+        raise ValueError('One explicit opening baseline required.')
+    if selection['source_year'] <= years.pop():
+        return review_later_year_source(db, **selection)
+    from app.leave_year2_recorded_source_v2 import build_year2_recorded_source_v2
+    built = build_year2_recorded_source_v2(db, **selection)
+    result = dict(built['stored'], held_annual=built['stored']['source']['held_annual'])
+    view = read_verified_recorded_year_view(db, result=result,
+        employee_id=selection['employee_id'], leave_type_id=selection['leave_type_id'])
+    return dict(source=result['source'], source_digest=result['source_digest'],
+                amount=view['full_net'], held_annual=view['held'], view=view)

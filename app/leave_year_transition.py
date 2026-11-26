@@ -11,7 +11,6 @@ from sqlalchemy import select, text
 from app.department_workbook_guard import bounded_workbook_operation
 from app.leave_month_earning import _locks, canonical, digest, CATEGORIES
 from app.leave_exact_amount import canonical_amount, exact_sum, ledger_amount
-from app.leave_completed_year_source import review_completed_year_source
 from app.models import (AuditLog, LeaveAnnualSettlement, LeaveBalanceTransaction,
                         LeaveCarryAllocation, LeaveCashOut, LeaveYearTransition)
 
@@ -77,7 +76,8 @@ def _derive(db, *, source_selections, reason):
         elif fields!=common:raise ValueError('Year-transition categories must share employee, year, source and current session.')
         kind=db.get(LeaveType,selection['leave_type_id'],populate_existing=True)
         if kind is None or kind.code!=CATEGORIES[code]:raise ValueError('Canonical year-transition category required.')
-        source=review_completed_year_source(db,**selection)
+        from app.leave_recorded_year_view import review_transition_year_source
+        source=review_transition_year_source(db,**selection)
         employee_id=selection['employee_id'];year=selection['source_year']
         identity={k:selection[k] for k in ('actor_id','session_id','session_version','expected_epoch')}
         closing=_closing_receipt(db,employee_id=employee_id,leave_type_id=kind.id,
@@ -131,6 +131,7 @@ def record_year_transition(db, *, operation_id, reviewed_digest, human_confirmed
                 or len(audits)!=1 or audits[0].actor!=actor.username or audits[0].old_value!=reviewed_digest
                 or audits[0].new_value!=old.result_json or audits[0].reason!=reason.strip()):
             raise ValueError('Year-transition recorded evidence changed.')
+        _verify_versioned_checkpoint_sources(db,stored)
         return stored
     payload=_derive(db,source_selections=source_selections,reason=reason)
     if digest(payload)!=reviewed_digest:raise ValueError('Year-transition sources changed; review again.')
@@ -146,6 +147,42 @@ def record_year_transition(db, *, operation_id, reviewed_digest, human_confirmed
             entity_type='leave_year_transition',entity_id=operation_id,old_value=reviewed_digest,
             new_value=row.result_json,reason=reason.strip()));db.flush()
     return json.loads(row.result_json)
+
+
+def _verify_versioned_checkpoint_sources(db, result):
+    """Stored exact proof replay only, never fresh source derivation.
+
+    Baseline legacy checkpoints retain their prior verification contract.
+    Later versioned checkpoints bind ALL category proofs and their named rows.
+    """
+    if set(result['balances']) != set(CATEGORIES):
+        raise ValueError('Transition category coverage changed.')
+    balances=result['balances']
+    versions=['version' in balance['source'] for balance in balances.values()]
+    if not any(versions):
+        return None
+    from app.leave_recorded_year_view import read_verified_recorded_year_view
+    views={}
+    for code,balance in balances.items():
+        if balance['source'].get('version') != 'year2-recorded-v2':
+            raise ValueError('Transition recorded source version is not admitted.')
+        views[code]=read_verified_recorded_year_view(db,
+            result=dict(source=balance['source'],source_digest=balance['source_digest'],source_year=result['source_year'],
+                        carried_amount=balance['year_amount'],held_annual=balance['held_annual']),
+            employee_id=result['employee_id'],leave_type_id=balance['leave_type_id'])
+        recorded_ids=set()
+        for item in balance['ledger']:
+            ledger=db.get(LeaveBalanceTransaction,item[0],populate_existing=True)
+            actual=[ledger.id,canonical_amount(ledger_amount(ledger)),ledger.source_operation_key,
+                    ledger.source_digest,ledger.earning_year,ledger.released_on.isoformat() if ledger.released_on else None] if ledger else None
+            if actual!=item or ledger.employee_id!=result['employee_id'] or ledger.leave_type_id!=balance['leave_type_id']:
+                raise ValueError('Year-transition recorded ledger changed.')
+            if item[0] in recorded_ids:
+                raise ValueError('Transition duplicate recorded ledger binding.')
+            recorded_ids.add(item[0])
+        if not views[code]['provenance_ids'] <= recorded_ids:
+            raise ValueError('Transition full source provenance missing from ledger binding.')
+    return views
 
 
 def _selection_epoch(db,selection_id):
@@ -205,7 +242,11 @@ def verify_transition_for_month(db, *, employee_id, selection_id, month_start, i
             if closing!=balance['closing_receipt']:raise ValueError('Year-transition closing receipt changed.')
         receipts=db.scalars(select(LeaveMonthEarning).where(LeaveMonthEarning.employee_id==employee_id,
             LeaveMonthEarning.month_start>=date(year,1,1),LeaveMonthEarning.month_start<=date(year,12,1))).all()
-        expected={item[0]:item[1:] for item in result['balances']['A']['source']['verified_months']}
+        if set(result['balances']) != set(CATEGORIES):
+            raise ValueError('Transition category coverage changed.')
+        views=_verify_versioned_checkpoint_sources(db,result)
+        metadata=views['A']['metadata_completed'] if views is not None else result['balances']['A']['source']
+        expected={item[0]:item[1:] for item in metadata['verified_months']}
         if set(expected)!={receipt.id for receipt in receipts}:raise ValueError('Transition source-month coverage changed.')
         for receipt in receipts:
             _verify_receipt(db,receipt)
