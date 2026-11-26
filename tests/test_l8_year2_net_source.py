@@ -336,21 +336,29 @@ def test_year2_net_annual_category_with_annual_grant_attribution(prior_year, mon
 
 @pytest.mark.parametrize('prior_year', [{'hire_date': FULL, 'used_annual': 6}], indirect=True)
 @pytest.mark.parametrize('service', ['zero', 'carry', 'transition'])
-def test_year2_net_source_is_not_accepted_by_year_closing_services(prior_year, monkeypatch, service):
-    """Boundary: annual has its own qualified consumer; zero/carry/transition stay guarded."""
+def test_year2_closing_reviews_use_v1_without_posting_and_keep_closing_preconditions(prior_year, monkeypatch, service):
+    """A admits v1 reviews; B still requires explicit closing receipts, not a date bypass."""
+    from app.leave_year2_recorded_source import build_year2_recorded_source
     db, args = zero_year(prior_year, monkeypatch)
     assert review_year2_net_source(db, **args)['source_verified']          # the read-only source itself is fine
     kinds = prior_year[2]
     base = {k: v for k, v in args.items() if k != 'leave_type_id'}
     sel = lambda code: {**base, 'leave_type_id': kinds[code]}               # noqa: E731
     count = db.scalar(select(func.count()).select_from(LeaveBalanceTransaction))
-    message = 'separately reviewed year transition'
-    with pytest.raises(ValueError, match=message):
-        if service == 'zero':
-            review_zero_decision(db, source_selection=sel('W'), reason='Synthetic year 2')
-        if service == 'carry':
-            review_carry_allocation(db, source_selection=sel('H'), available_from=date(2027, 1, 1),
-                available_through=date(2027, 12, 31), reason='Synthetic year 2')
-        if service == 'transition':
-            review_year_transition(db, source_selections={c: sel(c) for c in kinds}, reason='Synthetic year 2')
-    assert db.scalar(select(func.count()).select_from(LeaveBalanceTransaction)) == count
+    if service == 'zero':
+        review=review_zero_decision(db,source_selection=sel('W'),reason='Synthetic year 2')
+        expected=build_year2_recorded_source(db,**sel('W'))
+        assert review['posting_allowed'] is False
+        assert review['plan']['source']['version']=='year2-recorded-v1'
+        assert Fraction(review['plan']['zeroed_amount'])==expected['amount']
+        assert review['plan']['source_digest']==expected['stored']['source_digest']
+    elif service == 'carry':
+        expected=build_year2_recorded_source(db,**sel('H'))
+        assert expected['amount']<=0  # This fixture has no positive H availability.
+        with pytest.raises(ValueError,match='Debt or zero carry has no positive availability grant'):
+            review_carry_allocation(db,source_selection=sel('H'),available_from=date(2027,1,1),
+                available_through=date(2027,12,31),reason='Synthetic year 2')
+    else:
+        with pytest.raises(ValueError,match='Exactly one explicit closing receipt per balance category required'):
+            review_year_transition(db,source_selections={c:sel(c) for c in kinds},reason='Synthetic year 2')
+    assert db.scalar(select(func.count()).select_from(LeaveBalanceTransaction))==count

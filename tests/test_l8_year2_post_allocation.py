@@ -1,4 +1,3 @@
-# ruff: noqa: F811
 """Candidate tests: v2 recorded proof of a year source read AFTER the year's zero (real) or cash (real, year 2025) debit."""
 import copy
 import json
@@ -15,7 +14,6 @@ from app.leave_year2_recorded_source_v2 import (build_year2_recorded_source_v2, 
     verify_year_proof, verify_year2_recorded_source_v2, _check_allocations)
 from app.models import LeaveBalanceTransaction, LeaveCashOut, LeaveAnnualSettlement
 from tests.test_l8_year2_net_source import (zero_year, FULL, prior_year, context, history_context)  # noqa
-from tests.test_leave_historical_evidence import history_context  # noqa
 
 P = pytest.mark.parametrize('prior_year', [{'hire_date': FULL, 'used_annual': 6}], indirect=True)
 
@@ -29,17 +27,11 @@ def check(db, args, stored):
     return verify_year2_recorded_source_v2(db, stored=stored, employee_id=args['employee_id'], leave_type_id=args['leave_type_id'])
 
 
-def post_zero_year(prior_year, monkeypatch):
-    """Real 2026 W zero decision recorded through the real zero service. The test (not the product) routes the
-    later-year source through the isolated adapter; no source file is changed."""
-    import app.leave_zero_decision as zero_module
-    from app.leave_year2_completed_shape import review_year2_as_completed_year_source
+def post_zero_year(prior_year, monkeypatch):  # noqa: F811
+    """Real 2026 W zero through the published later-year consumer, no dispatch scaffold."""
     from app.leave_zero_decision import record_zero_decision, review_zero_decision
     db, args = zero_year(prior_year, monkeypatch)
-    pre = build_year2_recorded_source(db, **args)                      # v1 before the zero: the settlement-style pre source
-    original = zero_module.review_completed_year_source
-    monkeypatch.setattr(zero_module, 'review_completed_year_source',
-        lambda db_, **sel: review_year2_as_completed_year_source(db_, **sel) if sel['source_year'] == 2026 else original(db_, **sel))
+    pre = build_year2_recorded_source(db, **args)
     review = review_zero_decision(db, source_selection=args, reason='Synthetic year 2 zero')
     record_zero_decision(db, operation_id='9' * 64, reviewed_digest=review['reviewed_digest'], human_confirmed=True,
         source_selection=args, reason='Synthetic year 2 zero')
@@ -47,14 +39,14 @@ def post_zero_year(prior_year, monkeypatch):
 
 
 @P
-def test_control_old_verifier_and_v1_builder_cannot_prove_a_post_zero_source(prior_year, monkeypatch):
+def test_control_old_verifier_and_v1_builder_cannot_prove_a_post_zero_source(prior_year, monkeypatch):  # noqa: F811
     db, args, pre = post_zero_year(prior_year, monkeypatch)
     with pytest.raises(ValueError, match='monthly receipt provenance'):
         build_year2_recorded_source(db, **args)
 
 
 @P
-def test_post_zero_2026_v2_proof_verifies_json_round_trip_held_unchanged_and_survives_later_rows(prior_year, monkeypatch):
+def test_post_zero_2026_v2_proof_verifies_json_round_trip_held_unchanged_and_survives_later_rows(prior_year, monkeypatch):  # noqa: F811
     from app.leave_year2_net_source import review_year2_net_source
     db, args, pre = post_zero_year(prior_year, monkeypatch)
     out = build_year2_recorded_source_v2(db, **args)
@@ -104,7 +96,7 @@ def _mutations():
 
 
 @P
-def test_every_post_allocation_tamper_refuses_even_resealed(prior_year, monkeypatch):
+def test_every_post_allocation_tamper_refuses_even_resealed(prior_year, monkeypatch):  # noqa: F811
     db, args, _ = post_zero_year(prior_year, monkeypatch)
     stored = json.loads(json.dumps(build_year2_recorded_source_v2(db, **args)['stored']))
     check(db, args, stored)
@@ -126,7 +118,7 @@ def test_every_post_allocation_tamper_refuses_even_resealed(prior_year, monkeypa
 
 
 @P
-def test_omitting_the_zero_allocation_or_counting_it_twice_cannot_be_built(prior_year, monkeypatch):
+def test_omitting_the_zero_allocation_or_counting_it_twice_cannot_be_built(prior_year, monkeypatch):  # noqa: F811
     """Net exactness: base + allocations must equal the live net once. Break each side of the identity directly."""
     db, args, _ = post_zero_year(prior_year, monkeypatch)
     stored = json.loads(json.dumps(build_year2_recorded_source_v2(db, **args)['stored']))
@@ -191,7 +183,7 @@ def test_guard_context_is_isolated_per_thread():
 
 
 @P
-def test_guard_reaches_unmodified_legacy_frame_via_the_real_router(prior_year, monkeypatch):
+def test_guard_reaches_unmodified_legacy_frame_via_the_real_router(prior_year, monkeypatch):  # noqa: F811
     """The real v2 verifier calls verify_zero_ledger_for_year (an unmodified legacy frame, no context argument). Replace
     it with a frame that re-enters the REAL router: same-year v2 and v2->v2 must refuse, an unrelated earlier year may pass
     the guard. The stack is empty again afterwards."""
@@ -229,7 +221,7 @@ def _rows_of(stored):
 
 
 @P
-def test_partition_tamper_cases_refuse_even_resealed(prior_year, monkeypatch):
+def test_partition_tamper_cases_refuse_even_resealed(prior_year, monkeypatch):  # noqa: F811
     db, args, _ = post_zero_year(prior_year, monkeypatch)
     stored = json.loads(json.dumps(build_year2_recorded_source_v2(db, **args)['stored']))
     check(db, args, stored)
@@ -273,7 +265,7 @@ def cash_binding(db, employee_id, leave_type_id):
 
 
 @pytest.mark.parametrize('prior_year', [{'hire_date': FULL, 'used_annual': 6}], indirect=True)
-def test_real_annual_cash_allocation_verifies_with_the_live_functions_and_every_detachment_refuses(prior_year, monkeypatch):
+def test_real_annual_cash_allocation_verifies_with_the_live_functions_and_every_detachment_refuses(prior_year, monkeypatch):  # noqa: F811
     db, employee, kinds, item, auth = settle(prior_year)
     e, t = employee.id, kinds['A']
     good = cash_binding(db, e, t)
@@ -308,7 +300,7 @@ def test_real_annual_cash_allocation_verifies_with_the_live_functions_and_every_
 
 
 @P
-def test_builder_refuses_a_split_that_omits_or_double_counts_the_zero_debit(prior_year, monkeypatch):
+def test_builder_refuses_a_split_that_omits_or_double_counts_the_zero_debit(prior_year, monkeypatch):  # noqa: F811
     import app.leave_year2_recorded_source_v2 as v2
     db, args, _ = post_zero_year(prior_year, monkeypatch)
     real = v2.split_allocations
