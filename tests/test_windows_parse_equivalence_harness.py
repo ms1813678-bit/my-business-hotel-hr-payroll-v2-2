@@ -415,6 +415,10 @@ def test_plain_line_oversize_output_is_not_decoded():
 
 
 def test_guarded_plain_control_never_raises_and_main_report_and_exit_survive(monkeypatch, capsys, tmp_path):
+    import candidate_parent
+    def refuse(*args, **kwargs):
+        raise ValueError('Candidate refused code=1 native=')
+    monkeypatch.setattr(candidate_parent, 'parse_candidate', refuse)
     line = pc.guarded_plain_control(object(), "s", "m", None, None, None)
     assert line == "qual_plain label=none exit=none out_bytes=0 decode=na error_class=harness" and LINE.match(line)
     monkeypatch.delenv("LOCALAPPDATA", raising=False)
@@ -451,6 +455,10 @@ def test_bounded_run_caps_output_with_kill_and_reaps_timeouts_and_feeds_stdin():
 
 
 def test_main_report_and_exit_survive_helper_import_failure(monkeypatch, capsys, tmp_path):
+    import candidate_parent
+    def refuse(*args, **kwargs):
+        raise ValueError('Candidate refused code=1 native=')
+    monkeypatch.setattr(candidate_parent, 'parse_candidate', refuse)
     monkeypatch.setitem(sys.modules, "qualify_plain_control", None)
     host_versions(monkeypatch)
     lock = tmp_path / "lock.json"
