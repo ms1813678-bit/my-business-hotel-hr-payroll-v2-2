@@ -7,7 +7,7 @@ from sqlalchemy import select,func
 from app import main
 from app.config import settings
 from app.db import SessionLocal
-from app.models import AttendanceMonth,EmployeeServicePeriod,AttendanceDailyRecord,AttendanceEvidenceReviewReceipt,AttendanceEvidenceConsumption,AttendanceEvidenceOccurrenceClaim,LeaveBalanceTransaction,PayrollItem,AdminAccount,DepartmentFingerprintPreparation,AdminSession,SystemSetting
+from app.models import AttendanceMonth,EmployeeServicePeriod,AttendanceDailyRecord,AttendanceEvidenceReviewReceipt,AttendanceEvidenceConsumption,AttendanceEvidenceOccurrenceClaim,LeaveBalanceTransaction,PayrollItem,AdminAccount,DepartmentFingerprintPreparation
 from tests.test_shift_day_http import seed,token
 
 pytestmark=pytest.mark.skipif(os.getenv('MANUAL_ATTENDANCE_HTTP')!='1',reason='Dedicated synthetic_attendance DB required')
@@ -87,9 +87,6 @@ def test_inline_review_confirm_actual_middleware_atomic_idempotent(monkeypatch):
         assert client.post(root+'/confirm',data={k:v for k,v in confirm.items() if k!='human_confirmed'}).status_code==400
         assert client.post(root+'/confirm',data={**confirm,'request_digest':'0'*64}).status_code==400
         assert client.post(root.replace(f'/{employee}',f'/{employee+10000}')+'/confirm',data=confirm).status_code==400
-        from sqlalchemy import text
-        from app.restore_lock import RESTORE_LOCK_KEY
-        import app.shift_day_routes as routes
         original_consume=routes.consume_evidence_review
         def contention(db,**kwargs):
             # Trigger restore gate after HTTP dependency authentication has ended,
@@ -105,14 +102,35 @@ def test_inline_review_confirm_actual_middleware_atomic_idempotent(monkeypatch):
         assert client.post(root+'/confirm',data={**confirm,'human_confirmed':'no'}).status_code==400
         duplicate='&'.join(f'{k}={v}' for k,v in confirm.items())+'&receipt_id='+('f'*64)
         assert client.post(root+'/confirm',content=duplicate,headers={'content-type':'application/x-www-form-urlencoded'}).status_code==400
+        # Production availability is capability-based, independent of the
+        # synthetic fixture opt-in. Probe with invalid confirmation so this
+        # check cannot register before the tamper/no-write assertions below.
+        assert routes.production_attendance_available() is True
+        before_capability=no_effect_counts()
         for env in ('production','development','prod','unknown'):
             monkeypatch.setattr(settings,'app_env',env)
-            assert client.post(root+'/confirm',data=confirm).status_code==404
+            assert client.post(root+'/confirm',data={**confirm,'human_confirmed':'no'}).status_code==400
         monkeypatch.setattr(settings,'app_env','test')
         original_url=settings.database_url
         monkeypatch.setattr(settings,'database_url',original_url.replace('synthetic_attendance_','not_synthetic_'))
-        assert client.post(root+'/confirm',data=confirm).status_code==404
+        assert client.post(root+'/confirm',data={**confirm,'human_confirmed':'no'}).status_code==400
         monkeypatch.setattr(settings,'database_url',original_url)
+        assert no_effect_counts()==before_capability
+        # Explicit unavailable-capability refusal, not an environment-name
+        # production disable switch. Neither review nor confirm may write.
+        available=routes.production_attendance_available
+        monkeypatch.setattr(routes,'production_attendance_available',lambda:False)
+        for env in ('production','development','prod','unknown'):
+            monkeypatch.setattr(settings,'app_env',env)
+            for suffix,payload in (('/review',args),('/confirm',confirm)):
+                refused=client.post(root+suffix,data=payload)
+                assert refused.status_code==503 and refused.headers['cache-control']=='no-store'
+        monkeypatch.setattr(settings,'app_env','test')
+        monkeypatch.setattr(settings,'database_url',original_url.replace('synthetic_attendance_','not_synthetic_'))
+        assert client.post(root+'/confirm',data=confirm).status_code==503
+        monkeypatch.setattr(settings,'database_url',original_url)
+        assert no_effect_counts()==before_capability
+        monkeypatch.setattr(routes,'production_attendance_available',available)
         with SessionLocal.begin() as db:
             saved=db.get(AttendanceEvidenceReviewReceipt,'f'*64)
             other=AdminAccount(username='synthetic-other-reviewer',password_hash='not-a-login',role='system_admin',active=True);db.add(other);db.flush()
@@ -140,7 +158,13 @@ def test_inline_review_confirm_actual_middleware_atomic_idempotent(monkeypatch):
             assert db.scalar(select(func.count()).select_from(AttendanceEvidenceOccurrenceClaim))==2
             assert financial==tuple(db.scalar(select(func.count()).select_from(m)) for m in (LeaveBalanceTransaction,PayrollItem))
         monkeypatch.setattr(settings,'attendance_synthetic_review_enabled',False)
-        assert client.post(root+'/confirm',data=confirm).status_code==404
+        # Real production capability still admits an identical committed replay.
+        assert client.post(root+'/confirm',data=confirm).status_code==200
+        before_disabled=no_effect_counts()
+        monkeypatch.setattr(routes,'production_attendance_available',lambda:False)
+        assert client.post(root+'/confirm',data=confirm).status_code==503
+        assert no_effect_counts()==before_disabled
+        monkeypatch.setattr(routes,'production_attendance_available',available)
         monkeypatch.setattr(settings,'attendance_synthetic_review_enabled',True)
         with SessionLocal.begin() as db:
             account=db.get(AdminAccount,original_actor);account.session_version+=1
@@ -158,7 +182,6 @@ def test_postclassification_operational_errors_only_no_database_mutation(monkeyp
     monkeypatch.setattr(settings,'attendance_synthetic_review_enabled',True);monkeypatch.setattr(settings,'app_env','test')
     monkeypatch.setattr(main,'send_login_alert',lambda *a,**k:None);monkeypatch.setattr(main,'send_telegram_login_event',lambda *a,**k:None)
     with SessionLocal.begin() as db:
-        actor=db.scalar(select(AdminAccount).where(AdminAccount.username=='synthetic-shift-system_admin'))
         employee=db.scalar(select(AttendanceDailyRecord.employee_id))
     with TestClient(main.app) as client:
         assert client.post('/login',data=dict(csrf_token=token(client.get('/login')),username='synthetic-shift-system_admin',password='Synthetic-Only-Login-1004!'),follow_redirects=False).status_code==303

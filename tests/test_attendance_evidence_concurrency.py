@@ -1,8 +1,9 @@
 """Dedicated disposable DB, two independent connections, actual commit/replay."""
 import os
-from datetime import date,datetime,UTC
+from datetime import date
 from concurrent.futures import ThreadPoolExecutor
 from threading import Barrier
+from fastapi import HTTPException
 import pytest
 from sqlalchemy import select,func
 from app.db import SessionLocal
@@ -26,10 +27,25 @@ def test_two_connection_same_key_changed_request_and_consume():
     def race(function):
         barrier=Barrier(2)
         def run(i):
-            with SessionLocal.begin() as db:
-                barrier.wait(timeout=5)
-                return function(db,i)
-        with ThreadPoolExecutor(max_workers=2) as pool:return list(pool.map(run,range(2)))
+            try:
+                with SessionLocal.begin() as db:
+                    barrier.wait(timeout=5)
+                    return ('completed',function(db,i))
+            except HTTPException as exc:
+                # Only the exact prompt shared-read admission refusal is
+                # retryable. The transaction context has already rolled back.
+                assert exc.status_code==503 and exc.headers=={'Retry-After':'5'}
+                return ('busy',None)
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            attempts=list(pool.map(run,range(2)))
+        results=[]
+        for i,(status,value) in enumerate(attempts):
+            if status=='busy':
+                # Fresh transaction after BOTH original connections ended.
+                # No sleep loop and no production lock/gate changes.
+                with SessionLocal.begin() as db:value=function(db,i)
+            results.append(value)
+        return results
     result=race(lambda db,i:prepare_evidence_review(db,**args).request_digest)
     assert result[0]==result[1]
     def competing_new_key(db,i):
