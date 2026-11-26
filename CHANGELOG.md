@@ -1,3 +1,9 @@
+## 2026-11-26, Instinct: bounded substitute exit77 diagnostic
+
+- Record the entry77 Windows result: child status 0xC0000022 (not 77), same as the earlier native run; inconclusive, no cause claimed; trusted cleanup and profile/root removal confirmed.
+- Add one independently reviewed packet that replaces python.exe only in a derived runtime copy with a pinned kernel32-only ExitProcess(77) image. Launcher, watchdog, ACLs, canonical stager, original worker and product are unchanged. Signature/version checks cover the acquired original, not the substitute.
+- Portable controls only: 14 new plus 15 existing passed; independent review executed 42 and read the rest. MSVC compile and Windows load are unverified. No adapter, security or hotel acceptance. One observation, then stop.
+
 ## 2026-11-26, Instinct: bounded entry77 diagnostic packet
 
 - Prepare one independently reviewed source-copy diagnostic with an import-free marker worker, unchanged canonical stager and native/security inputs, owned-root guards and strict existing process-time/postresume capture.
