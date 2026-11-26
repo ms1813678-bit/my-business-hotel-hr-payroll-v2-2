@@ -4,7 +4,13 @@ name: "Integrated synthetic Windows parser candidate (control: IFEO loader snaps
 on:
   push:
     branches: [ui-overhaul]
-    paths: [.github/workflows/windows-integrated-candidate-ifeo-off.yml]
+    paths:
+      - .github/workflows/windows-integrated-candidate-ifeo-off.yml
+      - verification/windows_integrated_candidate/**
+      - app/attendance_import.py
+      - app/fingerprint_bounded_parse.py
+      - app/fingerprint_evidence.py
+      - app/__init__.py
 permissions:
   contents: read
 jobs:

@@ -26,7 +26,7 @@ def test_control_differs_from_candidate_only_by_the_wrapper():
 
 
 def test_control_keeps_strict_gates_and_its_own_trigger():
-    assert "paths: [.github/workflows/windows-integrated-candidate-ifeo-off.yml]" in CTRL
+    assert "- .github/workflows/windows-integrated-candidate-ifeo-off.yml" in CTRL
     assert "NOT_ESTABLISHED" in CTRL
     assert "continue-on-error" not in CTRL
     assert "permissions:\n  contents: read" in CTRL
