@@ -327,16 +327,16 @@ def test_loader_line_counts_events_without_naming_or_attributing_any_module():
     line = q.loader_line("x", ValueError("Candidate refused code=1 native=" + LOADER_NATIVE))
     assert line == ("qual_loader label=x native=present events=5 last_ordinal=5 load_dll=2 unload_dll=1 debug_string_events=1 "
                     "exception_events=1 first_exception=c0000022 strings_readable=1 strings_unreadable=0 "
-                    "first_string_ntstatus=c0000022 debug_exit=c0000022 stderr_near_cap=0")
+                    "first_string_ntstatus=c0000022 debug_exit=c0000022 stderr_near_cap=0 modules=0 module_unavailable=0 summary_loads=none summary_last=none")
     assert LINE.match(line)
-    assert "python" not in line and "module" not in line and "mapped" not in line and "unloaded" not in line
+    assert "python" not in line and "mapped" not in line and "unloaded" not in line and "last_module" not in line
 
 
 def test_loader_line_missing_and_hostile_input_is_counts_of_zero_not_a_claim():
     empty = q.loader_line("x", ValueError("Invalid parser result."))
     assert empty == ("qual_loader label=x native=absent events=0 last_ordinal=0 load_dll=0 unload_dll=0 debug_string_events=0 "
                      "exception_events=0 first_exception=none strings_readable=0 strings_unreadable=0 "
-                     "first_string_ntstatus=none debug_exit=none stderr_near_cap=0")
+                     "first_string_ntstatus=none debug_exit=none stderr_near_cap=0 modules=0 module_unavailable=0 summary_loads=none summary_last=none")
     hostile = ("Candidate refused code=1 native=loader_debug_event kind=7 ordinal=1 extra\n"
                "loader_debug_string readable=1 fixed_image_bits=2 bounded_bytes=5 unicode=0 clamped=0 raw_discarded=1 C:/Users/SECRET\n"
                "loader_debug_string readable=1 fixed_image_bits=2 bounded_bytes=5 unicode=0 clamped=0 raw_discarded=1 ntstatus_0=zzzzzzzz\n"
@@ -349,7 +349,7 @@ def test_loader_line_missing_and_hostile_input_is_counts_of_zero_not_a_claim():
 
 def test_loader_line_flags_possible_truncation_and_reads_unreadable_strings():
     big = "Candidate refused code=1 native=" + "loader_debug_event kind=6 ordinal=1\n" * 500
-    assert q.loader_line("x", ValueError(big)).endswith("stderr_near_cap=1")
+    assert "stderr_near_cap=1" in q.loader_line("x", ValueError(big))
     un = "Candidate refused code=1 native=loader_debug_string readable=0 declared_bytes=9 received_bytes=0 unicode=0 no_localization_claim=1"
     assert "strings_unreadable=1" in q.loader_line("x", ValueError(un))
 
@@ -460,3 +460,27 @@ def test_main_report_and_exit_survive_helper_import_failure(monkeypatch, capsys,
     assert code == 1 and any(l.startswith("qual_summary") for l in out)
     assert "qual_plain label=none exit=none out_bytes=0 decode=na error_class=harness" in out
     assert all(LINE.match(l) for l in out), out
+
+
+def test_loader_line_reports_ordered_allowlisted_modules_and_never_raw_names():
+    native = ("loader_debug_module name=ntdll.dll clamped=0 dir=system32\nloader_debug_module name=python.exe clamped=0 dir=other\n"
+              "loader_debug_module name=KERNEL32.DLL clamped=0 dir=system32\nloader_debug_module name=Secret_Name.dll clamped=0 dir=other\n"
+              "loader_debug_module name=none\nloader_debug_module name=unavailable error=5\n"
+              "loader_debug_module name=python314.dll clamped=1 dir=other\n")
+    out = q.loader_line("x", ValueError("Candidate refused code=1 native=" + native))
+    assert out.endswith("modules=5 module_unavailable=2 summary_loads=none summary_last=none mod_1=ntdll_sys mod_2=pyexe_oth mod_3=kernel32_sys mod_4=other_oth mod_5=py314_oth")
+    assert "Secret" not in out and LINE.match(out)
+    withsum = q.loader_line("x", ValueError("Candidate refused code=1 native=" + native + "loader_debug_summary loads=7 last_module=Secret_Name.dll\n"))
+    assert "summary_loads=7 summary_last=other" in withsum and "Secret" not in withsum
+    ok = q.loader_line("x", ValueError("Candidate refused code=1 native=loader_debug_summary loads=0 last_module=none\nloader_debug_summary loads=1 last_module=C:/x"))
+    assert "summary_loads=0 summary_last=none" in ok
+
+
+def test_loader_line_rejects_hostile_module_lines_and_caps_fields():
+    hostile = ("loader_debug_module name=C:/Users/x.dll clamped=0 dir=other\nloader_debug_module name=ntdll.dll clamped=0 dir=system32 extra\n"
+               "loader_debug_module name=ntdll.dll clamped=2 dir=system32\nloader_debug_module name=ntdll.dll clamped=0 dir=C:/x\n")
+    out = q.loader_line("x", ValueError("Candidate refused code=1 native=" + hostile))
+    assert out.endswith("modules=0 module_unavailable=0 summary_loads=none summary_last=none")
+    many = "loader_debug_module name=ntdll.dll clamped=0 dir=system32\n" * 40
+    out = q.loader_line("x", ValueError("Candidate refused code=1 native=" + many))
+    assert "modules=40" in out and out.count(" mod_") == 12 and " mod_13=" not in out

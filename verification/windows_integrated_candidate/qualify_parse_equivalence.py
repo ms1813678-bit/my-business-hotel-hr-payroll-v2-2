@@ -162,18 +162,30 @@ STRING_READABLE = re.compile(r'^loader_debug_string readable=1 fixed_image_bits=
 STRING_UNREADABLE = re.compile(r'^loader_debug_string readable=0 declared_bytes=[0-9]{1,10} received_bytes=[0-9]{1,10} unicode=[01] no_localization_claim=1$')
 EXIT_LINE = re.compile(r'^loader_debug_exit code=([0-9a-f]{8})$')
 EVENT_LINE = re.compile(r'^loader_debug_event kind=([0-9]{1,2}) ordinal=([0-9]{1,6})$')
+MODULE_LINE = re.compile(r'^loader_debug_module name=([A-Za-z0-9._?-]{1,48}) clamped=([01]) dir=(system32|other)$')
+MODULE_UNAVAILABLE = re.compile(r'^loader_debug_module name=(?:none|unavailable(?: error=[0-9]{1,10})?)$')
+MODULE_ALLOWLIST = {'ntdll.dll': 'ntdll', 'kernel32.dll': 'kernel32', 'kernelbase.dll': 'kernelbase',
+                    'ucrtbase.dll': 'ucrtbase', 'vcruntime140.dll': 'vcrt140', 'vcruntime140_1.dll': 'vcrt1401',
+                    'python3.dll': 'py3', 'python314.dll': 'py314', 'python.exe': 'pyexe'}
+MODULE_FIELDS = 12
+SUMMARY_LINE = re.compile(r'^loader_debug_summary loads=([0-9]{1,6}) last_module=([A-Za-z0-9._?-]{1,48})$')
 STDERR_CAP_NEAR = 15000
 
 
 def loader_line(label, error):
     """One fixed-vocabulary qual_loader line from loader_debug lines the launcher already prints.
 
-    The launcher's debug events carry NO module identity: they are counts and ordinals only. So this
-    line never names or attributes a DLL. It reports how many debugger events of each kind were
-    captured, the first exception code, the first ntstatus_N value inside any readable debug string
-    (a value the child printed, not a proven cause), and the debugger exit code. A kind count of 0
-    means "not captured" (stderr is bounded and may be truncated: stderr_near_cap=1), not "did not
-    happen". Only strictly matched whole lines count; everything else is ignored. No raw text.
+    Two separate sources, never mixed:
+    - loader_debug_event lines (numeric kind/ordinal) carry NO module identity. They give only counts per
+      event kind, the last ordinal, exception events and the debugger exit code. An unload event is never
+      attributed to a module.
+    - Separate existing loader_debug_module lines (and the loader_debug_summary line) DO carry an observed
+      module name. Only a fixed allowlist token plus a system32/oth class is printed (anything else is
+      `other`), in the order the launcher emitted them, so no raw name or path is output.
+    Also reported: the first ntstatus_N inside a readable debug string (a value the child printed, not a
+    proven cause). Everything is what the launcher captured: a count of 0 or a missing module means "not
+    captured" (stderr is bounded, see stderr_near_cap), never "did not happen", and a module list does not
+    show which image was denied or why. Only strictly matched whole lines count; everything else is ignored.
     """
     text = str(error)
     native = text.split(' native=', 1)[1] if ' native=' in text else ''
@@ -182,7 +194,24 @@ def loader_line(label, error):
     kinds = {'1': 0, '6': 0, '7': 0, '8': 0}
     events = last_ordinal = exceptions = readable = unreadable = 0
     first_exception = exit_code = first_ntstatus = 'none'
+    modules = []
+    module_unavailable = 0
+    summary_loads = 'none'
+    summary_last = 'none'
     for line in native.splitlines():
+        found = MODULE_LINE.match(line)
+        if found:
+            token = MODULE_ALLOWLIST.get(found.group(1).lower(), 'other')
+            modules.append('%s_%s' % (token, 'sys' if found.group(3) == 'system32' else 'oth'))
+            continue
+        found = SUMMARY_LINE.match(line)
+        if found:
+            summary_loads = found.group(1)
+            summary_last = 'none' if found.group(2) == 'none' else MODULE_ALLOWLIST.get(found.group(2).lower(), 'other')
+            continue
+        if MODULE_UNAVAILABLE.match(line):
+            module_unavailable += 1
+            continue
         found = EVENT_LINE.match(line)
         if found:
             events += 1
@@ -211,9 +240,10 @@ def loader_line(label, error):
             exit_code = found.group(1)
     return ('qual_loader label=%s native=%s events=%d last_ordinal=%d load_dll=%d unload_dll=%d debug_string_events=%d '
             'exception_events=%d first_exception=%s strings_readable=%d strings_unreadable=%d '
-            'first_string_ntstatus=%s debug_exit=%s stderr_near_cap=%d' % (
+            'first_string_ntstatus=%s debug_exit=%s stderr_near_cap=%d modules=%d module_unavailable=%d summary_loads=%s summary_last=%s%s' % (
                 label, native_state, events, last_ordinal, kinds['6'], kinds['7'], kinds['8'], exceptions, first_exception,
-                readable, unreadable, first_ntstatus, exit_code, int(len(native) >= STDERR_CAP_NEAR)))
+                readable, unreadable, first_ntstatus, exit_code, int(len(native) >= STDERR_CAP_NEAR), len(modules), module_unavailable, summary_loads, summary_last,
+                ''.join(' mod_%d=%s' % (i + 1, m) for i, m in enumerate(modules[:MODULE_FIELDS]))))
 
 
 HEADROOM_LABEL = 'csv_near_output_limit'
