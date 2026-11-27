@@ -75,7 +75,8 @@ def test_view_shows_only_review_days_and_drops_nothing(seeded):
 
 @pytest.mark.parametrize('name,raw,reason', [('a.csv', b'x', 'unsupported_extension'), ('a.xlsx', b'', 'empty_file'),
                                              ('a.xlsx', b'not a workbook', 'unreadable_file'),
-                                             ('a.xlsx', b'0' * (5 * 1024 * 1024 + 1), 'file_too_large')])
+                                             ('a.xlsx', b'0' * (5 * 1024 * 1024 + 1), 'file_too_large')],
+                         ids=['unsupported_extension', 'empty_file', 'unreadable_file', 'file_too_large'])  # a 5 MB id overflows the Windows environment limit
 def test_view_refuses_bad_input(seeded, name, raw, reason):
     with SessionLocal() as db, pytest.raises(ValueError, match=reason):
         build_review_view(raw, name, db)
