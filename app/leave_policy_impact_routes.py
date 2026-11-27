@@ -20,6 +20,10 @@ from app.models import AdminAccount,Department,Employee,LeaveOpeningSelection
 def policy_impact_router(templates):
     router=APIRouter()
     def display_days(value):
+        if not isinstance(value,Decimal):
+            # Fraction has no '.2f' format before Python 3.12; same two-decimal ties-to-even display, exact integer math.
+            from app.leave_exact_amount import display_days as exact_display_days
+            return exact_display_days(value)
         with localcontext() as context:
             context.prec=4096
             return format(value,'.2f')
