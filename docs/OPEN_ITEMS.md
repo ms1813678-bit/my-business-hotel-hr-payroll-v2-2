@@ -38,3 +38,9 @@ Ruff F841 still reports four assignments that were not removed because each coul
 - `app/leave_month_review_routes.py`: `target` (parsed month value) is not used after assignment.
 - `app/leave_synthetic_register.py`: `employee = db.get(..., populate_existing=True)` is not used; the call refreshes the row.
 The CI gate (`tests/test_pyflakes_gate.py`) checks F401, F811 and F601 only, so these four do not fail CI.
+
+## From the Mido/Muse end-to-end run of d89159a (27 Nov 2026; their claims, checked by Instinct against the code)
+- Installment advance paid after its first payroll month started: that month's installment is never deducted (`app/payroll_workflow.py`, draft and close only take the run's own month). Business choice pending: add to the next run, warn HR, or leave. Not changed.
+- Forms that need every field (employee edit, staff action with a `YYYY-MM` month) answer a missing or wrong field with FastAPI's raw 422 JSON. Browser forms always send every field, so only other clients see it. Not changed; fix later if cheap and safe.
+- Checked and not reproduced: the claim that `GET /reports/monthly.pdf?month=2026-11` with no report options says "choose a valid month". The route says "invalid monthly report options" (test added).
+- Fixed: raw Python text "Invalid isoformat string" in `/attendance/manual` and `/attendance/{id}/approve` errors; they now return a translated fixed message.

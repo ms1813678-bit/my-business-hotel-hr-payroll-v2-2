@@ -113,3 +113,23 @@ def test_http_auth_csrf_roles_and_nothing_written(seeded):
         assert missing.status_code == 400 and 'الملف فارغ' in missing.text      # a page, not framework JSON
         assert 'href="/attendance/punch-review"' in client.get('/attendance/import').text   # entry link
     assert counts() == before
+
+
+def test_bad_date_or_time_gives_a_stable_message_not_a_python_error(seeded):
+    with TestClient(main.app) as client:
+        login(client, 'system_admin')
+        csrf = token(client.get('/attendance/import'))
+        manual = client.post('/attendance/manual', data=dict(csrf_token=csrf, employee_id=1, work_date='2026-07-04',
+                                                             clock_in='08:00', clock_out='16:00', reason='x'))
+        approve = client.post('/attendance/1/approve', data=dict(csrf_token=csrf, clock_in='08:00', clock_out='16:00', reason='x'))
+        for response in (manual, approve):
+            assert response.status_code == 400
+            assert 'isoformat' not in response.text and 'صيغة التاريخ أو الوقت غير صحيحة' in response.text
+
+
+def test_monthly_pdf_without_options_names_the_options_not_the_month(seeded):
+    with TestClient(main.app) as client:
+        login(client, 'system_admin')
+        response = client.get('/reports/monthly.pdf?month=2026-11')
+        assert response.status_code == 400
+        assert 'اختر شهرًا صالحًا' not in response.text and 'خيارات التقرير الشهري غير صالحة' in response.text, response.text

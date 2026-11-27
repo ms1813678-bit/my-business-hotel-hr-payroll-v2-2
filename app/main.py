@@ -1680,6 +1680,9 @@ def attendance_manual_entry(
         entered_date = date.fromisoformat(work_date)
         entered_in = datetime.fromisoformat(clock_in)
         entered_out = datetime.fromisoformat(clock_out)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="صيغة التاريخ أو الوقت غير صحيحة.") from None
+    try:
         with SessionLocal.begin() as db:
             add_manual_attendance(
                 db,
@@ -1707,6 +1710,9 @@ def attendance_approve(
     try:
         approved_in = datetime.fromisoformat(clock_in)
         approved_out = datetime.fromisoformat(clock_out)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="صيغة التاريخ أو الوقت غير صحيحة.") from None
+    try:
         with SessionLocal.begin() as db:
             approve_attendance_day(
                 db, record_id=record_id, clock_in=approved_in,
