@@ -10,6 +10,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from . import client, provision
+from .provision import step
 
 
 class SupervisorError(RuntimeError):
@@ -75,11 +76,13 @@ class Supervisor:
                     "SESSION_SECRET": "sync-harness-only-session-secret-0123456789",
                     "APP_ENV": "test", "PYTHONPATH": str(self.repo_root),
                     "PYTHONUNBUFFERED": "1"})
+        step(f"start instance {name} on port {instance.spec.port}")
         log = open(instance.log_path, "ab", buffering=0)
         log.write(f"\n===== start {name} {time.strftime('%H:%M:%S')} =====\n".encode())
         creationflags = subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0
         instance.process = subprocess.Popen(self._command(instance.spec), cwd=str(self.repo_root),
-                                            env=env, stdout=log, stderr=subprocess.STDOUT,
+                                            env=env, stdin=subprocess.DEVNULL, stdout=log,
+                                            stderr=subprocess.STDOUT,
                                             creationflags=creationflags)
         instance.exit_code = None
         self.wait_ready(name)

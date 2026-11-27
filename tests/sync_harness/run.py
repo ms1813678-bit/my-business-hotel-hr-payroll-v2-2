@@ -58,7 +58,7 @@ def main(argv: list[str] | None = None) -> int:
             return 2
         selected = [(name, func) for name, func in scenarios.SCENARIOS if name in wanted]
 
-    work_dir = Path(args.work_dir) if args.work_dir else Path(tempfile.mkdtemp(prefix="sync-harness-"))
+    work_dir = Path(args.work_dir).resolve() if args.work_dir else Path(tempfile.mkdtemp(prefix="sync-harness-"))
     work_dir.mkdir(parents=True, exist_ok=True)
     provisioner = provision.Provisioner(work_dir, external=args.pg_external, pg_bin=args.pg_bin)
     report = {
@@ -71,11 +71,15 @@ def main(argv: list[str] | None = None) -> int:
         "scenarios": [],
     }
     print(f"seed={args.seed} work_dir={work_dir}", flush=True)
+    # If anything blocks, dump every thread's stack to stderr every 5 minutes.
+    import faulthandler
+    faulthandler.dump_traceback_later(300, repeat=True, file=sys.stderr)
     started = time.time()
     try:
         provisioner.prepare()
         report["postgres"] = _postgres_version(provisioner)
         for name, func in selected:
+            provision.step(f"scenario {name}")
             result = _run_scenario(provisioner, work_dir, name, func, args)
             report["scenarios"].append(result)
             status = "PASS" if result["status"] == "pass" else "FAIL"

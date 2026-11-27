@@ -36,6 +36,33 @@ class ProvisionError(RuntimeError):
     pass
 
 
+STEP_TIMEOUT = float(os.environ.get("SYNC_HARNESS_STEP_TIMEOUT", "120"))
+
+
+def step(message: str) -> None:
+    """Progress line, flushed before the step runs, so a hang names its step."""
+    print(f"[{time.strftime('%H:%M:%S')}] step: {message}", flush=True)
+
+
+def run_tool(args: list[str], *, timeout: float | None = None, label: str = "",
+             **kwargs) -> subprocess.CompletedProcess:
+    """subprocess.run with stdin closed, output captured and a hard timeout.
+
+    stdin is closed because a child that inherits a console handle can block on
+    Windows. On timeout the child is killed and a ProvisionError names it.
+    """
+    timeout = STEP_TIMEOUT if timeout is None else timeout
+    kwargs.setdefault("stdin", subprocess.DEVNULL)
+    try:
+        return subprocess.run(args, capture_output=True, text=True, timeout=timeout, **kwargs)
+    except subprocess.TimeoutExpired as exc:
+        tail = ""
+        for stream in (exc.stdout, exc.stderr):
+            if stream:
+                tail += (stream if isinstance(stream, str) else stream.decode("utf-8", "replace"))[-400:]
+        raise ProvisionError(f"timed out after {timeout:.0f}s: {label or ' '.join(map(str, args))[:200]} {tail}")
+
+
 def free_port() -> int:
     with socket.socket() as sock:
         sock.bind(("127.0.0.1", 0))
@@ -65,6 +92,13 @@ def pg_bin_dir(explicit: str | None = None) -> Path:
         "no PostgreSQL binaries found: install the test dependency pgserver "
         "(pip install pgserver) or set SYNC_HARNESS_PG_BIN"
     )
+
+
+def _tail(path: Path, chars: int = 800) -> str:
+    try:
+        return Path(path).read_text("utf-8", errors="replace")[-chars:]
+    except OSError:
+        return "(unreadable)"
 
 
 def _exe(name: str) -> str:
@@ -110,9 +144,10 @@ class EmbeddedServer(Server):
     def name(self) -> str:  # type: ignore[override]
         return f"pg:{self.datadir.name}"
 
-    def _run(self, args: list[str], **kwargs) -> subprocess.CompletedProcess:
-        return subprocess.run([str(self.bin_dir / args[0]), *args[1:]], capture_output=True,
-                              text=True, **kwargs)
+    def _run(self, args: list[str], *, quiet: bool = False, **kwargs) -> subprocess.CompletedProcess:
+        if not quiet:
+            step(f"{self.name} {args[0]} {' '.join(args[1:3])}")
+        return run_tool([str(self.bin_dir / _exe(args[0])), *args[1:]], label=args[0], **kwargs)
 
     def start(self) -> None:
         if self.started:
@@ -129,20 +164,35 @@ class EmbeddedServer(Server):
             socket_dir.mkdir(exist_ok=True)
             options += f" -k {socket_dir}"
         log = self.datadir.parent / (self.datadir.name + ".log")
-        done = self._run(["pg_ctl", "-D", str(self.datadir), "-w", "-l", str(log),
-                          "-o", options, "start"])
-        if done.returncode:
-            raise ProvisionError(f"pg_ctl start failed: {done.stderr[-800:]} {done.stdout[-400:]}")
+        # The postmaster outlives pg_ctl. If pg_ctl's stdout/stderr were pipes, the
+        # postmaster would inherit them and subprocess would wait for EOF forever
+        # (a known Windows hang), so start it with files and no pipes.
+        step(f"{self.name} pg_ctl start on port {self.port}")
+        ctl_out = self.datadir.parent / (self.datadir.name + ".pg_ctl.txt")
+        with open(ctl_out, "wb") as sink:
+            try:
+                code = subprocess.run(
+                    [str(self.bin_dir / _exe("pg_ctl")), "-D", str(self.datadir), "-w",
+                     "-t", "60", "-l", str(log), "-o", options, "start"],
+                    stdin=subprocess.DEVNULL, stdout=sink, stderr=subprocess.STDOUT,
+                    timeout=STEP_TIMEOUT).returncode
+            except subprocess.TimeoutExpired:
+                raise ProvisionError(f"pg_ctl start timed out on {self.name}: "
+                                     f"{_tail(ctl_out)} | server log: {_tail(log)}")
+        if code:
+            raise ProvisionError(f"pg_ctl start failed ({code}): {_tail(ctl_out)} | "
+                                 f"server log: {_tail(log)}")
         self.started = True
         self._wait_ready()
 
     def _wait_ready(self) -> None:
         deadline = time.time() + 30
         while time.time() < deadline:
-            if self._run(["pg_isready", "-h", "127.0.0.1", "-p", str(self.port), "-U", "postgres"]).returncode == 0:
+            if self._run(["pg_isready", "-h", "127.0.0.1", "-p", str(self.port), "-U", "postgres"], quiet=True, timeout=15).returncode == 0:
                 return
             time.sleep(0.1)
-        raise ProvisionError(f"{self.name} did not become ready on port {self.port}")
+        raise ProvisionError(f"{self.name} did not become ready on port {self.port}: "
+                             f"{_tail(self.datadir.parent / (self.datadir.name + '.log'))}")
 
     def url(self, database: str) -> str:
         return f"postgresql+psycopg://postgres@127.0.0.1:{self.port}/{database}"
@@ -197,27 +247,27 @@ class ExternalServer(Server):
         return f"postgresql+psycopg://{credentials}@{self.host}:{self.port}/{database}"
 
     def sql(self, database: str, statement: str) -> str:
-        done = subprocess.run([str(self.bin_dir / _exe("psql")), "-X", "-q", "-v", "ON_ERROR_STOP=1",
+        done = run_tool([str(self.bin_dir / _exe("psql")), "-X", "-q", "-v", "ON_ERROR_STOP=1",
                                "-h", self.host, "-p", str(self.port), "-U", self.user,
                                "-d", database, "-c", statement],
-                              capture_output=True, text=True, env=self._env())
+                              env=self._env())
         if done.returncode:
             raise ProvisionError(f"psql failed on {self.name}/{database}: {done.stderr[-800:]}")
         return done.stdout
 
     def dump(self, database: str, target: Path) -> None:
-        done = subprocess.run([str(self.bin_dir / _exe("pg_dump")), "--format=custom", "--no-owner",
+        done = run_tool([str(self.bin_dir / _exe("pg_dump")), "--format=custom", "--no-owner",
                                "--no-acl", "-h", self.host, "-p", str(self.port), "-U", self.user,
                                "-d", database, "-f", str(target)],
-                              capture_output=True, text=True, env=self._env())
+                              env=self._env())
         if done.returncode:
             raise ProvisionError(f"pg_dump failed: {done.stderr[-800:]}")
 
     def restore(self, database: str, source: Path) -> None:
-        done = subprocess.run([str(self.bin_dir / _exe("pg_restore")), "--no-owner", "--no-acl",
+        done = run_tool([str(self.bin_dir / _exe("pg_restore")), "--no-owner", "--no-acl",
                                "--clean", "--if-exists", "--single-transaction", "-h", self.host,
                                "-p", str(self.port), "-U", self.user, "-d", database, str(source)],
-                              capture_output=True, text=True, env=self._env())
+                              env=self._env())
         if done.returncode:
             raise ProvisionError(f"pg_restore failed: {done.stderr[-800:]}")
 
@@ -243,6 +293,7 @@ class Provisioner:
 
     def prepare(self) -> None:
         self.work_dir.mkdir(parents=True, exist_ok=True)
+        step(f"prepare: binaries in {self.pg_bin}")
         for name in INSTANCE_NAMES:
             if self.external:
                 server = ExternalServer(
@@ -270,8 +321,10 @@ class Provisioner:
             env = dict(os.environ, DATABASE_URL=server.url(self.template),
                        SESSION_SECRET="sync-harness-only-session-secret-0123456789",
                        APP_ENV="test")
-            done = subprocess.run([sys.executable, "-m", "scripts.initialize_database"],
-                                  cwd=str(self.repo_root), env=env, capture_output=True, text=True)
+            step(f"{server.name} migrations (scripts.initialize_database)")
+            done = run_tool([sys.executable, "-m", "scripts.initialize_database"],
+                            cwd=str(self.repo_root), env=env, timeout=600,
+                            label="scripts.initialize_database")
             if done.returncode:
                 raise ProvisionError(
                     f"migrations failed on {server.name}: {done.stderr[-1500:]}")
