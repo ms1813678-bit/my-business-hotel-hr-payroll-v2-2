@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% set active_nav = "attendance" %}
+{% block title %}مراجعة البصمات الخام{% endblock %}
+{% block content %}
+<header class="topbar">
+  <div>
+    <p class="eyebrow">M.Y. BUSINESS HOTEL</p>
+    <h1>مراجعة البصمات الخام</h1>
+    <p>للقراءة والمراجعة فقط. لا تُحذف أي بصمة ولا يُعتمد حضور من هذه الشاشة.</p>
+  </div>
+  <a href="/attendance/import">العودة للحضور</a>
+</header>
+
+{% if error %}
+<section class="notice"><strong>تعذر تنفيذ الإجراء:</strong> {{ error }}</section>
+{% endif %}
+
+<section class="notice">
+  <form method="post" action="/attendance/punch-review" enctype="multipart/form-data">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label for="punch-file">ملف بصمات الجهاز (XLS أو XLSX)</label>
+    <input id="punch-file" type="file" name="file" accept=".xls,.xlsx" required>
+    <button type="submit">عرض المراجعة</button>
+  </form>
+</section>
+
+{% if view %}
+<section class="notice">
+  <p><strong>{{ view.review_days }}</strong> <span>أيام تحتاج مراجعة من</span> <strong>{{ view.total_days }}</strong></p>
+  <p><strong>{{ view.dropped }}</strong> <span>بصمات محذوفة</span></p>
+  {% if view.unmatched %}<p><strong>{{ view.unmatched }}</strong> <span>بصمات بلا موظف معروف لم تُعرض هنا</span></p>{% endif %}
+</section>
+{% for card in view.cards %}
+<section class="notice">
+  <h2><span>الموظف</span> <bdi data-no-translate>{{ card.employee_code }} {{ card.employee_name }}</bdi> <span>—</span> <bdi dir="ltr">{{ card.work_date }}</bdi>
+    {% if card.is_duplicate %}<span>مكررة</span>{% else %}<span>غير مقروءة</span>{% endif %}</h2>
+  <p><span>الخلية الأصلية:</span> <bdi dir="ltr" data-no-translate>{{ card.raw_cell }}</bdi></p>
+  {% if card.punch_times %}<p><span>البصمات المحفوظة:</span> <bdi dir="ltr">{{ card.punch_times|join(' · ') }}</bdi></p>{% endif %}
+  {% for dup in card.duplicates %}<p><span>المكرر:</span> <bdi dir="ltr">{{ dup.time }}</bdi> <span>عدد المرات:</span> {{ dup.count }}. <span>تم الإبقاء عليها للمراجعة.</span></p>{% endfor %}
+  {% if card.is_unreadable %}<p><span>الجزء غير المقروء:</span> <bdi dir="ltr" data-no-translate>{{ card.unreadable_remainder }}</bdi></p>
+  <p>اقرأ الخلية من الملف الأصلي.</p>{% endif %}
+</section>
+{% else %}
+<section class="notice"><p>لا توجد أيام تحتاج مراجعة في هذا الملف.</p></section>
+{% endfor %}
+{% endif %}
+{% endblock %}

@@ -5172,6 +5172,9 @@ app.include_router(pay_basis_router(templates))
 from app.shift_day_routes import shift_day_router
 app.include_router(shift_day_router(templates))
 
+from app.attendance_punch_review_routes import punch_review_router
+app.include_router(punch_review_router(templates))
+
 from app.leave_month_review_routes import monthly_review_router
 app.include_router(monthly_review_router(templates))
 from app.leave_month_earning_routes import monthly_earning_router
