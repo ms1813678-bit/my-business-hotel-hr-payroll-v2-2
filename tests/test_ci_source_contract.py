@@ -206,8 +206,10 @@ def test_children_have_bounded_migration_and_suite_timeouts():
     assert 'check=True,timeout=900' in source
     assert WORKFLOW.read_text().count('timeout-minutes: 45')==1
     assert WORKFLOW.read_text().count('timeout-minutes: 75')==0
-    assert WORKFLOW.read_text().count('timeout-minutes: 90')==2
-    assert 'timeout-minutes: 90' in WORKFLOW.read_text().split('  windows:',1)[1].split('steps:',1)[0]
+    # Windows job raised from 90 to 105 after run 45935465700 took about 85 min (same work, more margin).
+    assert WORKFLOW.read_text().count('timeout-minutes: 90')==1
+    assert WORKFLOW.read_text().count('timeout-minutes: 105')==1
+    assert 'timeout-minutes: 105' in WORKFLOW.read_text().split('  windows:',1)[1].split('steps:',1)[0]
     assert 'timeout-minutes: 90' in WORKFLOW.read_text().split('  test:',1)[1].split('  windows:',1)[0]
     assert '[version]$_.Name' not in WORKFLOW.read_text()
 

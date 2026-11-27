@@ -83,7 +83,7 @@ jobs:
   windows:
     name: Windows runner compatibility (Python 3.11)
     runs-on: windows-latest
-    timeout-minutes: 90
+    timeout-minutes: 105
     env:
       DATABASE_URL: postgresql+psycopg://hotel_test:test-only-password@127.0.0.1:55432/hotel_test
       SESSION_SECRET: ci-test-only-session-secret-not-for-production
@@ -96,6 +96,23 @@ jobs:
           python-version: "3.11"
       - name: Install project and development dependencies
         run: python -m pip install -e ".[dev]"
+      - name: Install poppler with CJK data for the PDF text tests (test tool only, best effort)
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $msys = "C:\msys64"
+          if (-not (Test-Path "$msys\usr\bin\bash.exe")) { throw "MSYS2 was not found on this runner." }
+          & "$msys\usr\bin\bash.exe" -lc "pacman -Sy --noconfirm --needed mingw-w64-ucrt-x86_64-poppler mingw-w64-ucrt-x86_64-poppler-data"
+          if ($LASTEXITCODE -ne 0) { throw "pacman install failed." }
+          $src = Join-Path $msys "ucrt64"
+          $dst = Join-Path $env:RUNNER_TEMP "poppler-cjk"
+          New-Item -ItemType Directory -Path (Join-Path $dst "bin"), (Join-Path $dst "share") -Force | Out-Null
+          Copy-Item -Path (Join-Path $src "bin\pdftotext.exe"), (Join-Path $src "bin\*.dll") -Destination (Join-Path $dst "bin")
+          Copy-Item -Path (Join-Path $src "share\poppler") -Destination (Join-Path $dst "share\poppler") -Recurse
+          & (Join-Path $dst "bin\pdftotext.exe") -v
+          Write-Host ("poppler-data present: {0}" -f (Test-Path (Join-Path $dst "share\poppler\cMap")))
+          Add-Content -Path $env:GITHUB_PATH -Value (Join-Path $dst "bin")
       - name: Report where pdftotext resolves (diagnostic only, never fails)
         shell: pwsh
         run: |
