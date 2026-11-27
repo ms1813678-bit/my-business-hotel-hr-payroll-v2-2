@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from datetime import date, UTC
 from decimal import Decimal, localcontext
 from fractions import Fraction
-from app.leave_exact_amount import exact_text, ledger_amount
+from app.leave_exact_amount import exact_text
 from hashlib import sha256
 import json
 

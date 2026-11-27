@@ -4,7 +4,7 @@ No UI, implicit approval, persistence, availability or posting. Decisions are
 review inputs, not evidence that the supplied assertion is factually correct.
 """
 from dataclasses import dataclass
-from decimal import Decimal, localcontext
+from decimal import Decimal
 from fractions import Fraction
 from app.leave_exact_amount import exact_text, exact_sum, ledger_amount, exact_negate
 from datetime import date
@@ -14,7 +14,6 @@ import re
 
 from app.department_workbook_guard import bounded_workbook_operation
 from app.leave_source_reconciliation import reconcile_selected_opening
-from app.leave_balance_rules import _bounded_amount, MAX_ARITHMETIC_DIGITS
 
 
 @dataclass(frozen=True)

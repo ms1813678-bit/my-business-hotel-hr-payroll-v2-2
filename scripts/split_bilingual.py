@@ -11,7 +11,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
-from app.i18n import EN, ZH  # noqa: E402
+from app.i18n import EN  # noqa: E402
 
 PAT = re.compile(r"^(?P<ar>[^/]*[؀-ۿ][^/]*?)\s+/\s+(?P<en>[ -~]+)$")
 

@@ -83,7 +83,6 @@ def review_carry_source(db, *, employee_id, leave_type_id, source_year, reviewed
     # independent of the later review/payment date. A manual all-time cash debit
     # has no such allocation proof and cannot be inferred into a carry year.
     from app.models import LeaveCashOut, LeaveAnnualSettlement
-    from app.leave_cash_out import _verify_cash_receipt
     for row in selected:
         if (row.source_operation_key or '').startswith('leave_cashout:'):
             key = row.source_operation_key.split(':', 1)[1]

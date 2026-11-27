@@ -4,10 +4,10 @@ These helpers never write to the database. They answer structured questions abou
 attendance review, leave balances, advances/installments, and staff actions.
 """
 from __future__ import annotations
-from app.leave_exact_amount import canonical_amount, display_days
+from app.leave_exact_amount import display_days
 
 import re
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 from decimal import Decimal
 from typing import Any
 

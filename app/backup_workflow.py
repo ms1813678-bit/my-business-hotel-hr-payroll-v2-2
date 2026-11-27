@@ -642,7 +642,6 @@ def _restore_archive_contents(
     data_key: bytes | None = None,
     swap_connection=None,
 ) -> None:
-    import psycopg
     import sys
 
     from app.db import engine

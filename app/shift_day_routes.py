@@ -6,8 +6,7 @@ from sqlalchemy.exc import OperationalError
 import re,secrets,json
 from sqlalchemy.engine import make_url
 from app.config import settings
-from app.attendance_evidence_review import prepare_evidence_review,consume_evidence_review,_identity
-from app.models import AttendanceEvidenceReviewReceipt
+from app.attendance_evidence_review import prepare_evidence_review,consume_evidence_review
 from starlette.concurrency import run_in_threadpool
 from fastapi import APIRouter,Depends,Request,HTTPException
 from sqlalchemy import select

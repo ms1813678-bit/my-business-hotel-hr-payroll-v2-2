@@ -6,14 +6,13 @@ from uuid import uuid4
 import json,re
 from fastapi import APIRouter,Depends,Request,HTTPException
 from fastapi.responses import RedirectResponse
-from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from app.csrf import csrf_protect,get_csrf_token
 from app.db import SessionLocal
 from app.dependencies import require_payroll_access
 from app.models import AdminAccount,PayrollItem,PayrollRun
 from app.overtime_day_award import (prepare_day_award,confirm_day_award,authority,lock_scope,
-    own_receipt,derive,current_awards,latest_day_award,canonical,stage_monthly_totals,verified_day_totals)
+    own_receipt,derive,current_awards,canonical,stage_monthly_totals,verified_day_totals)
 
 
 def overtime_day_router(templates):

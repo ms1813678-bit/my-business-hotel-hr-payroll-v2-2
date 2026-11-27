@@ -52,7 +52,6 @@ from app.dependencies import (
 from app.login_security import (
     FAILED_ATTEMPTS_LIMIT,
     LOCKOUT_MINUTES,
-    RECOVERY_LOCKOUT_MINUTES,
     clear_attempts,
     clear_recovery_attempts,
     record_failed_recovery,
@@ -78,7 +77,7 @@ from app.telegram_alerts import (
 )
 from app.security import _MIN_PASSWORD_LENGTH, hash_password, verify_password
 from app.employee_codes import allocate_employee_code
-from app.leave_workflow import add_balance_entry, cancel_leave, confirm_leave, leave_balance
+from app.leave_workflow import add_balance_entry, cancel_leave, confirm_leave
 from app.advance_workflow import advance_cap_basis, payroll_month_for_advance, approve_advance, create_advance, mark_advance_paid, reject_advance
 from app.models import AdvanceInstallment, CAIRO_TZ
 from app.ai_error_display import safe_failure_message
@@ -94,7 +93,6 @@ from app.staff_actions_workflow import (
 from app.reports import build_hr_pdf, build_hr_workbook
 from app.report_builder import (
     ATTENDANCE_FIELD_DEFS,
-    DEFAULT_FIELDS,
     EMPLOYEE_FIELD_DEFS,
     FIELD_GROUP_DEFS,
     FIELD_GROUPS_BY_TYPE,
@@ -111,9 +109,7 @@ from app.report_builder import (
     ReportSelection,
     _parse_date,
     MONTHLY_OPTION_LABELS,
-    MONTHLY_OPTION_TYPE,
     MONTHLY_ALL_OPTIONS,
-    apply_config,
     build_custom_pdf,
     report_paper_content,
     build_custom_workbook,
@@ -152,7 +148,7 @@ from app.payroll_workflow import (
     review_absence_leave_conflict,
     update_payroll_item,
 )
-from app.models import AdvanceRequest, BackupRun, SystemSetting, StaffAction, PayrollRun, PayrollItem, PayrollPayment, AdminAccount, AttendanceDailyRecord, AttendanceImportBatch, AttendanceImportIssue, AttendancePunch, AttendanceMonth, AuditLog, Branch, RecoveryCode, AdminSession, Department, Employee, EmployeeChange, EmployeeDataChangeRequest, EmployeeServicePeriod, LeaveBalanceTransaction, LeaveRecord, LeaveType, SecurityShiftAssignment, ShiftPattern
+from app.models import AdvanceRequest, BackupRun, SystemSetting, StaffAction, PayrollRun, PayrollItem, PayrollPayment, AdminAccount, AttendanceDailyRecord, AttendanceImportBatch, AttendanceImportIssue, AttendanceMonth, AuditLog, Branch, RecoveryCode, AdminSession, Department, Employee, EmployeeChange, EmployeeDataChangeRequest, EmployeeServicePeriod, LeaveBalanceTransaction, LeaveRecord, LeaveType, SecurityShiftAssignment, ShiftPattern
 from app.security_roster_import import parse_security_roster_xlsx
 from app.attendance_import import parse_attendance_workbook, normalize as normalize_attendance_alias
 from app.attendance_workflow import persist_attendance_import, prepare_and_persist_monthly_reconciliation, approve_attendance_day, approve_attendance_month, approve_all_matching_attendance, bulk_approval_scope, BulkScopeMismatch, suggested_clock_pair, add_manual_attendance, resolve_unknown_attendance_employee, summarize_attendance_month_coverage
@@ -309,7 +305,6 @@ from app.report_builder import _fmt_number as _report_fmt_number
 
 templates.env.filters["fmtnum"] = _report_fmt_number
 
-from app.models import CAIRO_TZ
 
 
 def _fmt_dt(value):
@@ -2167,7 +2162,6 @@ def leave_page(request: Request, page: int = 1, admin: AdminAccount = Depends(re
                 "transactions": transactions,
                 "csrf_token": get_csrf_token(request),
                 "error": request.query_params.get("error"),
-            "employees": employees,
             },
         )
 

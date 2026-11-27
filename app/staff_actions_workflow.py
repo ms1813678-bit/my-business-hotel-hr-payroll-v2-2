@@ -1,5 +1,4 @@
 """HR-administered employee sanctions and rewards with acknowledgement history."""
-from datetime import datetime
 from decimal import Decimal
 
 from sqlalchemy import select

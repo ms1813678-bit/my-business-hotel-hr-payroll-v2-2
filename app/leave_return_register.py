@@ -4,7 +4,7 @@ P means explicitly returned presence plus an already consumed same-comparison
 attendance receipt. Leave without punches is valid; conflicting punches/unknown
 source refuse. No LeaveRecord, balance debit or payroll effects are inferred.
 """
-from datetime import date,UTC
+from datetime import date
 from hashlib import sha256
 import json
 import re

@@ -1,5 +1,5 @@
 """Salary advance workflow with monthly caps and next-payroll tracking."""
-from datetime import datetime, date
+from datetime import date
 from decimal import Decimal
 
 from sqlalchemy import func, select

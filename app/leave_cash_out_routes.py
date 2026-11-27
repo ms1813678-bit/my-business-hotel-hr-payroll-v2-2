@@ -8,7 +8,6 @@ takes any table lock. Finance/assistant get 403 from require_system_admin on
 every route here; finance read visibility stays on the existing leave read
 surface, unchanged.
 """
-import re
 import secrets
 from datetime import date
 from fractions import Fraction

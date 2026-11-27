@@ -1,5 +1,5 @@
 """Database-backed security roster proposal and explicit confirmation workflow."""
-from datetime import date, time
+from datetime import date
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 

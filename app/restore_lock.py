@@ -269,7 +269,6 @@ class RestoreReadGateMiddleware:
                 return
         _gate_active += 1
         connection = None
-        acquired = False
         try:
             # Opened inside the try: a failed connect must still release the gate slot (fail closed, error propagates).
             connection = open_direct_connection(autocommit=False)
@@ -281,7 +280,6 @@ class RestoreReadGateMiddleware:
                     return cursor.fetchone()[0]
 
                 if await run_in_threadpool(_try_lock):
-                    acquired = True
                     break
                 if time.monotonic() >= deadline:
                     await _send_gate_unavailable(send)

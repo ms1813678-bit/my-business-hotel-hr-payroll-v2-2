@@ -6,7 +6,6 @@ not merely one department. No closed-month rewrite/reopening/cash is provided.
 from dataclasses import asdict
 from datetime import date,datetime,UTC
 import json
-import re
 from sqlalchemy import select,text
 
 from app.config import settings

@@ -1,6 +1,5 @@
 """Monthly evidence editor: drafts and assertion-only receipts, no ledger effects."""
 from datetime import date
-from hashlib import sha256
 from types import SimpleNamespace
 import re,secrets,json
 from dataclasses import asdict
@@ -13,11 +12,7 @@ from app.config import settings
 from app.csrf import csrf_protect,get_csrf_token
 from app.db import SessionLocal
 from app.dependencies import require_system_admin
-from app.models import (AdminAccount,Employee,LeaveOpeningSelection,DepartmentFingerprintPreparation,
-    DepartmentWorkbookPreparation,DepartmentPreparationContract,LeaveBalanceTransaction)
-from app.department_contract import decode_selection
-from app.department_workbook_guard import bounded_workbook_operation
-from app.shift_day_store import read_saved_shift_days
+from app.models import (AdminAccount,Employee,LeaveBalanceTransaction)
 from app.leave_source_reconciliation import reconcile_selected_opening
 from app.leave_transition_draft import draft_transition,LedgerDecision,OpeningReleaseDecision
 

@@ -4,7 +4,7 @@ from decimal import Decimal
 from datetime import date
 
 
-from sqlalchemy import func, select, text
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from app.leave_balance_rules import preview_manual_balance, validate_manual_balance_change

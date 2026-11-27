@@ -10,7 +10,6 @@ import functools
 import http.client
 import ipaddress
 import json
-import os
 import socket
 import ssl
 from urllib.parse import urlparse

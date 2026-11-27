@@ -5,7 +5,7 @@ this gateway. Approval tokens are single-use, hashed at rest, time-limited, and
 bound to the administrator who requested the plan.
 """
 from __future__ import annotations
-from app.leave_exact_amount import canonical_amount, display_days
+from app.leave_exact_amount import canonical_amount
 
 import hashlib
 import json

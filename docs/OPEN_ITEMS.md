@@ -29,3 +29,12 @@ The roster coverage check used a different department rule from the attendance h
 ## What setup seeds (decision by Mo, 27 Nov 17:35)
 
 Setup pre-creates only structure rows: 8 departments (Reception, Security, Housekeeping, Maintenance, Administration, HR, Finance, Purchasing) and the approved shift patterns for Administration, Reception, Security, Housekeeping and Maintenance. It creates no employees, no balances and no sample records. The administrator account is created from the password typed at setup. `tests/test_fresh_install_has_no_business_rows_pg.py` guards the schema step.
+
+## Four unused local variables left on purpose (triage one by one)
+
+Ruff F841 still reports four assignments that were not removed because each could hide lost logic or a side effect. Check each before deleting:
+- `app/attendance_reconciliation.py`: `has_fingerprint_evidence` is computed from unassigned fingerprint punches and never used. It may be a rule that was meant to be applied.
+- `app/leave_opening_apply.py`: `effective = date.fromisoformat(payload['effective_start'])` is never used again, but it also rejects a malformed date. Keep the check, drop the name.
+- `app/leave_month_review_routes.py`: `target` (parsed month value) is not used after assignment.
+- `app/leave_synthetic_register.py`: `employee = db.get(..., populate_existing=True)` is not used; the call refreshes the row.
+The CI gate (`tests/test_pyflakes_gate.py`) checks F401, F811 and F601 only, so these four do not fail CI.

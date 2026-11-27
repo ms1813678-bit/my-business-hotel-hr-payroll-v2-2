@@ -12,7 +12,6 @@ from __future__ import annotations
 import hashlib
 import json
 import secrets
-from datetime import datetime
 from pathlib import Path
 
 from cryptography.exceptions import InvalidTag

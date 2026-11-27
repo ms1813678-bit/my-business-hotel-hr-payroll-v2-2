@@ -5,7 +5,6 @@ from decimal import Decimal
 import re
 from fastapi import APIRouter,Depends,Request,HTTPException
 from fastapi.responses import RedirectResponse
-from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from app.csrf import csrf_protect,get_csrf_token
 from app.db import SessionLocal

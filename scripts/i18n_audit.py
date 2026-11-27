@@ -84,7 +84,6 @@ def main():
             if no_jinja in {"—", "-", "·", "•", "/", "(", ")", ",", ".", ":", ".."}:
                 continue
             ar, lat, cjk = classify(no_jinja)
-            key = (tpl.name, kind, core)
             if ar:
                 if has_jinja:
                     jinja_merged.setdefault(core, set()).add(tpl.name)
