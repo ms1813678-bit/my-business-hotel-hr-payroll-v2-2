@@ -18,7 +18,7 @@ Q = "start_date=2026-10-01&end_date=2026-10-31"
 def _pdf_text(content, tmp_path, name):
     path = tmp_path / name
     path.write_bytes(content)
-    return subprocess.run(["pdftotext", "-layout", str(path), "-"], capture_output=True, text=True).stdout
+    return subprocess.run(["pdftotext", "-layout", str(path), "-"], capture_output=True, text=True, encoding="utf-8", errors="replace").stdout
 
 
 @pytest.mark.skipif(shutil.which("pdftotext") is None, reason="UNRAN: pdftotext (poppler) not installed on this runner")

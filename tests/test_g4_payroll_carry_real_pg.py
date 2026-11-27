@@ -54,7 +54,7 @@ def test_carry_is_a_separate_line_on_the_next_payslip(pgapp):
         with tempfile.TemporaryDirectory() as d:
             path = Path(d) / "payslip.pdf"
             path.write_bytes(r.content)
-            out = subprocess.run(["pdftotext", str(path), "-"], capture_output=True, text=True)
+            out = subprocess.run(["pdftotext", str(path), "-"], capture_output=True, text=True, encoding="utf-8", errors="replace")
             assert out.returncode == 0, out.stderr
             return out.stdout
     dec = pdf_text(dec_id, item_id)
