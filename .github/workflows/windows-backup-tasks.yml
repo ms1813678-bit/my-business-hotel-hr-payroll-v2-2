@@ -30,7 +30,11 @@ jobs:
               $xml=[xml](schtasks.exe /Query /TN $n /XML)
               $p=$xml.Task.Principals.Principal
               Write-Output ("$n -> user=" + $p.UserId + " runLevel=" + $p.RunLevel + " logon=" + $p.LogonType)
-              if($p.RunLevel -ne 'LeastPrivilege'){throw "elevated task: $n"}
+              # The XML export leaves the default (least privilege) out, so read the level from the scheduler object.
+              $level=(Get-ScheduledTask -TaskName $n).Principal.RunLevel
+              Write-Output ("$n -> scheduler RunLevel=" + $level)
+              if("$level" -ne 'Limited'){throw "elevated task: $n"}
+              if($p.RunLevel -eq 'HighestAvailable'){throw "elevated task in xml: $n"}
               if($p.UserId -match 'SYSTEM|S-1-5-18'){throw "SYSTEM task: $n"}
               $st=$xml.Task.Settings
               Write-Output ("$n -> StartWhenAvailable=" + $st.StartWhenAvailable + " DisallowStartIfOnBatteries=" + $st.DisallowStartIfOnBatteries + " StopIfGoingOnBatteries=" + $st.StopIfGoingOnBatteries)
