@@ -1262,7 +1262,7 @@ def test_security_roster_uses_department_history_before_the_first_change(db_sess
         SecurityShiftAssignment(employee_id=guards[1].id, work_date=day, shift_pattern_id=p2.id),
     ])
     db_session.flush()
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="security_roster_requires_at_least_two_guards:2026-11-03"):
         validate_security_roster(db_session, period_start=day, period_end=day)
     # After the move date the same roster is valid.
     later = date(2026, 11, 12)

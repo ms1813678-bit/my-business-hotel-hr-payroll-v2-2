@@ -42,7 +42,9 @@ def test_fresh_database_has_only_the_required_system_rows():
                 if count:
                     found[table] = count
         fresh.dispose()
-        assert found == ALLOWED_NON_EMPTY, found
+        assert found == ALLOWED_NON_EMPTY, f"A fresh database must not contain business data; unexpected non-empty tables: {found}"
+        with fresh.connect() as db:
+            assert db.execute(text("SELECT last_number FROM employee_code_counters WHERE id = 1")).scalar_one() == 0
     finally:
         with admin.connect() as c:
             c.execute(text(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)'))

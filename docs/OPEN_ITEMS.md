@@ -21,3 +21,11 @@ Next step: regenerate the manifest as its own reviewed change, immediately befor
 ## Security roster department rule (fixed)
 
 The roster coverage check used a different department rule from the attendance history function. For a date before an employee's first department change it returned the CURRENT department. Example: Sara worked in Reception until 10 Nov and moved to Housekeeping on 10 Nov. For 3 Nov the history rule says Reception (correct) but the roster check said Housekeeping. Both now use the history rule: start from the current department and undo every change that takes effect after the date.
+
+## Roster department history: error wording (note)
+
+`department_on` in the security roster check raises `employee_department_history_is_incomplete` for a malformed old value, while the attendance history function raises `employee_department_history_is_inconsistent` for its consistency check. Same malformed data, different message. Harmless; unify the wording if both paths are touched again.
+
+## What setup seeds (decision by Mo, 27 Nov 17:35)
+
+Setup pre-creates only structure rows: 8 departments (Reception, Security, Housekeeping, Maintenance, Administration, HR, Finance, Purchasing) and the approved shift patterns for Administration, Reception, Security, Housekeeping and Maintenance. It creates no employees, no balances and no sample records. The administrator account is created from the password typed at setup. `tests/test_fresh_install_has_no_business_rows_pg.py` guards the schema step.
