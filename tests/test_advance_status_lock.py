@@ -4,11 +4,28 @@ from decimal import Decimal
 from uuid import uuid4
 
 import pytest
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 
 from app.advance_workflow import approve_advance, mark_advance_paid, reject_advance
 from app.db import SessionLocal
 from app.models import AdvanceInstallment, AdvanceRequest, Department, Employee
+
+
+_CREATED = []
+
+
+@pytest.fixture(autouse=True)
+def _remove_created_rows():
+    """The CI suite shares one database across sessions: leave no department or employee behind."""
+    yield
+    with SessionLocal.begin() as db:
+        db.execute(text("SET LOCAL session_replication_role = replica"))
+        for request_id, employee_id, dept_id in _CREATED:
+            db.execute(text("DELETE FROM advance_installments WHERE advance_request_id = :r"), {"r": request_id})
+            db.execute(text("DELETE FROM advance_requests WHERE id = :r"), {"r": request_id})
+            db.execute(text("DELETE FROM employees WHERE id = :e"), {"e": employee_id})
+            db.execute(text("DELETE FROM departments WHERE id = :d"), {"d": dept_id})
+    _CREATED.clear()
 
 
 def _make():
@@ -28,6 +45,7 @@ def _make():
                                  reason='synthetic', status='pending', created_by='synthetic')
         db.add(request)
         db.flush()
+        _CREATED.append((request.id, employee.id, dept.id))
         return request.id
 
 
