@@ -1,0 +1,42 @@
+name: Windows backup task rights
+on:
+  push:
+    branches: [ui-overhaul]
+    paths:
+      - scripts/windows/install_backup_tasks.ps1
+      - .github/workflows/windows-backup-tasks.yml
+permissions:
+  contents: read
+jobs:
+  backup-tasks:
+    runs-on: windows-2022
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Install the tasks, read them back, remove them
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          py -3.11 -m venv .venv
+          if($LASTEXITCODE -ne 0){throw 'venv failed'}
+          New-Item -ItemType Directory -Force scripts/backup | Out-Null
+          try {
+            ./scripts/windows/install_backup_tasks.ps1
+            if($LASTEXITCODE -ne 0){throw 'install failed'}
+            $names=@('MY Business Hotel HR - Daily Backup','MY Business Hotel HR - Weekly Backup','MY Business Hotel HR - Quarterly Backup')
+            foreach($n in $names){
+              $xml=[xml](schtasks.exe /Query /TN $n /XML)
+              $p=$xml.Task.Principals.Principal
+              Write-Output ("$n -> user=" + $p.UserId + " runLevel=" + $p.RunLevel + " logon=" + $p.LogonType)
+              if($p.RunLevel -ne 'LeastPrivilege'){throw "elevated task: $n"}
+              if($p.UserId -match 'SYSTEM|S-1-5-18'){throw "SYSTEM task: $n"}
+              $st=$xml.Task.Settings
+              Write-Output ("$n -> StartWhenAvailable=" + $st.StartWhenAvailable + " DisallowStartIfOnBatteries=" + $st.DisallowStartIfOnBatteries + " StopIfGoingOnBatteries=" + $st.StopIfGoingOnBatteries)
+              if($st.StartWhenAvailable -ne 'true'){throw "no catch-up for missed run: $n"}
+              if($st.DisallowStartIfOnBatteries -ne 'false' -or $st.StopIfGoingOnBatteries -ne 'false'){throw "battery rule blocks run: $n"}
+            }
+          } finally {
+            foreach($n in @('MY Business Hotel HR - Daily Backup','MY Business Hotel HR - Weekly Backup','MY Business Hotel HR - Quarterly Backup')){ schtasks.exe /Delete /TN $n /F 2>$null }
+          }
