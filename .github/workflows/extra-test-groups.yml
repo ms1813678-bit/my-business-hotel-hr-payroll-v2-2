@@ -3,6 +3,9 @@ name: Extra test groups outside tests
 # These seven test groups live outside tests/ and were never run by the main suite.
 # They need no database. The first_install_inert folders must run with their own
 # folder as working directory, because test_slice.py opens "native.py" by relative path.
+# windows_parser_rev9 also runs from its own folder: its child processes import
+# "app.windows_job_isolation" from the candidate's own app/ package, and the product's
+# app/ package at the repository root would shadow it (as run_native.py also runs it).
 
 on:
   push:
@@ -45,7 +48,8 @@ jobs:
       - name: verification/parser_trace_review
         run: python -m pytest -q verification/parser_trace_review
       - name: verification/windows_parser_rev9
-        run: python -m pytest -q verification/windows_parser_rev9
+        working-directory: verification/windows_parser_rev9
+        run: python -m pytest -q
       - name: verification/windows_integrated_candidate
         run: python -m pytest -q verification/windows_integrated_candidate
 
@@ -65,8 +69,11 @@ jobs:
       - name: Install project and development dependencies
         run: python -m pip install -e ".[dev]"
       - name: verification/windows_parser_rev9
-        run: python -m pytest -q verification/windows_parser_rev9
+        working-directory: verification/windows_parser_rev9
+        run: python -m pytest -q
       - name: verification/windows_integrated_candidate
+        if: ${{ !cancelled() }}
         run: python -m pytest -q verification/windows_integrated_candidate
       - name: bootstrap
+        if: ${{ !cancelled() }}
         run: python -m pytest -q bootstrap
