@@ -62,6 +62,7 @@ _REASONS: dict[str, tuple] = {
         "تم استخدام مفتاح التقديم هذا مسبقًا لطلب سلفة مختلف؛ لم يتم تسجيل طلب جديد.", None,
         "此提交标识已用于另一笔不同的预支申请；未记录新的申请。"),
     "The previous advance submission record is invalid.": ("سجل طلب السلفة السابق غير صالح.", None, "之前的预支提交记录无效。"),
+    "The advance request no longer exists.": ("طلب السلفة لم يعد موجودًا.", None, "该预支申请已不存在。"),
     "Only a pending advance can be approved.": ("لا يمكن اعتماد إلا سلفة قيد الانتظار.", None, "只有待处理的预支才能批准。"),
     "The monthly advance limit would be exceeded.": ("سيتم تجاوز الحد الشهري للسلف.", None, "将超出每月预支上限。"),
     "Regular advances must be deducted as one monthly advance.": ("يجب خصم السلف العادية كسلفة شهرية واحدة.", None, "普通预支必须作为一笔月度预支扣除。"),

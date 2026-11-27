@@ -32,9 +32,15 @@ def upgrade():
         )
     if "display_name" not in columns:
         op.add_column("admin_accounts", sa.Column("display_name", sa.String(120)))
-    op.drop_constraint("uq_admin_accounts_singleton_key", "admin_accounts", type_="unique")
-    op.drop_constraint("ck_admin_accounts_singleton_key", "admin_accounts", type_="check")
-    op.drop_constraint("ck_admin_accounts_must_remain_active", "admin_accounts", type_="check")
+    inspector = sa.inspect(op.get_bind())
+    unique_names = {c["name"] for c in inspector.get_unique_constraints("admin_accounts")}
+    check_names = {c["name"] for c in inspector.get_check_constraints("admin_accounts")}
+    if "uq_admin_accounts_singleton_key" in unique_names:
+        op.drop_constraint("uq_admin_accounts_singleton_key", "admin_accounts", type_="unique")
+    if "ck_admin_accounts_singleton_key" in check_names:
+        op.drop_constraint("ck_admin_accounts_singleton_key", "admin_accounts", type_="check")
+    if "ck_admin_accounts_must_remain_active" in check_names:
+        op.drop_constraint("ck_admin_accounts_must_remain_active", "admin_accounts", type_="check")
     op.create_check_constraint(
         "ck_admin_accounts_role",
         "admin_accounts",
@@ -43,9 +49,11 @@ def upgrade():
 
 
 def downgrade():
-    # Remove every account except the original system administrator, then
-    # restore the single-account constraints.
+    # Named accounts are never deleted (see the module docstring). Going back to the
+    # single-account schema is only possible while at most one account exists.
     bind = op.get_bind()
+    if bind.scalar(sa.text("SELECT count(*) FROM admin_accounts")) > 1:
+        raise RuntimeError("Refusing downgrade: named accounts would be deleted.")
     first_id = bind.scalar(sa.text("SELECT min(id) FROM admin_accounts"))
     if bind.dialect.name == "postgresql":
         # The no-delete trigger protects accounts at runtime; restoring the

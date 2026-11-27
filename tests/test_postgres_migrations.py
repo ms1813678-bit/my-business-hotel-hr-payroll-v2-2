@@ -230,6 +230,14 @@ def test_fresh_postgres_install_repeated_upgrade_rollback_and_admin_guards(postg
             {"id": audit_id},
         ).scalar_one() == "original"
 
+    # The 0035 downgrade refuses while named accounts exist (they would be deleted), so remove the
+    # extra named account first; the one protected system administrator stays.
+    with test_engine.begin() as connection:
+        # The delete trigger blocks every direct delete; the migration itself drops it the same way.
+        connection.execute(text("ALTER TABLE admin_accounts DISABLE TRIGGER trg_prevent_admin_account_deletion"))
+        connection.execute(text("DELETE FROM admin_accounts WHERE username = 'migration-finance'"))
+        connection.execute(text("ALTER TABLE admin_accounts ENABLE TRIGGER trg_prevent_admin_account_deletion"))
+
     # Downgrade and re-upgrade retain employee data, history, counter, and sequence state.
     downgrade(test_engine, "base")
     with test_engine.connect() as connection:

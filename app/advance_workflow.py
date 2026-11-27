@@ -194,7 +194,19 @@ def create_installments(db: Session, request: AdvanceRequest, installment_count:
     return rows
 
 
+def _lock_request(db: Session, request: AdvanceRequest) -> AdvanceRequest:
+    """Lock the advance row and re-read it, so a stale in-session copy never decides the status check."""
+    locked = db.scalar(
+        select(AdvanceRequest).where(AdvanceRequest.id == request.id)
+        .with_for_update().execution_options(populate_existing=True)
+    )
+    if locked is None:
+        raise ValueError("The advance request no longer exists.")
+    return locked
+
+
 def approve_advance(db: Session, request: AdvanceRequest, actor: str, installment_count: int = 1) -> None:
+    request = _lock_request(db, request)
     if request.status != "pending":
         raise ValueError("Only a pending advance can be approved.")
     employee = db.scalar(
@@ -225,6 +237,7 @@ def approve_advance(db: Session, request: AdvanceRequest, actor: str, installmen
 
 
 def reject_advance(db: Session, request: AdvanceRequest, actor: str, reason: str) -> None:
+    request = _lock_request(db, request)
     if request.status != "pending":
         raise ValueError("Only a pending advance can be rejected.")
     if not reason.strip():
@@ -240,6 +253,7 @@ def reject_advance(db: Session, request: AdvanceRequest, actor: str, reason: str
 
 
 def mark_advance_paid(db: Session, request: AdvanceRequest, actor: str) -> None:
+    request = _lock_request(db, request)
     if request.status != "approved":
         raise ValueError("Only an approved advance can be marked as paid.")
     request.status = "paid"

@@ -9,6 +9,10 @@ from app.backup_crypto import set_passphrase,verify_passphrase
 from app.models import SystemSetting,Employee,AdminAccount,AdminSession
 from app import backup_workflow as b,restore_cli
 archive,root=map(Path,sys.argv[1:])
+from app.db import engine
+# Destructive restore: refuse any database that is not a dedicated synthetic one.
+if not (engine.url.database or '').startswith('synthetic_'):
+    raise SystemExit('Synthetic database name required.')
 original=b.validate_backup_root
 b.validate_backup_root=lambda value,require_external=True:original(value,require_external=False)
 b.PHOTO_DIRECTORY=root/'target-photos'
