@@ -25,6 +25,7 @@ import shutil
 import socket
 import subprocess
 import sys
+import tempfile
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -160,8 +161,10 @@ class EmbeddedServer(Server):
                 raise ProvisionError(f"initdb failed: {done.stderr[-800:]}")
         options = f"-p {self.port} -h 127.0.0.1"
         if not IS_WINDOWS:
-            socket_dir = self.datadir.parent / (self.datadir.name + ".sock")
-            socket_dir.mkdir(exist_ok=True)
+            # Unix socket paths are limited to about 107 bytes; a deep work directory
+            # (CI checkouts are deep) would exceed that, so the socket lives in a short temp dir.
+            socket_dir = Path(tempfile.mkdtemp(prefix="syh"))
+            self.socket_dir = socket_dir
             options += f" -k {socket_dir}"
         log = self.datadir.parent / (self.datadir.name + ".log")
         # The postmaster outlives pg_ctl. If pg_ctl's stdout/stderr were pipes, the
@@ -223,6 +226,9 @@ class EmbeddedServer(Server):
             return
         self._run(["pg_ctl", "-D", str(self.datadir), "-m", "immediate", "stop"])
         self.started = False
+        socket_dir = getattr(self, "socket_dir", None)
+        if socket_dir is not None:
+            shutil.rmtree(socket_dir, ignore_errors=True)
 
 
 @dataclass
