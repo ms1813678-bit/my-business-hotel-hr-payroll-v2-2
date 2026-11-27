@@ -1,3 +1,9 @@
+## 2026-11-27, Instinct: move the two oldest one-off Windows probes to the branch "مهملات" (nothing deleted)
+
+- Moved off ui-overhaul: .github/workflows/windows-lpac-probe.yml, .github/workflows/windows-policy-controls.yml, verification/windows_lpac_probe/ (3 files) and verification/windows_policy_probe/ (4 files). They stay available at the same paths on the branch "مهملات", created from the commit just before this one.
+- Reason: no test, document, installer script or other workflow refers to them (checked by search), so removing them changes no test and no behavior. Mo's WhatsApp reply of 2026-11-27 02:41 chose this smaller cleanup first; the larger probe group waits until the Windows parser is fixed.
+- Not acceptance of anything.
+
 ## 2026-11-26, Instinct: second ETW trace result (inconclusive)
 
 - Result of the second run (head 2c6b56c, run 45786648985, job 139794976377): capture complete (364,033 events, 0 lost, ETL 32,505,856 bytes), child result unchanged (exit 122, refusal_error=5, worker 0xC0000022), 4 child PIDs found, 0 denied events matched by the analyzer. The printed image-load and exit lines contain only the XML header (cut at 400 characters), so no object name and no ExitStatus were captured, and the analyzer's ability to match the NtStatus text is unverified. Cause not established. Inconclusive. Both approved runs are spent; no rerun without a new approval from Mo.
