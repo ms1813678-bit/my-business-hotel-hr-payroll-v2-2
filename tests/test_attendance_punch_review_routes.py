@@ -5,12 +5,12 @@ from decimal import Decimal
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import select, func, delete
+from sqlalchemy import select, func, delete, text
 
 from app import main
 from app.attendance_punch_review_routes import punch_review_router, build_review_view
 from app.db import SessionLocal
-from app.models import AdminAccount, AttendanceDailyRecord, AttendanceImportBatch, Department, Employee
+from app.models import AdminAccount, AdminSession, AttendanceDailyRecord, AttendanceImportBatch, Department, Employee
 from app.security import hash_password
 from tests.test_attendance_punch_review import fixture_bytes
 
@@ -44,8 +44,13 @@ def seeded(monkeypatch):
     with SessionLocal.begin() as db:
         db.execute(delete(Employee).where(Employee.code.in_(['SYN-PR-1', 'SYN-PR-2'])))
         db.execute(delete(Department).where(Department.id == department_id))
-        for account in db.scalars(select(AdminAccount).where(AdminAccount.username.like('syn-pr-%'))):
-            account.active = False
+        # CI sessions share one database and later tests need admin_accounts and admin_sessions empty, so remove
+        # what this file created (same bypass of the sole-admin delete guard that tests/test_g5t_restore_security_real_pg.py uses).
+        db.execute(text("SET LOCAL session_replication_role = replica"))
+        ids = [i for i, in db.execute(select(AdminAccount.id).where(AdminAccount.username.like('syn-pr-%')))]
+        if ids:
+            db.execute(delete(AdminSession).where(AdminSession.admin_account_id.in_(ids)))
+            db.execute(delete(AdminAccount).where(AdminAccount.id.in_(ids)))
 
 
 def counts():

@@ -31,6 +31,12 @@ def discard_sync_uid_for_older_downgrade(connection):
     scripts=ScriptDirectory.from_config(config)
     descendants={revision.revision for revision in scripts.iterate_revisions('heads',REVISION)}
     if current in descendants:
+        # 0084 refuses to downgrade while sync_change_log has rows, and the table is append-only, so tests that
+        # share this disposable database leave rows behind. Empty it here (test-only, disposable database checked above).
+        if connection.execute(text("SELECT to_regclass('sync_change_log')")).scalar():
+            connection.execute(text('ALTER TABLE sync_change_log DISABLE TRIGGER USER'))
+            connection.execute(text('DELETE FROM sync_change_log'))
+            connection.execute(text('ALTER TABLE sync_change_log ENABLE TRIGGER USER'))
         from tests.test_leave_precision_migration import migrate
         migrate(connection, REVISION, down=True)
         current = connection.execute(text('SELECT version_num FROM alembic_version')).scalar()
