@@ -4,12 +4,19 @@ from datetime import date,datetime
 
 
 def main():
-    if os.name!='posix':
+    if os.name=='posix':
+        import resource
+        resource.setrlimit(resource.RLIMIT_CPU,(2,2))
+        resource.setrlimit(resource.RLIMIT_FSIZE,(4_000_000,4_000_000))
+        resource.setrlimit(resource.RLIMIT_AS,(512*1024*1024,512*1024*1024))
+    elif os.name=='nt':
+        # The parent places this process in a job object (CPU, memory, process count) before it runs.
+        # Refuse to parse anything if those limits are not in force.
+        from app.fingerprint_windows_job import verify_current_process_is_bounded
+        if not verify_current_process_is_bounded():
+            raise RuntimeError('Operational parser isolation is not in force.')
+    else:
         raise RuntimeError('Operational parser isolation requires platform acceptance before activation.')
-    import resource
-    resource.setrlimit(resource.RLIMIT_CPU,(2,2))
-    resource.setrlimit(resource.RLIMIT_FSIZE,(4_000_000,4_000_000))
-    resource.setrlimit(resource.RLIMIT_AS,(512*1024*1024,512*1024*1024))
     from app.fingerprint_evidence import parse_fingerprint_evidence
     values=json.loads(sys.stdin.buffer.read(16_000_001))
     payload=base64.b64decode(values['payload'],validate=True)

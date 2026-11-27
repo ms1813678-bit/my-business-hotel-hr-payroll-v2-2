@@ -92,7 +92,7 @@ def test_bounded_valid_alias_inputs(aliases):
 
 def test_platform_readiness_distinct_from_input_and_budget(monkeypatch):
     import app.fingerprint_bounded_parse as module
-    monkeypatch.setattr(module,'_operational_platform',lambda:'nt')
+    monkeypatch.setattr(module,'_operational_platform',lambda:'unsupported-os')
     monkeypatch.setattr(module.subprocess,'run',lambda *a,**k:pytest.fail('no worker launch on unsupported platform'))
     with pytest.raises(module.FingerprintPlatformUnavailable):
         parse_operational_fingerprint(b'synthetic',filename='synthetic.csv',verified_aliases={'SYN':1})

@@ -296,7 +296,7 @@ def test_unsupported_parser_platform_has_zero_persisted_effects(review_context,m
     db,actor,auth,source,export,receipt,pattern,args=review_context
     models=(AttendanceEvidenceReviewReceipt,AttendanceEvidenceConsumption,AttendanceDailyRecord,AuditLog,LeaveBalanceTransaction,PayrollItem)
     before=tuple(count(db,model) for model in models)
-    monkeypatch.setattr(parser,'_operational_platform',lambda:'nt')
+    monkeypatch.setattr(parser,'_operational_platform',lambda:'unsupported-os')
     monkeypatch.setattr(parser.subprocess,'run',lambda *a,**k:pytest.fail('unsupported platform must not launch parser'))
     with pytest.raises(parser.FingerprintPlatformUnavailable):
         prepare_evidence_review(db,**args)

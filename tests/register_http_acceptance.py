@@ -44,7 +44,7 @@ def test_normal_postgres_reviewed_register_end_to_end(history_context,monkeypatc
         detail=client.get(attendance_root,params={'work_date':'2026-05-30'})
         assert detail.status_code==200
         args=dict(csrf_token=token(detail),operation_id='1'*64,work_date='2026-05-30',windows=f'2026-05-30:{ctx["pattern"].id}',selected_window=f'2026-05-30:{ctx["pattern"].id}',in_ordinal='0',out_ordinal='2',reason='Synthetic actual inline endpoints')
-        if os.name!='posix':
+        if os.name not in ('posix','nt'):
             assert client.post(attendance_root+'/review',data=args).status_code==503
             unavailable=client.get('/leave/month-review',params={'month':'2026-05'})
             assert unavailable.status_code==200 and 'register-summary' not in unavailable.text

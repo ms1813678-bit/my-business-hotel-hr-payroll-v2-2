@@ -13,7 +13,7 @@ from tests.test_return_register_cycle import setup_return_chain
 
 def unsupported_boundary(ctx):
     import os
-    if os.name=='posix':return False
+    if os.name in ('posix','nt'):return False
     from app.fingerprint_bounded_parse import FingerprintPlatformUnavailable
     db=ctx['db']
     with pytest.raises(FingerprintPlatformUnavailable):

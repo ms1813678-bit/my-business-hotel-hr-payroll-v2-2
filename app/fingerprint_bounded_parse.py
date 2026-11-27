@@ -15,13 +15,13 @@ OUTPUT_BYTES=4_000_000
 PLATFORM_UNAVAILABLE_MESSAGE = 'قراءة ملف البصمة المعزولة غير متاحة على نظام التشغيل الحالي. لم يتم حفظ مراجعة أو تسجيل حضور. يلزم استكمال دعم ويندوز قبل المتابعة.'
 
 class FingerprintPlatformUnavailable(ValueError):
-    """No qualified isolation adapter exists for this platform."""
+    """No qualified isolation adapter exists for this platform (adapters: POSIX rlimits, Windows job object)."""
 
 def _operational_platform():
     return os.name
 
 def require_operational_parser_platform():
-    if _operational_platform() != 'posix':
+    if _operational_platform() not in ('posix','nt'):
         raise FingerprintPlatformUnavailable(PLATFORM_UNAVAILABLE_MESSAGE)
 
 
@@ -96,6 +96,16 @@ def parse_operational_fingerprint(payload,*,filename,verified_aliases):
     encoded=json.dumps(dict(payload=base64.b64encode(payload).decode('ascii'),filename=filename,aliases=verified_aliases),ensure_ascii=False,separators=(',',':')).encode()
     if len(encoded)>16_000_000:raise ValueError('Bounded parser payload required.')
     require_operational_parser_platform()
+    root=Path(__file__).resolve().parent.parent
+    if os.name=='nt':
+        from app import fingerprint_windows_job as windows_job
+        try:code,raw=windows_job.run_bounded_worker(encoded,root)
+        except subprocess.TimeoutExpired as exc:raise ValueError('Fingerprint parser safety budget exceeded.') from exc
+        except windows_job.JobError as exc:raise FingerprintPlatformUnavailable(PLATFORM_UNAVAILABLE_MESSAGE) from exc
+        if code!=0:raise ValueError('Fingerprint parser refused or exceeded safety budget.')
+        first,last,events,issues=_decode_worker(raw,verified_aliases)
+        return FingerprintEvidence(sha256(payload).hexdigest(),payload,first,last,
+            tuple(MappingProxyType(v) for v in events),tuple(MappingProxyType(v) for v in issues))
     with tempfile.TemporaryFile() as output:
         try:
             result=subprocess.run([sys.executable,'-m','app.fingerprint_parse_worker'],input=encoded,
