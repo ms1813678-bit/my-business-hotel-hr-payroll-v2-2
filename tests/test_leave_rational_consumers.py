@@ -2,8 +2,8 @@
 
 Real identity/epoch fixtures (history_context), no mocks for rows, no gate bypass,
 no skip/xfail. Tests assert the INTENDED behaviour of each consumer.
-Known failing until the writer fixes it (executed probe, see report):
-test_overlap_*: app/leave_overlap_evidence.py encode() cannot serialize Fraction.
+The overlap tests once failed because app/leave_overlap_evidence.py encode() could not
+serialize Fraction; they pass now (all tests in this file pass on PostgreSQL 16, 27 Nov 2026).
 """
 import json
 from datetime import date

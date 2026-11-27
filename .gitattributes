@@ -15,3 +15,4 @@ verification/windows_disc90_probe/** -text
 verification/windows_disc91_probe/** -text
 verification/windows_disc92_probe/** -text
 app/dependencies.py -text
+verification/windows_parser_rev9/** -text
