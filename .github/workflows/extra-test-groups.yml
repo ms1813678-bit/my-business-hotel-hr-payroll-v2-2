@@ -73,6 +73,11 @@ jobs:
         run: python -m pytest -q
       - name: verification/windows_integrated_candidate
         if: ${{ !cancelled() }}
+        # These tests require a canonical temp path. The default runner temp folder is under
+        # C:\Users\runneradmin (8.3 short name RUNNER~1), so they run with the long D:\a\_temp path.
+        env:
+          TEMP: ${{ runner.temp }}
+          TMP: ${{ runner.temp }}
         run: python -m pytest -q verification/windows_integrated_candidate
       - name: bootstrap
         if: ${{ !cancelled() }}
