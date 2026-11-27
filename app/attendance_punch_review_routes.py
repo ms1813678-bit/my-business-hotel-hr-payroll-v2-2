@@ -10,7 +10,7 @@ from app.attendance_import import parse_attendance_workbook, normalize as normal
 from app.attendance_punch_review import build_punch_review
 from app.csrf import csrf_protect, get_csrf_token
 from app.db import SessionLocal
-from app.dependencies import require_attendance_read
+from app.dependencies import require_attendance_write
 from app.models import AdminAccount, Employee
 
 MAX_BYTES = 5 * 1024 * 1024
@@ -83,11 +83,11 @@ def punch_review_router(templates):
         return response
 
     @router.get('/attendance/punch-review', response_class=HTMLResponse)
-    def page(request: Request, admin: AdminAccount = Depends(require_attendance_read)):
+    def page(request: Request, admin: AdminAccount = Depends(require_attendance_write)):
         return render(request, admin)
 
     @router.post('/attendance/punch-review', response_class=HTMLResponse, dependencies=[Depends(csrf_protect)])
-    def review(request: Request, file: UploadFile = File(None), admin: AdminAccount = Depends(require_attendance_read)):
+    def review(request: Request, file: UploadFile = File(None), admin: AdminAccount = Depends(require_attendance_write)):
         if file is None:
             return render(request, admin, 400, ERRORS['empty_file'])
         raw = file.file.read(MAX_BYTES + 1)

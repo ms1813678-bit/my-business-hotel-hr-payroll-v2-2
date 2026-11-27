@@ -20,6 +20,9 @@
  "GET /attendance/months": [
   "require_attendance_read"
  ],
+ "GET /attendance/punch-review": [
+  "require_attendance_write"
+ ],
  "GET /attendance/reconcile": [
   "require_attendance_read"
  ],
@@ -208,6 +211,10 @@
   "require_attendance_write"
  ],
  "POST /attendance/months/{month_id}/approve": [
+  "csrf_protect",
+  "require_attendance_write"
+ ],
+ "POST /attendance/punch-review": [
   "csrf_protect",
   "require_attendance_write"
  ],

@@ -81,7 +81,10 @@ def test_http_auth_csrf_roles_and_nothing_written(seeded):
     with TestClient(main.app) as client:
         assert client.get('/attendance/punch-review').status_code == 401
         assert client.post('/attendance/punch-review', files={'file': ('a.xlsx', fixture_bytes())}).status_code in (401, 403)
-        for role in ('system_admin', 'finance', 'assistant_manager'):
+        with TestClient(main.app) as c:        # finance is read-only on attendance: the upload page is closed to it
+            login(c, 'finance')
+            assert c.get('/attendance/punch-review').status_code == 403
+        for role in ('system_admin', 'assistant_manager'):
             with TestClient(main.app) as c:
                 login(c, role)
                 page = c.get('/attendance/punch-review')
