@@ -133,3 +133,14 @@ def test_monthly_pdf_without_options_names_the_options_not_the_month(seeded):
         response = client.get('/reports/monthly.pdf?month=2026-11')
         assert response.status_code == 400
         assert 'اختر شهرًا صالحًا' not in response.text and 'خيارات التقرير الشهري غير صالحة' in response.text, response.text
+
+
+def test_manual_entry_refusal_is_a_translated_sentence_not_a_raw_code(seeded):
+    with TestClient(main.app) as client:
+        login(client, 'system_admin')
+        csrf = token(client.get('/attendance/import'))
+        for lang, expected in (('ar', 'يلزم ذكر سبب الحضور اليدوي'), ('en', 'A reason is required for manual attendance'), ('zh', '手动考勤需要填写原因')):
+            client.get('/language/' + lang)
+            response = client.post('/attendance/manual', data=dict(csrf_token=csrf, employee_id=1, work_date='2026-07-04',
+                                                                   clock_in='2026-07-04T08:00', clock_out='2026-07-04T16:00', reason='x'))
+            assert response.status_code == 400 and expected in response.text and 'attendance_manual_reason_required' not in response.text

@@ -80,7 +80,7 @@ from app.employee_codes import allocate_employee_code
 from app.leave_workflow import add_balance_entry, cancel_leave, confirm_leave
 from app.advance_workflow import advance_cap_basis, payroll_month_for_advance, approve_advance, create_advance, mark_advance_paid, reject_advance
 from app.models import AdvanceInstallment, CAIRO_TZ
-from app.ai_error_display import safe_failure_message
+from app.ai_error_display import known_reason, safe_failure_message
 from app.ai_errors import LocalizedValueError
 from app.national_id import ERROR_MESSAGE as NATIONAL_ID_ERROR, is_valid_egyptian_national_id
 from app.staff_actions_workflow import (
@@ -1694,7 +1694,7 @@ def attendance_manual_entry(
                 actor=admin.username,
             )
     except (ValueError, KeyError) as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise HTTPException(status_code=400, detail=known_reason(exc, request.state.language) or str(exc)) from exc
     return RedirectResponse("/attendance/review", status_code=303)
 
 
@@ -1719,7 +1719,7 @@ def attendance_approve(
                 clock_out=approved_out, actor=admin.username, reason=reason,
             )
     except (ValueError, KeyError) as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise HTTPException(status_code=400, detail=known_reason(exc, request.state.language) or str(exc)) from exc
     return RedirectResponse("/attendance/review", status_code=303)
 
 

@@ -2,6 +2,7 @@
 
 - Migration 0084 adds the table sync_change_log. It adds no column or row to any business table. app/sync_change_log.py writes and verifies it (per-device counter, hash chain, canonical UTC time, main_seq stamping, export of the new value only). Nothing in the product calls it yet.
 - app/sync_apply.py (sync core part 1b-i): a pure decision step for one incoming device session. It plans, writes nothing and is not called by the product. A change to a field the role cannot see returns the whole session with a warning naming that change (Mo's 22:27 voice note on Rule 6, in meaning); duplicates are no-ops; a broken counter or hash chain is refused; same-field, delete-against-edit and edit-on-deleted go to a conflict list. It requires an explicit edit policy, because edit rights per role are not decided.
+- `/attendance/manual` and `/attendance/{id}/approve` now show a known business refusal (for example a missing reason) as a translated sentence in the page language, where they showed the internal code. A refusal that has no translation is shown as before.
 - A bad date or time sent to `/attendance/manual` or `/attendance/{id}/approve` now returns a fixed message in Arabic, English and Chinese instead of Python's own error text. Nothing else about those routes changed.
 - The schema head is now 0084_sync_change_log; the three tests that pinned 0083 as the head now pin 0084.
 - Design additions and open items: docs/SYNC_DESIGN.md section 8. Mo's 21:22 voice note is worded there as it was said, not as a yes to a specific scope.
