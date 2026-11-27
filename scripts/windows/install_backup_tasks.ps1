@@ -61,12 +61,29 @@ foreach ($Task in $Tasks) {
     if ($LASTEXITCODE -ne 0) {
         throw "Could not create scheduled task: $($Task.Name)"
     }
-    $Existing = Get-ScheduledTask -TaskName $Task.Name
-    $Existing.Settings.StartWhenAvailable = $true
-    $Existing.Settings.DisallowStartIfOnBatteries = $false
-    $Existing.Settings.StopIfGoingOnBatteries = $false
-    $Existing.Settings.ExecutionTimeLimit = "PT2H"
-    Set-ScheduledTask -InputObject $Existing | Out-Null
+    # Set-ScheduledTask asks for a password for a user task, so edit the exported task XML and load it back.
+    $TaskXmlText = (& schtasks.exe /Query /TN $Task.Name /XML | Out-String)
+    if ($LASTEXITCODE -ne 0) { throw "Could not read scheduled task: $($Task.Name)" }
+    $TaskXml = [xml]$TaskXmlText
+    $Ns = New-Object System.Xml.XmlNamespaceManager($TaskXml.NameTable)
+    $Ns.AddNamespace("t", "http://schemas.microsoft.com/windows/2004/02/mit/task")
+    $Settings = $TaskXml.SelectSingleNode("//t:Settings", $Ns)
+    foreach ($Pair in @(@("StartWhenAvailable", "true"), @("DisallowStartIfOnBatteries", "false"), @("StopIfGoingOnBatteries", "false"), @("ExecutionTimeLimit", "PT2H"))) {
+        $Node = $Settings.SelectSingleNode("t:" + $Pair[0], $Ns)
+        if ($null -eq $Node) {
+            $Node = $TaskXml.CreateElement($Pair[0], $Ns.LookupNamespace("t"))
+            [void]$Settings.AppendChild($Node)
+        }
+        $Node.InnerText = $Pair[1]
+    }
+    $XmlFile = Join-Path ([System.IO.Path]::GetTempPath()) ("hotel-backup-task-" + [guid]::NewGuid().ToString("N") + ".xml")
+    try {
+        $TaskXml.Save($XmlFile)
+        & schtasks.exe /Create /TN $Task.Name /XML $XmlFile /F
+        if ($LASTEXITCODE -ne 0) { throw "Could not apply catch-up settings to: $($Task.Name)" }
+    } finally {
+        Remove-Item -LiteralPath $XmlFile -Force -ErrorAction SilentlyContinue
+    }
     Write-Host "Installed scheduled task: $($Task.Name)"
 }
 

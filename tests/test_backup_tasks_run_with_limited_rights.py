@@ -13,6 +13,6 @@ def test_tasks_are_not_system_or_highest():
 
 def test_missed_runs_catch_up_and_battery_does_not_block():
     code = "\n".join(line for line in SCRIPT.splitlines() if not line.lstrip().startswith("#"))
-    assert "Settings.StartWhenAvailable = $true" in code
-    assert "DisallowStartIfOnBatteries = $false" in code and "StopIfGoingOnBatteries = $false" in code
-    assert "Set-ScheduledTask" in code
+    assert '@("StartWhenAvailable", "true")' in code
+    assert '@("DisallowStartIfOnBatteries", "false")' in code and '@("StopIfGoingOnBatteries", "false")' in code
+    assert "/XML" in code and "Set-ScheduledTask" not in code
