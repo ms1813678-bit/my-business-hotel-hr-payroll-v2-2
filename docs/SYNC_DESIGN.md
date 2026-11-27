@@ -1,6 +1,6 @@
 # Three-device sync: design and test plan (draft, nothing built yet)
 
-Status: design note, 27 Nov 2026. It describes what will be built and how it will be proven. It is not a claim that sync exists. Today only identity primitives exist (`sync_uid` on four tables, a read-only snapshot, per-role column visibility). No transport, change log, conflict handling or applier is in the product.
+Status: design note, 27 Nov 2026. It describes what will be built and how it will be proven. It is not a claim that sync exists. Today only identity primitives exist (`sync_uid` on four tables, a read-only snapshot, per-role column visibility). No transport, conflict handling or applier is in the product. The append-only change log table and its module exist since migration 0084 (section 8), unused by any screen.
 
 Sources: Mo's decisions of 23 to 27 Nov (the desktop-app decision record; his 27 Nov 04:47 to 04:49 answers behind rules 4, 7, 8, 9 and 10; and his 27 Nov 17:29 instruction that sync is tested by us in a sandbox and on GitHub, not postponed for lack of hotel PCs). Where this note and the project decisions notebook differ, the notebook and Mo's own messages win and this note changes.
 
@@ -67,3 +67,33 @@ Mo answered "نعم" (yes) to both proposals below on WhatsApp at 2026-11-27 18:
 
 - Decided: device credentials use a one-time pairing code shown on the main device and typed on the new device.
 - Decided: LAN access. The app is bound to this PC only today. Sync needs the main device to accept connections from the two other PCs on the hotel network. LAN access is off by default, turned on by the administrator in settings, and only for the sync address.
+
+## 8. Sync core, part 1a: what exists now (change log only)
+
+Added: migration 0084 `sync_change_log`, `app/sync_change_log.py`, `tests/test_sync_change_log.py`. Nothing writes to the log yet (no screen or service calls it) and nothing reads it except tests, so no behavior of the product changes. This is not sync. It is the record sync will be built on.
+
+- One row is one field change: device id, a per-device counter starting at 1, entity, uid, field, old and new value as snapshot_codec text, a canonical UTC time, the previous row's hash and its own hash. Markers `create` and `delete` use field `*`.
+- Canonical time (from the harness finding 4): `YYYY-MM-DDTHH:MM:SS.ffffffZ`, UTC, fixed width. A naive time is refused.
+- The database keeps the table append-only: no delete, no truncate, no edit. The one allowed update is the main device giving `main_seq` to a row once (NULL to a number).
+- Parent references are logged as `<x>_uid` with the parent's uid, never an integer id. `branch_id` is refused until branches have a uid (open item below).
+- The export carries the new value only. `old_value` stays in the log for the audit trail and is never exported, so a value a role may not see cannot leak through the old side of a change. `app/sync_device_export.py` then filters rows by role. Its `validate()` answers "may this role read this field", not "may it edit it"; edit rights per role are a separate rule nobody has set, so the applier must not use `validate()` for writes.
+- The leave reason, cancellation reason and actor names are readable by all three roles in the current column lists (they are not assistant-only).
+
+Proposals for the next parts (technical items 1 to 3 need no business answer; nobody has approved them yet):
+1. Reference rows created by migrations (for example the leave type "annual") get a different random uid in every install. The sync uid of such a row will be derived from a fixed namespace and its natural key, so all installs agree. This needs a migration step and comes with part 1b.
+2. `branch_name` is derived on the main device when exported. A device keeps it in a read-only, sync-managed cache keyed by branch uid. Branch renames are sent as new `branch_name` values.
+3. The first full-state sync starts the device at the main's current `main_seq`, never at 0.
+
+Mo's 27 Nov 21:22 voice note (wamid.HBgMMjAxNTAwMDY5Mzc1FQIAEhggQTUxQkY5NjREREIzNDUxQUJERTBGMTM5NDM3NDUyODAA), as the coordinator relayed and I checked in the channel: the main device enters the initial data, then it spreads to the other devices; each device sees only what it is allowed to see; he leaves the distribution to us. It is not a literal yes to "employees, departments and leave only on the other PCs", so the first-sync scope below is a proposal that follows from that note.
+
+Proposed first sync scope (not decided by Mo in these words): employees, departments, leave types and leave records go to the other devices, each role filtered; payroll runs, advances and attendance reports stay on the main device.
+
+Open items (not decided, not built):
+- Rule 6 after Mo's voice note of 27 Nov 22:27 (wamid.HBgMMjAxNTAwMDY5Mzc1FQIAEhggQTU3MUNBNTQ5MTY2MTFDQTYzQkMyOUZCNEIyMUNCREYA). In meaning, not as a literal A or B choice: the sync data is not thrown away and re-entered from scratch. It goes back to the administrator who entered it, with a warning that the action he did is wrong and he must remove it so the sync can continue. The whole sync stays stopped (nothing half-applied) until then.
+  Technical proposals for the edge cases, not decided by Mo: (a) the stopped session is kept as "returned" with the name of the offending change; (b) it is kept until the administrator removes the change, and the main device shows it as a pending warning; (c) if that administrator cannot be reached, the main administrator may remove the offending change or discard the session; (d) a returned session is never applied in part; (e) a returned session older than a set number of days (proposal: 30) is shown as expired and needs a decision.
+- Base version per change: two edits of one field in a row from the same device must not look like a conflict. The log has the old value and the counter; the apply part must compare the old value with the main's current value.
+- Wall-clock time can drift between machines. The log keeps both the counter and the time; order decisions use the counter and `main_seq`, the time is shown to people only.
+- Branches have no uid, so branch_id changes cannot be logged yet.
+- Delete and create markers are logged; `sync_device_export` drops field `*` today, so deletes do not reach devices until part 1b handles markers.
+- Pairing code lifetime: proposal 10 minutes, single use. To ask Mo with the other sync points.
+- Offline edits that were made before a restore of the main, and edits to a not-yet-completed employee, need a rule in part 1b.

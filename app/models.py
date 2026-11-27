@@ -2,7 +2,7 @@ from datetime import date, datetime, time, timezone
 from zoneinfo import ZoneInfo
 from decimal import Decimal
 
-from sqlalchemy import Boolean, CheckConstraint, Date, DateTime, ForeignKey, ForeignKeyConstraint, Index, Integer, LargeBinary, Numeric, String, Text, Time, UniqueConstraint, event
+from sqlalchemy import BigInteger, Boolean, CheckConstraint, Date, DateTime, ForeignKey, ForeignKeyConstraint, Index, Integer, LargeBinary, Numeric, String, Text, Time, UniqueConstraint, event
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
@@ -182,6 +182,37 @@ class AuditLog(Base):
     new_value: Mapped[str | None] = mapped_column(Text)
     reason: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+class SyncChangeLog(Base):
+    """Append-only field-level change log for sync (migration 0084). Written by app/sync_change_log.py only."""
+
+    __tablename__ = "sync_change_log"
+    __table_args__ = (
+        UniqueConstraint("origin_device_id", "origin_counter", name="uq_sync_change_log_device_counter"),
+        UniqueConstraint("main_seq", name="uq_sync_change_log_main_seq"),
+        UniqueConstraint("row_hash", name="uq_sync_change_log_row_hash"),
+        CheckConstraint("origin_counter >= 1", name="ck_sync_change_log_counter"),
+        CheckConstraint("main_seq IS NULL OR main_seq >= 1", name="ck_sync_change_log_main_seq"),
+        CheckConstraint("op IN ('set','create','delete')", name="ck_sync_change_log_op"),
+        CheckConstraint("uid ~ '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'", name="ck_sync_change_log_uid_v4").ddl_if(dialect="postgresql"),
+        CheckConstraint("(op = 'set') = (field <> '*')", name="ck_sync_change_log_marker_field"),
+    )
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    origin_device_id: Mapped[str] = mapped_column(String(64))
+    origin_counter: Mapped[int] = mapped_column(BigInteger)
+    main_seq: Mapped[int | None] = mapped_column(BigInteger)
+    restore_epoch: Mapped[str | None] = mapped_column(String(128))
+    op: Mapped[str] = mapped_column(String(10))
+    entity: Mapped[str] = mapped_column(String(40))
+    uid: Mapped[str] = mapped_column(String(36))
+    field: Mapped[str] = mapped_column(String(80))
+    old_value: Mapped[str | None] = mapped_column(Text)
+    new_value: Mapped[str | None] = mapped_column(Text)
+    local_time: Mapped[str] = mapped_column(String(27))
+    prev_hash: Mapped[str] = mapped_column(String(64))
+    row_hash: Mapped[str] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
 
 class AdminSession(Base):
     """Server-side record of one signed-in session so open sessions can be

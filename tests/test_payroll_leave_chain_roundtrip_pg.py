@@ -28,7 +28,8 @@ def test_chain_single_head_and_roundtrip_0083_0082_0081_0080():
     from alembic.config import Config
     from alembic.script import ScriptDirectory
     scripts = ScriptDirectory.from_config(Config(str(ROOT / 'alembic.ini')))
-    assert scripts.get_heads() == ['0083_leave_month_correction']
+    assert scripts.get_heads() == ['0084_sync_change_log']
+    assert scripts.get_revision('0084_sync_change_log').down_revision == '0083_leave_month_correction'
     chain = ['0083_leave_month_correction', '0082_payroll_carry_deduction', '0081_payroll_leave_cash_line', '0080_restore_epoch_rebind']
     for child, parent in zip(chain, chain[1:]):
         assert scripts.get_revision(child).down_revision == parent
@@ -49,11 +50,11 @@ def test_chain_single_head_and_roundtrip_0083_0082_0081_0080():
                 assert ('leave_cash_amount' in got) is leave_cash
                 assert ({'carried_in_deduction', 'carried_out_amount'} <= got) is carry
                 assert bool(table(c)) is corr
-        step('upgrade', 'head', chain[0], True, True, True)
+        step('upgrade', 'head', '0084_sync_change_log', True, True, True)
         step('downgrade', chain[1], chain[1], True, True, False)
         step('downgrade', chain[2], chain[2], True, False, False)
         step('downgrade', chain[3], chain[3], False, False, False)
-        step('upgrade', 'head', chain[0], True, True, True)
+        step('upgrade', 'head', '0084_sync_change_log', True, True, True)
         eng.dispose()
     finally:
         with admin.connect() as c:

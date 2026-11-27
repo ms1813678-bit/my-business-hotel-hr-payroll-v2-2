@@ -1,3 +1,10 @@
+## 2026-11-27, Instinct: sync core part 1a, the append-only change log (not sync, not acceptance)
+
+- Migration 0084 adds the table sync_change_log. It adds no column or row to any business table. app/sync_change_log.py writes and verifies it (per-device counter, hash chain, canonical UTC time, main_seq stamping, export of the new value only). Nothing in the product calls it yet.
+- The schema head is now 0084_sync_change_log; the three tests that pinned 0083 as the head now pin 0084.
+- Design additions and open items: docs/SYNC_DESIGN.md section 8. Mo's 21:22 voice note is worded there as it was said, not as a yes to a specific scope.
+- Review status: not claimed here.
+
 ## 2026-11-27, Instinct: changelog catch-up for the pushes since the cleanup B entry (facts from commits and CI runs; not acceptance)
 
 Review status: this entry makes no claim about independent review of any listed push. The Windows adapter b87a4bf was pushed after Mo's WhatsApp answer of 2026-11-27 03:50:39 to the 02:46:32 question that listed it as item 1 (Windows fingerprint reader), together with b5e8cea and the move of two old probes to the branch.
