@@ -17,7 +17,7 @@ from tests.test_shift_day_http import token
 pytestmark=pytest.mark.skipif(os.environ.get('MANUAL_MONTH_REVIEW_HTTP')!='1',reason='Dedicated committed synthetic_cycle HTTP fixture')
 
 
-def test_selected_month_review_real_http_register_and_unknown_close_block(history_context,monkeypatch):
+def test_selected_month_review_real_http_register_and_unknown_close_block(history_context,monkeypatch,tmp_path):
     monkeypatch.setattr(main,'send_login_alert',lambda *a,**k:None)
     monkeypatch.setattr(main,'send_telegram_login_event',lambda *a,**k:None)
     db,actor,auth,_fact=history_context
@@ -53,7 +53,7 @@ def test_selected_month_review_real_http_register_and_unknown_close_block(histor
         assert 'معاينة فقط، التنفيذ معطّل' in page.text and 'الرصيد المتاح: غير محسوم' in page.text
         assert 'name="comparison_id"' in page.text and ctx['compared'].id in page.text
         from pathlib import Path
-        capture=Path('/downloads/month-review-pixels');capture.mkdir(exist_ok=True)
+        capture=tmp_path/'month-review-pixels';capture.mkdir(exist_ok=True)
         (capture/'ar.html').write_text(page.text)
         for lang in ('en','zh'):
             client.cookies.set('my_hr_language',lang)
