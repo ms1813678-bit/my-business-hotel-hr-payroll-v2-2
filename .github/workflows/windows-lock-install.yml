@@ -1,0 +1,35 @@
+name: Windows pinned dependency install
+on:
+  push:
+    branches: [ui-overhaul]
+    paths:
+      - requirements.lock
+      - pyproject.toml
+      - scripts/windows/setup.ps1
+      - .github/workflows/windows-lock-install.yml
+permissions:
+  contents: read
+jobs:
+  lock-install:
+    runs-on: windows-2022
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Install the lock into a fresh Python 3.11 venv and import the application
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          py -3.11 -m venv "$env:RUNNER_TEMP/lockvenv"
+          if($LASTEXITCODE -ne 0){throw 'venv failed'}
+          $py="$env:RUNNER_TEMP/lockvenv/Scripts/python.exe"
+          & $py -m pip install --require-hashes --no-deps --only-binary=:all: -r requirements.lock
+          if($LASTEXITCODE -ne 0){throw 'hashed install failed'}
+          & $py -m pip check
+          if($LASTEXITCODE -ne 0){throw 'pip check failed'}
+          $env:APP_ENV='test'
+          $env:SESSION_SECRET='ci-test-only-session-secret-not-for-production'
+          $env:DATABASE_URL='postgresql+psycopg://nobody@127.0.0.1:1/none'
+          & $py -c "import app.main, scripts.create_admin, scripts.initialize_database; print('imports ok')"
+          if($LASTEXITCODE -ne 0){throw 'application import failed'}

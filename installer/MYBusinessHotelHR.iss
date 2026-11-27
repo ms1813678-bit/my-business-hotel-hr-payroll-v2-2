@@ -36,6 +36,7 @@ Source: "{#SourceRoot}\scripts\*"; DestDir: "{app}\scripts"; Excludes: "__pycach
 Source: "{#SourceRoot}\docs\*"; DestDir: "{app}\docs"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#SourceRoot}\alembic.ini"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#SourceRoot}\pyproject.toml"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#SourceRoot}\requirements.lock"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#SourceRoot}\.env.example"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#SourceRoot}\README.md"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#SourceRoot}\USER_GUIDE.md"; DestDir: "{app}"; Flags: ignoreversion

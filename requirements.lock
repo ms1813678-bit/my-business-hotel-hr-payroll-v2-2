@@ -1,6 +1,6 @@
 # Candidate lock: CPython 3.11, Windows x64 (win_amd64), wheels only, sha256 for every file.
 # Generated from pyproject.toml ranges with: uv pip compile --python-platform windows --python-version 3.11 --generate-hashes --only-binary :all:
-# Versions need Mo's approval before use. Not used by CI or the installer yet.
+# Pinning with hashes approved by Mo (WhatsApp 2026-11-27 17:29, relayed by Main). Used by scripts/windows/setup.ps1 and the Windows lock-install check in CI.
 # Install: pip install --require-hashes --no-deps --only-binary=:all: -r requirements.lock
 alembic==1.20.1 \
     --hash=sha256:83490def1f723413db5096591f7609ac52544805be93849170088ed04f5a2e0b \

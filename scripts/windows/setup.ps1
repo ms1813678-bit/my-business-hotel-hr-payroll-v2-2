@@ -20,6 +20,9 @@ foreach ($candidate in @("3.11", "3.12", "3.13")) {
     if ($LASTEXITCODE -eq 0) { $PyLauncher = $candidate; break }
 }
 if (-not $PyLauncher) { throw "Python 3.11, 3.12, or 3.13 was not found." }
+# requirements.lock pins exact versions with sha256 hashes (pinning approved by Mo, 2026-11-27 17:29).
+# The lock is for CPython 3.11 on Windows x64 only, so other Python versions are refused instead of installing unpinned.
+if ($PyLauncher -ne "3.11") { throw "Python 3.11 is required (the pinned dependency lock is for 3.11). Install Python 3.11 and run setup again." }
 Write-Host "Using Python $PyLauncher"
 
 if (-not (Test-Path ".venv\Scripts\python.exe")) {
@@ -28,10 +31,10 @@ if (-not (Test-Path ".venv\Scripts\python.exe")) {
 }
 
 $VenvPython = Join-Path $ProjectRoot ".venv\Scripts\python.exe"
-& $VenvPython -m pip install --upgrade pip
-if ($LASTEXITCODE -ne 0) { throw "Could not upgrade pip." }
-& $VenvPython -m pip install -e .
-if ($LASTEXITCODE -ne 0) { throw "Could not install dependencies." }
+# Exact pinned wheels only, every file checked against its sha256 hash. The application runs from this folder
+# and is not installed as a package.
+& $VenvPython -m pip install --require-hashes --no-deps --only-binary=:all: -r (Join-Path $ProjectRoot "requirements.lock")
+if ($LASTEXITCODE -ne 0) { throw "Could not install the pinned dependencies." }
 
 if (-not (Test-Path ".env")) {
     Write-Host "Enter PostgreSQL connection details." -ForegroundColor Yellow
