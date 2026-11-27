@@ -11,7 +11,7 @@ windows_only = pytest.mark.skipif(os.name != "nt", reason="UNRAN: Windows job ob
 
 def test_limits_match_the_posix_worker_bounds():
     from app import fingerprint_windows_job as j
-    src = (ROOT / "app" / "fingerprint_parse_worker.py").read_text()
+    src = (ROOT / "app" / "fingerprint_parse_worker.py").read_text(encoding="utf-8")
     assert j.CPU_SECONDS == 2 and "RLIMIT_CPU,(2,2)" in src
     assert j.MEMORY_BYTES == 512 * 1024 * 1024 and "RLIMIT_AS,(512*1024*1024" in src
     assert j.OUTPUT_LIMIT == 4_000_000 and "RLIMIT_FSIZE,(4_000_000" in src
@@ -29,7 +29,7 @@ def test_required_job_flags_cover_time_memory_processes_and_kill_on_close():
 
 
 def test_worker_refuses_to_run_unless_isolation_is_verified():
-    src = (ROOT / "app" / "fingerprint_parse_worker.py").read_text()
+    src = (ROOT / "app" / "fingerprint_parse_worker.py").read_text(encoding="utf-8")
     assert "verify_current_process_is_bounded" in src and "isolation is not in force" in src
     assert src.index("verify_current_process_is_bounded()") < src.index("parse_fingerprint_evidence(payload")
 
@@ -54,12 +54,12 @@ def test_gate_accepts_posix_and_nt_and_nothing_else(monkeypatch):
 
 def test_route_gates_use_the_same_function():
     for name in ("shift_day_routes.py", "leave_month_review_routes.py"):
-        src = (ROOT / "app" / name).read_text()
+        src = (ROOT / "app" / name).read_text(encoding="utf-8")
         assert "require_operational_parser_platform()" in src and "os.name" not in src
 
 
 def test_no_unbounded_fallback_in_parse_path():
-    src = (ROOT / "app" / "fingerprint_bounded_parse.py").read_text()
+    src = (ROOT / "app" / "fingerprint_bounded_parse.py").read_text(encoding="utf-8")
     nt = src[src.index("if os.name=='nt':"):src.index("with tempfile.TemporaryFile()")]
     assert "subprocess.run" not in nt and "JobError" in nt and "FingerprintPlatformUnavailable" in nt
 
@@ -81,11 +81,22 @@ def test_worker_inside_the_job_sees_the_limits():
 
 @windows_only
 def test_endless_loop_is_killed_within_budget():
+    # The guarantee: a busy loop never returns a result and is gone within the budget.
+    # Which limit stops it (2 s CPU limit or 3 s wall limit) is measured and reported, not asserted.
+    import warnings
     from app import fingerprint_windows_job as j
     started = time.monotonic()
-    code, out = j.run_bounded_worker(b"", ROOT, ("-c", "while True: pass"))
-    assert time.monotonic() - started < 6
-    assert code != 0
+    result = None
+    try:
+        result = j.run_bounded_worker(b"", ROOT, ("-c", "while True: pass"))
+        ended = "job CPU limit (process exited with code %s, output %d bytes)" % (result[0], len(result[1]))
+    except subprocess.TimeoutExpired:
+        ended = "wall budget (TimeoutExpired)"
+    elapsed = time.monotonic() - started
+    warnings.warn("endless-loop worker ended by %s after %.2f s" % (ended, elapsed))
+    if result is not None:
+        assert result[0] != 0 and result[1] == b""
+    assert elapsed < 6
 
 
 @windows_only

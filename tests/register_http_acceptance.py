@@ -63,13 +63,13 @@ def test_normal_postgres_reviewed_register_end_to_end(history_context,monkeypatc
         from pathlib import Path
         import tempfile
         capture=Path(os.environ.get('REGISTER_CAPTURE_DIR') or tempfile.mkdtemp(prefix='register-http-'));capture.mkdir(parents=True,exist_ok=True)
-        (capture/(lang+'.html')).write_text(page.text)
+        (capture/(lang+'.html')).write_text(page.text,encoding='utf-8')
         for lang in ('en','zh'):
             client.cookies.set('my_hr_language',lang)
             localized=client.get('/leave/month-review',params={'month':'2026-05'})
             content=localized.text.split('<main class="content">',1)[1].split('<footer>',1)[0]
             assert re.search(r'[\u0600-\u06ff]',re.sub(r'<bdi>.*?</bdi>','',content)) is None, [(m.start(),content[max(0,m.start()-50):m.start()+130]) for m in re.finditer(r'[\u0600-\u06ff]+',content)]
-            (capture/(lang+'.html')).write_text(localized.text)
+            (capture/(lang+'.html')).write_text(localized.text,encoding='utf-8')
         client.cookies.set('my_hr_language','ar')
         assert client.get('/leave/month-review',params={'month':'2026-5'}).status_code==400
         assert client.get('/leave/month-review',params={'year':'2026','month_number':'05'}).status_code==200
@@ -96,13 +96,13 @@ def test_normal_postgres_reviewed_register_end_to_end(history_context,monkeypatc
         reviewed=client.post('/leave/month-review/register-review',data=data)
         assert reviewed.status_code==200 and 'id="register-summary"' in reviewed.text
         assert 'الملخص معروض؛ لم يتم التسجيل بعد' in reviewed.text and 'إجازة سنوية' in reviewed.text
-        (capture/'review-ar.html').write_text(reviewed.text)
+        (capture/'review-ar.html').write_text(reviewed.text,encoding='utf-8')
         for lang in ('en','zh'):
             client.cookies.set('my_hr_language',lang)
             localized=client.post('/leave/month-review/register-review',data=data)
             content=localized.text.split('<main class="content">',1)[1].split('<footer>',1)[0]
             assert re.search(r'[\u0600-\u06ff]',re.sub(r'<bdi>.*?</bdi>','',content)) is None, [(m.start(),content[max(0,m.start()-50):m.start()+130]) for m in re.finditer(r'[\u0600-\u06ff]+',content)]
-            (capture/('review-'+lang+'.html')).write_text(localized.text)
+            (capture/('review-'+lang+'.html')).write_text(localized.text,encoding='utf-8')
         client.cookies.set('my_hr_language','ar')
         proof=re.search('name="proof" value="([^"]+)"',reviewed.text).group(1)
         assert counts()==before
@@ -135,10 +135,10 @@ def test_normal_postgres_reviewed_register_end_to_end(history_context,monkeypatc
         monkeypatch.setattr(main.templates,'TemplateResponse',original_template)
         result=client.post('/leave/month-review/register-confirm',data=confirm)
         assert result.status_code==200
-        (capture/'saved-ar.html').write_text(result.text)
+        (capture/'saved-ar.html').write_text(result.text,encoding='utf-8')
         for output_lang in ('en','zh'):
             client.cookies.set('my_hr_language',output_lang)
-            (capture/('saved-'+output_lang+'.html')).write_text(client.get('/leave/month-review',params={'month':'2026-05'}).text)
+            (capture/('saved-'+output_lang+'.html')).write_text(client.get('/leave/month-review',params={'month':'2026-05'}).text,encoding='utf-8')
         client.cookies.set('my_hr_language','ar')
         after=counts();assert after[:2]==(before[0]+2,before[1]+1) and after[2:]==before[2:]
         assert client.post('/leave/month-review/register-confirm',data=confirm).status_code==200 and counts()==after

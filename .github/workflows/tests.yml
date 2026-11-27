@@ -101,6 +101,8 @@ jobs:
         run: |
           $cmd = Get-Command pdftotext -ErrorAction SilentlyContinue
           if ($cmd) { Write-Host ("pdftotext resolves to: {0}" -f $cmd.Source) } else { Write-Host "pdftotext not found on PATH" }
+          # Diagnostic only: shows whether CJK text extraction data ships with this poppler.
+          if ($cmd) { $root = Split-Path (Split-Path $cmd.Source); Get-ChildItem -Path (Join-Path $root "share") -Directory -ErrorAction SilentlyContinue | ForEach-Object { Write-Host ("poppler share dir: {0}" -f $_.FullName) } }
       - name: Parse Windows PowerShell scripts
         shell: pwsh
         run: |

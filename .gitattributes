@@ -11,3 +11,7 @@ verification/windows_startup_probe/** -text
 verification/windows_dependency_probe/** -text
 verification/windows_forwarder_probe/** -text
 verification/windows_trace_diagnostic/** -text
+verification/windows_disc90_probe/** -text
+verification/windows_disc91_probe/** -text
+verification/windows_disc92_probe/** -text
+app/dependencies.py -text

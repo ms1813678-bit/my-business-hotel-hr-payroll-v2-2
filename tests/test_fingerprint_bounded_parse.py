@@ -1,3 +1,4 @@
+import os
 from datetime import datetime
 import subprocess
 import pytest
@@ -12,6 +13,7 @@ def test_actual_worker_preserves_global_duplicates_unknowns():
     assert result.occurrences[1]['punch_at']==result.occurrences[2]['punch_at']==datetime(2026,11,1,8)
 
 
+@pytest.mark.skipif(os.name!="posix",reason="UNRAN: exercises the POSIX subprocess path; the Windows job adapter has its own tests in test_fingerprint_windows_job.py")
 def test_timeout_controlled_and_no_shell_no_inherited_secrets(monkeypatch):
     # Isolate timeout/IPC behavior independent of platform-readiness gate.
     monkeypatch.setattr('app.fingerprint_bounded_parse._operational_platform',lambda:'posix')
@@ -49,6 +51,7 @@ def test_nonexecutable_bad_worker_schema_refusal(raw):
     with pytest.raises(ValueError):_decode_worker(raw)
 
 
+@pytest.mark.skipif(os.name!="posix",reason="UNRAN: exercises the POSIX subprocess path; the Windows job adapter has its own tests in test_fingerprint_windows_job.py")
 def test_real_wall_budget_kills_waits_and_cleanly_refuses(monkeypatch):
     monkeypatch.setattr('app.fingerprint_bounded_parse._operational_platform',lambda:'posix')
     import app.fingerprint_bounded_parse as module
@@ -63,6 +66,7 @@ def test_real_wall_budget_kills_waits_and_cleanly_refuses(monkeypatch):
     assert seen['stderr']==subprocess.DEVNULL
 
 
+@pytest.mark.skipif(os.name!="posix",reason="UNRAN: exercises the POSIX subprocess path; the Windows job adapter has its own tests in test_fingerprint_windows_job.py")
 def test_oversize_child_output_clean_refusal(monkeypatch):
     monkeypatch.setattr('app.fingerprint_bounded_parse._operational_platform',lambda:'posix')
     import app.fingerprint_bounded_parse as module

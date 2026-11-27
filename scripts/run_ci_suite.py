@@ -28,13 +28,13 @@ WINDOWS_SECONDS_8E1={
     'tests/test_ai_selector_pg.py':11,
     'tests/test_ai_smart_scan.py':9,
     'tests/test_annual_zero_retry_after_growth_independent.py':12,
-    'tests/test_attendance_evidence_review.py':25,
+    'tests/test_attendance_evidence_review.py':46,
     'tests/test_attendance_upload_race_pg.py':29,
     'tests/test_auth_gate_queue_pg.py':6,
     'tests/test_backup_workflow.py':29,
     'tests/test_carry_allocation_retry.py':22,
     'tests/test_carry_availability_compact.py':35,
-    'tests/test_carry_consumption_http_pg.py':172,
+    'tests/test_carry_consumption_http_pg.py':176,
     'tests/test_carry_consumption_migration_pg.py':25,
     'tests/test_carry_expiry_http_pg.py':128,
     'tests/test_department_preparation_workflow.py':5,
@@ -50,7 +50,7 @@ WINDOWS_SECONDS_8E1={
     'tests/test_l8_annual_source_adversarial.py':35,
     'tests/test_l8_annual_store_adversarial.py':15,
     'tests/test_l8_carried_balance_cycle_pg.py':23,
-    'tests/test_l8_carry_allocation_forgery.py':16,
+    'tests/test_l8_carry_allocation_forgery.py':17,
     'tests/test_l8_carry_availability_extra.py':6,
     'tests/test_l8_carry_consumption_adversarial.py':152,
     'tests/test_l8_cash_out_adversarial.py':6,
@@ -68,17 +68,17 @@ WINDOWS_SECONDS_8E1={
     'tests/test_l8_year2_closing_consumers.py':50,
     'tests/test_l8_year2_composition.py':29,
     'tests/test_l8_year2_net_owner_adversarial.py':23,
-    'tests/test_l8_year2_net_source.py':24,
-    'tests/test_l8_year2_post_allocation.py':90,
+    'tests/test_l8_year2_net_source.py':353,
+    'tests/test_l8_year2_post_allocation.py':176,
     'tests/test_l8_year2_post_cash.py':90,
-    'tests/test_l8_year2_recorded_source.py':90,
+    'tests/test_l8_year2_recorded_source.py':419,
     'tests/test_l8_year3_post_allocation.py':90,
     'tests/test_l8_year_transition_replay.py':57,
     'tests/test_leave_annual_settlement_http_negative_pg.py':12,
     'tests/test_leave_annual_settlement_http_pg.py':30,
     'tests/test_leave_annual_settlement_migration_pg.py':15,
     'tests/test_leave_annual_settlement_source.py':12,
-    'tests/test_leave_annual_settlement_store.py':11,
+    'tests/test_leave_annual_settlement_store.py':15,
     'tests/test_leave_carry_allocation_store.py':11,
     'tests/test_leave_carry_availability.py':40,
     'tests/test_leave_carry_consumption.py':143,
@@ -86,33 +86,33 @@ WINDOWS_SECONDS_8E1={
     'tests/test_leave_carry_expiry.py':189,
     'tests/test_leave_carry_grant.py':10,
     'tests/test_leave_cash_out_approved_item_http_pg.py':6,
-    'tests/test_leave_cash_out_http_pg.py':6,
+    'tests/test_leave_cash_out_http_pg.py':7,
     'tests/test_leave_cash_out_migration_pg.py':10,
     'tests/test_leave_completed_year_source.py':8,
-    'tests/test_leave_exact_adjustment.py':14,
+    'tests/test_leave_exact_adjustment.py':27,
     'tests/test_leave_month_close_readiness.py':11,
     'tests/test_leave_month_correction_0083_migration_pg.py':7,
     'tests/test_leave_month_earning.py':7,
-    'tests/test_leave_month_earning_guards.py':6,
+    'tests/test_leave_month_earning_guards.py':7,
     'tests/test_leave_next_year_earning.py':15,
     'tests/test_leave_opening_apply.py':21,
     'tests/test_leave_opening_apply_races.py':11,
-    'tests/test_leave_opening_receipt_consumers.py':11,
-    'tests/test_leave_policy_impact.py':5,
-    'tests/test_leave_recorded_source_versions.py':24,
-    'tests/test_leave_register_preparation.py':20,
+    'tests/test_leave_opening_receipt_consumers.py':12,
+    'tests/test_leave_policy_impact.py':6,
+    'tests/test_leave_recorded_source_versions.py':26,
+    'tests/test_leave_register_preparation.py':21,
     'tests/test_leave_routes.py':5,
     'tests/test_leave_source_reconciliation.py':6,
     'tests/test_leave_synthetic_transition.py':17,
     'tests/test_leave_workbench_routes.py':5,
-    'tests/test_leave_year_transition.py':104,
-    'tests/test_leave_zero_decision.py':15,
+    'tests/test_leave_year_transition.py':106,
+    'tests/test_leave_zero_decision.py':16,
     'tests/test_login_security.py':10,
     'tests/test_m3c.py':13,
     'tests/test_manual_opening_fullpath.py':13,
     'tests/test_manual_opening_identity_migration.py':12,
-    'tests/test_month_earning_http_pg.py':24,
-    'tests/test_opening_apply_http_pg.py':14,
+    'tests/test_month_earning_http_pg.py':35,
+    'tests/test_opening_apply_http_pg.py':24,
     'tests/test_opening_rebind_http_pg.py':22,
     'tests/test_overtime_day_award.py':10,
     'tests/test_overtime_day_concurrency.py':14,
@@ -134,8 +134,8 @@ WINDOWS_SECONDS_8E1={
     'tests/test_restore_interruption.py':11,
     'tests/test_restore_rebind_0080_downgrade_pg.py':16,
     'tests/test_restore_reconciliation.py':8,
-    'tests/test_return_register.py':21,
-    'tests/test_return_register_http_pg.py':28,
+    'tests/test_return_register.py':32,
+    'tests/test_return_register_http_pg.py':32,
     'tests/test_role_matrix_static.py':5,
     'tests/test_roles.py':20,
     'tests/test_routes_security.py':50,
@@ -143,7 +143,7 @@ WINDOWS_SECONDS_8E1={
     'tests/test_sync_snapshot_pg.py':15,
     'tests/test_sync_uid_migration.py':10,
     'tests/test_sync_uid_models.py':10,
-    'tests/test_sync_uid_roundtrip.py':43,
+    'tests/test_sync_uid_roundtrip.py':44,
     'tests/test_telegram_reauth.py':7,
     'tests/test_test_db_guard.py':17,
     'tests/test_triage_fixes_v4.py':5,
@@ -159,24 +159,45 @@ WINDOWS_SECONDS_8E1={
     'tests/test_zero_expiry_races_pg.py':83,
     'tests/test_zero_independent_review.py':8,
     'tests/test_zero_ui_owner_adversarial.py':12,
+    'tests/test_fingerprint_windows_job.py':7,
+    'tests/test_return_register_cycle.py':33,
 }
 DEFAULT_SECONDS=2
-CHUNKS=9
+CHUNKS=11
 LINUX_CHUNKS=5
 LINUX_TIMING_FILE=Path(__file__).with_name("ci_linux_seconds.json")
 
 
 def chunks(files,count=CHUNKS):
-    """Contiguous, order-preserving split balanced by measured seconds."""
+    """Contiguous, order-preserving split: smallest possible largest chunk, then the largest possible smallest chunk."""
     files=list(files)
     weights=[WINDOWS_SECONDS_8E1.get(f,DEFAULT_SECONDS) for f in files]
-    total=sum(weights)
-    out=[[] for _ in range(count)];index=0;seen=0
-    for f,weight in zip(files,weights):
-        # Move to the next chunk once this chunk has its cumulative share.
-        if index<count-1 and out[index] and seen+weight/2>total*(index+1)/count:
-            index+=1
-        out[index].append(f);seen+=weight
+    size=len(files)
+    if size<count:raise RuntimeError('Every test file must run exactly once in a non-empty chunk.')
+    prefix=[0]
+    for weight in weights:prefix.append(prefix[-1]+weight)
+    def cuts(low,high):
+        # Cut points of a split into exactly count chunks with every chunk total in [low,high], or None.
+        ends=[{0:None}]
+        for _ in range(count):
+            nxt={}
+            for start in ends[-1]:
+                for stop in range(start+1,size+1):
+                    total=prefix[stop]-prefix[start]
+                    if total>high:break
+                    if total>=low and stop not in nxt:nxt[stop]=start
+            ends.append(nxt)
+        if size not in ends[-1]:return None
+        out=[];stop=size
+        for level in range(count,0,-1):
+            start=ends[level][stop];out.append((start,stop));stop=start
+        return out[::-1]
+    high=max(weights)
+    while cuts(1,high) is None:high+=1
+    low=high
+    while cuts(low,high) is None:low-=1
+    spans=cuts(low,high)
+    out=[files[start:stop] for start,stop in spans]
     if any(not group for group in out) or [f for group in out for f in group]!=files:
         raise RuntimeError('Every test file must run exactly once in a non-empty chunk.')
     return out
