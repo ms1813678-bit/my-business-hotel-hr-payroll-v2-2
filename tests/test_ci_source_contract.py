@@ -78,7 +78,7 @@ def test_dispatcher_migrates_and_runs_every_file_and_cleans(monkeypatch):
     assert commands[0][0][-1]=='scripts.initialize_database'
     assert all('synthetic_leave_ci' in c[1]['env']['DATABASE_URL'] for c in pytest_runs[:-1])
     assert 'synthetic_cycle_ci' in pytest_runs[-1][1]['env']['DATABASE_URL']
-    assert all(c[1]['timeout']==900 for c in pytest_runs)
+    assert all(c[1]['timeout']==1800 for c in pytest_runs)
     actual=[f for c in pytest_runs for f in c[0][4:]]
     assert sorted(actual)==sorted(f for _,files in runner.assignments(WORKFLOW.parents[2]) for f in files)
     assert len(actual)==len(set(actual))
@@ -203,7 +203,7 @@ def test_windows_cleanup_does_not_stop_never_started_cluster():
 def test_children_have_bounded_migration_and_suite_timeouts():
     source=(WORKFLOW.parents[2]/'scripts/run_ci_suite.py').read_text()
     assert 'check=True,timeout=120' in source
-    assert 'check=True,timeout=900' in source
+    assert 'check=True,timeout=1800' in source
     assert WORKFLOW.read_text().count('timeout-minutes: 45')==1
     assert WORKFLOW.read_text().count('timeout-minutes: 75')==0
     # Windows job raised from 90 to 105 after run 45935465700 took about 85 min (same work, more margin).
@@ -322,7 +322,7 @@ def test_failed_session_does_not_hide_later_chunks_or_cycle(monkeypatch, failure
         commands.append((args,kw))
         if args[2:3] == ['pytest'] and len([x for x,_ in commands if x[2:3] == ['pytest']]) == 1:
             if failure_kind == 'exit': raise subprocess.CalledProcessError(1,args)
-            raise subprocess.TimeoutExpired(args,900)
+            raise subprocess.TimeoutExpired(args,1800)
     monkeypatch.setattr(runner.subprocess,'run',run)
     with pytest.raises(RuntimeError, match='CI suite failed in sessions: synthetic_leave_ci:1'):
         runner.main()

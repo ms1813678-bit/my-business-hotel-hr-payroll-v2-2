@@ -16,7 +16,9 @@ CYCLE_FILES=frozenset({'tests/test_return_register_cycle.py'})
 # never reached in any run (session cut by the 900s cap) and carry an ESTIMATE of 90s each.
 # The earlier 8e1 table omitted the slow carry/leave/l8 files, so sessions hit the 900s cap.
 # Weights only decide where contiguous chunk boundaries fall. Every file still runs
-# exactly once, nothing is skipped, and the per-session cap stays 900 seconds.
+# exactly once, nothing is skipped. The chunk weights still aim well under 900 seconds; the hard
+# per-session timeout is 1800 seconds because hosted runners were up to twice as slow on busy days
+# (runs 46054180861 and 46054475638 lost session 3 of 5 to a 900 s timeout with every test passing).
 WINDOWS_SECONDS_8E1={
     'tests/test_a1_department_asof.py':25,
     'tests/test_advance_routes.py':7,
@@ -283,7 +285,7 @@ def main():
             for number,group in enumerate(groups,1):
                 print(f'  session {number}/{len(groups)}: {len(group)} test files',flush=True)
                 try:
-                    subprocess.run([sys.executable,'-m','pytest','-v',*group],cwd=root,env=env,check=True,timeout=900)
+                    subprocess.run([sys.executable,'-m','pytest','-v',*group],cwd=root,env=env,check=True,timeout=1800)
                 except (subprocess.CalledProcessError,subprocess.TimeoutExpired) as exc:
                     # A failing session must not silently leave later chunks unrun.
                     suite_failures.append((name,number,exc))
