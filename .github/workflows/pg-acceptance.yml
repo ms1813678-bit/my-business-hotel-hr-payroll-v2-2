@@ -1,0 +1,67 @@
+name: PostgreSQL acceptance tests (env-gated)
+
+# These tests are skipped by the normal suite because each needs its own freshly migrated,
+# specially named synthetic database (and some need a second session or a restore).
+# scripts/run_pg_acceptance.sh creates one database per group. Synthetic data only.
+# Not a hotel install, not production activation, not acceptance by itself.
+
+on:
+  push:
+    branches:
+      - '**'
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  acceptance:
+    name: PostgreSQL 16 acceptance groups (Linux, Python 3.11)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: hotel_test
+          POSTGRES_USER: hotel_test
+          POSTGRES_PASSWORD: test-only-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U hotel_test -d hotel_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      SESSION_SECRET: ci-test-only-session-secret-not-for-production
+      PGHOST: 127.0.0.1
+      PGPORT: "5432"
+      PGUSER: hotel_test
+      PGPASSWORD: test-only-password
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install project and development dependencies
+        run: python -m pip install -e ".[dev]"
+      - name: Select PostgreSQL 16 client tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          pg_bin=/usr/lib/postgresql/16/bin
+          if [ ! -x "$pg_bin/pg_dump" ] || [ ! -x "$pg_bin/pg_restore" ]; then
+            sudo apt-get update
+            sudo apt-get install --yes postgresql-client-16
+          fi
+          "$pg_bin/pg_dump" --version | grep -E 'PostgreSQL\) 16\.'
+          "$pg_bin/pg_restore" --version | grep -E 'PostgreSQL\) 16\.'
+          echo "$pg_bin" >> "$GITHUB_PATH"
+      - name: Run the env-gated acceptance groups
+        run: bash scripts/run_pg_acceptance.sh

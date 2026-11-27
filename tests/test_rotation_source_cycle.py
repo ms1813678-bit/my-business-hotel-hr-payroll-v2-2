@@ -11,6 +11,14 @@ from sqlalchemy import select,text
 pytestmark=pytest.mark.skipif(os.environ.get('MANUAL_ARCHIVE_ROUNDTRIP')!='1',reason='Dedicated disposable DB and compatible pg clients required')
 
 
+def _alembic_head():
+    from alembic.config import Config
+    from alembic.script import ScriptDirectory
+    root=Path(__file__).resolve().parents[1]
+    config=Config(str(root/'alembic.ini'));config.set_main_option('script_location',str(root/'alembic'))
+    return ScriptDirectory.from_config(config).get_current_head()
+
+
 def test_actual_encrypted_archive_preserves_ot_chain_monthly_and_rollback(tmp_path,monkeypatch):
     from app.config import settings
     from app.db import SessionLocal,engine
@@ -66,7 +74,7 @@ def test_actual_encrypted_archive_preserves_ot_chain_monthly_and_rollback(tmp_pa
         assert saved.status=='success',saved.error_message
         archive=Path(saved.archive_path);archive_sha=saved.sha256
         manifest=b.verify_backup_archive(archive,archive_sha,load_data_key(db))
-        assert manifest['schema_revision']=='0065_overtime_day_review'
+        assert manifest['schema_revision']==_alembic_head()
         assert archive.suffix=='.enc' and manifest['employee_photo_count']==1
     from app.backup_crypto import unwrap_data_key_from_record,WrongPassphraseError
     from app.backup_workflow import export_key_file,KEY_FILE_NAME
@@ -81,7 +89,7 @@ def test_actual_encrypted_archive_preserves_ot_chain_monthly_and_rollback(tmp_pa
         recovered=unwrap_data_key_from_record(new_record,phrase)
         assert recovered==load_data_key(db)
         with pytest.raises(WrongPassphraseError):unwrap_data_key_from_record(new_record,old_phrase)
-        assert b.verify_backup_archive(archive,archive_sha,recovered)['schema_revision']=='0065_overtime_day_review'
+        assert b.verify_backup_archive(archive,archive_sha,recovered)['schema_revision']==_alembic_head()
     with SessionLocal.begin() as db:
         db.get(SystemSetting,'synthetic-business-marker').value='CURRENT'
         common=db.scalar(select(AdminAccount).where(AdminAccount.username=='synthetic-common'))

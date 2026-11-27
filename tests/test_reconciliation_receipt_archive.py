@@ -7,6 +7,14 @@ from app.db import SessionLocal,engine
 from app.models import LeaveReconciliationReviewReceipt,LeaveReconciliationApproval,SystemSetting,AdminAccount,AdminSession
 from app.leave_reconciliation_receipt import receipt_hash
 
+def _alembic_head():
+    from alembic.config import Config
+    from alembic.script import ScriptDirectory
+    root=Path(__file__).resolve().parents[1]
+    config=Config(str(root/'alembic.ini'));config.set_main_option('script_location',str(root/'alembic'))
+    return ScriptDirectory.from_config(config).get_current_head()
+
+
 pytestmark=pytest.mark.skipif(os.getenv('MANUAL_RECEIPT_ARCHIVE')!='1',reason='Dedicated completed synthetic HTTP fixture DB only')
 
 
@@ -34,7 +42,7 @@ def test_nonempty_receipt_actual_archive_restore_rollback(tmp_path,monkeypatch):
         backup=b.create_backup(db,'manual','synthetic-workbook-store')
         assert backup.status=='success',backup.error_message
         archive=backup.archive_path;digest=backup.sha256
-        assert b.verify_backup_archive(Path(archive),digest,load_data_key(db))['schema_revision']=='0064_reconciliation_approval'
+        assert b.verify_backup_archive(Path(archive),digest,load_data_key(db))['schema_revision']==_alembic_head()
     with SessionLocal.begin() as db:
         db.get(SystemSetting,'synthetic-receipt-archive-marker').value='CURRENT'
         actor=db.scalar(select(AdminAccount).where(AdminAccount.username=='synthetic-workbook-store'))

@@ -91,15 +91,28 @@ def test_actual_two_sessions_no_shared_to_exclusive_upgrade_deadlock(history_con
     db.commit()
     barrier=Barrier(2)
     def read():
+        from fastapi import HTTPException
         with SessionLocal() as other:
             barrier.wait(timeout=5)
-            r=prepare_month_close_readiness(other,**args)
+            try:
+                r=prepare_month_close_readiness(other,**args)
+            except HTTPException as exc:
+                # Intentional fail-closed gate (auth gate try-lock): refused promptly with 503 and
+                # Retry-After, never a hang or a lock-upgrade deadlock.
+                other.rollback()
+                assert exc.status_code==503 and exc.headers.get('Retry-After')=='5'
+                return None
             other.rollback()
             return r
     with ThreadPoolExecutor(max_workers=2) as pool:
         jobs=[pool.submit(read) for _ in range(2)]
-        rows=[j.result(timeout=12) for j in jobs]
-    assert rows[0]==rows[1] and rows[0]['source_coverage_prepared']
+        rows=[j.result(timeout=12) for j in jobs]   # a deadlock would time out here
+    done=[r for r in rows if r is not None]
+    assert done and all(r==done[0] and r['source_coverage_prepared'] for r in done)
+    # A refused (busy) caller can retry once the other session ended, and gets the same result.
+    with SessionLocal() as retry:
+        again=prepare_month_close_readiness(retry,**args);retry.rollback()
+    assert again==done[0]
 
 
 def test_independent_close_lock_is_bounded_and_transaction_recoverable(history_context):

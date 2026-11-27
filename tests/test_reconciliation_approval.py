@@ -3,6 +3,7 @@ from datetime import date
 from dataclasses import replace
 import json,os
 import pytest
+from fastapi import HTTPException
 from sqlalchemy import select,func,text,event
 from sqlalchemy.exc import DBAPIError
 from app.models import (LeaveReconciliationApproval,LeaveReconciliationReviewReceipt,LeaveType,
@@ -141,12 +142,30 @@ def test_independent_sessions_race(history_context):
                 try:
                     row=approve_reconciliation(other,**{**call,'operation_id':op});identity=row.id;other.commit();return identity
                 except ValueError:other.rollback();return 'refused'
+                except HTTPException as exc:
+                    # Intentional fail-closed gate (auth gate try-lock): a contended request is refused
+                    # promptly with 503 and Retry-After, never queued behind the lock.
+                    other.rollback()
+                    assert exc.status_code==503 and exc.headers.get('Retry-After')=='5'
+                    return 'busy'
         with ThreadPoolExecutor(2) as pool:return list(pool.map(run,ids))
-    assert race(('b'*64,'c'*64)).count('refused')==1
+    first=race(('b'*64,'c'*64))
+    # Exactly one approval can exist; the other call is either refused by the rule or busy at the gate.
+    assert sum(x not in ('refused','busy') for x in first)<=1 and sum(x in ('refused','busy') for x in first)>=1
     with SessionLocal() as check:
         winner=check.scalar(select(LeaveReconciliationApproval.id))
         assert check.scalar(select(func.count()).select_from(LeaveReconciliationApproval))==1
-    assert race((winner,winner))==[winner,winner]
+    # Same operation id replayed in two sessions: each call returns the winner or is refused as busy,
+    # and a retry of any busy call returns the same winner.
+    again=race((winner,winner))
+    assert all(x in (winner,'busy') for x in again)
+    for _ in range(2):  # both sessions can be busy at once; the replay must still return the winner when not contended
+        if winner in again:break
+        again=race((winner,winner));assert all(x in (winner,'busy') for x in again)
+    assert winner in again
+    with SessionLocal() as retry:
+        replay=approve_reconciliation(retry,**{**call,'operation_id':winner});replay_id=replay.id;retry.commit()
+    assert replay_id==winner
 
 
 @pytest.mark.parametrize('blocker',['close','payroll_midmonth'])

@@ -563,12 +563,23 @@ def test_concurrent_confirmed_source_retries_one_revision_audit_no_ledger():
         audit_before=db.scalar(select(func.count()).select_from(AuditLog).where(AuditLog.action=='leave_opening_source_confirmed'))
     barrier=Barrier(2)
     def worker():
-        with SessionLocal.begin() as db:
-            barrier.wait(timeout=3)
-            return confirm_opening_source(db,**args).id
+        from fastapi import HTTPException
+        import time
+        first=True
+        for _ in range(5):
+            try:
+                with SessionLocal.begin() as db:
+                    if first:
+                        first=False;barrier.wait(timeout=3)
+                    return confirm_opening_source(db,**args).id
+            except HTTPException as exc:
+                # Since the 25 Nov auth-gate try-lock a contended session gets a prompt 503 (Retry-After 5) by design.
+                assert exc.status_code==503
+                time.sleep(0.3)
+        raise AssertionError('still busy after retries')
     with ThreadPoolExecutor(max_workers=2) as pool:
         a,b=pool.submit(worker),pool.submit(worker)
-        assert a.result(timeout=6)==b.result(timeout=6)
+        assert a.result(timeout=15)==b.result(timeout=15)
     with SessionLocal() as db:
         assert db.scalar(select(func.count()).select_from(LeaveOpeningSelection))==count_before+1
         assert db.scalar(select(func.count()).select_from(AuditLog).where(AuditLog.action=='leave_opening_source_confirmed'))==audit_before+1

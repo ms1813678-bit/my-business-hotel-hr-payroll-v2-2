@@ -11,6 +11,14 @@ from sqlalchemy import select,text
 pytestmark=pytest.mark.skipif(os.environ.get('MANUAL_ARCHIVE_ROUNDTRIP')!='1',reason='Dedicated disposable DB and compatible pg clients required')
 
 
+def _alembic_head():
+    from alembic.config import Config
+    from alembic.script import ScriptDirectory
+    root=Path(__file__).resolve().parents[1]
+    config=Config(str(root/'alembic.ini'));config.set_main_option('script_location',str(root/'alembic'))
+    return ScriptDirectory.from_config(config).get_current_head()
+
+
 def test_actual_encrypted_archive_roundtrip_and_postswap_failure_rollback(tmp_path,monkeypatch):
     from app.config import settings
     from app.db import SessionLocal,engine
@@ -48,7 +56,7 @@ def test_actual_encrypted_archive_roundtrip_and_postswap_failure_rollback(tmp_pa
         assert saved.status=='success',saved.error_message
         archive=Path(saved.archive_path);archive_sha=saved.sha256
         manifest=b.verify_backup_archive(archive,archive_sha,load_data_key(db))
-        assert manifest['schema_revision']=='0063_reconciliation_review'
+        assert manifest['schema_revision']==_alembic_head()
         assert archive.suffix=='.enc' and manifest['employee_photo_count']==1
     with SessionLocal.begin() as db:
         db.get(SystemSetting,'synthetic-business-marker').value='CURRENT'
