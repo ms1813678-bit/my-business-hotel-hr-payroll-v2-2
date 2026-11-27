@@ -9,6 +9,7 @@ from app.department_preparation_workflow import _confirmed_department_projection
 from app.department_workbook_guard import bounded_workbook_operation
 from app.department_workbook_store import _guard
 from app.leave_policy_edit import read_policy_edit
+from app.leave_recalculation_preview import preview_recalculation
 from app.models import LeaveOpeningSelection,LeaveMonthClose,LeaveBalanceTransaction,EmployeeServicePeriod
 
 
@@ -29,6 +30,11 @@ class EarnedPolicyImpact:
     draft_id:str
     reviewed_policy_sha256:str
     through:date
+    # Tamper-evident before/after balance preview bound to the verified
+    # policy-independent source digest, in the exact contract a later
+    # authorized recalculation service must re-verify before any posting.
+    # It is not part of the digested payload above and changes no screen.
+    recalculation:object=None
     limits:tuple=('earned_days_only','not_released_or_spendable_balance','no_year_end_cash_or_expiry_projection','no_sick_alert_projection','hypothetical_retroactive_including_closed_months','closed_records_not_modified','no_rebind_or_posting')
     posting_allowed:bool=False
 
@@ -83,5 +89,13 @@ def preview_earned_policy_impact(db,*,draft_id,reviewed_sha256,selection_ids,dep
         current_insurance_years=sorted((i,m.isoformat(),format(v,'f') if v is not None else None) for (i,m),v in current_insurance_years.items()))
     digest=sha256(json.dumps(payload,sort_keys=True,separators=(',',':'),default=str).encode()).hexdigest()
     from calendar import monthrange
+    before={}
+    after={}
+    for left,right in zip(old.employees,new.employees):
+        for code,attribute in [('A','annual'),('H','holiday'),('W','weekly')]:
+            before[left.employee_id,code]=getattr(left,attribute).entitled_through_month_end
+            after[left.employee_id,code]=getattr(right,attribute).entitled_through_month_end
+    recalculation=preview_recalculation(before,after,source_digest=old.policy_independent_source_sha256)
     return EarnedPolicyImpact(tuple(rows),digest,closed_values,draft.id,draft.review_sha256,
-        date(month_start.year,month_start.month,monthrange(month_start.year,month_start.month)[1]))
+        date(month_start.year,month_start.month,monthrange(month_start.year,month_start.month)[1]),
+        recalculation=recalculation)

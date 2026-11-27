@@ -34,6 +34,17 @@ def _derive(db, *, available_from, available_through, reason, source_selection):
         if (type(available_from) is not date or type(available_through) is not date
                 or not source_selection['reviewed_on'] <= available_from <= available_through):
             raise ValueError('Positive carry requires explicit grant-time availability dates.')
+        # Canonical day categories also validate against the shared grant
+        # contract (same settled rules: positive exact days, grant dates in
+        # chronological order, explicit reason). Custom balance-tracking
+        # types keep the inline checks above only.
+        from app.leave_carry_grant import CarryGrant
+        grant_codes = {'annual': 'A', 'holiday': 'H', 'weekly': 'W'}
+        if kind in grant_codes:
+            CarryGrant(employee_id=source_selection['employee_id'], code=grant_codes[kind],
+                       days=amount, granted_on=source_selection['reviewed_on'],
+                       available_from=available_from, available_through=available_through,
+                       reason=reason.strip())
     elif available_from is not None or available_through is not None:
         raise ValueError('Debt or zero carry has no positive availability grant.')
     return dict(employee_id=source_selection['employee_id'], leave_type_id=source_selection['leave_type_id'],

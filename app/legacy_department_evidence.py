@@ -144,3 +144,59 @@ def parse_legacy_department(payload: bytes, *, source_identity: str, year: int) 
                                         tuple(employees), tuple(days), tuple(issues))
     finally:
         wb.close()
+
+
+@dataclass(frozen=True)
+class LegacyImportReview:
+    """Per-row review bundle for the later reviewed leave workbook import.
+
+    Composes the exact identity matcher and the register day-code normalizer
+    over one preserved legacy evidence bundle. Identity matching stays exact:
+    no fuzzy, transliteration or first-row picks. P is the present mark
+    settled for the department register layout (Mo, 2026-11-23 22:13:43);
+    whether older legacy files use it is an assumption to confirm before
+    import. A 'P' is normalized through the explicit-present path, never
+    inferred from a blank. No persistence, import execution or balance effect.
+    """
+    source_sha256: str
+    identities: tuple
+    days: tuple
+    unresolved_employees: tuple
+    unresolved_days: tuple
+
+
+def prepare_import_review(evidence: LegacyDepartmentEvidence, *, identities) -> LegacyImportReview:
+    """Match parsed legacy rows against caller-supplied verified host identities."""
+    from app.leave_identity_preview import preview_identity_match
+    from app.leave_register_preview import normalize_register_code
+    if not isinstance(evidence, LegacyDepartmentEvidence):
+        raise TypeError('A preserved legacy evidence bundle is required.')
+    matched = []
+    unmatched_employees = []
+    for row in evidence.employees:
+        result = preview_identity_match(source_code=row['source_code'],
+                                        source_name=row['source_name'], identities=identities)
+        matched.append({'sheet': row['sheet'], 'row': row['row'],
+                        'source_code': row['source_code'], 'source_name': row['source_name'],
+                        'employee_id': result.employee_id, 'issue': result.issue})
+        if result.employee_id is None:
+            unmatched_employees.append((row['sheet'], row['row'], result.issue))
+    days = []
+    unresolved_days = []
+    for day in evidence.days:
+        code = day['code']
+        if code == 'P':
+            # P: present mark settled for the department register layout (Mo, 2026-11-23 22:13:43); legacy use is an assumption to confirm before import.
+            normalized = normalize_register_code('', explicit_present=True)
+        elif code is None:
+            normalized = normalize_register_code(None)
+        else:
+            normalized = normalize_register_code(code)
+        entry = {'source_code': day['source_code'], 'work_date': day['work_date'],
+                 'sheet': day['sheet'], 'cell': day['cell'],
+                 'host_code': normalized.code, 'issue': normalized.issue}
+        days.append(entry)
+        if normalized.issue is not None or normalized.code is None:
+            unresolved_days.append((day['sheet'], day['cell'], normalized.issue or 'unknown_day_code'))
+    return LegacyImportReview(evidence.source_sha256, tuple(matched), tuple(days),
+                              tuple(unmatched_employees), tuple(unresolved_days))
