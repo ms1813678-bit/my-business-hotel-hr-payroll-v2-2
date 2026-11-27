@@ -1,0 +1,72 @@
+name: Extra test groups outside tests
+
+# These seven test groups live outside tests/ and were never run by the main suite.
+# They need no database. The first_install_inert folders must run with their own
+# folder as working directory, because test_slice.py opens "native.py" by relative path.
+
+on:
+  push:
+    branches:
+      - '**'
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  linux:
+    name: Extra test groups (Linux, Python 3.11)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      SESSION_SECRET: ci-test-only-session-secret-not-for-production
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install project and development dependencies
+        run: python -m pip install -e ".[dev]"
+      - name: bootstrap
+        run: python -m pytest -q bootstrap
+      - name: verification/first_install_inert1057
+        working-directory: verification/first_install_inert1057
+        run: python -m pytest -q
+      - name: verification/first_install_inert1102
+        working-directory: verification/first_install_inert1102
+        run: python -m pytest -q
+      - name: verification/installer_transaction_review
+        run: python -m pytest -q verification/installer_transaction_review
+      - name: verification/parser_trace_review
+        run: python -m pytest -q verification/parser_trace_review
+      - name: verification/windows_parser_rev9
+        run: python -m pytest -q verification/windows_parser_rev9
+      - name: verification/windows_integrated_candidate
+        run: python -m pytest -q verification/windows_integrated_candidate
+
+  windows:
+    name: Extra test groups (Windows, Python 3.11)
+    runs-on: windows-latest
+    timeout-minutes: 30
+    env:
+      SESSION_SECRET: ci-test-only-session-secret-not-for-production
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install project and development dependencies
+        run: python -m pip install -e ".[dev]"
+      - name: verification/windows_parser_rev9
+        run: python -m pytest -q verification/windows_parser_rev9
+      - name: verification/windows_integrated_candidate
+        run: python -m pytest -q verification/windows_integrated_candidate
+      - name: bootstrap
+        run: python -m pytest -q bootstrap
