@@ -61,7 +61,9 @@ What needs the real hotel PCs: real network behavior (Wi-Fi, router and Windows 
 
 1. This note, reviewed. 2. Change log and per-device counters on every device. 3. Main-side session apply with the merge rules and the conflict table, tested alone. 4. HTTP session and device credentials. 5. Device-side pull and apply. 6. Screens (after mockups). 7. The multi-instance CI harness with the scenarios above, growing alongside items 3 to 5, not after them.
 
-## 7. Open questions for Mo (plain)
+## 7. Questions for Mo (answered 2026-11-27 18:57)
 
-- Device credentials: a one-time pairing code shown on the main device and typed on the new device. Recommended.
-- LAN access: the app is bound to this PC only today. Sync needs the main device to accept connections from the two other PCs on the hotel network. Recommended: off by default, turned on by the administrator in settings, and only for the sync address.
+Mo answered "نعم" (yes) to both proposals below on WhatsApp at 2026-11-27 18:57:17 (wamid.HBgMMjAxNTAwMDY5Mzc1FQIAEhggQTVDNTJGQjI1RTAzNzU3NkM2NURBRTQ5RkIwMUMyNkUA), as a reply to the two questions the coordinator asked him; the one-word reply is read as yes to both. These are now the design.
+
+- Decided: device credentials use a one-time pairing code shown on the main device and typed on the new device.
+- Decided: LAN access. The app is bound to this PC only today. Sync needs the main device to accept connections from the two other PCs on the hotel network. LAN access is off by default, turned on by the administrator in settings, and only for the sync address.
