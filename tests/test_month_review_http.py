@@ -331,7 +331,10 @@ def test_selected_month_review_real_http_register_and_unknown_close_block(histor
         assert client.post('/leave/month-review/reconciliation-draft',data=draft_fields).status_code==400
         assert client.get('/leave/month-review/reconciliation-receipt/'+receipt_id).status_code==200
         monkeypatch.setattr(settings,'leave_synthetic_register_enabled',False)
-        assert client.post('/leave/month-review/register-review',data={**data,'csrf_token':token(new_editor)}).status_code==404
+        # With the synthetic flag off the route is the production reviewed-register path: it refuses
+        # (400 no matching reviewed source, or 503 platform unavailable) and never accepts the synthetic fixture.
+        refused=client.post('/leave/month-review/register-review',data={**data,'csrf_token':token(new_editor)})
+        assert refused.status_code in (400,503) and 'name="proof"' not in refused.text
     with TestClient(main.app) as client:
         assert client.post('/login',data=dict(csrf_token=token(client.get('/login')),username='synthetic-month-finance',password='Synthetic-Monthly-Only-1500!'),follow_redirects=False).status_code==303
         assert client.get('/leave/month-review',params={'month':'2026-05'}).status_code==403

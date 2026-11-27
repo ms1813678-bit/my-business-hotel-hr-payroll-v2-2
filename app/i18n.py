@@ -4560,6 +4560,8 @@ ZH['توجد أدلة غير محسومة أو تعارضات. لا هدف أو 
 EN['الأدلة المختارة مكتملة حسابيًا فقط؛ لم يتم اعتماد صحتها أو إتاحة الرصيد.']='The selected assertions are computationally complete only. Their truth and available credit are not verified.'
 ZH['الأدلة المختارة مكتملة حسابيًا فقط؛ لم يتم اعتماد صحتها أو إتاحة الرصيد.']='所选陈述仅在计算上完整。真实性和可用额度尚未验证。'
 
+EN['الرقم بعد ≈ للعرض فقط؛ المعتمد هو القيمة الدقيقة.']='The number after ≈ is for display only; the exact value is what is approved.'
+ZH['الرقم بعد ≈ للعرض فقط؛ المعتمد هو القيمة الدقيقة.']='≈ 之后的数字仅用于显示；批准的是精确值。'
 EN['هدف افتراضي بالأيام']='Hypothetical target in days'
 ZH['هدف افتراضي بالأيام']='假设目标天数'
 

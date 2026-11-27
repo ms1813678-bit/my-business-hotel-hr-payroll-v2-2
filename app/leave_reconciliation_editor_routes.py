@@ -22,9 +22,23 @@ from app.leave_source_reconciliation import reconcile_selected_opening
 from app.leave_transition_draft import draft_transition,LedgerDecision,OpeningReleaseDecision
 
 
+def approval_rounded_days(value):
+    """Two-decimal display (ties to even) for a non-terminating rational only, else empty. Display only, never stored."""
+    from fractions import Fraction
+    from app.leave_exact_amount import display_days,terminating_decimal
+    if isinstance(value,Fraction) and terminating_decimal(value) is None:
+        return display_days(value)
+    return ''
+
+
 def exact_approval_days(value):
     """Lossless display, no rounding/context arithmetic or scientific notation."""
     from decimal import Decimal
+    from fractions import Fraction
+    if isinstance(value,Fraction):
+        # Exact rational: finite decimal when one exists, otherwise numerator/denominator. Never rounded here.
+        from app.leave_exact_amount import exact_text
+        return exact_text(value)
     if not isinstance(value,Decimal) or not value.is_finite():
         raise ValueError('Exact finite approval amount required.')
     raw=format(value,'f')
@@ -33,6 +47,7 @@ def exact_approval_days(value):
 
 def reconciliation_editor_router(templates):
     templates.env.filters['approval_exact_days']=exact_approval_days
+    templates.env.filters['approval_rounded_days']=approval_rounded_days
     router=APIRouter();signer=URLSafeTimedSerializer(settings.session_secret,salt='monthly-reconciliation-draft-v1')
     def identity(request,admin):
         return dict(actor_id=admin.id,session_id=request.session.get('admin_session_id'),session_version=request.session.get('admin_session_version'),expected_epoch=request.state.restore_epoch)
