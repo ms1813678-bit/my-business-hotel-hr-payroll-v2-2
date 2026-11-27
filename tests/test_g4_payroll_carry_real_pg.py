@@ -2,9 +2,9 @@
 approval record). Oct normal (5100.00). Nov: installment 7000 on basic 6000 => net 0.00, carried_out 1000.00.
 Dec: carried_in 1000.00 shown as its own deduction => net 5000.00. Reopening Nov while Dec exists is refused.
 Real PG, py3.11."""
-import shutil
 from datetime import date
 from decimal import Decimal as D
+from pathlib import Path
 
 import pytest
 from sqlalchemy import select, text
@@ -39,7 +39,6 @@ def test_excess_deduction_gives_zero_net_and_carries_to_next_month(pgapp):
     _step(c, dec_id, tok, "approve", "close")
 
 
-@pytest.mark.skipif(shutil.which("pdftotext") is None, reason="UNRAN: pdftotext (poppler) not installed on this runner")
 def test_carry_is_a_separate_line_on_the_next_payslip(pgapp):
     import subprocess, tempfile
     from app.models import PayrollItem
@@ -52,9 +51,12 @@ def test_carry_is_a_separate_line_on_the_next_payslip(pgapp):
     def pdf_text(run_id, iid):
         r = c.get(f"/payroll/runs/{run_id}/items/{iid}/payslip.pdf")
         assert r.status_code == 200 and r.content[:4] == b"%PDF"
-        with tempfile.NamedTemporaryFile(suffix=".pdf") as f:
-            f.write(r.content); f.flush()
-            return subprocess.run(["pdftotext", f.name, "-"], capture_output=True, text=True).stdout
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / "payslip.pdf"
+            path.write_bytes(r.content)
+            out = subprocess.run(["pdftotext", str(path), "-"], capture_output=True, text=True)
+            assert out.returncode == 0, out.stderr
+            return out.stdout
     dec = pdf_text(dec_id, item_id)
     assert "1000" in dec.replace(",", "").replace("\u066c", "")      # the carried amount is printed
 
