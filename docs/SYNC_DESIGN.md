@@ -88,7 +88,10 @@ Mo's 27 Nov 21:22 voice note (wamid.HBgMMjAxNTAwMDY5Mzc1FQIAEhggQTUxQkY5NjREREIz
 
 Proposed first sync scope (not decided by Mo in these words): employees, departments, leave types and leave records go to the other devices, each role filtered; payroll runs, advances and attendance reports stay on the main device.
 
+Built in part 1b-i (`app/sync_apply.py`, pure, not wired): the decision step for one session, as described in its module docstring. It takes an explicit edit policy and has no default, because edit rights per role are an open item below.
+
 Open items (not decided, not built):
+- Edit rights per role: which role may change which field. Nobody has decided this. `validate()` is read visibility only and must not be used for writes.
 - Rule 6 after Mo's voice note of 27 Nov 22:27 (wamid.HBgMMjAxNTAwMDY5Mzc1FQIAEhggQTU3MUNBNTQ5MTY2MTFDQTYzQkMyOUZCNEIyMUNCREYA). In meaning, not as a literal A or B choice: the sync data is not thrown away and re-entered from scratch. It goes back to the administrator who entered it, with a warning that the action he did is wrong and he must remove it so the sync can continue. The whole sync stays stopped (nothing half-applied) until then.
   Technical proposals for the edge cases, not decided by Mo: (a) the stopped session is kept as "returned" with the name of the offending change; (b) it is kept until the administrator removes the change, and the main device shows it as a pending warning; (c) if that administrator cannot be reached, the main administrator may remove the offending change or discard the session; (d) a returned session is never applied in part; (e) a returned session older than a set number of days (proposal: 30) is shown as expired and needs a decision.
 - Base version per change: two edits of one field in a row from the same device must not look like a conflict. The log has the old value and the counter; the apply part must compare the old value with the main's current value.

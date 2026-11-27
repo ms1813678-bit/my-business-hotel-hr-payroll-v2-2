@@ -37,7 +37,11 @@ def can_write(role, entity, field):
 
 
 def validate(role, entity, field):
-    """Alias used by the applier: True = accept this field from this role, False = hidden-field edit."""
+    """READ visibility only: True = this role may see this field, False = a hidden field.
+
+    Do NOT use this to authorize a write. Edit rights per role are a separate rule nobody has decided;
+    app/sync_apply.py takes an explicit may_edit policy for that and refuses to plan without one.
+    """
     return can_write(role, entity, field)
 
 
