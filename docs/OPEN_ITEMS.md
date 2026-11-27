@@ -17,3 +17,7 @@ Status: not done, on purpose. No regeneration now.
 Context: `verification/desktop_native_prep/stage-source-manifest.json` already had 77 of 285 entries whose hashes differ from the files at the base commit, and the desktop-native-prep stage fixture was failing its own hash check before the housekeeping bundle. The workflow only runs when files under `verification/desktop_native_prep/` change, so pushes elsewhere never exercise it.
 
 Next step: regenerate the manifest as its own reviewed change, immediately before any desktop-native-prep work starts.
+
+## Security roster department rule (fixed)
+
+The roster coverage check used a different department rule from the attendance history function. For a date before an employee's first department change it returned the CURRENT department. Example: Sara worked in Reception until 10 Nov and moved to Housekeeping on 10 Nov. For 3 Nov the history rule says Reception (correct) but the roster check said Housekeeping. Both now use the history rule: start from the current department and undo every change that takes effect after the date.

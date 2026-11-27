@@ -287,17 +287,16 @@ def validate_security_roster(db, *, period_start: date, period_end: date) -> Non
         changes_by_employee.setdefault(row.employee_id, []).append(row)
 
     def department_on(employee, work_date):
+        # Same rule as _department_history_by_date: start from the current department
+        # and undo every change that takes effect after work_date (changes are newest-first).
         department_id = employee.department_id
         for change in changes_by_employee.get(employee.id, []):
-            if change.effective_date > work_date:
+            if change.effective_date <= work_date:
                 continue
             try:
-                department_id = int(change.new_value)
+                department_id = int(change.old_value)
             except (TypeError, ValueError):
-                raise ValueError("employee_department_history_is_inconsistent")
-            # Changes are ordered newest-first; the first effective change is
-            # authoritative for this work date.
-            break
+                raise ValueError("employee_department_history_is_incomplete")
         return department_id
 
     patterns = {

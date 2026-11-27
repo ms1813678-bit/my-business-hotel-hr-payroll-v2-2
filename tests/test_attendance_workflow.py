@@ -1221,3 +1221,54 @@ def test_suggested_clock_pair_prefers_manual_then_program_then_punch(db_session)
     )
     from app.attendance_workflow import suggested_clock_pair
     assert suggested_clock_pair(record) == (datetime(2026, 11, 5, 8, 0), datetime(2026, 11, 5, 16, 0))
+
+
+def test_security_roster_uses_department_history_before_the_first_change(db_session):
+    """Sara-style case: moved into Security on 10 Nov. On 3 Nov she was not a security guard."""
+    from app.attendance_workflow import validate_security_roster
+
+    security = Department(name="Security", active=True)
+    housekeeping = Department(name="Housekeeping before move", active=True)
+    db_session.add_all([security, housekeeping])
+    db_session.flush()
+    guards = []
+    for index in range(2):
+        guards.append(Employee(
+            code=f"SEH-{index+1}", full_name=f"Guard {index+1}",
+            department_id=security.id, position="Guard",
+            hire_date=date(2026, 1, 1), status="active",
+            basic_salary=Decimal("5000"), daily_hours=Decimal("8"),
+        ))
+    db_session.add_all(guards)
+    db_session.flush()
+    for guard in guards:
+        db_session.add(EmployeeServicePeriod(employee_id=guard.id, start_date=date(2026, 1, 1)))
+    db_session.add(EmployeeChange(
+        employee_id=guards[1].id, field_name="department_id",
+        old_value=str(housekeeping.id), new_value=str(security.id),
+        effective_date=date(2026, 11, 10), reason="Department transfer",
+    ))
+    day = date(2026, 11, 3)
+    p1 = ShiftPattern(department_id=security.id, code="SEH12A", name="12h A",
+                      start_time=time(0, 0), end_time=time(12, 0),
+                      match_before_minutes=0, match_after_minutes=0, active=True)
+    p2 = ShiftPattern(department_id=security.id, code="SEH12B", name="12h B",
+                      start_time=time(12, 0), end_time=time(0, 0),
+                      match_before_minutes=0, match_after_minutes=0, active=True)
+    db_session.add_all([p1, p2])
+    db_session.flush()
+    db_session.add_all([
+        SecurityShiftAssignment(employee_id=guards[0].id, work_date=day, shift_pattern_id=p1.id),
+        SecurityShiftAssignment(employee_id=guards[1].id, work_date=day, shift_pattern_id=p2.id),
+    ])
+    db_session.flush()
+    with pytest.raises(ValueError):
+        validate_security_roster(db_session, period_start=day, period_end=day)
+    # After the move date the same roster is valid.
+    later = date(2026, 11, 12)
+    db_session.add_all([
+        SecurityShiftAssignment(employee_id=guards[0].id, work_date=later, shift_pattern_id=p1.id),
+        SecurityShiftAssignment(employee_id=guards[1].id, work_date=later, shift_pattern_id=p2.id),
+    ])
+    db_session.flush()
+    validate_security_roster(db_session, period_start=later, period_end=later)
