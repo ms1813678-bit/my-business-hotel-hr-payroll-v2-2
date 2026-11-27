@@ -93,7 +93,10 @@ def test_http_auth_csrf_roles_and_nothing_written(seeded):
         assert client.post('/attendance/punch-review', files=files).status_code == 403      # no CSRF token
         ok = client.post('/attendance/punch-review', data={'csrf_token': token(page)}, files={'file': ('att.xlsx', fixture_bytes())})
         assert ok.status_code == 200 and '10:1715:2915:3015:30' in ok.text and 'مكررة' in ok.text
-        assert 'غير مقروءة' in ok.text and 'SYN-PR-1' in ok.text and 'بصمات محذوفة' in ok.text
+        assert 'غير مقروءة' in ok.text and 'SYN-PR-1' in ok.text and 'بصمات محذوفة' not in ok.text
         bad = client.post('/attendance/punch-review', data={'csrf_token': token(page)}, files={'file': ('a.csv', b'x')})
         assert bad.status_code == 400 and 'صيغة الملف غير مدعومة' in bad.text
+        missing = client.post('/attendance/punch-review', data={'csrf_token': token(page)})
+        assert missing.status_code == 400 and 'الملف فارغ' in missing.text      # a page, not framework JSON
+        assert 'href="/attendance/punch-review"' in client.get('/attendance/import').text   # entry link
     assert counts() == before

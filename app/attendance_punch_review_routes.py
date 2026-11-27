@@ -87,7 +87,9 @@ def punch_review_router(templates):
         return render(request, admin)
 
     @router.post('/attendance/punch-review', response_class=HTMLResponse, dependencies=[Depends(csrf_protect)])
-    def review(request: Request, file: UploadFile = File(...), admin: AdminAccount = Depends(require_attendance_read)):
+    def review(request: Request, file: UploadFile = File(None), admin: AdminAccount = Depends(require_attendance_read)):
+        if file is None:
+            return render(request, admin, 400, ERRORS['empty_file'])
         raw = file.file.read(MAX_BYTES + 1)
         try:
             with SessionLocal() as db:           # read-only: no commit, rolled back on close

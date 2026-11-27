@@ -27,7 +27,7 @@
 {% if view %}
 <section class="notice">
   <p><strong>{{ view.review_days }}</strong> <span>أيام تحتاج مراجعة من</span> <strong>{{ view.total_days }}</strong></p>
-  <p><strong>{{ view.dropped }}</strong> <span>بصمات محذوفة</span></p>
+  {% if view.dropped %}<p><strong>{{ view.dropped }}</strong> <span>بصمات محذوفة</span></p>{% endif %}
   {% if view.unmatched %}<p><strong>{{ view.unmatched }}</strong> <span>بصمات بلا موظف معروف لم تُعرض هنا</span></p>{% endif %}
 </section>
 {% for card in view.cards %}
