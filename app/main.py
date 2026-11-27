@@ -292,7 +292,7 @@ app.add_middleware(
     max_age=8 * 60 * 60,
     path="/",
     same_site="lax",
-    https_only=settings.app_env.lower() == "production",
+    https_only=settings.app_env.lower() == "production" and not settings.allow_insecure_local_cookies,
 )
 
 # Outermost middleware: every HTTP request holds the shared restore gate until
@@ -538,7 +538,7 @@ def set_language(language: str, request: Request):
     response = RedirectResponse(destination, status_code=303)
     response.set_cookie(
         "my_hr_language", language, max_age=60 * 60 * 24 * 365,
-        httponly=True, secure=settings.app_env.lower() == "production",
+        httponly=True, secure=settings.app_env.lower() == "production" and not settings.allow_insecure_local_cookies,
         samesite="lax", path="/",
     )
     return response

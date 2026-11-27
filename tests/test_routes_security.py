@@ -2869,3 +2869,31 @@ def test_bulk_token_refused_after_record_set_replacement(client):
             AttendanceDailyRecord.status == "ready_for_review",
         )).all()
         assert len(remaining) == 1
+
+
+def test_local_http_switch_turns_off_secure_cookies_only_when_set_in_production(monkeypatch):
+    import importlib
+
+    from app import config as config_module
+    from app import main as main_module
+
+    try:
+        monkeypatch.setenv("APP_ENV", "production")
+        monkeypatch.setenv("ALLOW_INSECURE_LOCAL_COOKIES", "true")
+        importlib.reload(config_module)
+        local_main = importlib.reload(main_module)
+        middleware = next(i for i in local_main.app.user_middleware if i.cls.__name__ == "SessionMiddleware")
+        assert middleware.kwargs["https_only"] is False
+        with TestClient(local_main.app) as local_client:
+            cookie = local_client.get("/login").headers["set-cookie"].lower()
+        assert "secure" not in cookie and "httponly" in cookie
+        # Default stays secure.
+        monkeypatch.delenv("ALLOW_INSECURE_LOCAL_COOKIES")
+        importlib.reload(config_module)
+        default_main = importlib.reload(main_module)
+        middleware = next(i for i in default_main.app.user_middleware if i.cls.__name__ == "SessionMiddleware")
+        assert middleware.kwargs["https_only"] is True
+    finally:
+        monkeypatch.undo()
+        importlib.reload(config_module)
+        importlib.reload(main_module)

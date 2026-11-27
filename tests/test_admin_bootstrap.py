@@ -62,3 +62,17 @@ def test_admin_accounts_are_never_deleted(db):
     db.delete(admin)
     with pytest.raises(ValueError, match="cannot be deleted"):
         db.flush()
+
+
+def test_setup_rerun_skips_the_admin_step_when_an_admin_exists(db, monkeypatch, capsys):
+    import scripts.create_admin as module
+
+    create_admin_account(db, "first-admin", "Valid-Test-Password-123!")
+    db.commit()
+    monkeypatch.setattr(module, "SessionLocal", lambda: db)
+    monkeypatch.setattr(module.sys, "argv", ["create_admin", "--skip-if-exists"])
+    monkeypatch.setattr("builtins.input", lambda *a: (_ for _ in ()).throw(AssertionError("must not prompt")))
+    monkeypatch.setattr(module, "getpass", lambda *a: (_ for _ in ()).throw(AssertionError("must not prompt")))
+    module.main()
+    assert "already exists" in capsys.readouterr().out
+    assert db.scalar(select(AdminAccount.username)) == "first-admin"

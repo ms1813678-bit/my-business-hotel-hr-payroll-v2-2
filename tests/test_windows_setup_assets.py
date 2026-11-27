@@ -19,7 +19,9 @@ def test_windows_setup_preserves_existing_env_and_uses_secure_database_password_
     assert "scripts.seed_departments" in setup
     assert "scripts.seed_shifts" in setup
     assert "Database port must be a number between 1 and 65535." in setup
-    assert "scripts.create_admin" in setup
+    assert "scripts.create_admin --skip-if-exists" in setup
+    assert "APP_ENV=production" in setup and "APP_ENV=development" not in setup
+    assert "ALLOW_INSECURE_LOCAL_COOKIES=false" in setup
 
 
 def test_windows_launcher_is_local_and_manual():

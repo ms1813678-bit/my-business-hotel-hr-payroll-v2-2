@@ -1,4 +1,5 @@
 """Create the single administrator from a local terminal; no public signup route exists."""
+import sys
 from getpass import getpass
 
 from sqlalchemy import select
@@ -23,6 +24,12 @@ def create_admin_account(db: Session, username: str, password: str) -> AdminAcco
 
 
 def main() -> None:
+    if "--skip-if-exists" in sys.argv[1:]:
+        # Setup can be run again: never prompt for or replace an existing administrator.
+        with SessionLocal() as db:
+            if db.scalar(select(AdminAccount.id).limit(1)) is not None:
+                print("An administrator already exists; this step was skipped. Nothing was changed.")
+                return
     username = input("Administrator username: ").strip()
     password = getpass("Administrator password (minimum 12 characters): ")
     if password != getpass("Confirm administrator password: "):

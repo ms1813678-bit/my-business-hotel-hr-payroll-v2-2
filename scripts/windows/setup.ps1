@@ -75,7 +75,8 @@ if (-not (Test-Path ".env")) {
 
     $EnvContent = @"
 APP_NAME="M.Y. Business Hotel HR"
-APP_ENV=development
+APP_ENV=production
+ALLOW_INSECURE_LOCAL_COOKIES=false
 APP_HOST=127.0.0.1
 APP_PORT=8000
 DATABASE_URL="$DatabaseUrl"
@@ -103,8 +104,8 @@ if ($LASTEXITCODE -ne 0) { throw "Department initialization failed." }
 & $VenvPython -m scripts.seed_shifts
 if ($LASTEXITCODE -ne 0) { throw "Shift initialization failed." }
 
-Write-Host "Create the first administrator; password input is hidden and requires 12 characters."
-& $VenvPython -m scripts.create_admin
+Write-Host "Create the first administrator (skipped automatically if one already exists); password input is hidden and requires 12 characters."
+& $VenvPython -m scripts.create_admin --skip-if-exists
 if ($LASTEXITCODE -ne 0) {
     throw "Administrator setup failed. Existing credentials were not replaced."
 }

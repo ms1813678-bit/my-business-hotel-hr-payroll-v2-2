@@ -6,6 +6,9 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     app_name: str = "M.Y. Business Hotel HR"
     app_env: str = "development"
+    # In production the session and language cookies are marked Secure. If a browser refuses to keep
+    # the login on plain http://127.0.0.1, set ALLOW_INSECURE_LOCAL_COOKIES=true in .env (local use only).
+    allow_insecure_local_cookies: bool = False
     # Interactive API docs (/docs, /openapi.json) stay off unless the
     # administrator explicitly enables them for troubleshooting.
     app_expose_docs: bool = False
