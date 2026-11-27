@@ -12,7 +12,9 @@ The owner's recorded choice was a separate passphrase entered in the application
 
 ## Windows scheduled task boundary
 
-The current installer configures scheduled backups as SYSTEM with highest run level, invoking Python and code in the project directory. No installer-enforced ACL protection for project/venv/import/script/.env paths has been established. If an untrusted local account can replace code or an interpreter used by that task, the task could execute modified code with elevated rights.
+Updated 27 Nov 2026: the installer now creates the scheduled backups as the Windows user who installs them, with limited rights (least privilege, interactive logon, no stored password), not as SYSTEM and not elevated. The choice is Mo's WhatsApp reply of 2026-11-27 21:00:18 (option A). A Windows runner check in CI reads the user, run level and catch-up settings back (workflow windows-backup-tasks). The paragraph below is otherwise unchanged and its remaining point still stands for that user's rights: the tasks invoke Python and code in the project directory.
+
+Earlier text: the installer configured scheduled backups as SYSTEM with highest run level, invoking Python and code in the project directory. No installer-enforced ACL protection for project/venv/import/script/.env paths has been established. If an untrusted local account can replace code or an interpreter used by that task, the task could execute modified code with that user's rights (earlier wording: elevated rights).
 
 Actual hotel-device ACLs, owners, inherited permissions, replacement rights on parent directories, reparse targets, interpreter/import search paths, task principal/run level and the backup drive's required permissions are not yet verified. Merely checking a few broad Windows groups is not an effective-rights proof. A proposed preflight classifier with canned fixtures is not production enforcement or native Windows acceptance. No risk-acceptance bypass, ACL mutation or task-account change is approved by this record.
 

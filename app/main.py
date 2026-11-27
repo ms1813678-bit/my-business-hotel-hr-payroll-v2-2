@@ -3376,10 +3376,11 @@ _ATTENDANCE_SAFE_FIELDS = {
     key for key, _label in EMPLOYEE_FIELD_DEFS + ATTENDANCE_FIELD_DEFS
 } - _ASSISTANT_FORBIDDEN_FIELDS
 
-# Report types each role may run, per the owner's approved split: the finance
-# role owns payroll, advances and sanctions/rewards with read-only attendance;
-# leave reports and the comprehensive export (which embeds the leave sheet)
-# stay with the system administrator.
+# Report types each role may run: the finance role owns payroll, advances and
+# sanctions/rewards with read-only attendance, and reads leave records and
+# balances read-only (Mo, WhatsApp 2026-11-22 22:20:06; commit b532de4). The
+# comprehensive export (which embeds the leave sheet) stays with the system
+# administrator.
 _REPORT_TYPES_BY_ROLE = {
     ROLE_ASSISTANT: {REPORT_TYPE_ATTENDANCE},
     ROLE_FINANCE: {
