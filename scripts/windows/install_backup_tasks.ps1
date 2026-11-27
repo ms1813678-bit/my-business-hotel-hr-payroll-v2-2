@@ -76,6 +76,14 @@ foreach ($Task in $Tasks) {
         }
         $Node.InnerText = $Pair[1]
     }
+    # Write the limited run level into the XML explicitly (the export leaves the default out).
+    $Principal = $TaskXml.SelectSingleNode("//t:Principals/t:Principal", $Ns)
+    $RunLevelNode = $Principal.SelectSingleNode("t:RunLevel", $Ns)
+    if ($null -eq $RunLevelNode) {
+        $RunLevelNode = $TaskXml.CreateElement("RunLevel", $Ns.LookupNamespace("t"))
+        [void]$Principal.AppendChild($RunLevelNode)
+    }
+    $RunLevelNode.InnerText = "LeastPrivilege"
     $XmlFile = Join-Path ([System.IO.Path]::GetTempPath()) ("hotel-backup-task-" + [guid]::NewGuid().ToString("N") + ".xml")
     try {
         $TaskXml.Save($XmlFile)

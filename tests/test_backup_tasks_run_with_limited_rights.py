@@ -16,3 +16,8 @@ def test_missed_runs_catch_up_and_battery_does_not_block():
     assert '@("StartWhenAvailable", "true")' in code
     assert '@("DisallowStartIfOnBatteries", "false")' in code and '@("StopIfGoingOnBatteries", "false")' in code
     assert "/XML" in code and "Set-ScheduledTask" not in code
+
+
+def test_least_privilege_is_written_into_the_task_xml():
+    code = "\n".join(line for line in SCRIPT.splitlines() if not line.lstrip().startswith("#"))
+    assert '$RunLevelNode.InnerText = "LeastPrivilege"' in code
