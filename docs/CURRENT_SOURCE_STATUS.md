@@ -2,6 +2,16 @@
 
 Instinct, 25 November 2026, 17:07 Africa/Cairo. This page corrects the stale operational index. Historical documents remain available, but their old commit, test and readiness claims are not current acceptance.
 
+## 27 November 2026, schema head and Windows parser status (documentation update)
+
+Schema head on ui-overhaul is now 0083_leave_month_correction. Three migrations after 0080 had no entry here:
+- 0081_payroll_leave_cash_line: adds payroll_items.leave_cash_amount (separate payslip line for leave cash-out, not negative, default 0).
+- 0082_payroll_carry_deduction: adds carried_in_deduction and carried_out_amount to payroll items (excess deductions carry to the next month; existing rows get 0).
+- 0083_leave_month_correction: adds the leave_month_corrections table (reviewed reversal and replacement correction of a posted leave month).
+A freshly initialised database holds only the schema version, the employee code counter and the six leave kinds (tests/test_fresh_install_has_no_business_rows_pg.py).
+
+Windows parser: the sections below that say the Windows parser is off and fails closed describe earlier states. Since b87a4bf the gate accepts Windows and runs the Job Object adapter, with 8 Windows-only tests passing in CI. This is CI evidence on a runner, not a hotel device, and acceptance for use is Mo's call and not made.
+
 ## 26 November2026,02:23Cairo, bounded0078-0080 integration
 
 Development schema now0080_restore_epoch_rebind, via0078_leave_zero_decision and0079_leave_carry_expiry. Explicit completed-year W/H zero choice, reviewed carry expiry and current-epoch opening rebind are integrated. No second opening credit, automatic expiry, FIFO or new role authority. Same immutable rebind operation retries require the original actor/reason and a currently valid chain. See [decision notebook](PROJECT_DECISIONS_NOTEBOOK_AR.md) and [partial central working ledger](CENTRAL_EXECUTION_LEDGER_AR.md).

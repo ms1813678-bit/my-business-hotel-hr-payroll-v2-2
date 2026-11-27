@@ -13,7 +13,7 @@ A local-only Arabic / English / Simplified Chinese HR and payroll application fo
 - No cloud hosting, cloud database, or external processing of hotel or employee data is in the current scope. Core HR and payroll functions must operate locally.
 
 ## Access and security
-- Exactly one login: System Administrator / HR Manager. No employee, supervisor, or department-manager accounts.
+- Three named logins only: the HR manager (system administrator), the assistant manager and the finance manager, each with its own role and permissions (decision notebook section B; corrected 27 Nov 2026, the earlier text said exactly one login). No employee, supervisor, or department-manager accounts.
 - Username and password with secure password hashing; never reversible password storage.
 - Keep the app local; do not expose it publicly.
 - Audit consequential changes only, recording actor, timestamp, action, previous value, new value, and reason.

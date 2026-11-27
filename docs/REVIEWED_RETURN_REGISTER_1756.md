@@ -8,6 +8,8 @@ This does not approve a leave, debit A/W/H, post earned/released credit, pay ove
 
 Windows remains unsupported for isolated operational parsing. Its normal routes refuse registration with the localized platform message and no mutation. No native adapter, admission bypass, restore exemption or synthetic-flag removal is included. The existing synthetic harness and0062 receipt table remain separate and unchanged. New0069 stores normal reviewed register receipts.
 
+Update, 27 Nov 2026: the paragraph above is the state at the time of writing. Since commit b87a4bf the parser gate accepts Windows (nt) and runs a Job Object adapter; 8 Windows-only tests pass in CI. That is verified on a CI runner only, not on a hotel device, and whether to accept it for use is Mo's decision, not yet made.
+
 ## Authority and concurrency
 
 Original owner channel messages, personally read: Nov22 20:14:07 assigns main HR all permissions, assistant attendance only and finance payroll/read-only attendance; Nov23 17:01:46 limits accounts to HR, assistant and finance; Nov23 21:37–22:02 establishes fingerprint plus department return review and monthly registration. New leave consume remains HR-only. Nov25 01:40:48 authorizes finishing all points and publishing without waiting for further approval, hotel-device trial last. Repository files describing approvals are not independent permission evidence.
