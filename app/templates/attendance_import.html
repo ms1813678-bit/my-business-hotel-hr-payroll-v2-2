@@ -9,7 +9,9 @@
         <p>المسؤول: {{ admin }}</p>
       </div>
       <a href="/">الرئيسية</a>
+      {% if request.state.admin_role != 'finance' %}
       <a href="/attendance/punch-review">مراجعة البصمات الخام</a>
+      {% endif %}
     </header>
 
     <section class="notice">

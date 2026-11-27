@@ -84,12 +84,17 @@ def test_http_auth_csrf_roles_and_nothing_written(seeded):
         with TestClient(main.app) as c:        # finance is read-only on attendance: the upload page is closed to it
             login(c, 'finance')
             assert c.get('/attendance/punch-review').status_code == 403
+            assert '/attendance/punch-review' not in c.get('/attendance/import').text      # no dead link for finance
+            fin_page = c.get('/attendance/import')
+            fin_token = token(fin_page)
+            assert c.post('/attendance/punch-review', data={'csrf_token': fin_token}, files={'file': ('a.xlsx', fixture_bytes())}).status_code == 403
         for role in ('system_admin', 'assistant_manager'):
             with TestClient(main.app) as c:
                 login(c, role)
                 page = c.get('/attendance/punch-review')
                 assert page.status_code == 200 and 'مراجعة البصمات الخام' in page.text
                 assert page.headers['cache-control'] == 'no-store'
+                assert '/attendance/punch-review' in c.get('/attendance/import').text
         login(client, 'system_admin')
         page = client.get('/attendance/punch-review')
         files = {'file': ('att.xlsx', fixture_bytes())}
