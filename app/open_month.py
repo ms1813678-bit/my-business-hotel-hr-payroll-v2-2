@@ -46,3 +46,22 @@ def place_month(db: Session, wanted: date, today: date | None = None) -> tuple[d
     while not is_month_open(db, target, today):
         target = next_month(target)
     return target, wanted
+
+
+SALARY_CHANGE_CLOSED_MONTH_MESSAGE = (
+    "لا يمكن تسجيل تغيير في الراتب الأساسي بتاريخ سريان داخل شهر رواتب مقفل. "
+    "اختر تاريخًا في الشهر الحالي، وسجّل الفرق كمكافأة أو خصم بأثر رجعي."
+)
+
+
+def salary_change_blocked(db: Session, effective_date: date, today: date | None = None) -> bool:
+    """A basic-salary change dated in an earlier month whose payroll is closed (Mo, 28 Nov 2026 11:51:19: block).
+
+    "Closed" is the same rule as for entries: after the whole 5th of the next month, or when that month's run is
+    approved or closed. The current month is never blocked, so HR is never left without a valid date
+    (dates in the future are refused elsewhere)."""
+    today = today or today_cairo()
+    month = first_of_month(effective_date)
+    if month >= first_of_month(today):
+        return False
+    return not is_month_open(db, month, today)

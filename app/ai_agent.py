@@ -52,6 +52,7 @@ from app.national_id import ERROR_MESSAGE as NATIONAL_ID_ERROR
 from app.national_id import is_valid_egyptian_national_id
 from app.payroll_workflow import approve_payroll_run, close_payroll_run, reopen_payroll_run
 from app.staff_actions_workflow import approve_staff_action, cancel_staff_action
+from app.open_month import SALARY_CHANGE_CLOSED_MONTH_MESSAGE, salary_change_blocked
 
 WRITE_PREFIXES = ("نفذ ", "نفّذ ", "نفذ:", "نفّذ:", "执行 ", "执行：", "执行:")
 # English execution prefixes are matched case-insensitively.
@@ -461,6 +462,9 @@ def execute_plan(plan: dict[str, Any], actor: str, *, db=None, human_coverage_co
                     if (field in {"national_id", "fingerprint_id"} and new_value is not None and old_value != new_value
                             and _employee_value_taken(db, field, new_value, employee.id)):
                         raise ValueError(f"{field} مستخدم بالفعل.")
+                    if (field == "basic_salary" and old_value != new_value and salary_change_blocked(
+                            db, _parse_date(plan.get("effective_date") or date.today().isoformat(), "السريان"))):
+                        raise ValueError(SALARY_CHANGE_CLOSED_MONTH_MESSAGE)
                     if old_value != new_value:
                         setattr(employee, field, new_value)
                         db.add(EmployeeChange(employee_id=employee.id, field_name=field,

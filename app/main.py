@@ -78,7 +78,7 @@ from app.telegram_alerts import (
 from app.security import _MIN_PASSWORD_LENGTH, hash_password, verify_password
 from app.employee_codes import allocate_employee_code
 from app.leave_workflow import add_balance_entry, cancel_leave, confirm_leave
-from app.open_month import today_cairo
+from app.open_month import SALARY_CHANGE_CLOSED_MONTH_MESSAGE, salary_change_blocked, today_cairo
 from app.advance_workflow import advance_cap_basis, payroll_month_for_advance, approve_advance, create_advance, mark_advance_paid, reject_advance
 from app.models import AdvanceInstallment, CAIRO_TZ
 from app.ai_error_display import known_reason, safe_failure_message
@@ -4962,6 +4962,8 @@ def edit_employee(
             old_value = getattr(employee, field_name)
             if old_value != new_value:
                 changes.append((field_name, old_value, new_value))
+        if any(name == "basic_salary" for name, _, _ in changes) and salary_change_blocked(db, effective_date):
+            raise HTTPException(status_code=400, detail=SALARY_CHANGE_CLOSED_MONTH_MESSAGE)
         for field_name, old_value, new_value in changes:
             setattr(employee, field_name, new_value)
             db.add(EmployeeChange(

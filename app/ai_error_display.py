@@ -130,6 +130,7 @@ _REASONS: dict[str, tuple] = {
     "الموظف غير موجود.": (None, "The employee was not found.", "未找到该员工。"),
     "اسم الموظف لا يمكن أن يكون فارغًا.": (None, "The employee name cannot be empty.", "员工姓名不能为空。"),
     "المسمى الوظيفي لا يمكن أن يكون فارغًا.": (None, "The job title cannot be empty.", "职位名称不能为空。"),
+    "لا يمكن تسجيل تغيير في الراتب الأساسي بتاريخ سريان داخل شهر رواتب مقفل. اختر تاريخًا في الشهر الحالي، وسجّل الفرق كمكافأة أو خصم بأثر رجعي.": (None, "A basic salary change cannot be dated inside a closed payroll month. Choose a date in the current month and record the difference as a retroactive bonus or deduction.", "不能登记生效日期在已关闭工资月份内的基本工资变更。请选择当月日期，并将差额记为追溯奖金或扣款。"),
     "الموظف غير موجود أو غير نشط.": (None, "The employee was not found or is not active.", "未找到该员工或其未在职。"),
     "القسم الجديد غير متاح.": (None, "The new department is not available.", "新部门不可用。"),
     "الفرع الجديد غير صالح.": (None, "The new branch is not valid.", "新分支无效。"),
