@@ -615,6 +615,151 @@ def _sync_leave_cash_amount(db: Session, item: PayrollItem) -> None:
     item.leave_cash_amount = money(total)
 
 
+def refresh_draft_run_entries(db: Session, run: PayrollRun, actor: str) -> int:
+    """Bring entries approved after the draft was created into the draft (Mo, 28 Nov 2026 10:46:41, option 1).
+
+    Only a draft or reopened run changes. Staff actions of the run's month are linked to the run and each
+    item's reward and sanction totals are rebuilt from the linked actions. An item's advance deduction is set
+    to the sum of its unapplied scheduled installments for the month, which is the same figure the close step
+    checks. Items that already hold a payment are never touched. Idempotent. Returns the number of items changed.
+    """
+    if run.status not in {"draft", "reopened"}:
+        return 0
+    db.flush()  # the session does not autoflush; pending approvals must be visible to the queries below
+    from app.overtime_day_award import item_has_payment
+    items = {i.employee_id: i for i in db.scalars(
+        select(PayrollItem).where(PayrollItem.payroll_run_id == run.id)).all()}
+    changed: set[int] = set()
+    loose = db.scalars(select(StaffAction).where(
+        StaffAction.payroll_month == run.period_start,
+        StaffAction.status == "approved",
+        StaffAction.is_financial.is_(True),
+        StaffAction.payroll_run_id.is_(None),
+        StaffAction.payroll_applied_at.is_(None),
+        StaffAction.employee_id.in_(list(items) or [-1]),
+    ).with_for_update()).all()
+    for action in loose:
+        if item_has_payment(db, items[action.employee_id].id):
+            continue
+        action.payroll_run_id = run.id
+        changed.add(action.employee_id)
+    db.flush()
+    installments = db.execute(
+        select(AdvanceInstallment, AdvanceRequest)
+        .join(AdvanceRequest, AdvanceRequest.id == AdvanceInstallment.advance_request_id)
+        .where(
+            AdvanceInstallment.payroll_month == run.period_start,
+            AdvanceInstallment.status.in_(("scheduled", "reversed")),
+            AdvanceInstallment.applied_payroll_run_id.is_(None),
+            AdvanceRequest.status == "paid",
+        )
+    ).all()
+    due: dict[int, Decimal] = {}
+    for installment, advance in installments:
+        due[advance.employee_id] = due.get(advance.employee_id, Decimal("0.00")) + Decimal(installment.amount)
+    for employee_id, item in items.items():
+        if item_has_payment(db, item.id):
+            continue
+        linked = db.scalars(select(StaffAction).where(
+            StaffAction.payroll_run_id == run.id,
+            StaffAction.employee_id == employee_id,
+            StaffAction.status == "approved",
+            StaffAction.is_financial.is_(True),
+        )).all()
+        reward = money(sum((Decimal(a.amount) for a in linked if a.kind == "reward"), Decimal("0.00")))
+        sanction = money(sum((Decimal(a.amount) for a in linked if a.kind != "reward"), Decimal("0.00")))
+        advance = money(due.get(employee_id, Decimal("0.00")))
+        if tuple(money(Decimal(str(v or 0))) for v in (item.staff_reward_amount, item.staff_sanction_amount, item.advance_deduction)) == (reward, sanction, advance):
+            continue
+        item.staff_reward_amount, item.staff_sanction_amount, item.advance_deduction = reward, sanction, advance
+        changed.add(employee_id)
+    for employee_id in changed:
+        recompute_payroll_item(items[employee_id], run)
+    if changed:
+        _audit(
+            db, actor=actor, action="payroll_draft_entries_refreshed", entity_type="payroll_run",
+            entity_id=str(run.id), old_value=None, new_value=str(len(changed)),
+            reason="Entries approved after the draft was created were added to the draft.",
+        )
+    return len(changed)
+
+
+def refresh_draft_for_month(db: Session, month: date, actor: str) -> int:
+    run = db.scalar(select(PayrollRun).where(PayrollRun.period_start == month).with_for_update())
+    return refresh_draft_run_entries(db, run, actor) if run is not None else 0
+
+
+def move_left_out_entries_to_next_month(db: Session, run: PayrollRun, actor: str) -> int:
+    """An approved entry of this month whose employee has no item in the run is not lost.
+
+    The month is about to lock, so the entry moves to the next month with its original month as the
+    retroactive label and an audit row (Mo, 23:41:38 on 27 Nov 2026, read in meaning: never refused or lost).
+    """
+    from app.open_month import next_month
+    db.flush()
+    loose = db.scalars(select(StaffAction).where(
+        StaffAction.payroll_month == run.period_start,
+        StaffAction.status == "approved",
+        StaffAction.is_financial.is_(True),
+        StaffAction.payroll_run_id.is_(None),
+        StaffAction.payroll_applied_at.is_(None),
+    ).with_for_update()).all()
+    target = next_month(run.period_start)
+    for action in loose:
+        _audit(
+            db, actor=actor, action=f"{action.kind}_month_moved", entity_type="staff_action",
+            entity_id=str(action.id), old_value=str(action.payroll_month), new_value=str(target),
+            reason="The employee has no open item in the approved payroll run (no item, or the item is already paid); moved to the next month with a label.",
+        )
+        action.retroactive_for_month = action.retroactive_for_month or run.period_start
+        action.payroll_month = target
+    return len(loose) + _move_left_out_installments(db, run, target, actor)
+
+
+def _move_left_out_installments(db: Session, run: PayrollRun, target, actor: str) -> int:
+    """A scheduled installment of this month whose employee has no item in the run is not lost either.
+
+    It moves to the next month; when that advance already has an installment there, the amount is added to
+    it and this row is cancelled (one row per advance and month). Every move is audited.
+    """
+    employee_ids = set(db.scalars(select(PayrollItem.employee_id).where(PayrollItem.payroll_run_id == run.id)).all())
+    rows = db.scalars(
+        select(AdvanceInstallment)
+        .join(AdvanceRequest, AdvanceRequest.id == AdvanceInstallment.advance_request_id)
+        .where(
+            AdvanceInstallment.payroll_month == run.period_start,
+            AdvanceInstallment.status.in_(("scheduled", "reversed")),
+            AdvanceInstallment.applied_payroll_run_id.is_(None),
+            AdvanceRequest.status == "paid",
+            AdvanceRequest.employee_id.not_in(employee_ids or {-1}),
+        )
+        .with_for_update()
+    ).all()
+    moved = 0
+    for row in rows:
+        nxt = db.scalar(select(AdvanceInstallment).where(
+            AdvanceInstallment.advance_request_id == row.advance_request_id,
+            AdvanceInstallment.payroll_month == target,
+        ).with_for_update())
+        if nxt is not None and nxt.status in ("scheduled", "reversed") and nxt.applied_payroll_run_id is None:
+            nxt.amount = money(Decimal(nxt.amount) + Decimal(row.amount))
+            row.status = "cancelled"
+            row.cancelled_at = utcnow()
+            note = f"merged into installment {nxt.id} of {target}"
+        elif nxt is None:
+            row.payroll_month = target
+            note = f"moved to {target}"
+        else:
+            continue  # the next month is already applied: left for HR, close reports it
+        _audit(
+            db, actor=actor, action="advance_installment_month_moved", entity_type="advance_installment",
+            entity_id=str(row.id), old_value=str(run.period_start), new_value=str(target),
+            reason=f"The employee has no open item in the approved payroll run; {note}.",
+        )
+        moved += 1
+    return moved
+
+
 def approve_payroll_run(db: Session, run: PayrollRun, actor: str) -> None:
     if run.status not in {"draft", "reopened"}:
         raise ValueError("Only a draft or reopened payroll run can be approved.")
@@ -631,6 +776,8 @@ def approve_payroll_run(db: Session, run: PayrollRun, actor: str) -> None:
     ).all()
     if not items:
         raise ValueError("A payroll run without employee items cannot be approved.")
+    refresh_draft_run_entries(db, run, actor)
+    move_left_out_entries_to_next_month(db, run, actor)
     conflicted = []
     for item in items:
         conflicts = absence_leave_conflicts(db, item, run)

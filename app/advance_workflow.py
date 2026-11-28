@@ -332,4 +332,6 @@ def mark_advance_paid(
                 f"{previous_month.isoformat()})"
                 + (f"; retroactive for {retroactive_for.isoformat()}: {reason}" if retroactive_for else "") + "."),
     )
+    from app.payroll_workflow import refresh_draft_for_month
+    refresh_draft_for_month(db, first_month, actor)  # a draft of that month takes the installment in
     return first_month

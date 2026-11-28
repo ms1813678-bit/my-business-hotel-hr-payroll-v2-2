@@ -363,8 +363,8 @@ def test_payroll_run_calculates_and_closes_once_then_tracks_partial_payment(payr
         assert item.staff_reward_amount == Decimal("100.00")
         assert item.staff_sanction_amount == Decimal("50.00")
 
-    # A financial source created after the payroll snapshot must not be
-    # silently marked as consumed when this run closes.
+    # A financial entry approved in the open month after the draft was created is brought into the draft
+    # when the run is approved (Mo, 28 Nov 2026 10:46:41, option 1), so it is never stranded.
     with client.test_session_factory() as db:
         db.add(AdvanceRequest(
             employee_id=client.test_employee_id,
@@ -470,8 +470,9 @@ def test_payroll_run_calculates_and_closes_once_then_tracks_partial_payment(payr
         assert advances[1].payroll_run_id is None
         assert all(action.payroll_run_id == run_id for action in actions[:2])
         assert all(action.payroll_applied_at is not None for action in actions[:2])
-        assert actions[2].payroll_run_id is None
-        assert actions[2].payroll_applied_at is None
+        assert actions[2].payroll_run_id == run_id
+        assert actions[2].payroll_applied_at is not None
+        assert db.scalar(select(PayrollItem.net_pay)) == Decimal("8452.60")  # 8432.60 + the late 20.00 reward
 
     partial = client.post(
         f"/payroll/items/{item_id}/payments",
@@ -504,7 +505,7 @@ def test_payroll_run_calculates_and_closes_once_then_tracks_partial_payment(payr
         f"/payroll/items/{item_id}/payments",
         data={
             "csrf_token": token,
-            "amount": "4432.60",
+            "amount": "4452.60",
             "paid_date": "2026-11-06",
             "method": "bank_transfer",
             "reference": "Synthetic final transfer",
@@ -517,7 +518,7 @@ def test_payroll_run_calculates_and_closes_once_then_tracks_partial_payment(payr
         item = db.get(PayrollItem, item_id)
         payments = db.scalars(select(PayrollPayment)).all()
         assert len(payments) == 2
-        assert sum((p.amount for p in payments), Decimal("0.00")) == Decimal("8432.60")
+        assert sum((p.amount for p in payments), Decimal("0.00")) == Decimal("8452.60")
 
     reopened = client.post(
         f"/payroll/runs/{run_id}/reopen",

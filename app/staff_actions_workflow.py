@@ -197,6 +197,9 @@ def approve_staff_action(db: Session, item: StaffAction, actor: str, today: date
         new_value="approved",
         reason=item.reason,
     ))
+    if item.is_financial and item.payroll_run_id is None:
+        from app.payroll_workflow import refresh_draft_for_month
+        refresh_draft_for_month(db, item.payroll_month, actor)  # a draft of that month takes it in
 
 
 def cancel_staff_action(db: Session, item: StaffAction, actor: str, reason: str) -> None:

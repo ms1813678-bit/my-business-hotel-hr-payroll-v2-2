@@ -1,3 +1,9 @@
+## 2026-11-28, Instinct: entries approved while the month is a draft join the draft (CI to confirm; not acceptance)
+
+- A bonus, deduction or installment that becomes approved while its month's payroll is still a draft or reopened is added to that draft: the staff action is linked to the run, and the item's reward, sanction and advance deduction are rebuilt, then the net is recomputed (Mo's text of 28 Nov 2026 10:46:41, option 1, read in meaning, relayed by Main). It also runs when the run is approved. Items that already hold a payment are not touched.
+- At approval, an approved entry of that month whose employee has no item in the run moves to the next month with the original month as the retroactive label and an audit row; nothing is lost.
+- tests/test_payroll_routes.py now expects the late reward to be in the net (8452.60).
+
 ## 2026-11-28, Instinct: late entries and the advance payment date (CI to confirm; not acceptance)
 
 - Advances: HR enters the real payment date when confirming; its month decides the first installment month. A date in month M is accepted until the whole 5th of the next month; after that, or when M's run is approved or closed, the first installment goes into the current month with a required reason and a retroactive label. Future dates and dates before the request are refused. Unpaid approved schedules move at confirmation; used installments never move; the regular-advance limit is re-checked in the real month. The HR's date is stored and audited as HR's claim.

@@ -22,9 +22,12 @@ def _cleanup():
     with SessionLocal.begin() as db:
         db.execute(text("SET LOCAL session_replication_role = replica"))
         for run_id in _RUNS:
+            db.execute(text("DELETE FROM payroll_items WHERE payroll_run_id = :r"), {"r": run_id})
+            db.execute(text("DELETE FROM audit_logs WHERE entity_type='payroll_run' AND entity_id = :r"), {"r": str(run_id)})
             db.execute(text("DELETE FROM payroll_runs WHERE id = :r"), {"r": run_id})
         for request_id, employee_id, dept_id in _CREATED:
             db.execute(text("DELETE FROM audit_logs WHERE entity_type='advance_request' AND entity_id = :r"), {"r": str(request_id)})
+            db.execute(text("DELETE FROM audit_logs WHERE entity_type='advance_installment' AND entity_id IN (SELECT CAST(id AS varchar) FROM advance_installments WHERE advance_request_id = :r)"), {"r": request_id})
             db.execute(text("DELETE FROM advance_installments WHERE advance_request_id = :r"), {"r": request_id})
             db.execute(text("DELETE FROM advance_requests WHERE id = :r"), {"r": request_id})
             db.execute(text("DELETE FROM employees WHERE id = :e"), {"e": employee_id})
@@ -206,3 +209,50 @@ def test_closed_current_month_run_sends_a_current_month_payment_to_the_next_mont
         _pay(rid, date(2031, 12, 10), date(2031, 12, 20))
     assert _pay(rid, date(2031, 12, 10), date(2031, 12, 20), reason="December run already closed") == date(2032, 1, 1)
     assert _row(rid)[3] == date(2031, 12, 1)
+
+
+def test_installment_confirmed_while_the_month_is_a_draft_enters_that_draft():
+    from app.models import PayrollItem
+    rid = _approved(count=2, amount="1000")
+    with SessionLocal.begin() as db:
+        employee_id = db.get(AdvanceRequest, rid).employee_id
+        run = PayrollRun(period_start=date(2031, 12, 1), period_end=date(2031, 12, 28), pay_date=date(2031, 12, 28),
+                         status="draft", created_by="synthetic")
+        db.add(run)
+        db.flush()
+        _RUNS.append(run.id)
+        item = PayrollItem(payroll_run_id=run.id, employee_id=employee_id, employee_code_snapshot="X",
+                           employee_name_snapshot="X", department_name_snapshot="X", position_snapshot="P",
+                           salary_basis=Decimal("10000"), base_salary=Decimal("10000"), daily_hours=Decimal("8"),
+                           net_pay=Decimal("0.00"))
+        db.add(item)
+        db.flush()
+        from app.payroll_workflow import recompute_payroll_item
+        recompute_payroll_item(item, run)
+        before = Decimal(item.net_pay)
+    assert _pay(rid, date(2031, 12, 3), date(2031, 12, 3)) == date(2031, 12, 1)
+    with SessionLocal() as db:
+        item = db.scalar(select(PayrollItem).where(PayrollItem.payroll_run_id == _RUNS[0]))
+        assert Decimal(item.advance_deduction) == Decimal("500.00")
+        assert Decimal(item.net_pay) == before - Decimal("500.00")
+
+
+def test_installment_of_an_employee_without_an_item_moves_to_the_next_month_when_the_run_is_approved():
+    from app.models import AdvanceInstallment, PayrollItem
+    from app.payroll_workflow import move_left_out_entries_to_next_month
+    rid = _approved(count=3, amount="3000")
+    assert _pay(rid, date(2031, 12, 3), date(2031, 12, 3)) == date(2031, 12, 1)
+    with SessionLocal.begin() as db:
+        run = PayrollRun(period_start=date(2031, 12, 1), period_end=date(2031, 12, 28), pay_date=date(2031, 12, 28),
+                         status="draft", created_by="synthetic")
+        db.add(run)
+        db.flush()
+        _RUNS.append(run.id)
+        rows = db.scalars(select(AdvanceInstallment).where(AdvanceInstallment.advance_request_id == rid)
+                          .order_by(AdvanceInstallment.installment_number)).all()
+        assert [r.payroll_month for r in rows] == [date(2031, 12, 1), date(2032, 1, 1), date(2032, 2, 1)]
+        assert move_left_out_entries_to_next_month(db, run, "synthetic") == 1
+        db.flush()
+        assert rows[0].status == "cancelled"
+        assert (rows[1].status, Decimal(rows[1].amount)) == ("scheduled", Decimal("2000.00"))
+        assert move_left_out_entries_to_next_month(db, run, "synthetic") == 0

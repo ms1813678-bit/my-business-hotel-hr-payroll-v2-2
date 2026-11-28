@@ -25,6 +25,8 @@ def _cleanup():
             db.execute(text("DELETE FROM audit_logs WHERE entity_type='staff_action' AND entity_id=:a"), {"a": str(a)})
             db.execute(text("DELETE FROM staff_actions WHERE id=:a"), {"a": a})
         for r in _IDS["run"]:
+            db.execute(text("DELETE FROM payroll_items WHERE payroll_run_id = :r"), {"r": r})
+            db.execute(text("DELETE FROM audit_logs WHERE entity_type='payroll_run' AND entity_id = :r"), {"r": str(r)})
             db.execute(text("DELETE FROM payroll_runs WHERE id=:r"), {"r": r})
         for e in _IDS["emp"]:
             db.execute(text("DELETE FROM employees WHERE id=:e"), {"e": e})
@@ -141,3 +143,59 @@ def test_current_month_entry_with_a_locked_run_goes_to_the_next_month_with_label
         assert (placed, retro) == (date(2032, 1, 1), DEC)
         item = _make(db, emp, DEC, date(2031, 12, 10))
         assert (item.payroll_month, item.retroactive_for_month) == (date(2032, 1, 1), DEC)
+
+
+def _draft_item(db, emp, month):
+    from app.models import PayrollItem
+    run = PayrollRun(period_start=month, period_end=date(month.year, month.month, 28),
+                     pay_date=date(month.year, month.month, 28), status="draft", created_by="synthetic")
+    db.add(run)
+    db.flush()
+    _IDS["run"].append(run.id)
+    item = PayrollItem(payroll_run_id=run.id, employee_id=emp, employee_code_snapshot="X", employee_name_snapshot="X",
+                       department_name_snapshot="X", position_snapshot="P", salary_basis=Decimal("10000"),
+                       base_salary=Decimal("10000"), daily_hours=Decimal("8"), net_pay=Decimal("0.00"))
+    db.add(item)
+    db.flush()
+    from app.payroll_workflow import recompute_payroll_item
+    recompute_payroll_item(item, run)
+    return run, item
+
+
+def test_entry_approved_while_the_month_is_a_draft_is_added_to_the_draft_once():
+    from app.payroll_workflow import refresh_draft_run_entries
+    with SessionLocal.begin() as db:
+        emp = _employee(db)
+        run, item = _draft_item(db, emp, DEC)
+        before = Decimal(item.net_pay)
+        action = _make(db, emp, DEC, date(2031, 12, 3))
+        approve_staff_action(db, action, "synthetic", today=date(2031, 12, 3))
+        assert action.payroll_run_id == run.id
+        assert Decimal(item.staff_sanction_amount) == Decimal("500.00")
+        assert Decimal(item.net_pay) == before - Decimal("500.00")
+        assert refresh_draft_run_entries(db, run, "synthetic") == 0      # idempotent
+        assert Decimal(item.net_pay) == before - Decimal("500.00")
+
+
+def test_a_run_that_is_approved_is_not_changed_by_refresh():
+    from app.payroll_workflow import refresh_draft_run_entries
+    with SessionLocal.begin() as db:
+        emp = _employee(db)
+        run, item = _draft_item(db, emp, DEC)
+        run.status = "approved"
+        db.flush()
+        assert refresh_draft_run_entries(db, run, "synthetic") == 0
+
+
+def test_entry_for_an_employee_without_an_item_moves_to_the_next_month_when_the_run_is_approved():
+    from app.payroll_workflow import move_left_out_entries_to_next_month
+    with SessionLocal.begin() as db:
+        emp = _employee(db)
+        other = _employee(db)
+        run, _item = _draft_item(db, other, DEC)
+        action = _make(db, emp, DEC, date(2031, 12, 3))
+        approve_staff_action(db, action, "synthetic", today=date(2031, 12, 3))
+        assert action.payroll_run_id is None
+        assert move_left_out_entries_to_next_month(db, run, "synthetic") == 1
+        assert (action.payroll_month, action.retroactive_for_month) == (date(2032, 1, 1), DEC)
+        assert move_left_out_entries_to_next_month(db, run, "synthetic") == 0
