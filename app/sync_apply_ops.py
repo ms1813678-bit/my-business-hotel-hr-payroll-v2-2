@@ -20,7 +20,7 @@ from dataclasses import field as dc_field
 from datetime import datetime, timedelta, timezone
 
 from app.sync_apply import READY, RETURNED, SessionPlan, _g
-from app.sync_change_log import SyncLogError
+from app.sync_change_log import SyncLogError, canonical_time
 
 KIND = {"create": "create", "set": "set", "delete": "delete"}
 
@@ -46,6 +46,7 @@ class SessionOps:
     duplicates: int
     last_counter: int  # highest counter this session consumed or already held
     session_digest: str
+    received_at: str | None = None  # rule 10: when main received this session (canonical UTC), None if not stamped
 
 
 def _op(row):
@@ -62,7 +63,7 @@ def digest(rows):
     return hashlib.sha256("\n".join(_g(r, "row_hash") for r in ordered).encode("ascii")).hexdigest()
 
 
-def plan_to_ops(plan: SessionPlan, *, device_id, applied_last_counter=0):
+def plan_to_ops(plan: SessionPlan, *, device_id, applied_last_counter=0, received_at=None):
     if not isinstance(plan, SessionPlan) or plan.status != READY:
         raise SyncLogError("only a ready plan can be turned into operations")
     ops = tuple(sorted((_op(r) for r in plan.apply), key=lambda o: o.origin_counter))
@@ -79,7 +80,8 @@ def plan_to_ops(plan: SessionPlan, *, device_id, applied_last_counter=0):
             c["origin_device_id"] != device_id for c in conflicts):
         raise SyncLogError("row from another device in the plan")
     allrows = list(plan.apply) + list(plan.already_deleted) + [c[0] for c in plan.conflicts] + list(plan.duplicates)
-    return SessionOps(device_id, ops, conflicts, already, len(plan.duplicates), last, digest(allrows) if allrows else digest([]))
+    stamp = None if received_at is None else canonical_time(received_at)  # naive time refused
+    return SessionOps(device_id, ops, conflicts, already, len(plan.duplicates), last, digest(allrows), stamp)
 
 
 def returned_record(plan: SessionPlan, *, device_id, rows, received_at):

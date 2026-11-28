@@ -108,3 +108,10 @@ Open items (not decided, not built):
 - Rows in a session are sorted by counter before checking; an identical repeat is kept once, the same counter with other content is an integrity failure.
 - `app/sync_apply_ops.py` fixes the shape of the ops list and of the returned-session record, and `is_expired` takes the number of days as a required argument; the 30-day figure above stays a proposal.
 - The next part (the executor) must record consumed conflict and already-deleted rows in the main's change log, so the device's counter chain continues without a gap.
+
+## 10. Technical proposals in `app/sync_rules.py` (pure, not wired, not decided by Mo)
+
+- Restore guard (rule 9): the device sends the last counter it believes main holds (its last synced counter, not its latest local one, which pending rows push ahead legitimately). Refused when the device epoch is newer than main's, when the device's last counter is ahead of main's record, or when the device epoch is older than main's (its pre-restore edits wait for an administrator decision; that last refusal is a proposal for the open item above).
+- Administrator decision on a conflict: accept turns a same-field conflict into the device's set and a delete-against-edit into the delete; reject changes nothing. Accepting an edit or create on a deleted record is refused until a rule for undelete exists. "Confirm both" for finance salary is not built.
+- Duplicate employee code (rule 7): codes compare by number. A free code is kept and, if its number is above the counter, the counter advances to it; a taken one becomes the next number after the highest of the counter and all codes in use. The function returns the counter value the caller must reach, in the same transaction.
+- Executor note: an accepted same-field conflict carries the device's old value while main holds another; the executor applies it as decided and does not flag it as a new conflict.

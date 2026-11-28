@@ -1,3 +1,8 @@
+## 2026-11-28, Instinct: sync pure modules, rules, pairing, test harnesses (CI to confirm; not acceptance)
+
+- New pure modules app/sync_rules.py and app/sync_pairing.py, an optional received_at on SessionOps, and randomized and guard test harnesses. They are not wired into any route, screen or startup path, so no visible text or behavior changes.
+- Independent reviewer cleared the five diffs by sha256 (rules-v4, harness-v2, pairing-v3, received-at, guard-v2). This entry is a record, not an approval.
+
 ## 2026-11-28, Instinct: attendance adjustment form for a closed month (CI to confirm; not acceptance)
 
 - New card on the staff-actions page: an attendance mistake in an earlier month is corrected in the current month, with no attendance reopen. HR picks the employee, the month, the type (days counted by mistake = deduction, days missed = addition) and the number of days (half days allowed); the suggested amount is days x basic salary / days of that month, HR can edit it, a reason is required.

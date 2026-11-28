@@ -84,3 +84,15 @@ def test_returned_record_row_count_with_a_generator():
     p = plan(rows, role="assistant_manager")
     rec = returned_record(p, device_id=DEV, rows=(r for r in rows), received_at=T0)
     assert rec["row_count"] == 2 and rec["session_digest"] == digest(rows)
+
+
+def test_received_at_is_stamped_in_canonical_utc_and_optional():
+    from datetime import timedelta as td
+    rows = mk([("set", "employees", EMP, "full_name", "A", "B")])
+    p = plan(rows, values={("employees", EMP, "full_name"): "A"})
+    assert plan_to_ops(p, device_id=DEV).received_at is None
+    cairo = timezone(td(hours=2))
+    s = plan_to_ops(p, device_id=DEV, received_at=datetime(2026, 11, 28, 11, 0, 5, 123, tzinfo=cairo))
+    assert s.received_at == "2026-11-28T09:00:05.000123Z"
+    with pytest.raises(SyncLogError):
+        plan_to_ops(p, device_id=DEV, received_at=datetime(2026, 11, 28, 9, 0))
