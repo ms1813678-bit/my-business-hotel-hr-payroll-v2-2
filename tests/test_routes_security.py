@@ -15,6 +15,10 @@ from app.main import app
 from app.models import AdminAccount, Department, Employee, EmployeeCodeCounter
 from app.security import hash_password
 
+from app.open_month import first_of_month as _first_of_month, today_cairo as _today_cairo
+
+EDIT_DATE = _first_of_month(_today_cairo())
+
 
 class _ArabicUiTextProbe(HTMLParser):
     _SKIP_TAGS = {"script", "style", "textarea", "pre", "code"}
@@ -650,7 +654,8 @@ def test_employee_profile_edit_records_effective_dated_history_and_audit(client)
         "basic_salary": "1250.50",
         "daily_hours": "7.5",
         "fingerprint_id": "TEST-FP-1001",
-        "effective_date": "2025-02-01",
+        # A basic-salary change cannot be dated in a closed month (Mo, 28 Nov 2026), so use the first of this month.
+        "effective_date": EDIT_DATE.isoformat(),
         "reason": "Approved employee data correction",
     }
     edited = client.post(
@@ -680,7 +685,7 @@ def test_employee_profile_edit_records_effective_dated_history_and_audit(client)
         assert {change.field_name for change in changes} == {
             "full_name", "phone", "address", "position", "basic_salary", "daily_hours"
         }
-        assert all(change.effective_date == date(2025, 2, 1) for change in changes)
+        assert all(change.effective_date == EDIT_DATE for change in changes)
         assert all(change.reason == "Approved employee data correction" for change in changes)
         assert all(change.old_value is not None and change.new_value is not None for change in changes)
         assert audit.actor == "integration-admin"
