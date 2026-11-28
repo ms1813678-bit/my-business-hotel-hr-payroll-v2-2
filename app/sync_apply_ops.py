@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import hashlib
 from dataclasses import dataclass
-from dataclasses import field as dc_field
 from datetime import datetime, timedelta, timezone
 
 from app.sync_apply import READY, RETURNED, SessionPlan, _g
