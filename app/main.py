@@ -88,6 +88,7 @@ from app.staff_actions_workflow import (
     CATEGORY_LABELS_AR,
     approve_staff_action,
     cancel_staff_action,
+    create_attendance_adjustment,
     create_staff_action,
     record_employee_acknowledgement,
 )
@@ -2576,8 +2577,32 @@ def staff_actions_page(request: Request, page: int = 1, admin: AdminAccount = De
                 "category_labels": CATEGORY_LABELS_AR,
                 "csrf_token": get_csrf_token(request),
                 "error": request.query_params.get("error"),
+                "adjusted": request.query_params.get("adjusted"),
+                "basic_salaries": {e.id: str(e.basic_salary) for e in employees},
             },
         )
+
+
+@app.post("/staff-actions/attendance-adjustment", dependencies=[Depends(csrf_protect)])
+def create_attendance_adjustment_route(
+    employee_id: int = Form(...),
+    attendance_month: str = Form(...),
+    adjustment: str = Form(...),
+    days: Decimal = Form(...),
+    amount: Decimal | None = Form(None),
+    reason: str = Form(...),
+    admin: AdminAccount = Depends(require_payroll_access),
+):
+    try:
+        month = date.fromisoformat(attendance_month + "-01") if len(attendance_month) == 7 else date.fromisoformat(attendance_month)
+        with SessionLocal.begin() as db:
+            create_attendance_adjustment(
+                db, employee_id=employee_id, attendance_month=month, adjustment=adjustment,
+                days=days, amount=amount, reason=reason, actor=admin.username,
+            )
+    except (ValueError, ArithmeticError, SQLAlchemyError):
+        return RedirectResponse("/staff-actions?error=adjust", status_code=303)
+    return RedirectResponse("/staff-actions?adjusted=1", status_code=303)
 
 
 @app.post("/staff-actions", dependencies=[Depends(csrf_protect)])

@@ -11,12 +11,54 @@
   {% if error %}
   <section class="notice error">
     {% if error == "create" %}تعذر تسجيل الإجراء. راجع نوعه وتصنيفه والمبلغ وشهر الرواتب والسبب.
+    {% elif error == "adjust" %}تعذر تسجيل التسوية. تأكد من الموظف والشهر وعدد الأيام (أنصاف أيام) والسبب.
     {% elif error == "approve" %}تعذر اعتماد الإجراء. تأكد أنه ما زال مسودة.
     {% elif error == "cancel" %}تعذر إلغاء الإجراء. يجب إدخال سبب واضح وألا يكون قد طُبق على الرواتب.
     {% elif error == "ack" %}تعذر تسجيل إفادة الموظف. يجب اعتماد الإجراء أولًا، وإدخال ملاحظة عند رفض الاطلاع.
     {% else %}السجل المطلوب غير موجود.{% endif %}
   </section>
   {% endif %}
+
+  {% if adjusted %}<section class="notice"><p>تم تسجيل التسوية كمسودة. اعتمدها من السجل أدناه.</p></section>{% endif %}
+
+  <section class="notice" id="attendance-adjustment">
+    <h2>تسوية حضور بعد قفل الشهر</h2>
+    <p class="muted small">عند اكتشاف خطأ في حضور شهر سبق صرف راتبه، يُسجَّل التصحيح في الشهر الحالي ولا يُعاد فتح الشهر القديم.</p>
+    <form method="post" action="/staff-actions/attendance-adjustment" id="adj-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <label>الموظف
+        <select name="employee_id" id="adj-emp" required>
+          {% for e in employees %}<option value="{{ e.id }}" data-basic="{{ basic_salaries[e.id] }}">{{ e.code }} - {{ e.full_name }}</option>{% endfor %}
+        </select></label>
+      <label>شهر الحضور الخاطئ <input type="month" name="attendance_month" id="adj-month" required></label>
+      <label>نوع التسوية
+        <select name="adjustment" required>
+          <option value="overpaid">أيام احتُسبت حضورًا بالخطأ (خصم)</option>
+          <option value="missed">أيام لم تُحتسب (إضافة)</option>
+        </select></label>
+      <label>عدد الأيام (يقبل نصف يوم) <input type="number" name="days" id="adj-days" min="0.5" step="0.5" required></label>
+      <label>المبلغ المقترح (جنيه) <input type="number" name="amount" id="adj-amount" min="0.01" step="0.01"></label>
+      <p class="muted small">المبلغ المقترح = عدد الأيام × الراتب الأساسي ÷ عدد أيام ذلك الشهر. يمكنك تعديله قبل الحفظ.</p>
+      <label>السبب (مطلوب) <input type="text" name="reason" maxlength="500" required></label>
+      <p class="muted small">سيُسجَّل في الشهر الحالي بعبارة «بأثر رجعي عن» الشهر المختار، ويُصرف أو يُخصم مع مرتب الشهر الحالي.</p>
+      <button type="submit">تسجيل التسوية</button>
+    </form>
+    <script>
+    (function () {
+      var emp = document.getElementById('adj-emp'), m = document.getElementById('adj-month'),
+          d = document.getElementById('adj-days'), a = document.getElementById('adj-amount');
+      var touched = false;
+      a.addEventListener('input', function () { touched = true; });
+      function calc() {
+        if (touched || !m.value || !d.value) { return; }
+        var p = m.value.split('-'), dim = new Date(+p[0], +p[1], 0).getDate();
+        var basic = parseFloat(emp.options[emp.selectedIndex].dataset.basic);
+        if (!isNaN(basic)) { a.value = (basic * parseFloat(d.value) / dim).toFixed(2); }
+      }
+      [emp, m, d].forEach(function (x) { x.addEventListener('input', calc); });
+    })();
+    </script>
+  </section>
 
   <section class="notice">
     <h2>تسجيل جزاء أو مكافأة</h2>
@@ -217,7 +259,7 @@
       <td>{{ category_labels.get(a.category, a.category) }}</td>
       <td>{{ a.title }}</td>
       <td>{% if a.is_financial %}{{ "%.2f"|format(a.amount) }} <span>ج</span>{% else %}—{% endif %}</td>
-      <td>{% if a.payroll_month %}{{ a.payroll_month|fmt_m }}{% else %}—{% endif %}</td>
+      <td>{% if a.payroll_month %}{{ a.payroll_month|fmt_m }}{% if a.retroactive_for_month %}<br><span class="muted small">بأثر رجعي عن شهر</span> <span class="muted small">{{ a.retroactive_for_month|fmt_m }}</span>{% endif %}{% else %}—{% endif %}</td>
       <td>{{ a.status|status_label }}</td>
       <td>{{ a.acknowledgement_status|status_label }}</td>
       <td>

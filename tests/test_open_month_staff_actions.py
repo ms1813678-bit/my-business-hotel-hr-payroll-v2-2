@@ -199,3 +199,53 @@ def test_entry_for_an_employee_without_an_item_moves_to_the_next_month_when_the_
         assert move_left_out_entries_to_next_month(db, run, "synthetic") == 1
         assert (action.payroll_month, action.retroactive_for_month) == (date(2032, 1, 1), DEC)
         assert move_left_out_entries_to_next_month(db, run, "synthetic") == 0
+
+
+
+def test_attendance_adjustment_suggested_amount_and_placement():
+    from app.staff_actions_workflow import create_attendance_adjustment, suggested_adjustment_amount
+    assert suggested_adjustment_amount(Decimal("10000"), 2, date(2031, 11, 1)) == Decimal("666.67")
+    assert suggested_adjustment_amount(Decimal("10000"), 1, date(2032, 2, 1)) == Decimal("344.83")
+    with SessionLocal.begin() as db:
+        emp = _employee(db)
+        a = create_attendance_adjustment(db, employee_id=emp, attendance_month=date(2031, 11, 17), adjustment="overpaid",
+                                         days=2, amount=None, reason="synthetic", actor="synthetic", today=date(2031, 12, 10))
+        _IDS["act"].append(a.id)
+        assert (a.kind, a.category, a.amount, a.status) == ("sanction", "attendance_adjustment", Decimal("666.67"), "draft")
+        assert a.payroll_month == DEC and a.retroactive_for_month == NOV
+        b = create_attendance_adjustment(db, employee_id=emp, attendance_month=NOV, adjustment="missed",
+                                         days=Decimal("0.5"), amount=Decimal("100"), reason="synthetic", actor="synthetic",
+                                         today=date(2031, 12, 3))
+        _IDS["act"].append(b.id)
+        assert (b.kind, b.amount, b.payroll_month, b.retroactive_for_month) == ("reward", Decimal("100.00"), DEC, NOV)
+
+
+@pytest.mark.parametrize("kwargs", [
+    {"attendance_month": DEC},                  # not an ended month
+    {"adjustment": "other"},
+    {"days": 0},
+    {"days": Decimal("1.3")},
+    {"days": 31},
+    {"reason": "  "},
+])
+def test_attendance_adjustment_refuses_bad_input(kwargs):
+    from app.staff_actions_workflow import create_attendance_adjustment
+    base = dict(attendance_month=NOV, adjustment="overpaid", days=1, amount=None, reason="r", actor="synthetic",
+                today=date(2031, 12, 10))
+    base.update(kwargs)
+    with SessionLocal.begin() as db:
+        base["employee_id"] = _employee(db)
+        with pytest.raises(ValueError):
+            create_attendance_adjustment(db, **base)
+
+
+@pytest.mark.parametrize("status", ["approved", "closed"])
+def test_attendance_adjustment_keeps_the_wrong_month_when_the_current_month_is_locked(status):
+    from app.staff_actions_workflow import create_attendance_adjustment
+    with SessionLocal.begin() as db:
+        emp = _employee(db)
+        _run(db, DEC, status)
+        a = create_attendance_adjustment(db, employee_id=emp, attendance_month=NOV, adjustment="overpaid", days=1,
+                                         amount=None, reason="synthetic", actor="synthetic", today=date(2031, 12, 10))
+        _IDS["act"].append(a.id)
+        assert (a.payroll_month, a.retroactive_for_month) == (date(2032, 1, 1), NOV)

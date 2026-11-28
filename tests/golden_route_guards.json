@@ -567,6 +567,10 @@
   "csrf_protect",
   "require_payroll_access"
  ],
+ "POST /staff-actions/attendance-adjustment": [
+  "csrf_protect",
+  "require_payroll_access"
+ ],
  "POST /staff-actions/{action_id}/acknowledgement": [
   "csrf_protect",
   "require_payroll_access"

@@ -1,3 +1,10 @@
+## 2026-11-28, Instinct: attendance adjustment form for a closed month (CI to confirm; not acceptance)
+
+- New card on the staff-actions page: an attendance mistake in an earlier month is corrected in the current month, with no attendance reopen. HR picks the employee, the month, the type (days counted by mistake = deduction, days missed = addition) and the number of days (half days allowed); the suggested amount is days x basic salary / days of that month, HR can edit it, a reason is required.
+- It creates a normal draft staff action (category attendance_adjustment) labelled retroactive for the attendance month, so approval, the month rules and the draft refresh work as for any entry. The reward and sanction type lists are unchanged.
+- Mockup shown to Mo and answered "موافق" at 2026-11-28 10:47:13 EET (WhatsApp, read in meaning); this entry is a record, not an approval.
+- AR, EN and ZH text added; the route is in the golden guard list with the same guards as POST /staff-actions.
+
 ## 2026-11-28, Instinct: entries approved while the month is a draft join the draft (CI to confirm; not acceptance)
 
 - A bonus, deduction or installment that becomes approved while its month's payroll is still a draft or reopened is added to that draft: the staff action is linked to the run, and the item's reward, sanction and advance deduction are rebuilt, then the net is recomputed (Mo's text of 28 Nov 2026 10:46:41, option 1, read in meaning, relayed by Main). It also runs when the run is approved. Items that already hold a payment are not touched.

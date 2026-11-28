@@ -309,3 +309,39 @@ def test_category_renders_arabic_label_not_raw_key(staff_action_client):
 
     page_zh = client.get("/staff-actions", cookies={"my_hr_language": "zh"})
     assert "工资扣款" in page_zh.text
+
+
+def test_attendance_adjustment_form_route_creates_a_labelled_draft(staff_action_client):
+    from app.open_month import first_of_month, today_cairo
+    from app.models import StaffAction
+    from sqlalchemy import select as _sel
+    client = staff_action_client
+    login(client)
+    cur = first_of_month(today_cairo())
+    prev = date(cur.year - 1, 12, 1) if cur.month == 1 else date(cur.year, cur.month - 1, 1)
+    page = client.get("/staff-actions")
+    assert "attendance-adjustment" in page.text
+    token = csrf(page)
+    ok = client.post(
+        "/staff-actions/attendance-adjustment",
+        data={"csrf_token": token, "employee_id": client.test_employee_id, "attendance_month": prev.strftime("%Y-%m"),
+              "adjustment": "overpaid", "days": "1", "amount": "", "reason": "Synthetic wrong day"},
+        follow_redirects=False,
+    )
+    assert ok.status_code == 303 and "adjusted=1" in ok.headers["location"]
+    with client.test_session_factory() as db:
+        row = db.scalars(_sel(StaffAction).where(StaffAction.employee_id == client.test_employee_id,
+                                                 StaffAction.category == "attendance_adjustment")).one()
+        assert row.status == "draft" and row.retroactive_for_month == prev and row.payroll_month >= cur
+    bad = client.post(
+        "/staff-actions/attendance-adjustment",
+        data={"csrf_token": token, "employee_id": client.test_employee_id, "attendance_month": cur.strftime("%Y-%m"),
+              "adjustment": "overpaid", "days": "1", "reason": "x"},
+        follow_redirects=False,
+    )
+    assert "error=adjust" in bad.headers["location"]
+    nocsrf = client.post("/staff-actions/attendance-adjustment", data={"employee_id": client.test_employee_id},
+                         follow_redirects=False)
+    assert nocsrf.status_code in (400, 403)
+    for lang, word in (("en", "Attendance adjustment after the month is closed"), ("zh", "月份关闭后的考勤调整")):
+        assert word in client.get("/staff-actions", cookies={"my_hr_language": lang}).text

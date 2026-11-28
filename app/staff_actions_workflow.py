@@ -1,4 +1,5 @@
 """HR-administered employee sanctions and rewards with acknowledgement history."""
+import calendar
 from datetime import date
 from decimal import Decimal
 
@@ -6,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models import utcnow, AuditLog, Employee, StaffAction
-from app.open_month import place_month
+from app.open_month import first_of_month, place_month, today_cairo
 
 
 SANCTION_CATEGORIES = {
@@ -40,6 +41,7 @@ CATEGORY_LABELS_AR = {
     "final_warning": "إنذار نهائي",
     "salary_deduction": "خصم من الراتب",
     "suspension": "إيقاف عن العمل",
+    "attendance_adjustment": "تسوية حضور",
     "financial_reward": "مكافأة مالية",
     "reward_outstanding_performance": "مكافأة أداء متميز",
     "reward_attendance_commitment": "مكافأة حضور والتزام",
@@ -73,10 +75,13 @@ def create_staff_action(
     reason: str,
     actor: str,
     today: date | None = None,
+    retroactive_for_override: date | None = None,
 ) -> StaffAction:
     if kind not in {"sanction", "reward"}:
         raise ValueError("Invalid staff action type.")
     allowed = SANCTION_CATEGORIES if kind == "sanction" else REWARD_CATEGORIES
+    if retroactive_for_override is not None:
+        allowed = allowed | {"attendance_adjustment"}  # only the attendance adjustment workflow passes this
     if category not in allowed:
         raise ValueError("Invalid category for this action.")
     if not title.strip() or not reason.strip():
@@ -86,7 +91,7 @@ def create_staff_action(
     )
     if employee is None or employee.status != "active":
         raise ValueError("The employee is not active.")
-    if category == "salary_deduction" and not is_financial:
+    if category in {"salary_deduction", "attendance_adjustment"} and not is_financial:
         raise ValueError("A salary deduction must have a financial amount.")
     if category in FINANCIAL_REWARD_CATEGORIES and not is_financial:
         raise ValueError("A financial reward must have a financial amount.")
@@ -99,6 +104,7 @@ def create_staff_action(
         if payroll_month.day != 1:
             raise ValueError("Payroll month must be entered as the first day of the month.")
         payroll_month, retroactive_for = place_month(db, payroll_month, today)
+        retroactive_for = retroactive_for_override or retroactive_for
         duplicate = db.scalar(
             select(StaffAction.id).where(
                 StaffAction.employee_id == employee_id,
@@ -252,3 +258,55 @@ def record_employee_acknowledgement(
         new_value=status,
         reason=note.strip() or "HR recorded that the employee viewed the notice.",
     ))
+
+
+def suggested_adjustment_amount(basic_salary, days, attendance_month: date) -> Decimal:
+    """Days x basic salary / days of that month (Mo, 28 Nov 2026 10:26:41, read in meaning; HR may edit)."""
+    days_in_month = calendar.monthrange(attendance_month.year, attendance_month.month)[1]
+    return (Decimal(str(basic_salary)) * Decimal(str(days)) / Decimal(days_in_month)).quantize(Decimal("0.01"))
+
+
+def create_attendance_adjustment(
+    db: Session,
+    *,
+    employee_id: int,
+    attendance_month: date,
+    adjustment: str,
+    days,
+    amount,
+    reason: str,
+    actor: str,
+    today: date | None = None,
+) -> StaffAction:
+    """Correct a wrong attendance day of an earlier month in the CURRENT month (no attendance reopen).
+
+    'overpaid' = days counted as present by mistake (deduction); 'missed' = days not counted (addition).
+    The entry is a normal draft staff action labelled retroactive for the attendance month (Mo, 23:52:59 on
+    27 Nov 2026 and 10:47:13 on 28 Nov 2026, read in meaning, relayed by Main).
+    """
+    today = today or today_cairo()
+    current = first_of_month(today)
+    attendance_month = first_of_month(attendance_month)
+    if attendance_month >= current:
+        raise ValueError("An attendance adjustment is for a month that has already ended.")
+    if adjustment not in {"overpaid", "missed"}:
+        raise ValueError("Invalid attendance adjustment type.")
+    days = Decimal(str(days))
+    days_in_month = calendar.monthrange(attendance_month.year, attendance_month.month)[1]
+    if days <= 0 or days > days_in_month or (days * 2) != (days * 2).to_integral_value():
+        raise ValueError("The number of days must be positive, in half days, and within the month.")
+    if not reason.strip():
+        raise ValueError("A title and reason are required.")
+    employee = db.scalar(select(Employee).where(Employee.id == employee_id))
+    if employee is None or employee.status != "active":
+        raise ValueError("The employee is not active.")
+    if amount is None or str(amount).strip() == "":
+        amount = suggested_adjustment_amount(employee.basic_salary, days, attendance_month)
+    return create_staff_action(
+        db, employee_id=employee_id, kind="sanction" if adjustment == "overpaid" else "reward",
+        category="attendance_adjustment",
+        title="تسوية حضور",
+        is_financial=True, amount=amount, payroll_month=current, today=today, actor=actor,
+        reason=f"{reason.strip()} [{days.normalize():f} / {attendance_month:%Y-%m}]",
+        retroactive_for_override=attendance_month,
+    )
