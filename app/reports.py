@@ -414,7 +414,7 @@ _LEGACY_LABELS = {
     "Advance": ("خصم السلفة", "预支扣款"),
     "Financial reward": ("مكافأة مالية", "奖金"),
     "Financial sanction": ("جزاء مالي", "罚款"),
-    "Leave cash payout": ("بدل رصيد الإجازات", "假期余额兑现"),
+    "Leave cash payout": ("بدل رصيد الإجازات", "休假余额兑现"),
     "Carried in deduction": ("مرحّل من الشهر السابق", "上月结转扣款"),
     "Carried out (unabsorbed)": ("خصم مرحّل للشهر القادم", "结转至下月"),
     "Net pay": ("صافي المرتب", "实发工资"),

@@ -40,7 +40,7 @@ _TEMPLATES: dict[str, tuple[str, str, str]] = {
         "已归档员工 {name}。",
     ),
     "rehire_employee": (
-        "تمت إعادة تعيين الموظف {name}.",
+        "تمت إعادة توظيف الموظف {name}.",
         "Employee {name} was rehired.",
         "已重新录用员工 {name}。",
     ),

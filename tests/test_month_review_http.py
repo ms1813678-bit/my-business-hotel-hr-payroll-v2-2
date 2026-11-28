@@ -145,7 +145,7 @@ def test_selected_month_review_real_http_register_and_unknown_close_block(histor
         with SessionLocal() as checked:audit_before=checked.scalar(select(func.count()).select_from(AuditLog))
         editor_root=f'/leave/month-review/reconciliation/{ctx["compared"].id}/{employee.id}'
         editor=client.get(editor_root)
-        assert editor.status_code==200 and 'مسودة تسوية الأرصدة' in editor.text
+        assert editor.status_code==200 and 'مسودة مطابقة الأرصدة' in editor.text
         fields=dict(csrf_token=token(editor),comparison_id=ctx['compared'].id,employee_id=str(employee.id),release_evaluated_on='2026-05-31')
         assert client.post('/leave/month-review/reconciliation-snapshot',data={**fields,'release_evaluated_on':'2026-05-30'}).status_code==400
         import app.leave_reconciliation_editor_routes as editor_routes

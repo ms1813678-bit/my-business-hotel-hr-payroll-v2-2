@@ -44,7 +44,7 @@
             {% for key, label, numeric in result.columns %}
             <td>{% if numeric %}<strong>{{ row[key]|fmtnum }}</strong>{% else %}{{ row[key] }}{% endif %}</td>
             {% endfor %}
-            {% if result.report_type == 'payroll' %}<td><span class="breakdown-toggle" data-breakdown="bd-{{ row.employee_id }}">إزاي اتجمع؟</span></td>{% endif %}
+            {% if result.report_type == 'payroll' %}<td><span class="breakdown-toggle" data-breakdown="bd-{{ row.employee_id }}">كيف تم التجميع؟</span></td>{% endif %}
           </tr>
           {% if result.report_type == 'payroll' and row.breakdown %}
           <tr class="breakdown-row" id="bd-{{ row.employee_id }}" style="display:none;">
@@ -150,7 +150,7 @@ document.querySelectorAll('.breakdown-toggle').forEach(function (toggle) {
     if (!row) return;
     var open = row.style.display !== 'none';
     row.style.display = open ? 'none' : '';
-    toggle.textContent = open ? 'إزاي اتجمع؟' : 'إخفاء التفصيل';
+    toggle.textContent = open ? 'كيف تم التجميع؟' : 'إخفاء التفصيل';
   });
 });
 </script>

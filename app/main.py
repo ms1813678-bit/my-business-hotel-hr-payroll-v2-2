@@ -5192,7 +5192,7 @@ def rehire_employee(
         if employee is None:
             raise HTTPException(status_code=404, detail="الموظف غير موجود.")
         if employee.status != "archived":
-            raise HTTPException(status_code=409, detail="لا يمكن إعادة تعيين موظف غير مؤرشف.")
+            raise HTTPException(status_code=409, detail="لا يمكن إعادة توظيف موظف غير مؤرشف.")
         previous_period = db.scalar(
             select(EmployeeServicePeriod)
             .where(EmployeeServicePeriod.employee_id == employee.id)

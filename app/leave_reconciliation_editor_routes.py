@@ -57,7 +57,7 @@ def reconciliation_editor_router(templates):
         response.headers['Cache-Control']='no-store';return response
     def fail(exc):
         busy=getattr(getattr(exc,'orig',None),'sqlstate',None)=='55P03'
-        raise HTTPException(status_code=503 if busy else 400,detail='تعذرت مسودة التسوية. راجع المصدر والأدلة والجلسة.',headers={'Cache-Control':'no-store',**({'Retry-After':'3'} if busy else {})}) from exc
+        raise HTTPException(status_code=503 if busy else 400,detail='تعذرت مسودة المطابقة. راجع المصدر والأدلة والجلسة.',headers={'Cache-Control':'no-store',**({'Retry-After':'3'} if busy else {})}) from exc
     @router.get('/leave/month-review/reconciliation/{comparison_id}/{employee_id}')
     def page(request:Request,comparison_id:str,employee_id:int,admin:AdminAccount=Depends(require_system_admin)):
         try:
