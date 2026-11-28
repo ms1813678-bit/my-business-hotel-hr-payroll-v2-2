@@ -1,10 +1,12 @@
 """HR-administered employee sanctions and rewards with acknowledgement history."""
+from datetime import date
 from decimal import Decimal
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models import utcnow, AuditLog, Employee, StaffAction
+from app.open_month import place_month
 
 
 SANCTION_CATEGORIES = {
@@ -70,6 +72,7 @@ def create_staff_action(
     payroll_month,
     reason: str,
     actor: str,
+    today: date | None = None,
 ) -> StaffAction:
     if kind not in {"sanction", "reward"}:
         raise ValueError("Invalid staff action type.")
@@ -95,6 +98,7 @@ def create_staff_action(
             raise ValueError("Financial action amount must be positive.")
         if payroll_month.day != 1:
             raise ValueError("Payroll month must be entered as the first day of the month.")
+        payroll_month, retroactive_for = place_month(db, payroll_month, today)
         duplicate = db.scalar(
             select(StaffAction.id).where(
                 StaffAction.employee_id == employee_id,
@@ -114,6 +118,8 @@ def create_staff_action(
             )
     elif amount is not None or payroll_month is not None:
         raise ValueError("Non-financial actions must not include an amount or payroll month.")
+    else:
+        retroactive_for = None
 
     item = StaffAction(
         employee_id=employee_id,
@@ -123,6 +129,7 @@ def create_staff_action(
         is_financial=is_financial,
         amount=amount,
         payroll_month=payroll_month,
+        retroactive_for_month=retroactive_for,
         reason=reason.strip(),
         status="draft",
         created_by=actor,
@@ -135,13 +142,14 @@ def create_staff_action(
         action=f"{kind}_created",
         entity_type="staff_action",
         entity_id=str(item.id),
-        new_value=f"{category}|{amount or ''}|{payroll_month or ''}",
+        new_value=f"{category}|{amount or ''}|{payroll_month or ''}"
+                  + (f"|retroactive for {retroactive_for}" if retroactive_for else ""),
         reason=reason.strip(),
     ))
     return item
 
 
-def approve_staff_action(db: Session, item: StaffAction, actor: str) -> None:
+def approve_staff_action(db: Session, item: StaffAction, actor: str, today: date | None = None) -> None:
     if item.status != "draft":
         raise ValueError("Only draft actions can be approved.")
     employee = db.scalar(
@@ -149,6 +157,17 @@ def approve_staff_action(db: Session, item: StaffAction, actor: str) -> None:
     )
     if employee is None or employee.status != "active":
         raise ValueError("The employee is not active.")
+    if item.is_financial and item.payroll_run_id is None:
+        # The month may have closed between drafting and approval: place it again, never lose it.
+        placed, retroactive_for = place_month(db, item.payroll_month, today)
+        if placed != item.payroll_month:
+            db.add(AuditLog(
+                actor=actor, action=f"{item.kind}_month_moved", entity_type="staff_action",
+                entity_id=str(item.id), old_value=str(item.payroll_month), new_value=str(placed),
+                reason=item.reason,
+            ))
+            item.retroactive_for_month = item.retroactive_for_month or retroactive_for
+            item.payroll_month = placed
     if item.is_financial:
         duplicate = db.scalar(
             select(StaffAction.id).where(

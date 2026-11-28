@@ -174,7 +174,12 @@ def test_pg_close_is_atomic_when_advance_changed_after_draft(pgapp):
         assert db.get(PayrollRun, run_id).status == "closed"
 
 
-def test_pg_financial_reward_http_create_approve_enters_payroll(pgapp):
+def test_pg_financial_reward_http_create_approve_enters_payroll(pgapp, monkeypatch):
+    from datetime import date as _date
+    from app import open_month
+    # Pin "today" inside October so the October entry stays in its open month
+    # (a later date would place it in the current month with a retroactive label).
+    monkeypatch.setattr(open_month, "today_cairo", lambda: _date(2026, 10, 20))
     from app.models import PayrollItem, StaffAction
     c = pgapp; _login(c)
     tok = _csrf(c.get("/staff-actions"))

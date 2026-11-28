@@ -31,7 +31,7 @@ def test_0083_down_up_and_populated_downgrade_refuses():
         scripts = ScriptDirectory.from_config(Config(str(ROOT / 'alembic.ini')))
         assert scripts.get_revision('0083_leave_month_correction').down_revision == PREV
         assert scripts.get_revision(PREV).down_revision == '0081_payroll_leave_cash_line'
-        assert scripts.get_current_head() == '0084_sync_change_log'
+        assert scripts.get_current_head() == '0085_late_entry_months'
         eng = create_engine(url)
         with eng.connect() as c:
             assert has_table(c) == 1

@@ -9,11 +9,17 @@
     <nav><a href="/">الرئيسية</a> · <a href="/employees">الموظفون</a> · <a href="/payroll">الرواتب</a></nav>
   </header>
 
+  {% if done %}
+  <section class="notice"><p>تم تسجيل الصرف. يُخصم القسط الأول من راتب شهر <b>{{ done }}</b>{% if retro %} <span>·</span> بأثر رجعي عن شهر <b>{{ retro }}</b>{% endif %}</p></section>
+  {% endif %}
   {% if error %}
   <section class="notice error">
     {% if error == "request" %}تعذر تسجيل السلفة. تحقق من أن تاريخ الطلب بين يوم 15 و22، وأن الموظف نشط، وأن السلفة العادية ضمن حد 25% إذا كانت عادية.
     {% elif error == "approve" %}تعذر اعتماد السلفة. تحقق من حالتها، ومن عدد الأقساط للسلفة المقسطة، ومن حد 25% إذا كانت عادية.
     {% elif error == "reject" %}تعذر رفض الطلب. يجب إدخال سبب الرفض وأن تكون الحالة معلقة.
+    {% elif error == "paid_blocked" %}لا يمكن تأكيد الصرف: سيتجاوز مبلغ السلفة الحد الشهري في شهر الخصم الفعلي، أو أن جدول أقساطها استُخدم بالفعل.
+    {% elif error == "paid_date" %}تاريخ الصرف غير صحيح: لا يمكن أن يكون في المستقبل أو قبل تاريخ الطلب.
+    {% elif error == "paid_reason" %}شهر تاريخ الصرف انتهت مهلته، لذلك يلزم كتابة سبب التسجيل المتأخر.
     {% elif error == "paid" %}لا يمكن تسجيل الصرف إلا بعد اعتماد السلفة.
     {% else %}السجل المطلوب غير موجود.{% endif %}
   </section>
@@ -22,7 +28,7 @@
   <section class="notice">
     <h2>تسجيل طلب سلفة</h2>
     <details class="hint"><summary>تعليمات</summary>
-      <p class="muted">تُقبل الطلبات من يوم 15 إلى يوم 22 من الشهر فقط. السلفة الشهرية العادية فقط تخضع لحد 25% من الراتب الأساسي. السلفة المقسطة مستقلة عن هذا الحد ويمكن أن تتجاوز الراتب الشهري، ويحدد جدولها عدد الأقساط. شهر الاستحقاق المحاسبي هو شهر الطلب، ويُدفع الراتب في اليوم الخامس من الشهر التالي.</p>
+      <p class="muted">تُقبل الطلبات من يوم 15 إلى يوم 22 من الشهر فقط. السلفة الشهرية العادية فقط تخضع لحد 25% من الراتب الأساسي. السلفة المقسطة مستقلة عن هذا الحد ويمكن أن تتجاوز الراتب الشهري، ويحدد جدولها عدد الأقساط. يبدأ الخصم من راتب الشهر الذي يؤكد فيه المسؤول صرف السلفة، ويُدفع الراتب في اليوم الخامس من الشهر التالي.</p>
     </details>
     <form method="post" action="/advances">
       <input type="hidden" name="submission_key" value="{{ submission_key }}">
@@ -101,7 +107,12 @@
       {% elif a.status == "approved" %}
       <div class="adv-card-actions">
         <form method="post" action="/advances/{{ a.id }}/paid" class="inline-form">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button type="submit">تأكيد الصرف</button>
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <label>تاريخ الصرف الفعلي<input type="date" name="paid_date" value="{{ today }}" min="{{ a.request_date.isoformat() }}" max="{{ today }}" required></label>
+          {% if a.advance_type == "installment" %}<label>بدء الخصم<select name="start_delay"><option value="0">في شهر تاريخ الصرف (الافتراضي)</option><option value="1">بعد شهر واحد</option><option value="2">بعد شهرين</option></select></label>{% endif %}
+          <label>سبب التسجيل المتأخر (مطلوب فقط إذا انتهت مهلة شهر التاريخ)<input name="reason"></label>
+          <p class="muted">يُحدد شهر الخصم بتاريخ الصرف الفعلي. يمكن تسجيل تاريخ شهر ما حتى اليوم الخامس من الشهر التالي (اليوم الخامس نفسه مشمول). بعد ذلك يُسجَّل القسط في الشهر الحالي مع السبب وعبارة بأثر رجعي.</p>
+          <button type="submit">تأكيد الصرف</button>
         </form>
       </div>
       {% endif %}

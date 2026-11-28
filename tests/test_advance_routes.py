@@ -138,6 +138,15 @@ def test_regular_advance_cap_approval_payment_and_request_month(advance_client):
         follow_redirects=False,
     )
     assert approved.status_code == 303
+    bad_date = client.post(
+        f"/advances/{request_id}/paid",
+        data={"csrf_token": token, "paid_date": "not-a-date"},
+        follow_redirects=False,
+    )
+    assert bad_date.status_code == 303
+    assert "error=paid_date" in bad_date.headers["location"]
+    with client.test_session_factory() as db:
+        assert db.get(AdvanceRequest, request_id).status == "approved"
     paid = client.post(
         f"/advances/{request_id}/paid",
         data={"csrf_token": token},

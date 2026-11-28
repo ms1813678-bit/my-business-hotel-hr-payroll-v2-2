@@ -46,7 +46,7 @@ def test_0081_down_up_and_refusal_with_nonzero_line():
         assert bad.returncode != 0 and 'Refusing downgrade' in bad.stdout + bad.stderr
         with eng.connect() as c:
             assert has_col(c) == 1
-            assert c.execute(text('SELECT version_num FROM alembic_version')).scalar_one() == '0084_sync_change_log'  # head after the carry migration (all-or-nothing downgrade)
+            assert c.execute(text('SELECT version_num FROM alembic_version')).scalar_one() == '0085_late_entry_months'  # head after the carry migration (all-or-nothing downgrade)
         eng.dispose()
     finally:
         with admin.connect() as c:

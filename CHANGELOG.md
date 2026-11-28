@@ -1,3 +1,10 @@
+## 2026-11-28, Instinct: late entries and the advance payment date (CI to confirm; not acceptance)
+
+- Advances: HR enters the real payment date when confirming; its month decides the first installment month. A date in month M is accepted until the whole 5th of the next month; after that, or when M's run is approved or closed, the first installment goes into the current month with a required reason and a retroactive label. Future dates and dates before the request are refused. Unpaid approved schedules move at confirmation; used installments never move; the regular-advance limit is re-checked in the real month. The HR's date is stored and audited as HR's claim.
+- Bonuses and deductions follow the same rule at create and approve (app/open_month.py); migration 0085 adds the nullable columns. Labels are stored but only shown on the advance confirmation banner so far.
+- Fixed translated messages for the new advance refusals.
+- Installment advances: HR may start deducting 0 to 2 months after the placed month (never earlier); regular advances refuse a delay. The delay is audited with the entered payment date (Mo's text of 28 Nov 2026 03:46:24, read in meaning, relayed by Main; the 2-month maximum is his text of 10:26:41, relayed by Main).
+
 ## 2026-11-27, Instinct: sync core part 1a, the append-only change log (not sync, not acceptance)
 
 - Migration 0084 adds the table sync_change_log. It adds no column or row to any business table. app/sync_change_log.py writes and verifies it (per-device counter, hash chain, canonical UTC time, main_seq stamping, export of the new value only). Nothing in the product calls it yet.

@@ -5,6 +5,7 @@ from decimal import Decimal
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.open_month import next_month, place_month, today_cairo
 from app.models import utcnow, AdvanceInstallment, AdvanceRequest, AuditLog, Employee, PayrollItem, PayrollRun
 
 
@@ -12,10 +13,10 @@ RESERVING_STATUSES = ("pending", "approved", "paid")
 
 
 def payroll_month_for_advance(request_date: date) -> date:
-    """Return the salary period charged for an advance request.
+    """Provisional salary period stored when the advance is requested.
 
-    The salary period is the request month; payroll is paid on the fifth of the
-    following month. This keeps accounting month separate from payout date.
+    The real first deduction month is set when HR confirms the payment (see
+    mark_advance_paid); payroll is paid on the fifth of the following month.
     """
     return date(request_date.year, request_date.month, 1)
 
@@ -252,14 +253,83 @@ def reject_advance(db: Session, request: AdvanceRequest, actor: str, reason: str
     )
 
 
-def mark_advance_paid(db: Session, request: AdvanceRequest, actor: str) -> None:
+def _reschedule_unpaid_installments(db: Session, request: AdvanceRequest, first_month: date) -> None:
+    """Move the not-yet-consumed schedule so installment 1 falls in first_month. Amounts and count stay.
+
+    Only rows that no run has used can move; payroll takes installments of paid advances only, so the
+    rows of an approved, unpaid advance are always free."""
+    from app.advance_repayment_schedule import build_repayment_schedule
+
+    rows = db.scalars(
+        select(AdvanceInstallment)
+        .where(AdvanceInstallment.advance_request_id == request.id)
+        .order_by(AdvanceInstallment.installment_number)
+        .with_for_update()
+    ).all()
+    if not rows:
+        raise ValueError("The advance has no installment schedule.")
+    if any(r.status != "scheduled" or r.applied_payroll_run_id is not None for r in rows):
+        raise ValueError("The installment schedule was already used by payroll.")
+    schedule = build_repayment_schedule(Decimal(request.amount), first_month, len(rows))
+    for row, item in zip(reversed(rows), reversed(schedule)):  # latest first: no unique-month clash
+        row.payroll_month = item["payroll_month"]
+        row.scheduled_payment_date = item["pay_date"]
+        db.flush()
+
+
+def mark_advance_paid(
+    db: Session, request: AdvanceRequest, actor: str,
+    paid_on: date | None = None, reason: str | None = None, today: date | None = None,
+    start_delay_months: int = 0,
+) -> date:
+    """Confirm the payment. The month of the REAL payment date decides the first installment month.
+
+    Rule (Mo's text of 27 Nov 2026 23:51:32, read in meaning, relayed by Main): HR enters the real payment
+    date; it is accepted for its own month until the 5th of the next month (the whole 5th). After that, or
+    when that month's payroll run is already approved or closed, the first installment goes into the current
+    open month with the written reason and a "retroactive for <month>" label. The date is HR's claim and is
+    audited. For an installment advance HR may start deducting later than that month (start_delay_months, 0 to
+    2; Mo's text of 28 Nov 2026 03:46:24, read in meaning, relayed by Main); never earlier. Returns the
+    first deduction month."""
     request = _lock_request(db, request)
     if request.status != "approved":
         raise ValueError("Only an approved advance can be marked as paid.")
+    today = today or today_cairo()
+    paid_on = paid_on or today
+    if paid_on > today:
+        raise ValueError("The payment date cannot be in the future.")
+    if paid_on < request.request_date:
+        raise ValueError("The payment date cannot be before the request date.")
+    first_month, retroactive_for = place_month(db, paid_on, today)
+    if not isinstance(start_delay_months, int) or not 0 <= start_delay_months <= 2:
+        raise ValueError("The deduction start delay must be between 0 and 2 months.")
+    if start_delay_months and request.advance_type != "installment":
+        raise ValueError("Only an installment advance can start deducting later.")
+    for _ in range(start_delay_months):
+        first_month = next_month(first_month)
+    reason = (reason or "").strip()
+    if retroactive_for is not None and not reason:
+        raise ValueError("A reason is required when the payment month is already closed.")
+    if first_month != request.payroll_month and request.advance_type == "regular":
+        cap = (advance_cap_basis(db, request.employee_id, first_month, Decimal(request.salary_basis)) * Decimal("0.25")).quantize(Decimal("0.01"))
+        if reserved_amount(db, request.employee_id, first_month, exclude_id=request.id) + Decimal(request.amount) > cap:
+            raise ValueError("The monthly advance limit would be exceeded in the deduction month.")
+    previous_month = request.payroll_month
+    _reschedule_unpaid_installments(db, request, first_month)
+    request.payroll_month = first_month
+    request.paid_date = paid_on
+    request.retroactive_for_month = retroactive_for
+    request.late_payment_reason = reason or None
     request.status = "paid"
     request.paid_by = actor
     request.paid_at = utcnow()
     _audit(
         db, actor=actor, action="advance_paid", request=request,
-        old="approved", new="paid", reason="Payment confirmed by HR administrator.",
+        old="approved", new="paid",
+        reason=(f"Payment confirmed by HR administrator; payment date entered by HR {paid_on.isoformat()} "
+                f"(HR's claim); first deduction month {first_month.isoformat()} "
+                f"(start delay {start_delay_months} month(s)) (request month "
+                f"{previous_month.isoformat()})"
+                + (f"; retroactive for {retroactive_for.isoformat()}: {reason}" if retroactive_for else "") + "."),
     )
+    return first_month

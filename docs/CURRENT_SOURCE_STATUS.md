@@ -4,11 +4,12 @@ Instinct, 25 November 2026, 17:07 Africa/Cairo. This page corrects the stale ope
 
 ## 27 November 2026, schema head and Windows parser status (documentation update)
 
-Schema head on ui-overhaul is now 0084_sync_change_log (adds only the append-only sync_change_log table, unused by any screen). Four migrations after 0080 had no entry here:
+Schema head on ui-overhaul is now 0085_late_entry_months (adds nullable columns only: staff_actions.retroactive_for_month and advance_requests.paid_date, retroactive_for_month, late_payment_reason; 0084 added only the append-only sync_change_log table, unused by any screen). Four migrations after 0080 had no entry here:
 - 0081_payroll_leave_cash_line: adds payroll_items.leave_cash_amount (separate payslip line for leave cash-out, not negative, default 0).
 - 0082_payroll_carry_deduction: adds carried_in_deduction and carried_out_amount to payroll items (excess deductions carry to the next month; existing rows get 0).
 - 0083_leave_month_correction: adds the leave_month_corrections table (reviewed reversal and replacement correction of a posted leave month).
 - 0084_sync_change_log: adds the sync_change_log table (sync core part 1a, see docs/SYNC_DESIGN.md section 8).
+- 0085_late_entry_months: late-entry columns. Rule, read in meaning from Mo's notes of 27 Nov 2026 23:40, 23:41 and 23:51 (relayed by Main): an entry about month M (bonus, deduction, advance payment date) is accepted for M until the whole 5th of the next month (Main's reading); after that, or when M's payroll run is approved or closed, it goes into the current month with its reason and a retroactive label. Code: app/open_month.py. Downgrade of 0085 drops these columns and their data silently (additive migration, no archive).
 A freshly initialised database holds only the schema version, the employee code counter and the six leave kinds (tests/test_fresh_install_has_no_business_rows_pg.py).
 
 Windows parser: the sections below that say the Windows parser is off and fails closed describe earlier states. Since b87a4bf the gate accepts Windows and runs the Job Object adapter, with 8 Windows-only tests passing in CI. This is CI evidence on a runner, not a hotel device, and acceptance for use is Mo's call and not made.

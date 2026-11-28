@@ -712,6 +712,9 @@ class AdvanceRequest(Base):
     rejection_reason: Mapped[str | None] = mapped_column(Text)
     paid_by: Mapped[str | None] = mapped_column(String(80))
     paid_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    paid_date: Mapped[date | None] = mapped_column(Date)
+    retroactive_for_month: Mapped[date | None] = mapped_column(Date)
+    late_payment_reason: Mapped[str | None] = mapped_column(Text)
     deducted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     payroll_run_id: Mapped[int | None] = mapped_column(ForeignKey("payroll_runs.id", ondelete="RESTRICT"))
 
@@ -753,6 +756,10 @@ class StaffAction(Base):
             name="ck_staff_actions_ack_status",
         ),
         CheckConstraint(
+            "retroactive_for_month IS NULL OR is_financial = TRUE",
+            name="ck_staff_actions_retroactive_month",
+        ),
+        CheckConstraint(
             "(is_financial = TRUE AND amount IS NOT NULL AND payroll_month IS NOT NULL) "
             "OR (is_financial = FALSE AND amount IS NULL AND payroll_month IS NULL)",
             name="ck_staff_actions_financial_fields",
@@ -786,6 +793,7 @@ class StaffAction(Base):
     acknowledgement_note: Mapped[str | None] = mapped_column(Text)
     payroll_applied_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     payroll_run_id: Mapped[int | None] = mapped_column(ForeignKey("payroll_runs.id", ondelete="RESTRICT"))
+    retroactive_for_month: Mapped[date | None] = mapped_column(Date)
 
 
 class PayrollRun(Base):

@@ -78,6 +78,7 @@ from app.telegram_alerts import (
 from app.security import _MIN_PASSWORD_LENGTH, hash_password, verify_password
 from app.employee_codes import allocate_employee_code
 from app.leave_workflow import add_balance_entry, cancel_leave, confirm_leave
+from app.open_month import today_cairo
 from app.advance_workflow import advance_cap_basis, payroll_month_for_advance, approve_advance, create_advance, mark_advance_paid, reject_advance
 from app.models import AdvanceInstallment, CAIRO_TZ
 from app.ai_error_display import known_reason, safe_failure_message
@@ -2307,6 +2308,10 @@ def cancel_leave_record(
     return RedirectResponse("/leave", status_code=303)
 
 
+def _month_param(value: str | None) -> str | None:
+    return value if value and re.fullmatch(r"\d{4}-(0[1-9]|1[0-2])", value) else None
+
+
 @app.get("/advances", response_class=HTMLResponse)
 def advances_page(request: Request, page: int = 1, tab: str = "pending", admin: AdminAccount = Depends(require_payroll_access)):
     with SessionLocal() as db:
@@ -2421,10 +2426,12 @@ def advances_page(request: Request, page: int = 1, tab: str = "pending", admin: 
                 "employee_names": {e.id: e.full_name for e in all_employees},
                 "employee_codes": {e.id: e.code for e in all_employees},
                 "category_labels": CATEGORY_LABELS_AR,
-                "today": date.today().isoformat(),
+                "today": today_cairo().isoformat(),
                 "submission_key": uuid4().hex,
                 "csrf_token": get_csrf_token(request),
                 "error": request.query_params.get("error"),
+                "done": _month_param(request.query_params.get("done")),
+                "retro": _month_param(request.query_params.get("retro")),
             },
         )
 
@@ -2502,6 +2509,9 @@ def reject_advance_request(
 @app.post("/advances/{request_id}/paid", dependencies=[Depends(csrf_protect)])
 def mark_advance_request_paid(
     request_id: int,
+    paid_date: str | None = Form(None),
+    reason: str = Form(""),
+    start_delay: int = Form(0),
     admin: AdminAccount = Depends(require_payroll_access),
 ):
     try:
@@ -2513,10 +2523,28 @@ def mark_advance_request_paid(
             )
             if request is None:
                 return RedirectResponse("/advances?error=record", status_code=303)
-            mark_advance_paid(db, request, admin.username)
-    except (ValueError, SQLAlchemyError):
+            try:
+                paid_on = date.fromisoformat(paid_date) if paid_date else None
+            except ValueError:
+                return RedirectResponse("/advances?error=paid_date", status_code=303)
+            first_month = mark_advance_paid(
+                db, request, admin.username, paid_on=paid_on, reason=reason, start_delay_months=start_delay)
+            retro = request.retroactive_for_month
+    except ValueError as exc:
+        code = {
+            "The monthly advance limit would be exceeded in the deduction month.": "paid_blocked",
+            "The installment schedule was already used by payroll.": "paid_blocked",
+            "A reason is required when the payment month is already closed.": "paid_reason",
+            "The payment date cannot be in the future.": "paid_date",
+            "The payment date cannot be before the request date.": "paid_date",
+            "The deduction start delay must be between 0 and 2 months.": "paid_date",
+            "Only an installment advance can start deducting later.": "paid_date",
+        }.get(str(exc), "paid")
+        return RedirectResponse("/advances?error=" + code, status_code=303)
+    except SQLAlchemyError:
         return RedirectResponse("/advances?error=paid", status_code=303)
-    return RedirectResponse("/advances", status_code=303)
+    done = first_month.strftime("%Y-%m") + (("&retro=" + retro.strftime("%Y-%m")) if retro else "")
+    return RedirectResponse("/advances?done=" + done, status_code=303)
 
 
 @app.get("/staff-actions", response_class=HTMLResponse)
