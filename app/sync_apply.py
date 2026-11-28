@@ -27,7 +27,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from dataclasses import field as dc_field
 
-from app.sync_change_log import GENESIS_HASH, MARKER_FIELD, ChainBroken, SyncLogError, row_hash
+from app.sync_change_log import GENESIS_HASH, MARKER_FIELD, OPS, ChainBroken, SyncLogError, row_hash
 from app.sync_device_export import (
     can_write as can_see_and_name,  # read visibility, used only to detect hidden fields
 )
@@ -41,6 +41,7 @@ class SessionPlan:
     apply: list = dc_field(default_factory=list)
     duplicates: list = dc_field(default_factory=list)
     conflicts: list = dc_field(default_factory=list)
+    already_deleted: list = dc_field(default_factory=list)  # delete of a record already deleted: nothing to do
     warning: dict | None = None  # set only when status is "returned"
 
 
@@ -51,6 +52,24 @@ def _g(row, key):
 def _warning(row, reason):
     return {"reason": reason, "entity": _g(row, "entity"), "uid": _g(row, "uid"), "field": _g(row, "field"),
             "origin_device_id": _g(row, "origin_device_id"), "origin_counter": _g(row, "origin_counter")}
+
+
+def _in_counter_order(rows):
+    """Rows of one session sorted by counter. An identical repeat of a row is kept once; the same counter with
+    other content is an integrity failure. Order of arrival never decides anything, the counter does.
+    Note: this check compares row_hash fields as sent, before the chain check re-hashes the content; a dropped
+    identical copy is therefore never re-hashed. The kept copy is re-hashed in _check_chain."""
+    seen = {}
+    for r in rows:
+        c = _g(r, "origin_counter")
+        if type(c) is not int or c < 1:
+            raise ChainBroken("counter must be a positive integer")
+        if c in seen:
+            if _g(seen[c], "row_hash") != _g(r, "row_hash"):
+                raise ChainBroken("counter used twice with other content")
+            continue
+        seen[c] = r
+    return [seen[c] for c in sorted(seen)]
 
 
 def _check_chain(rows, device_id, known):
@@ -90,7 +109,10 @@ def plan_session(*, role, device_id, rows, applied, last_counter, main_values, m
     """
     if not callable(may_edit):
         raise SyncLogError("an edit policy is required")
-    fresh, dups = _check_chain(list(rows), device_id, (applied, last_counter))
+    fresh, dups = _check_chain(_in_counter_order(rows), device_id, (applied, last_counter))
+    for r in list(fresh) + list(dups):
+        if _g(r, "op") not in OPS:
+            raise SyncLogError("unknown operation in session")
     for r in fresh:  # whole-session stop comes first: nothing is planned around a bad change
         e, f, op = _g(r, "entity"), _g(r, "field"), _g(r, "op")
         if op == "set" and not can_see_and_name(role, e, f):
@@ -107,7 +129,9 @@ def plan_session(*, role, device_id, rows, applied, last_counter, main_values, m
             else:
                 plan.apply.append(r)
         elif op == "delete":
-            if rec in main_touched:
+            if rec in main_deleted or rec in session_deleted:
+                plan.already_deleted.append(r)
+            elif rec in main_touched:
                 plan.conflicts.append((r, "delete_against_edit"))
             else:
                 plan.apply.append(r)

@@ -100,3 +100,11 @@ Open items (not decided, not built):
 - Delete and create markers are logged; `sync_device_export` drops field `*` today, so deletes do not reach devices until part 1b handles markers.
 - Pairing code lifetime: proposal 10 minutes, single use. To ask Mo with the other sync points.
 - Offline edits that were made before a restore of the main, and edits to a not-yet-completed employee, need a rule in part 1b.
+
+## 9. Technical proposals in part 1b-ii (not decided by Mo, not wired)
+
+- Seeded uids (`app/sync_uid_seed.py`): only reference rows made by migrations (leave types, key = code) get a uid derived from a fixed namespace and the natural key. Departments (user-entered, so two installs could collide silently) and branches (no uid yet) have derivation helpers marked as proposals; they are refused unless the caller passes `proposal=True`. Applying any seeded uid to existing rows needs a migration that does not exist yet.
+- A delete of a record that is already deleted (on main, or earlier in the same session) is a no-op listed in `SessionPlan.already_deleted`, not a conflict. Technical proposal; no business rule behind it.
+- Rows in a session are sorted by counter before checking; an identical repeat is kept once, the same counter with other content is an integrity failure.
+- `app/sync_apply_ops.py` fixes the shape of the ops list and of the returned-session record, and `is_expired` takes the number of days as a required argument; the 30-day figure above stays a proposal.
+- The next part (the executor) must record consumed conflict and already-deleted rows in the main's change log, so the device's counter chain continues without a gap.

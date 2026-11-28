@@ -96,3 +96,67 @@ def test_deletes_and_edits_go_to_conflicts_not_silently_applied():
     assert len(p.apply) == 1 and p.conflicts[0][1] == "edit_on_deleted"
     rows = mk([("create", "employees", EMP, "*", None, None)])
     assert plan(rows, deleted={("employees", EMP)}).conflicts[0][1] == "create_on_deleted"
+
+
+def test_rows_out_of_counter_order_are_sorted_and_plan_equals_in_order():
+    rows = mk([("set", "employees", EMP, "full_name", "A", "B"), ("set", "employees", EMP, "full_name", "B", "C"),
+               ("set", "employees", EMP, "nationality", None, "X")])
+    v = {("employees", EMP, "full_name"): "A"}
+    want = plan(rows, values=v)
+    got = plan(list(reversed(rows)), values=v)
+    assert got.status == READY and got.apply == want.apply and not got.conflicts
+    assert [r["origin_counter"] for r in got.apply] == [1, 2, 3]
+
+
+def test_repeat_of_identical_row_in_one_session_is_kept_once():
+    rows = mk([("set", "employees", EMP, "full_name", "A", "B"), ("set", "employees", EMP, "nationality", None, "X")])
+    p = plan([rows[0], rows[1], rows[0]], values={("employees", EMP, "full_name"): "A"})
+    assert len(p.apply) == 2 and not p.duplicates
+
+
+def test_same_counter_different_content_in_one_session_is_integrity_failure():
+    a = mk([("set", "employees", EMP, "full_name", "A", "B")])
+    b = mk([("set", "employees", EMP, "full_name", "A", "Z")])
+    with pytest.raises(ChainBroken):
+        plan(a + b)
+
+
+def test_order_gap_still_refused_after_sorting():
+    rows = mk([("set", "employees", EMP, "full_name", "A", "B"), ("set", "employees", EMP, "full_name", "B", "C"),
+               ("set", "employees", EMP, "nationality", None, "X")])
+    with pytest.raises(ChainBroken):
+        plan([rows[2], rows[0]])
+
+
+@pytest.mark.parametrize("bad", [0, -1, True, "1", None])
+def test_bad_counter_refused(bad):
+    rows = mk([("set", "employees", EMP, "full_name", "A", "B")])
+    rows[0]["origin_counter"] = bad
+    with pytest.raises(ChainBroken):
+        plan(rows)
+
+
+def test_delete_of_record_already_deleted_on_main_is_a_noop_not_a_conflict():
+    rows = mk([("delete", "employees", EMP, "*", None, None)])
+    p = plan(rows, deleted={("employees", EMP)}, touched={("employees", EMP)})
+    assert p.status == READY and p.already_deleted == rows and not p.apply and not p.conflicts
+
+
+def test_second_delete_in_same_session_is_a_noop():
+    rows = mk([("delete", "employees", EMP, "*", None, None), ("delete", "employees", EMP, "*", None, None)])
+    p = plan(rows)
+    assert p.apply == [rows[0]] and p.already_deleted == [rows[1]] and not p.conflicts
+
+
+def test_delete_against_edit_still_conflicts_and_other_deletes_apply():
+    rows = mk([("delete", "employees", EMP, "*", None, None)])
+    p = plan(rows, touched={("employees", EMP)})
+    assert [c[1] for c in p.conflicts] == ["delete_against_edit"] and not p.already_deleted
+
+
+def test_unknown_op_is_refused_before_any_visibility_check():
+    rows = mk([("foo", "employees", EMP, "basic_salary", "1", "2")])
+    with pytest.raises(SyncLogError):
+        plan(rows, role="assistant_manager")
+    with pytest.raises(SyncLogError):
+        plan(rows)
