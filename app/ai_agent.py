@@ -52,7 +52,9 @@ from app.national_id import ERROR_MESSAGE as NATIONAL_ID_ERROR
 from app.national_id import is_valid_egyptian_national_id
 from app.payroll_workflow import approve_payroll_run, close_payroll_run, reopen_payroll_run
 from app.staff_actions_workflow import approve_staff_action, cancel_staff_action
-from app.open_month import SALARY_CHANGE_CLOSED_MONTH_MESSAGE, salary_change_blocked
+from app.open_month import SALARY_CHANGE_CLOSED_MONTH_MESSAGE, salary_change_blocked, today_cairo
+
+FUTURE_EFFECTIVE_DATE_MESSAGE = "تاريخ سريان تعديل بيانات الموظف لا يمكن أن يكون في المستقبل."
 
 WRITE_PREFIXES = ("نفذ ", "نفّذ ", "نفذ:", "نفّذ:", "执行 ", "执行：", "执行:")
 # English execution prefixes are matched case-insensitively.
@@ -436,6 +438,9 @@ def execute_plan(plan: dict[str, Any], actor: str, *, db=None, human_coverage_co
                     branch = db.get(Branch, branch_id)
                     if branch is None or not branch.active or branch.department_id != department_id:
                         raise ValueError("الفرع المحدد غير تابع للقسم.")
+            if plan.get("effective_date") and _parse_date(plan["effective_date"], "السريان") > today_cairo():
+                # Same rule as the edit form: a change cannot take effect in the future.
+                raise ValueError(FUTURE_EFFECTIVE_DATE_MESSAGE)
             for field in fields:
                 if field in plan and plan[field] is not None:
                     new_value = plan[field]

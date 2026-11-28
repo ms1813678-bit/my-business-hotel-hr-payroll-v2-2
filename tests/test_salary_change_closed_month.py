@@ -118,3 +118,33 @@ def test_blocked_rule_follows_the_fifth_and_the_run_status():
         # the current month is never blocked, even with an approved run
         assert salary_change_blocked(db, date(2031, 11, 20), date(2031, 11, 25)) is False
     engine.dispose()
+
+
+def test_ai_path_refuses_a_future_dated_change_like_the_form(client):
+    from datetime import timedelta
+    import app.ai_agent as ai
+    from app.ai_agent import execute_plan
+    ai.SessionLocal = client.factory
+    future = (today_cairo() + timedelta(days=90)).isoformat()
+    assert _post(client, basic_salary="7000", effective_date=future).status_code == 400
+    with pytest.raises(ValueError, match="لا يمكن أن يكون في المستقبل"):
+        execute_plan({"action": "edit_employee", "employee_id": client.emp_id, "basic_salary": "7000",
+                      "effective_date": future, "reason": "synthetic"}, "tester")
+    with client.factory() as db:
+        assert db.get(Employee, client.emp_id).basic_salary == Decimal("5000.00")
+        assert db.scalars(select(EmployeeChange)).all() == []
+
+
+def test_ai_multi_field_edit_rolls_back_when_the_salary_block_raises_mid_loop(client):
+    from datetime import timedelta
+    import app.ai_agent as ai
+    from app.ai_agent import execute_plan
+    ai.SessionLocal = client.factory
+    old = (_months_back(2).replace(day=10)).isoformat()
+    with pytest.raises(ValueError):
+        execute_plan({"action": "edit_employee", "employee_id": client.emp_id, "position": "Changed",
+                      "basic_salary": "8000", "effective_date": old, "reason": "synthetic"}, "tester")
+    with client.factory() as db:
+        emp = db.get(Employee, client.emp_id)
+        assert emp.position == "P" and emp.basic_salary == Decimal("5000.00")
+        assert db.scalars(select(EmployeeChange)).all() == []

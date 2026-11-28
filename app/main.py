@@ -4892,7 +4892,7 @@ def edit_employee(
         raise HTTPException(status_code=400, detail="بيانات الراتب أو ساعات العمل غير صحيحة.")
     if probation_start_date and probation_end_date and probation_end_date < probation_start_date:
         raise HTTPException(status_code=400, detail="نهاية فترة الاختبار لا يمكن أن تسبق بدايتها.")
-    if effective_date > date.today():
+    if effective_date > today_cairo():
         raise HTTPException(
             status_code=400,
             detail="تاريخ سريان تعديل بيانات الموظف لا يمكن أن يكون في المستقبل.",
