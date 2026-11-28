@@ -2274,12 +2274,16 @@ def _translate_value(value: str, language: str) -> str:
     return leading + translated + trailing
 
 
+_VOID_TAGS = frozenset({"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "source", "track", "wbr"})
+
+
 class _Translator(HTMLParser):
     def __init__(self, language: str):
         super().__init__(convert_charrefs=False)
         self.language = language
         self.parts: list[str] = []
         self.skip_stack: list[str] = []
+        self.skip_depth = 0
 
     def handle_decl(self, decl: str) -> None:
         self.parts.append(f"<!{decl}>")
@@ -2294,7 +2298,16 @@ class _Translator(HTMLParser):
         ):
             # Opt-out for user-entered and stored content: it must render
             # byte-identical, never catalog-translated.
-            self.skip_stack.append(tag)
+            # A void element (br, input...) never gets an end tag, so it must not open a skip block;
+            # a nested tag of the same name inside a block is counted so the first close does not end it.
+            if tag not in _VOID_TAGS:
+                if self.skip_stack and self.skip_stack[-1] == tag:
+                    self.skip_depth += 1
+                elif not self.skip_stack:
+                    self.skip_stack.append(tag)
+                    self.skip_depth = 1
+        elif self.skip_stack and self.skip_stack[-1] == tag:
+            self.skip_depth += 1
         if tag == "html":
             lang = "ar" if self.language == "ar" else "en" if self.language == "en" else "zh-CN"
             direction = "rtl" if self.language == "ar" else "ltr"
@@ -2317,7 +2330,10 @@ class _Translator(HTMLParser):
     def handle_endtag(self, tag: str) -> None:
         self.parts.append(f"</{tag}>")
         if self.skip_stack and self.skip_stack[-1] == tag:
-            self.skip_stack.pop()
+            self.skip_depth -= 1
+            if self.skip_depth <= 0:
+                self.skip_stack.pop()
+                self.skip_depth = 0
 
     def handle_data(self, data: str) -> None:
         self.parts.append(data if self.skip_stack else escape(_translate_value(data, self.language), quote=False))

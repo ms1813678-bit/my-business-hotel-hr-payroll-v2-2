@@ -294,9 +294,13 @@ def validate_security_roster(db, *, period_start: date, period_end: date) -> Non
             if change.effective_date <= work_date:
                 continue
             try:
-                department_id = int(change.old_value)
+                expected_new = int(change.new_value)
+                previous_department = int(change.old_value)
             except (TypeError, ValueError):
                 raise ValueError("employee_department_history_is_incomplete")
+            if department_id != expected_new:
+                raise ValueError("employee_department_history_is_inconsistent")
+            department_id = previous_department
         return department_id
 
     patterns = {

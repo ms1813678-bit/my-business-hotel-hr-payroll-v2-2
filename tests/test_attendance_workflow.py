@@ -1272,3 +1272,26 @@ def test_security_roster_uses_department_history_before_the_first_change(db_sess
     ])
     db_session.flush()
     validate_security_roster(db_session, period_start=later, period_end=later)
+
+
+def test_security_roster_department_chain_break_is_refused(db_session):
+    """A department change whose new value does not match the current department is a broken chain."""
+    from app.attendance_workflow import validate_security_roster
+
+    security = Department(name="Security", active=True)
+    other = Department(name="Other chain dept", active=True)
+    third = Department(name="Third chain dept", active=True)
+    db_session.add_all([security, other, third])
+    db_session.flush()
+    guard = Employee(code="SEC-CH1", full_name="Guard chain", department_id=security.id, position="Guard",
+                     hire_date=date(2026, 1, 1), status="active", basic_salary=Decimal("5000"),
+                     daily_hours=Decimal("8"))
+    db_session.add(guard)
+    db_session.flush()
+    db_session.add(EmployeeServicePeriod(employee_id=guard.id, start_date=date(2026, 1, 1)))
+    # Recorded as other -> third, but the employee now sits in Security: the chain does not reach today.
+    db_session.add(EmployeeChange(employee_id=guard.id, field_name="department_id", old_value=str(other.id),
+                                  new_value=str(third.id), effective_date=date(2026, 11, 10), reason="synthetic"))
+    db_session.flush()
+    with pytest.raises(ValueError, match="employee_department_history_is_inconsistent"):
+        validate_security_roster(db_session, period_start=date(2026, 11, 2), period_end=date(2026, 11, 2))
